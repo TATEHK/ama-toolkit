@@ -57,11 +57,20 @@ def texts():
 def result_lists():
     for t in texts():
         t = t.strip()
-        if not t.startswith('{"results"'):
-            continue
-        try:
-            res = json.loads(t).get('results')
-        except ValueError:
+        res = None
+        if t.startswith('{"results"'):
+            try:
+                res = json.loads(t).get('results')
+            except ValueError:
+                continue
+        elif t.startswith('['):
+            # Large EFC results don't fit inline, so they are saved to a file as a bare
+            # JSON array (no {"results": ...} wrapper). Read those too, or big classes are lost.
+            try:
+                res = json.loads(t)
+            except ValueError:
+                continue
+        else:
             continue
         if isinstance(res, list) and res and isinstance(res[0], dict) and 'grade' in res[0] and 'programme' in res[0]:
             yield res
