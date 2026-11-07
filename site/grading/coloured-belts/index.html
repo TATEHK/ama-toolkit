@@ -313,17 +313,51 @@
   .seq-acts { display: flex; gap: 6px; }
   dialog.seq-wide { width: min(1100px, calc(100% - 24px)); }
   .seq-grid { min-width: 860px; }
-  .seq-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px; border: 1px solid var(--line2, #31473a); border-radius: 12px; margin: 10px 0 14px; }
-  .seq-switch b { font: 700 22px/1 var(--display); }
-  .seq-switch.on { border-color: var(--green, #2f9e5b); }
-  .seq-switch.on b { color: var(--green-text, #7fd6a2); }
-  .seq-switch span { flex: 1 1 220px; color: var(--sub); font-size: 14px; }
-  .seq-test { gap: 12px; } .seq-test .field { flex: 1 1 220px; margin: 0; }
-  .seq-track { margin: 22px 0 8px; font: 700 16px/1.2 var(--display); color: var(--sub); text-transform: uppercase; letter-spacing: .04em; }
-  .seq-step { border: 1px solid var(--line, #253629); border-radius: 12px; padding: 12px; margin: 8px 0; display: grid; gap: 8px; }
-  .seq-step-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
-  .seq-step-h .sub { font-size: 13px; color: var(--sub); }
-  .seq-step textarea, .seq-step input[type=text] { width: 100%; }
+  .sq-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .sq-head .hint { margin-top: 2px; }
+  .sq-state { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line2); font: 700 15px/1 var(--display); color: var(--sub); white-space: nowrap; }
+  .sq-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint, #74897b); }
+  .sq-state.on { color: var(--green-text, #7fd6a2); border-color: rgba(47,158,91,.5); background: rgba(47,158,91,.1); }
+  .sq-state.on .sq-dot { background: var(--green, #2f9e5b); box-shadow: 0 0 0 4px rgba(47,158,91,.18); }
+  .sq-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 8px; }
+  .sq-note { flex: 1 1 200px; font-size: 13.5px; color: var(--sub); }
+  .sq-to { font-size: 13.5px; color: var(--sub); margin-bottom: 12px; }
+  .sq-to summary { cursor: pointer; padding: 4px 0; }
+  .sq-to summary b { color: var(--text); font-weight: 600; }
+  .sq-to-in { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .sq-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--raise, #1b2821); overflow-x: auto; scrollbar-width: none; }
+  .sq-tabs button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border: 0; border-radius: 9px; background: none; color: var(--sub); font: 600 14px var(--body); cursor: pointer; white-space: nowrap; }
+  .sq-tabs button small { font-size: 12px; color: var(--faint, #74897b); }
+  .sq-tabs button[aria-selected="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+  .sq-sub { font-size: 13px; color: var(--sub); margin: 10px 2px 6px !important; }
+  .sq-list { list-style: none; margin: 0; padding: 0; position: relative; }
+  .sq-list::before { content: ""; position: absolute; left: 104px; top: 18px; bottom: 18px; width: 2px; background: var(--line); }
+  .sq-item { position: relative; }
+  .sq-row { width: 100%; display: grid; grid-template-columns: 72px 34px 1fr 16px; align-items: center; gap: 10px; padding: 8px 6px; border: 0; border-radius: 10px; background: none; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+  .sq-row:hover, .sq-item.open .sq-row { background: var(--raise, #1b2821); }
+  .sq-when { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+  .sq-when b { font: 700 15px/1.1 var(--display); }
+  .sq-when small { font-size: 11.5px; color: var(--sub); }
+  .sq-ico { position: relative; z-index: 1; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); border: 2px solid var(--line2); color: var(--sub); }
+  .sq-ico svg { width: 15px; height: 15px; }
+  .sq-ico.sms { color: var(--gold, #f5c518); border-color: rgba(245,197,24,.45); }
+  .sq-ico.email { color: #8fb8ff; border-color: rgba(143,184,255,.45); }
+  .sq-ico.call { color: var(--green-text, #7fd6a2); border-color: rgba(47,158,91,.55); }
+  .sq-txt { min-width: 0; display: flex; flex-direction: column; }
+  .sq-txt b { font-weight: 600; font-size: 15px; }
+  .sq-txt small { font-size: 13px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sq-chev { color: var(--faint, #74897b); font-size: 20px; transition: transform .15s; }
+  .sq-item.open .sq-chev { transform: rotate(90deg); }
+  .sq-edit { position: relative; z-index: 1; margin: 4px 0 10px 126px; display: grid; gap: 8px; background: var(--panel); padding: 2px 0 6px; }
+  .sq-edit textarea, .sq-edit input[type=text] { width: 100%; }
+  .sq-when-long { font-size: 13px; color: var(--sub); }
+  .sq-help { font-size: 12px; color: var(--faint, #74897b); margin-top: 12px !important; line-height: 1.5; }
+  @media (max-width: 560px) {
+    .sq-row { grid-template-columns: 56px 30px 1fr 12px; gap: 8px; }
+    .sq-list::before { left: 84px; }
+    .sq-edit { margin-left: 0; }
+    .sq-to-in { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -1582,42 +1616,88 @@ async function openSequence(d) {
     catch (er) { toast(errMsg(er), 6000); }
   });
 }
+// Short "when" for the timeline: Day 0, Day 2, G−8, 17 Nov, On payment
+function seqShort(s) {
+  if (s.code.startsWith('out_')) return 'After a call';
+  if (s.anchor === 'invite') return 'Day ' + (s.offset_days || 0);
+  if (s.anchor === 'grading') return s.offset_days ? 'G−' + Math.abs(s.offset_days) : 'G day';
+  if (s.anchor === 'date') return s.send_date ? new Date(s.send_date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+  return 'On payment';
+}
+const SEQ_ICON = {
+  sms: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  email: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  call: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h3l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v3a2 2 0 0 1-2 2A17 17 0 0 1 4 5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'
+};
+// A sample family for the one-line previews (the real ones fill in each student's details)
+const SEQ_SAMPLE = { parent: 'Pat', first: 'Sam', next: 'Orange Belt', school: 'Concord', date: 'Tuesday 1 December', time: ' at 4:00pm', time_only: '4:00pm', link: 'app.train-ama.com/b#…',
+  video: 'Grading video: youtu.be/…', video_link: 'youtu.be/…', prep: '', deadline: 'Tue 24 Nov', fee: '$55', bring: 'Uniform, belt, drink bottle', phone: '(02) 9569 1943', prep_link: 'the prep session page', prep_time: ', 9:00am' };
+const SEQ_TRACKS = [['booking', 'Booking'], ['prep', 'Prep session'], ['booked', 'Booked in'], ['out', 'Call outcomes']];
+const seqInTrack = (s, k) => k === 'out' ? s.code.startsWith('out_') : s.track === k && !s.code.startsWith('out_');
 function seqSettingsHtml() {
   if (!state.seqReady) return '';
   const st = state.settings, admin = isAdmin(), tp = pref('seq_test_phone', ''), te = pref('seq_test_email', /@/.test(state.me || '') && !/@staff\.amatoolkit\.local$/.test(state.me) ? state.me : '');
-  const tracks = { booking: 'Booking (stops when booked and paid)', prep: 'Prep session (Sun 22 Nov)', booked: 'Booked in' };
-  return `<div class="panel" id="seqPanel"><h3>Booking sequence</h3>
-    <p class="hint">Starts when a student is added to a coloured belt grading day and runs until they're booked and paid. Texts at 10am and emails at 7pm Sydney time, never outside 8am to 7:30pm. Never sent to the skip list, anyone who replied STOP, or anyone marked not grading.</p>
-    <div class="seq-switch ${st.seq_on ? 'on' : ''}"><b>${st.seq_on ? 'On' : 'Off'}</b><span>${st.seq_on ? `Switched on ${st.seq_on_at ? whenText(st.seq_on_at) : ''}${st.seq_on_by ? ' by ' + esc(st.seq_on_by) : ''}` : 'Nothing goes automatically. Send Mark every message with Send test to me, then switch on.'}</span>
-      ${admin ? `<button class="btn ${st.seq_on ? '' : 'primary'}" type="button" id="seqSwitch">${st.seq_on ? 'Switch off' : 'Switch on'}</button>${st.seq_on ? '<button class="btn" type="button" id="seqRun">Run now</button>' : ''}` : ''}</div>
-    <div class="row seq-test"><div class="field"><label for="seqTP">Your mobile, for test texts</label><input type="tel" id="seqTP" value="${esc(tp)}" placeholder="04xx xxx xxx"></div>
-      <div class="field"><label for="seqTE">Your email, for test emails</label><input type="email" id="seqTE" value="${esc(te)}"></div></div>
-    <p class="hint">Fields: {parent} {first} {next} {school} {date} {time} {link} {video} {prep} {deadline} {fee} {bring} {phone} {prep_link} {prep_time}, and in emails {time_only} and {video_link}. In emails: "## " starts a heading, "• " a bullet point, and [Words](link) makes a button.</p>
-    ${Object.entries(tracks).map(([k, t]) => `<h4 class="seq-track">${esc(t)}</h4>${state.seqSteps.filter(s => s.track === k && (k !== 'booking' || !s.code.startsWith('out_'))).map(stepHtml).join('')}`).join('')}
-    <h4 class="seq-track">Staff call outcomes</h4>${state.seqSteps.filter(s => s.code.startsWith('out_')).map(stepHtml).join('')}
+  const tab = SEQ_TRACKS.some(t => t[0] === state.seqTab) ? state.seqTab : 'booking';
+  const msgs = state.seqSteps.filter(s => s.channel !== 'call');
+  const count = c => state.seqSteps.filter(s => s.channel === c && !s.code.startsWith('out_')).length;
+  const preview = s => String(s.template || '').startsWith('settings:') ? `Uses the "${String(s.template).slice(9) === 'reminder_text' ? 'Grading day reminder' : 'Reminder to book'}" wording above`
+    : s.channel === 'call' ? 'On My Day in the hub, for staff at the student\'s school' : fill(s.channel === 'email' && s.subject ? s.subject : String(s.template || '').replace(/^Hi \{parent\},?\s*/, ''), SEQ_SAMPLE).replace(/\s+/g, ' ').replace(/^./, c => c.toUpperCase());
+  const row = s => `<li class="sq-item${state.seqOpen === s.code ? ' open' : ''}" data-code="${esc(s.code)}">
+      <button type="button" class="sq-row" aria-expanded="${state.seqOpen === s.code}">
+        <span class="sq-when"><b>${esc(seqShort(s))}</b><small>${s.send_at ? esc(fmtTime(s.send_at)) : s.channel === 'call' ? '' : 'Instantly'}</small></span>
+        <span class="sq-ico ${s.channel}">${SEQ_ICON[s.channel]}</span>
+        <span class="sq-txt"><b>${esc(s.label.replace(/^[^:]+:\s*/, '').replace(/^./, c => c.toUpperCase()))}</b><small>${esc(preview(s))}</small></span>
+        <span class="sq-chev" aria-hidden="true">›</span></button>
+      ${state.seqOpen === s.code ? editor(s) : ''}</li>`;
+  return `<div class="panel sq" id="seqPanel">
+    <div class="sq-head"><div><h3>Booking sequence</h3><p class="hint">From the invitation until they're booked and paid. ${count('sms')} texts, ${count('email')} emails and ${count('call')} call.</p></div>
+      <div class="sq-state ${st.seq_on ? 'on' : ''}"><span class="sq-dot"></span>${st.seq_on ? 'On' : 'Off'}</div></div>
+    <div class="sq-bar">
+      <span class="sq-note">${st.seq_on ? `Running since ${st.seq_on_at ? whenText(st.seq_on_at) : 'now'}${st.seq_on_by ? ' · ' + esc(st.seq_on_by.split('@')[0]) : ''}` : 'Send Mark every message, then switch on.'}</span>
+      ${canGrade() ? `<button class="btn sm" type="button" id="seqAllTests">Send all to me</button>` : ''}
+      ${admin && st.seq_on ? '<button class="btn sm" type="button" id="seqRun">Run now</button>' : ''}
+      ${admin ? `<button class="btn sm ${st.seq_on ? '' : 'primary'}" type="button" id="seqSwitch">${st.seq_on ? 'Switch off' : 'Switch on'}</button>` : ''}</div>
+    <details class="sq-to"${tp || te ? '' : ' open'}><summary>Tests go to <b>${esc([tp, te].filter(Boolean).join(' and ') || 'nobody yet')}</b></summary>
+      <div class="sq-to-in"><input type="tel" id="seqTP" value="${esc(tp)}" placeholder="Your mobile" aria-label="Your mobile, for test texts"><input type="email" id="seqTE" value="${esc(te)}" placeholder="Your email" aria-label="Your email, for test emails"></div></details>
+    <div class="sq-tabs" role="tablist">${SEQ_TRACKS.map(([k, t]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${t}<small>${state.seqSteps.filter(s => seqInTrack(s, k)).length}</small></button>`).join('')}</div>
+    <p class="sq-sub">${{ booking: 'Stops as soon as they\'re booked and paid. Each step is skipped if they\'ve already done it.', prep: 'The Colour Belt Prep Session on Sun 22 Nov. Stops once they book it.', booked: 'Starts when they\'re booked and paid.', out: 'Sent when a staff member taps an outcome on My Day.' }[tab]}</p>
+    <ol class="sq-list">${state.seqSteps.filter(s => seqInTrack(s, tab)).map(row).join('')}</ol>
+    <p class="sq-help">Fields: {parent} {first} {next} {school} {date} {time} {link} {video} {prep} {deadline} {fee} {bring} {phone} {prep_link} {prep_time}; in emails also {time_only} {video_link}. Emails: "## " heading, "• " bullet, [Words](link) button.</p>
   </div>`;
-  function stepHtml(s) {
+  function editor(s) {
     const fromSettings = String(s.template || '').startsWith('settings:');
-    const icon = s.channel === 'sms' ? 'Text' : s.channel === 'email' ? 'Email' : 'Call';
-    return `<div class="seq-step" data-code="${esc(s.code)}"><div class="seq-step-h"><span class="tag">${icon}</span><b>${esc(s.label)}</b><span class="sub">${esc(seqWhen(s))}</span></div>
-      ${s.channel === 'call' ? '<p class="hint">Shows under Coloured belt grading calls on My Day in the hub, for staff rostered at the student\'s school and Mark.</p>'
-        : fromSettings ? `<p class="hint">Uses the "${esc(String(s.template).slice(9) === 'reminder_text' ? 'Grading day reminder' : 'Reminder to book (official invitation)')}" wording in Texts and emails above.</p>`
-        : `${s.channel === 'email' ? `<input type="text" data-subj value="${esc(s.subject || '')}" aria-label="Email subject" ${admin ? '' : 'readonly'}>` : ''}<textarea data-tpl rows="${s.channel === 'email' ? 8 : 3}" aria-label="${esc(s.label)} wording" ${admin ? '' : 'readonly'}>${esc(s.template || '')}</textarea>`}
-      <div class="row">${admin && !fromSettings && s.channel !== 'call' ? '<button class="btn sm" type="button" data-save>Save</button>' : ''}${s.channel !== 'call' && canGrade() ? '<button class="btn sm" type="button" data-test>Send test to me</button>' : ''}</div></div>`;
+    if (s.channel === 'call') return `<div class="sq-edit"><p class="hint">Five days before the grading, everyone not booked shows under Coloured belt grading calls on My Day, for staff rostered at their school and Mark. Outcomes: Send link, Will book, Call back, Not grading, No answer, Wrong number.</p></div>`;
+    return `<div class="sq-edit"><p class="sq-when-long">${esc(seqWhen(s))}</p>
+      ${fromSettings ? `<p class="hint">Edit this one in Texts and emails above.</p>` : `${s.channel === 'email' ? `<input type="text" data-subj value="${esc(s.subject || '')}" aria-label="Email subject" placeholder="Subject" ${admin ? '' : 'readonly'}>` : ''}
+        <textarea data-tpl rows="${s.channel === 'email' ? 9 : 4}" aria-label="${esc(s.label)} wording" ${admin ? '' : 'readonly'}>${esc(s.template || '')}</textarea>`}
+      <div class="row">${admin && !fromSettings ? '<button class="btn sm primary" type="button" data-save>Save</button>' : ''}${canGrade() ? '<button class="btn sm" type="button" data-test>Send test to me</button>' : ''}</div></div>`;
   }
 }
 function wireSeqSettings() {
   const P = $('#seqPanel'); if (!P) return;
+  const redraw = () => { const y = window.scrollY; renderSettings(); window.scrollTo(0, y); };
   const sw = $('#seqSwitch');
   if (sw) sw.onclick = async () => {
     const on = !state.settings.seq_on;
     if (on && !confirm('Switch the booking sequence on? Invitations go to every student on a coloured belt grading day who has not been invited yet, then the follow-ups run automatically.')) return;
-    try { await run(sb.rpc('cb_seq_switch', { p_on: on }), on ? 'Booking sequence is on' : 'Booking sequence is off'); await loadAll(); renderSettings(); } catch (er) { toast(errMsg(er), 6000); }
+    try { await run(sb.rpc('cb_seq_switch', { p_on: on }), on ? 'Booking sequence is on' : 'Booking sequence is off'); await loadAll(); redraw(); } catch (er) { toast(errMsg(er), 6000); }
   };
   const rn = $('#seqRun'); if (rn) rn.onclick = async () => { rn.disabled = true; try { const r = await fnCall({ action: 'seq_run' }); toast(`Done: ${r.sent || 0} sent, ${r.calls || 0} calls, ${r.skipped || 0} skipped`); } catch (er) { toast(errMsg(er), 6000); } rn.disabled = false; };
   $('#seqTP').onchange = e => savePref('seq_test_phone', e.target.value.trim());
   $('#seqTE').onchange = e => savePref('seq_test_email', e.target.value.trim());
-  P.querySelectorAll('.seq-step').forEach(box => {
+  const test = code => fnCall({ action: 'seq_test', code, phone: $('#seqTP').value.trim(), email: $('#seqTE').value.trim() });
+  const all = $('#seqAllTests');
+  if (all) all.onclick = async () => {
+    const list = state.seqSteps.filter(s => s.channel !== 'call' && s.active);
+    if (!$('#seqTP').value.trim() || !$('#seqTE').value.trim()) { P.querySelector('.sq-to').open = true; return toast('Add your mobile and email first, so every text and email can come to you.'); }
+    all.disabled = true; let n = 0, bad = 0;
+    for (const s of list) { all.textContent = `Sending ${++n} of ${list.length}…`; try { await test(s.code); } catch (er) { bad++; } }
+    all.disabled = false; all.textContent = 'Send all to me';
+    toast(bad ? `${list.length - bad} sent, ${bad} failed` : `All ${list.length} sent to you`, 6000);
+  };
+  P.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { state.seqTab = b.dataset.tab; state.seqOpen = null; redraw(); });
+  P.querySelectorAll('.sq-row').forEach(b => b.onclick = () => { const c = b.closest('.sq-item').dataset.code; state.seqOpen = state.seqOpen === c ? null : c; redraw(); });
+  P.querySelectorAll('.sq-item').forEach(box => {
     const code = box.dataset.code, sv = box.querySelector('[data-save]'), te = box.querySelector('[data-test]');
     if (sv) sv.onclick = async () => {
       const f = { template: box.querySelector('[data-tpl]').value.trim(), updated_at: new Date().toISOString() };
@@ -1626,9 +1706,10 @@ function wireSeqSettings() {
       try { await run(sb.from('cb_seq_steps').update(f).eq('code', code), 'Saved'); Object.assign(state.seqSteps.find(s => s.code === code), f); } catch (er) { toast(errMsg(er), 6000); }
     };
     if (te) te.onclick = async () => {
+      const st = state.seqSteps.find(x => x.code === code), need = st.channel === 'email' ? '#seqTE' : '#seqTP';
+      if (!$(need).value.trim()) { P.querySelector('.sq-to').open = true; $(need).focus(); return toast(st.channel === 'email' ? 'Add your email first, for test emails.' : 'Add your mobile first, for test texts.'); }
       te.disabled = true;
-      try { const r = await fnCall({ action: 'seq_test', code, phone: $('#seqTP').value.trim(), email: $('#seqTE').value.trim() }); toast(r.status === 'test' ? 'Logged (texting is in test mode)' : 'Test sent'); }
-      catch (er) { toast(errMsg(er), 6000); }
+      try { const r = await test(code); toast(r.status === 'test' ? 'Logged (texting is in test mode)' : 'Test sent'); } catch (er) { toast(errMsg(er), 6000); }
       te.disabled = false;
     };
   });
