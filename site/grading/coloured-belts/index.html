@@ -1,0 +1,1584 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#04794b">
+<title>Gradings</title>
+<!-- Every screen has its own address (/grading/coloured-belts/grading-days ...); the site's 404.html sends those back here -->
+<base href="/grading/coloured-belts/">
+<link rel="icon" href="../../icons/ama-id-cards.png">
+<link rel="apple-touch-icon" href="../../icons/ama-apple-touch.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../../config.js"></script>
+<script src="../../hub-signin.js"></script>
+<script src="../../idle-logout.js"></script>
+<style>
+  /* AMA Gradings. Dark like the other AMA staff tools: pine black, AMA green for done, gold for the one thing to press.
+     Each student row carries their belt colour down its left edge. */
+  :root {
+    --bg: #0f1713; --panel: #15201a; --raise: #1b2821; --line: #253629; --line2: #31473a;
+    --text: #edf2ee; --sub: #a3b5a9; --faint: #74897b;
+    --gold: #f5c518; --on-gold: #14130a; --green: #2f9e5b; --green-text: #7fd6a2; --red: #ef8a73; --red-bg: rgba(239,138,115,.12);
+    --display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --body: Barlow, "Segoe UI", Arial, sans-serif;
+    --r: 12px; --tabbar: 62px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.45 var(--body); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  a { color: var(--gold); }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--gold); width: 20px; height: 20px; flex: none; margin: 0; }
+
+  /* Header */
+  .appbar { position: sticky; top: 0; z-index: 30; background: rgba(15,23,19,.96); border-bottom: 1px solid var(--line);
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) 16px 8px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .appbar-inner { max-width: 1040px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+  .home-btn { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: var(--sub); border: 1px solid var(--line); }
+  .home-btn svg { width: 19px; height: 19px; }
+  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; margin-right: auto; }
+  .brand img { width: 34px; height: 34px; object-fit: contain; flex: none; }
+  .brand h1 { font: 700 23px/1 var(--display); margin: 0; letter-spacing: .01em; }
+  @media (max-width: 520px) { .brand h1 { display: none; } .progbar { flex: 1; min-width: 0; } .progbar select { max-width: none; width: 100%; } }
+  .progbar select { width: auto; min-height: 38px; padding: 6px 30px 6px 12px; font-weight: 600; max-width: 42vw; background-color: var(--raise); }
+  .iconbtn { flex: none; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: none; color: var(--sub); display: grid; place-items: center; cursor: pointer; padding: 0; }
+  .iconbtn svg { width: 19px; height: 19px; }
+  .iconbtn[aria-selected="true"] { color: var(--gold); border-color: var(--gold); }
+
+  /* Tabs: along the bottom on phones, under the header on bigger screens */
+  .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(var(--tabs, 5), 1fr);
+    background: rgba(21,32,26,.98); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .tab { position: relative; border: 0; background: none; height: var(--tabbar); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    font: 600 12px/1.1 var(--body); color: var(--faint); cursor: pointer; padding: 4px 2px; }
+  .tab svg { width: 23px; height: 23px; }
+  .tab[aria-selected="true"] { color: var(--gold); }
+  .tabcount { position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--gold); color: var(--on-gold);
+    font: 700 11px/18px var(--body); text-align: center; }
+  @media (min-width: 860px) {
+    .tabbar { position: sticky; top: 55px; bottom: auto; display: flex; justify-content: center; gap: 6px; border-top: 0; border-bottom: 1px solid var(--line); padding: 0 16px; }
+    .tab { flex-direction: row; height: 48px; padding: 0 14px; font-size: 15px; gap: 8px; border-bottom: 2px solid transparent; }
+    .tab svg { width: 19px; height: 19px; }
+    .tab[aria-selected="true"] { border-bottom-color: var(--gold); }
+    .tabcount { position: static; margin-left: 2px; }
+  }
+  .phone-only { display: none; }
+  @media (max-width: 859px) { .phone-only { display: inline; } .wide-only { display: none; } }
+
+  main { max-width: 760px; margin: 0 auto; padding: 18px 16px calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 28px); }
+  @media (min-width: 860px) { main { padding: 26px 24px 64px; } }
+  .view { display: flex; flex-direction: column; gap: 16px; }
+
+  /* Type */
+  h2 { font: 700 30px/1.05 var(--display); margin: 0; letter-spacing: .005em; }
+  h3 { font: 700 19px/1.2 var(--display); margin: 0; letter-spacing: .01em; }
+  .view-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .view-head .sub { margin: 4px 0 0; }
+  .sub, .hint { color: var(--sub); margin: 0; font-size: 15px; }
+  .hint { font-size: 14px; color: var(--faint); }
+  .count { color: var(--sub); font-size: 14px; margin: 0; }
+  .back { border: 0; background: none; color: var(--gold); font: 600 15px var(--body); padding: 0; margin-bottom: 6px; cursor: pointer; }
+  .empty { color: var(--faint); padding: 22px 16px; text-align: center; }
+  .bad-text { color: var(--red); }
+  .item .meta.bad-text, .rescard .meta.bad-text { color: var(--red); }
+  .section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 6px; }
+
+  /* Fields and buttons */
+  label, .label { font-size: 14px; font-weight: 600; color: var(--sub); }
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  input[type=text], input[type=email], input[type=password], input[type=date], input[type=time], input[type=datetime-local], input[type=search], input[type=number], input[type=tel], input[type=url], textarea, select {
+    width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid var(--line2); border-radius: 10px; background: var(--panel); color: var(--text); font-size: 16px; }
+  select { appearance: none; -webkit-appearance: none; padding-right: 34px; cursor: pointer;
+    background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3b5a9' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") right 10px center / 16px no-repeat; }
+  textarea { resize: vertical; line-height: 1.45; min-height: 0; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--gold); }
+  input::placeholder, textarea::placeholder { color: var(--faint); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 16px; border-radius: 10px; border: 1px solid var(--line2);
+    background: none; color: var(--text); font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; text-align: center; line-height: 1.2; }
+  .btn:hover { border-color: var(--sub); }
+  .btn:disabled { opacity: .4; cursor: default; border-color: var(--line2); }
+  .btn.primary { background: var(--gold); border-color: var(--gold); color: var(--on-gold); font-weight: 700; }
+  .btn.primary:hover { background: #ffd23a; }
+  .btn.danger { color: var(--red); }
+  .btn.sm { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+  .btn.link { border: 0; min-height: 0; padding: 4px 0; color: var(--gold); }
+  .btn.link.danger { color: var(--red); }
+  @media (max-width: 560px) { .narrow-hide { display: none; } }
+  .btn .n { font-family: var(--display); font-weight: 700; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 400; color: var(--text); min-height: 40px; cursor: pointer; }
+  .checks { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  .checks .check { min-height: 36px; }
+
+  /* Lists: one panel, hairlines between rows, the belt colour down the left edge */
+  .list { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+  .list > li + li { border-top: 1px solid var(--line); }
+  /* The belt down the left edge: --edge is its colour, with black tape bands for tape belts (Red Two, Red Three) */
+  .item, .rescard, .phcard { --edge: linear-gradient(transparent, transparent); background-image: var(--edge); background-repeat: no-repeat; background-size: 5px 100%; background-position: left top; }
+  .item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px 12px 18px; background-color: transparent; border: 0; text-align: left; color: inherit;
+    cursor: pointer; min-height: 62px; }
+  .item.plain { cursor: default; }
+  label.item { font-weight: 400; font-size: inherit; color: inherit; }
+  button.item:hover, label.item:hover { background-color: var(--raise); }
+  .item .main { flex: 1 1 auto; min-width: 0; }
+  .item .name { font-weight: 600; font-size: 16.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .meta { font-size: 14px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right; font-size: 13.5px; max-width: 46%; }
+  .tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .belt { display: inline-block; width: 22px; height: 8px; border-radius: 2px; vertical-align: 2px; flex: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+
+  /* Status words: plain sentence-case text with a small mark, not shouting badges */
+  .tag { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--sub); white-space: nowrap; }
+  .tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .tag.ok { color: var(--green-text); } .tag.ok::before { background: var(--green); }
+  .tag.warn { color: var(--gold); } .tag.warn::before { background: var(--gold); }
+  .tag.bad { color: var(--red); } .tag.bad::before { background: var(--red); }
+  .tag.info::before { background: var(--sub); }
+  .tag.plain::before { display: none; }
+  .tag.bbc, .tag.bbcinv { color: var(--gold); }
+  .tag.bbc::before { background: var(--gold); }
+  .tag.bbcinv::before { background: none; box-shadow: inset 0 0 0 1.5px var(--gold); }
+  .classes { font: 700 18px/1 var(--display); color: var(--text); }
+  .classes small { display: block; font: 500 12.5px/1.3 var(--body); color: var(--sub); }
+  .classes.short { color: var(--faint); }
+
+  /* Who's ready: search and what to show up top, the rest folds away on phones */
+  .finder { display: grid; grid-template-columns: 1fr minmax(0, 210px); gap: 8px; }
+  .more-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .filters-toggle { display: none; }
+  @media (max-width: 719px) {
+    .finder { grid-template-columns: 1fr auto; }
+    .finder #fShow { grid-column: 1 / -1; order: 3; }
+    .filters-toggle { display: inline-flex; }
+    .more-filters { grid-template-columns: 1fr 1fr; }
+    .more-filters.shut { display: none; }
+  }
+
+  /* Grading day */
+  .day-date { font: 700 34px/1 var(--display); margin: 0; }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 2px 0 0; padding: 0; list-style: none; color: var(--sub); font-size: 15px; }
+  .tally { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+  .tally div { padding: 10px 12px; border-left: 1px solid var(--line); }
+  .tally div:first-child { border-left: 0; }
+  @media (max-width: 560px) { .tally { grid-template-columns: repeat(3, 1fr); } .tally div:nth-child(4) { border-left: 0; } .tally div:nth-child(n+4) { border-top: 1px solid var(--line); } }
+  .tally b { display: block; font: 700 26px/1 var(--display); }
+  .tally span { font-size: 13px; color: var(--sub); }
+  .stages { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line2); border-radius: 11px; padding: 3px; gap: 3px; background: var(--panel); }
+  .stages button { border: 0; background: none; border-radius: 8px; padding: 9px 6px; font-weight: 600; font-size: 15px; color: var(--sub); cursor: pointer; }
+  .stages button[aria-pressed="true"] { background: var(--raise); color: var(--text); box-shadow: inset 0 -2px 0 var(--gold); }
+  .stage { display: flex; flex-direction: column; gap: 10px; }
+  .actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .actions .btn { justify-content: space-between; text-align: left; min-height: 50px; }
+  .actions .btn.primary { justify-content: center; }
+  @media (max-width: 480px) { .actions { grid-template-columns: 1fr 1fr; } .actions .btn { justify-content: center; text-align: center; } .actions .wide { grid-column: 1 / -1; } }
+  .list-tools { display: flex; gap: 8px; }
+  @media (max-width: 560px) { .section-title { flex-wrap: wrap; } .list-tools { width: 100%; } .list-tools select { flex: 1; min-width: 0; } }
+  .list-tools select { min-height: 40px; padding-top: 6px; padding-bottom: 6px; font-size: 15px; }
+  details.fold { border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+  details.fold > summary { list-style: none; cursor: pointer; padding: 13px 16px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  details.fold > summary::-webkit-details-marker { display: none; }
+  details.fold > summary::after { content: ""; width: 9px; height: 9px; border-right: 2px solid var(--sub); border-bottom: 2px solid var(--sub); transform: rotate(45deg); margin-top: -4px; flex: none; }
+  details.fold[open] > summary::after { transform: rotate(-135deg); margin-top: 4px; }
+  details.fold > .fold-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* Big-button screens on the day: check-in, results, photos */
+  .bigcards { display: flex; flex-direction: column; gap: 10px; }
+  .rescard, .phcard { background-color: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 14px 14px 19px; display: flex; flex-direction: column; gap: 12px; }
+  .rescard .name, .phcard .name { font-weight: 700; font-size: 19px; }
+  .rescard .meta, .phcard .meta { color: var(--sub); font-size: 14.5px; }
+  .rescard.in { border-color: var(--green); }
+  .res { display: flex; gap: 8px; }
+  .res button { flex: 1; min-height: 58px; border-radius: 11px; border: 1px solid var(--line2); background: var(--raise); color: var(--text); font: 700 20px var(--display); cursor: pointer; }
+  .res button[aria-pressed="true"][data-r="pass"], .res button[aria-pressed="true"][data-r="in"] { background: var(--green); border-color: var(--green); color: #fff; }
+  .res button[aria-pressed="true"][data-r="retest"] { background: var(--red); border-color: var(--red); color: #1a0d09; }
+  .bbcblock { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--bg); }
+  .bbcblock.on { border-color: rgba(245,197,24,.5); }
+  .bbcblock-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .bbcblock-text .label { font-size: 13px; }
+  .bbcblock-text b { font-size: 17px; }
+  .bbcblock.on .bbcblock-text b { color: var(--gold); }
+  .btn.gold { border-color: var(--gold); color: var(--gold); }
+  .btn.gold:hover { background: rgba(245,197,24,.1); border-color: var(--gold); }
+  @media (max-width: 480px) { .bbcblock .btn.gold { width: 100%; } }
+  .bbcbtn { align-self: flex-start; border: 0; background: none; color: var(--gold); font-weight: 600; font-size: 14.5px; padding: 2px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .phcard { flex-direction: row; align-items: center; }
+  .phcard.next { border-color: var(--gold); }
+  .phcard .thumb { width: 68px; height: 68px; border-radius: 9px; object-fit: cover; background: var(--raise); flex: none; display: grid; place-items: center; color: var(--faint); font-size: 12px; text-align: center; padding: 4px; }
+  .phcard .main { flex: 1; min-width: 0; }
+  .phcard .btn { min-width: 112px; min-height: 50px; }
+  .bigsearch { font-size: 18px !important; min-height: 52px !important; }
+  .progress { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .progress i { display: block; height: 100%; background: var(--green); }
+
+  /* Dashboard numbers */
+  .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 18px 24px; padding: 4px 0 6px; }
+  .figures b { display: block; font: 700 40px/1 var(--display); }
+  .figures span { color: var(--sub); font-size: 14px; }
+  .figures .alert b { color: var(--red); }
+
+  /* Detail lists, tables */
+  .kv { display: grid; grid-template-columns: minmax(104px, 34%) 1fr; gap: 9px 14px; margin: 0; font-size: 15.5px; }
+  .kv dt { color: var(--sub); }
+  .kv dd { margin: 0; overflow-wrap: anywhere; }
+  .section { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.grid th, table.grid td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+  table.grid th { color: var(--sub); font-weight: 600; font-size: 13.5px; }
+  .scroll { overflow-x: auto; }
+  td input[type=number] { min-height: 38px; width: 84px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .linkbox { font-size: 13.5px; color: var(--sub); overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+
+  /* Dialogs: a sheet from the bottom on phones */
+  dialog { border: 1px solid var(--line2); border-radius: 16px; background: var(--panel); color: var(--text); padding: 20px; width: min(560px, calc(100% - 24px)); max-width: none;
+    max-height: calc(100dvh - 24px); overflow: auto; box-shadow: 0 18px 60px rgba(0,0,0,.55); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog p { margin: 0; }
+  .dlg { display: flex; flex-direction: column; gap: 16px; }
+  .dlg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .dlg-head h3 { font-size: 24px; }
+  .x { border: 0; background: none; color: var(--sub); cursor: pointer; padding: 4px 2px; font: 600 15px var(--body); }
+  .dlg-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  @media (max-width: 640px) {
+    dialog.sheet { margin: auto 0 0; width: 100%; max-height: 92dvh; border-radius: 16px 16px 0 0; border-bottom: 0; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+    .dlg-actions .btn { flex: 1 1 auto; }
+  }
+  .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .choice .btn { min-height: 52px; font-size: 16px; }
+  .choice .btn[aria-pressed="true"].go { background: var(--green); border-color: var(--green); color: #fff; }
+  .choice .btn[aria-pressed="true"].stop { background: var(--red); border-color: var(--red); color: #1a0d09; }
+  .msgprev { white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 15px; }
+  .people { max-height: 240px; overflow: auto; }
+
+  #toast { inset: auto; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 12px); z-index: 60;
+    background: var(--text); color: var(--bg); font-weight: 600; padding: 11px 16px; border-radius: 10px; font-size: 15px; max-width: calc(100% - 32px); width: max-content; margin: 0; border: 0; overflow: visible; }
+  #toast[hidden] { display: none; }
+  @media (min-width: 860px) { #toast { bottom: 24px; } }
+  .auth { max-width: 380px; margin: 10vh auto 0; }
+  @media (prefers-reduced-motion: no-preference) { .btn, .item, .res button, .stages button { transition: background-color .12s, border-color .12s, color .12s; } }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="home-btn" href="/grading/" aria-label="Back to Grading" title="Grading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></a>
+    <div class="brand"><img src="/icons/ama-logo.png" alt="AMA"><h1>Gradings</h1></div>
+    <div class="progbar" id="progBar" hidden><select id="progSel" aria-label="Program"></select></div>
+    <button class="iconbtn" id="settingsBtn" data-view="settings" aria-label="Settings" title="Settings" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    <button class="iconbtn" id="signOut" aria-label="Sign out" title="Sign out" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5M15 12H4"/></svg></button>
+  </div>
+</header>
+<nav class="tabbar" id="tabs" role="tablist" hidden>
+  <button class="tab" role="tab" data-view="ready" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg><span class="wide-only">Who's ready</span><span class="phone-only">Ready</span></button>
+  <button class="tab" role="tab" data-view="days" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 2.5v3M15 2.5v3M4 9.5h16"/></svg><span class="wide-only">Grading days</span><span class="phone-only">Days</span></button>
+  <button class="tab" role="tab" data-view="efc" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Update EFC</span></button>
+  <button class="tab" role="tab" data-view="bbc" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span class="wide-only">Cards to write</span><span class="phone-only">Cards</span><span class="tabcount" id="bbcCount" hidden></span></button>
+  <button class="tab" role="tab" data-view="dash" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Dashboard</span></button>
+</nav>
+
+<main>
+  <section id="signIn" class="panel auth" hidden>
+    <h2>Sign in</h2>
+    <p class="hint">Use your AMA login, or your hub mobile and PIN.</p>
+    <form id="siForm" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="siEmail">Email</label><input type="email" id="siEmail" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input type="password" id="siPass" autocomplete="current-password" required></div>
+      <button class="btn primary" id="siGo" type="submit">Sign in</button>
+    </form>
+  </section>
+  <section id="noAccess" class="panel" hidden><h2>No access yet</h2><p class="hint" id="noAccessText"></p></section>
+  <p id="loading" class="sub">Loading…</p>
+
+  <section id="view-ready" class="view" hidden></section>
+  <section id="view-days" class="view" hidden></section>
+  <section id="view-day" class="view" hidden></section>
+  <section id="view-efc" class="view" hidden></section>
+  <section id="view-bbc" class="view" hidden></section>
+  <section id="view-dash" class="view" hidden></section>
+  <section id="view-settings" class="view" hidden></section>
+</main>
+
+<dialog id="dlg" class="sheet"></dialog>
+<div id="toast" role="status" popover="manual" hidden></div>
+
+<script>
+const CFG = window.TOOLKIT_CONFIG || {};
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+const FN = CFG.SUPABASE_URL + '/functions/v1/cb';
+// Sign in with the AMA Admin Hub mobile and PIN (hub-signin.js)
+const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#siForm' };
+if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
+if (window.AmaIdle) AmaIdle.watch({ sb });
+
+const SCHOOLS = ['Marrickville', 'Sydenham', 'Concord', 'West', 'Sylvania'];
+const APP_BASE = '/grading/coloured-belts/';
+const PAID_HOW = { card: 'by card', cash: '(cash)', eftpos: '(EFTPOS)', transfer: '(bank transfer)', other: '(other)', desk: 'at the desk' };
+// Results are pass or fail (stored as 'retest'); older 'distinction' results show as a pass
+const RESULT = { pass: 'Pass', distinction: 'Pass', retest: 'Fail' };
+const RESULT_BUTTONS = { pass: 'Pass', retest: 'Fail' };
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dlg = $('#dlg');
+const state = { roles: [], me: '', students: [], belts: [], settings: {}, days: [], entries: [], messages: [], view: 'ready', day: null, resultsMode: false, photosMode: false, checkinMode: false,
+  all: { students: [], belts: [], days: [], entries: [] }, programmes: [], programme: (() => { try { return localStorage.getItem('cb_programme') || 'Taekwondo'; } catch (e) { return 'Taekwondo'; } })() };
+const has = (...r) => state.roles.includes('admin') || r.some(x => state.roles.includes(x));
+const canApprove = () => has('instructor', 'grading'), canGrade = () => has('grading'), canPay = () => has('grading', 'payments'), isAdmin = () => state.roles.includes('admin');
+
+let toastTimer;
+function toast(msg, ms = 4000) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer);
+  try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* older browsers */ }
+  toastTimer = setTimeout(() => { t.hidden = true; try { t.hidePopover(); } catch (e) { /* ignore */ } }, ms);
+}
+function openDlg(html) {
+  dlg.innerHTML = html;
+  dlg.querySelectorAll('[data-close]').forEach(b => { b.type = 'button'; b.onclick = e => { e.preventDefault(); dlg.close(); }; });
+  if (!dlg.open) dlg.showModal();
+}
+const errMsg = e => (e && (e.message || e.error_description || e.details)) || String(e);
+async function run(q, okMsg) { const { data, error } = await q; if (error) throw error; if (okMsg) toast(okMsg); return data; }
+
+// Dates and words
+const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '';
+const longDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
+const fmtTime = t => { if (!t) return ''; const [h, m] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`; };
+const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
+const short = b => String(b || '').replace(/ Belt$/, '');
+const money = n => n == null ? '' : '$' + Number(n).toFixed(Number(n) % 1 ? 2 : 0);
+const today = () => new Date().toISOString().slice(0, 10);
+// A belt's settings; prog picks the program's belt (belt names repeat across programs in "All programs")
+const beltOf = (name, prog) => (prog && state.belts.find(b => b.belt === name && (b.programme || 'Taekwondo') === prog)) || state.belts.find(b => b.belt === name) || {};
+// "All programs": everything at once (students, grading days, dashboard); adding a day or editing belts needs one program
+const ALL = '*';
+const isAll = () => state.programme === ALL;
+const progOfDay = id => ((state.all.days.find(d => d.day_id === id) || {}).programme) || 'Taekwondo';
+// Programs: Taekwondo, Little Dragons, Kung Fu, Kickboxing, BJJ, BJJ Kids, Tricking (from cb_programmes)
+const progLabel = p => p === ALL ? 'All programs' : ((state.programmes || []).find(x => x.programme === p) || {}).label || p || '';
+const isLD = () => /little dragon/i.test(state.programme);
+// The belt someone grades to, with its program when it's another one (Little Dragons moving up to Taekwondo)
+const withProg = (belt, prog) => prog && prog !== state.programme && !isAll() ? `${progLabel(prog)} ${belt}` : belt;
+const toText = e => withProg(e.belt_to, e.to_programme);
+const sNext = s => withProg(s.next_belt, s.next_programme);
+// The belt's colour for a row's left edge
+// Tape belts: a red belt with one black tape (Red Two) or two (Red Three)
+const tapes = name => /\bred\s*(two|2)\b/i.test(name || '') ? 1 : /\bred\s*(three|3)\b/i.test(name || '') ? 2 : 0;
+const beltCol = (name, prog) => beltOf(name, prog).colour || '#5b6b60';
+// A belt as a CSS gradient: dir 'to bottom' for the row edge, 'to right' for the small swatch; tape bands sit near the end like a real belt
+function beltPaint(name, prog, dir) {
+  const c = beltCol(name, prog), n = tapes(name);
+  if (!n) return `linear-gradient(${c}, ${c})`;
+  const bands = n === 1 ? [[68, 80]] : [[58, 68], [76, 86]];
+  let stops = [], at = 0;
+  for (const [a, b] of bands) { stops.push(`${c} ${at}% ${a}%`, `#000 ${a}% ${b}%`); at = b; }
+  stops.push(`${c} ${at}% 100%`);
+  return `linear-gradient(${dir}, ${stops.join(', ')})`;
+}
+const beltVar = (name, prog) => `--edge:${esc(beltPaint(name, prog, 'to bottom'))}`;
+const shortDate = d => new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+const swatch = (name, prog) => `<span class="belt" style="background:${esc(beltPaint(name, prog, 'to right'))}"></span>`;
+const student = (key, prog) => state.students.find(s => s.member_key === key && (!prog || (s.programme || 'Taekwondo') === prog));
+const dayOf = id => state.days.find(d => d.day_id === id);
+const entriesOf = id => state.entries.filter(e => e.day_id === id);
+const dayBelts = d => (d && d.belts && d.belts.length) ? d.belts : null;   // null: every belt
+// New grading days at a school also take these schools' members (Sydenham members grade at Marrickville)
+const DEFAULT_FROM = { Marrickville: ['Marrickville', 'Sydenham'] };
+const defaultFrom = school => DEFAULT_FROM[school] || [school];
+const daySchools = d => (d && d.schools && d.schools.length) ? d.schools : [d.location];   // whose students can grade on this day
+const forDay = (d, s) => daySchools(d).includes(s.location) && (!dayBelts(d) || dayBelts(d).includes(s.belt));
+const fromText = d => daySchools(d).length > 1 || daySchools(d)[0] !== d.location ? 'students from ' + daySchools(d).join(', ') : '';
+const beltsText = d => dayBelts(d) ? dayBelts(d).slice().sort((a, b) => (beltOf(a).sort || 0) - (beltOf(b).sort || 0)).map(short).join(', ') : 'All belts';
+// Booking cut-off: a datetime-local value from an ISO time, and whether bookings have closed for a day
+const localInput = iso => { const t = new Date(iso); return new Date(t.getTime() - t.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+const whenText = iso => new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const bookingShut = d => !!(d && d.book_by && new Date(d.book_by) <= new Date());
+const bookingLink = e => location.origin + '/b#' + e.token;
+// A family's grading photo: a short link so the text fits in one SMS (opens photo/ with the code)
+const photoLink = e => e.photo_code ? location.origin + '/p#' + e.photo_code : location.origin + APP_BASE + 'photo/#t=' + e.token;
+// Messages: fill in a template
+function fill(tpl, v) {
+  return String(tpl || '').replace(/\{(\w+)\}/g, (m, k) => v[k] != null ? v[k] : '').replace(/\s+([.,!])/g, '$1').replace(/ {2,}/g, ' ').trim();
+}
+// {video}: "Grading video: <link>" for the belt they're on now (nothing for programs without a video) (Taekwondo, and Little Dragons moving up learn the White Belt material)
+const GRADING_VIDEOS = {
+  'White Belt': 'https://youtu.be/rEz_0Fru2xQ', 'Yellow Belt': 'https://youtu.be/dWmyzrtqTG8', 'Orange Belt': 'https://youtu.be/-ioyCHMzIYA',
+  'Green Belt': 'https://youtu.be/EMJOGc1CFB0', 'Blue Belt': 'https://youtu.be/3p4Mw9OPo0U', 'Purple Belt': 'https://youtu.be/JrKEaXUj698',
+  'Brown Belt': 'https://youtu.be/AygN5MoWv_M', 'Red Belt': 'https://youtu.be/qPwhLvx5UOY', 'Red Two Belt': 'https://youtu.be/6Ero56Plb_I',
+  'Red Three Belt': 'https://youtu.be/LUKU_llSB-Y'
+};
+function videoFor(s, e) {
+  const prog = (s && s.programme) || (e && e.programme) || '';
+  if (/little dragon/i.test(prog)) return GRADING_VIDEOS['White Belt'];
+  if (prog && prog !== 'Taekwondo') return '';
+  const belt = String((s && s.belt) || (e && e.belt_from) || '').replace(/\s+/g, ' ').trim();
+  const key = Object.keys(GRADING_VIDEOS).find(k => k.toLowerCase() === (/belt$/i.test(belt) ? belt : belt + ' Belt').toLowerCase());
+  return key ? GRADING_VIDEOS[key] : '';
+}
+// The optional Colour Belt Prep Session (Mr Mark and Master Hakan, booked on the AMA site). {prep} fills in this paragraph
+// until bookings close, then nothing, so the same wording can stay in Settings. Kids 5-12 / teens and adults 13+ by age.
+const PREP_SESSION = { closes: '2026-11-19', url: 'https://train.australianmartialarts.com.au/colour-belt-prep',
+  text: 'Optional extra: our Colour Belt Prep Session is a 2-hour workshop with Mr Mark and Master Hakan covering only grading material, on Sunday 22 November at AMA Marrickville. Students from every AMA school are welcome. Book a place:' };
+function prepFor(s) {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  if (today > PREP_SESSION.closes) return '';
+  const a = yrs(s);
+  return PREP_SESSION.text + ' ' + PREP_SESSION.url + (a == null ? '' : a >= 13 ? '?s=teens' : '?s=kids');
+}
+function vars(e, s, d, extra = {}) {
+  return { parent: firstName(s && s.guardian_name) || 'there', first: firstName((s && s.full_name) || (e && e.full_name)), next: e ? toText(e) : s ? sNext(s) : '',
+    school: (d && d.location) || (s && s.location) || '', date: d ? longDate(d.grading_date) : '', time: d && d.start_time ? ' at ' + fmtTime(d.start_time) : '',
+    link: e ? bookingLink(e) : '', photo: e ? photoLink(e) : '', distinction: e && e.result === 'distinction' ? ' with distinction' : '', note: (s && s.approval_note) || '',
+    video: videoFor(s, e) ? 'Grading video: ' + videoFor(s, e) : '', prep: prepFor(s), ...extra };
+}
+// Age and list order (youngest first by default, as gradings line up by age)
+const yrs = s => s && s.age != null ? s.age : null;
+const ageText = s => yrs(s) != null ? `${yrs(s)} yrs` : 'Age not in EFC';
+const SORTS = { age: 'Age, youngest first', age_desc: 'Age, oldest first', belt: 'Belt, then age', name: 'Name' };
+const pref = (k, d) => { try { return localStorage.getItem('cb_' + k) || d; } catch (e) { return d; } };
+const savePref = (k, v) => { try { localStorage.setItem('cb_' + k, v); } catch (e) { /* private window */ } };
+// Compare two people by the chosen order. s = their EFC record (for date of birth), belt = their belt now, name = full name.
+function byOrder(mode) {
+  const dob = x => (x.s && x.s.date_of_birth) ? String(x.s.date_of_birth).slice(0, 10) : '';
+  const age = (a, b) => { const da = dob(a), db = dob(b); if (!da || !db) return (da ? -1 : db ? 1 : 0); return mode === 'age_desc' ? da.localeCompare(db) : db.localeCompare(da); };
+  const belt = (a, b) => (beltOf(a.belt).sort || 99) - (beltOf(b.belt).sort || 99);
+  const name = (a, b) => a.name.localeCompare(b.name);
+  if (mode === 'name') return (a, b) => name(a, b);
+  if (mode === 'belt') return (a, b) => belt(a, b) || age(a, b) || name(a, b);
+  return (a, b) => age(a, b) || name(a, b);
+}
+const sortStudents = (list, mode) => list.map(s => ({ s, belt: s.belt, name: s.full_name })).sort(byOrder(mode)).map(x => x.s);
+const sortEntries = (list, mode) => list.map(e => ({ e, s: student(e.member_key), belt: e.belt_from, name: e.full_name })).sort(byOrder(mode)).map(x => x.e);
+const sentTo = (kind, entryId) => state.messages.some(m => m.kind === kind && m.entry_id === entryId && (m.status === 'sent' || m.status === 'test'));
+
+// Readiness
+const overdue = s => s.weeks_at_belt != null && s.weeks_at_belt >= 2 * (s.weeks_between || 13);
+const eligible = s => s.enough_classes;
+const openDayFor = key => state.entries.find(e => e.member_key === key && !e.result && dayOf(e.day_id) && !dayOf(e.day_id).closed);
+function readyTags(s) {
+  const t = [];
+  if (s.approval === 'ready') t.push('<span class="tag ok">Ready</span>');
+  else if (s.approval === 'not_yet') t.push('<span class="tag bad">Not yet</span>');
+  const od = openDayFor(s.member_key);
+  if (od) t.push(`<span class="tag info">Grading ${esc(shortDate(dayOf(od.day_id).grading_date))}</span>`);
+  else if (overdue(s)) t.push('<span class="tag bad" title="A long time on this belt: they may be about to drop off">Overdue</span>');
+  if (s.black_belt_club) t.push('<span class="tag bbc" title="Enrolled in Black Belt Club (from EFC)">Black Belt Club</span>');
+  else if (s.bbc_invited_at) t.push(`<span class="tag bbcinv">${s.bbc_written_at ? 'BBC card written' : 'BBC card to write'}</span>`);
+  return t.join('');
+}
+
+/* ---------------- Loading ---------------- */
+async function loadAll() {
+  const q = (t, order) => { let x = sb.from(t).select('*'); if (order) x = x.order(order[0], { ascending: order[1] !== false }); return x; };
+  const [st, be, se, da, en, me, pr, lr] = await Promise.all([
+    fetchAll('cb_students', ['full_name', 'member_key', 'programme']), q('cb_belts', ['sort']), q('cb_settings'), q('cb_days', ['grading_date', false]), fetchAll('cb_entries', ['full_name', 'entry_id']),
+    sb.from('cb_messages').select('entry_id, member_key, kind, status, sent_at').order('sent_at', { ascending: false }).limit(5000), q('cb_programmes', ['sort']),
+    sb.from('cb_efc_runs').select('ran_at').order('ran_at', { ascending: false }).limit(1)]);
+  // When EFC last updated (the nightly update); missing before coloured-belts-6.sql
+  state.efcAt = !lr.error && lr.data && lr.data[0] ? lr.data[0].ran_at : null;
+  for (const r of [st, be, se, da, en]) if (r.error) throw r.error;
+  state.all = { students: st.data || [], belts: be.data || [], days: da.data || [], entries: en.data || [] };
+  state.programmes = pr.error || !(pr.data || []).length ? [{ programme: 'Taekwondo', label: 'Taekwondo', active: true }] : pr.data.filter(x => x.active !== false);
+  state.settings = (se.data || [])[0] || {}; state.messages = me.data || [];
+  if (!isAll() && !state.programmes.some(x => x.programme === state.programme)) state.programme = state.programmes[0].programme;
+  if (isAll() && state.programmes.length < 2) state.programme = state.programmes[0].programme;
+  applyProgramme();
+  state.loadedAt = Date.now();
+}
+// Supabase sends at most 1,000 rows at a time: fetch long lists page by page (every program together is well over 1,000 students)
+async function fetchAll(t, orders) {
+  const rows = [];
+  for (let from = 0; from < 100000; from += 1000) {
+    let x = sb.from(t).select('*'); for (const o of orders) x = x.order(o, { ascending: true });
+    const r = await x.range(from, from + 999);
+    if (r.error) return r;
+    rows.push(...(r.data || []));
+    if ((r.data || []).length < 1000) break;
+  }
+  return { data: rows, error: null };
+}
+// After a change to grading days, entries or texts: fetch just those (not all 1,400 students again)
+async function refreshEntries() {
+  const [da, en, me] = await Promise.all([sb.from('cb_days').select('*').order('grading_date', { ascending: false }), fetchAll('cb_entries', ['full_name', 'entry_id']),
+    sb.from('cb_messages').select('entry_id, member_key, kind, status, sent_at').order('sent_at', { ascending: false }).limit(5000)]);
+  for (const r of [da, en]) if (r.error) throw r.error;
+  state.all.days = da.data || []; state.all.entries = en.data || [];
+  if (!me.error) state.messages = me.data || [];
+  applyProgramme();
+}
+// Everything on screen is for one program at a time
+function applyProgramme() {
+  const P = state.programme, of = x => P === ALL || (x.programme || 'Taekwondo') === P;
+  state.students = state.all.students.filter(of); state.belts = state.all.belts.filter(of); state.days = state.all.days.filter(d => of(d) && !d.bb);   // black belt gradings live in the prep app, not here
+  const ids = new Set(state.days.map(d => d.day_id));
+  state.entries = state.all.entries.filter(e => ids.has(e.day_id));
+}
+function setProgramme(p) {
+  if (p === state.programme) return;
+  state.programme = p; savePref('programme', p); applyProgramme();
+  $('#view-ready').dataset.built = ''; dayFilt.day = null;
+  if (state.view === 'day') return go('days');
+  render();
+}
+function render() {
+  const pb = $('#progBar'); pb.hidden = state.programmes.length < 2;
+  $('#progSel').innerHTML = `<option value="${ALL}"${isAll() ? ' selected' : ''}>All programs</option>` + state.programmes.map(x => `<option value="${esc(x.programme)}"${x.programme === state.programme ? ' selected' : ''}>${esc(x.label)}</option>`).join('');
+  $('#progSel').onchange = e => setProgramme(e.target.value);
+  bbcBadge();
+  const here = state.view === 'day' ? 'days' : state.view;
+  $$('#tabs .tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === here)));
+  $('#settingsBtn').hidden = !isAdmin(); $('#settingsBtn').setAttribute('aria-selected', String(here === 'settings'));
+  $('#tabs').style.setProperty('--tabs', $$('#tabs .tab:not([hidden])').length);
+  document.title = ({ ready: "Who's ready", days: 'Grading days', day: 'Grading day', efc: 'Update EFC', bbc: 'Cards to write', dash: 'Dashboard', settings: 'Settings' }[state.view] || '') + ' | ' + progLabel(state.programme) + ' Gradings';
+  $$('.view').forEach(v => v.hidden = v.id !== 'view-' + state.view);
+  ({ ready: renderReady, days: renderDays, day: renderDay, efc: renderEfc, bbc: renderBbc, dash: renderDash, settings: renderSettings })[state.view]();
+}
+/* Addresses: /grading/coloured-belts/ready, /grading-days, /grading-days/<id>, /grading-days/<id>/results, /update-efc, /dashboard, /settings */
+const PATHS = { ready: 'ready', days: 'grading-days', efc: 'update-efc', bbc: 'black-belt-club', dash: 'dashboard', settings: 'settings' };
+function pathOf() { return state.view === 'day' ? `grading-days/${state.day}${state.resultsMode ? '/results' : state.photosMode ? '/photos' : state.checkinMode ? '/check-in' : ''}` : PATHS[state.view]; }
+function fromPath(p) {
+  const seg = String(p || '').replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+  if (seg[0] === 'grading-days' && seg[1]) return { view: 'day', day: seg[1], results: ['results', 'photos', 'check-in'].includes(seg[2]) ? seg[2] : '' };
+  const view = Object.keys(PATHS).find(k => PATHS[k] === seg[0]);
+  return { view: view || null };
+}
+function setAddress(replace) {
+  const url = APP_BASE + pathOf();
+  if (location.pathname === url && !location.search) return;
+  try { history[replace ? 'replaceState' : 'pushState'](null, '', url); } catch (e) { /* ignore */ }
+}
+// results: true or 'results' for the results screen, 'photos' for grading photos, 'check-in' for checking students in
+function go(view, day, results) { state.view = view; if (day) state.day = day; state.resultsMode = results === true || results === 'results'; state.photosMode = results === 'photos'; state.checkinMode = results === 'check-in'; setAddress(); render(); window.scrollTo(0, 0); }
+function applyPath(p) {
+  const r = fromPath(p);
+  if (!r.view || (r.view === 'settings' && !isAdmin())) return false;
+  state.view = r.view; if (r.day) state.day = r.day; state.resultsMode = r.results === 'results'; state.photosMode = r.results === 'photos'; state.checkinMode = r.results === 'check-in';
+  return true;
+}
+window.addEventListener('popstate', () => { if (!state.loaded) return; if (applyPath(location.pathname.slice(APP_BASE.length))) render(); });
+$$('#tabs .tab').forEach(b => b.onclick = () => go(b.dataset.view));
+$('#settingsBtn').onclick = () => go('settings');
+
+/* ---------------- Who's ready ---------------- */
+const filt = { school: '', belt: '', show: 'eligible', bbc: '', q: '', sort: pref('sort', 'age') };
+function renderReady() {
+  const v = $('#view-ready');
+  if (!v.dataset.built) {
+    v.dataset.built = '1';
+    v.innerHTML = `<div class="view-head"><div><h2>Who's ready</h2><p class="sub" id="efcFresh"></p></div></div>
+      <div class="finder">
+        <input type="search" id="fQ" placeholder="Find a student" aria-label="Find a student">
+        <select id="fShow" aria-label="Show"><option value="eligible">Enough classes</option><option value="ready">Marked ready</option><option value="not_yet">Marked not yet</option><option value="undecided">Enough classes, not decided</option><option value="overdue">Overdue</option><option value="all">Everyone</option></select>
+        <button type="button" class="btn filters-toggle" id="fMore" aria-expanded="false" aria-controls="fMoreBox">Filters</button>
+      </div>
+      <div class="more-filters shut" id="fMoreBox">
+        <select id="fSchool" aria-label="School"><option value="">All schools</option>${SCHOOLS.map(s => `<option>${s}</option>`).join('')}</select>
+        <select id="fBelt" aria-label="Belt"><option value="">All belts</option></select>
+        <select id="fBbc" aria-label="Black Belt Club"><option value="">Black Belt Club or not</option><option value="yes">In Black Belt Club</option><option value="no">Not in Black Belt Club</option><option value="invited">BBC card asked for, not joined</option></select>
+        <select id="fSort" aria-label="Order">${Object.entries(SORTS).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select>
+      </div>
+      <p class="count" id="readyCount"></p>
+      <ul class="list" id="readyList"></ul>`;
+    $('#fBelt').innerHTML += [...new Set(state.belts.map(b => b.belt))].map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+    $('#fSort').value = filt.sort;
+    const sync = () => { filt.school = $('#fSchool').value; filt.belt = $('#fBelt').value; filt.show = $('#fShow').value; filt.bbc = $('#fBbc').value; filt.q = $('#fQ').value.trim().toLowerCase(); filt.sort = $('#fSort').value; savePref('sort', filt.sort); drawReady(); };
+    ['#fSchool', '#fBelt', '#fShow', '#fBbc', '#fSort', '#fQ'].forEach(s => $(s).oninput = sync);
+    $('#fMore').onclick = () => { const shut = $('#fMoreBox').classList.toggle('shut'); $('#fMore').setAttribute('aria-expanded', String(!shut)); };
+  }
+  const newest = state.students.reduce((m, s) => s.efc_updated_at > m ? s.efc_updated_at : m, '');
+  $('#efcFresh').textContent = newest ? 'Classes from EFC, ' + new Date(newest).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '';
+  drawReady();
+}
+function drawReady() {
+  const show = filt.show;
+  const list = sortStudents(state.students.filter(s => (!filt.school || s.location === filt.school) && (!filt.belt || s.belt === filt.belt) && (!filt.q || s.full_name.toLowerCase().includes(filt.q)) &&
+    (!filt.bbc || (filt.bbc === 'invited' ? !s.black_belt_club && !!s.bbc_invited_at : (filt.bbc === 'yes') === !!s.black_belt_club)) &&
+    (show === 'all' || (show === 'eligible' && eligible(s)) || (show === 'ready' && s.approval === 'ready') || (show === 'not_yet' && s.approval === 'not_yet') ||
+     (show === 'undecided' && eligible(s) && !s.approval) || (show === 'overdue' && overdue(s)))), filt.sort);
+  const extra = [filt.school, filt.belt, filt.bbc].filter(Boolean).length;
+  $('#fMore').textContent = extra ? `Filters (${extra})` : 'Filters';
+  $('#readyCount').textContent = `${list.length} student${list.length === 1 ? '' : 's'}`;
+  $('#readyList').innerHTML = list.length ? list.slice(0, 400).map(s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}">
+      <div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${isAll() ? esc(progLabel(s.programme)) + ', ' : ''}${esc(short(s.belt))} to ${esc(short(sNext(s)))}</div><div class="meta">${esc(ageText(s))}, ${esc(s.location)}</div></div>
+      <div class="side"><span class="classes${s.enough_classes ? '' : ' short'}">${s.classes}/${s.classes_needed}<small> classes</small></span><span class="tags">${readyTags(s)}</span></div></button></li>`).join('') + (list.length > 400 ? `<li class="empty">Showing the first 400. Narrow it down with a search or the filters.</li>` : '')
+    : '<li class="empty">No one matches.</li>';
+  $$('#readyList [data-key]').forEach(b => b.onclick = () => openStudent(b.dataset.key, b.dataset.prog));
+}
+function openStudent(key, prog) {
+  const s = student(key, prog); if (!s) return;
+  const P = s.programme || 'Taekwondo', open = () => openStudent(key, P);
+  const hist = state.entries.filter(e => e.member_key === key && progOfDay(e.day_id) === P).map(e => ({ e, d: dayOf(e.day_id) })).filter(x => x.d);
+  // Black Belt Club: where they stand, and one clear button to ask for an invitation card
+  const bbcState = s.black_belt_club ? ['Enrolled', 'In Black Belt Club (from EFC)']
+    : s.bbc_invited_at ? (s.bbc_written_at ? ['Card written', `Written ${shortDate(s.bbc_written_at.slice(0, 10))} by ${s.bbc_written_by || 'staff'}`] : ['Card to write', `Asked for by ${s.bbc_invited_by || 'staff'}, ${shortDate(s.bbc_invited_at.slice(0, 10))}`])
+    : ['Not enrolled', ''];
+  const bbcBlock = `<div class="bbcblock${s.black_belt_club || s.bbc_invited_at ? ' on' : ''}"><div class="bbcblock-text"><span class="label">Black Belt Club</span><b>${esc(bbcState[0])}</b>${bbcState[1] ? `<span class="hint">${esc(bbcState[1])}</span>` : ''}</div>
+    ${!s.black_belt_club && canApprove() ? (s.bbc_invited_at ? `<button type="button" class="btn sm" data-bbcinv="${esc(s.member_key)}" data-on="0">Cancel card</button>` : `<button type="button" class="btn gold" data-bbcinv="${esc(s.member_key)}" data-on="1">Invite to Black Belt Club</button>`) : ''}</div>`;
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><div><h3>${esc(s.full_name)}</h3><p class="sub">${swatch(s.belt, P)} ${esc(s.belt)} to <b>${esc(sNext(s))}</b>${s.up_belt && s.up_belt !== s.next_belt ? ` (or ${esc(withProg(s.up_belt, s.up_programme))} when moving up)` : ''}</p></div><button class="x" data-close>Close</button></div>
+    ${canApprove() ? `<form id="apForm" class="dlg" style="gap:10px">
+      <div class="choice"><button type="button" class="btn go" id="apReady" aria-pressed="${s.approval === 'ready'}">Ready to grade</button><button type="button" class="btn stop" id="apNot" aria-pressed="${s.approval === 'not_yet'}">Not yet</button></div>
+      <div class="field"><label for="apNote">What to work on</label><textarea id="apNote" rows="2" placeholder="Keep practising your pattern at home.">${esc(s.approval_note || '')}</textarea></div>
+      ${s.approval ? `<div class="row" style="justify-content:space-between"><span class="hint">Marked ${s.approval === 'ready' ? 'ready' : 'not yet'} by ${esc(s.decided_by || 'staff')}</span><button type="button" class="btn link" id="apClear">Clear</button></div>` : '<p class="hint">The note goes in the "not yet" text to the parent.</p>'}
+      ${s.approval === 'not_yet' ? '<button type="button" class="btn" id="apText">Text the parent a kind message</button>' : ''}
+    </form>` : `<p class="sub">${s.approval ? 'Marked ' + (s.approval === 'ready' ? 'ready' : 'not yet') : 'Not decided yet'}</p>`}
+    ${bbcBlock}
+    <dl class="kv">
+      <dt>Classes</dt><dd><b>${s.classes}</b> of ${s.classes_needed} since their last grading ${s.enough_classes ? '<span class="tag ok">Enough</span>' : `<span class="tag warn">${s.classes_needed - s.classes} to go</span>`}</dd>
+      <dt>Last grading</dt><dd>${s.promoted_on ? `${esc(fmtDate(s.promoted_on))}, ${s.weeks_at_belt} weeks ago` : 'Not in EFC'}${overdue(s) ? ' <span class="tag bad">Overdue</span>' : ''}</dd>
+      <dt>Age</dt><dd>${esc(ageText(s))}</dd>
+      <dt>School</dt><dd>${esc(s.location)}${isAll() ? ', ' + esc(progLabel(P)) : ''}${s.efc_reference ? ` <span class="hint">${esc(s.efc_reference)}</span>` : ''}</dd>
+      ${contactRows(s)}
+    </dl>
+    ${canGrade() ? '<div class="row"><button class="btn sm" id="editContact">Edit mobile or email</button></div>' : ''}
+    ${hist.length ? `<div class="section"><h3>Gradings</h3><ul class="list">${hist.map(x => `<li><div class="item plain"><div class="main"><div class="name">${esc(fmtDate(x.d.grading_date))}</div><div class="meta">${esc(x.d.location)}, to ${esc(toText(x.e))}</div></div><span class="tags">${x.e.result ? `<span class="tag ${x.e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[x.e.result]}</span>` : x.e.booked_at ? '<span class="tag ok">Booked</span>' : x.e.yes_at ? '<span class="tag ok">Said YES</span>' : x.e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Added</span>'}</span></div></li>`).join('')}</ul></div>` : ''}
+  </div>`);
+  const decide = async status => {
+    const note = $('#apNote').value.trim() || null;
+    try {
+      if (status) await run(sb.from('cb_approvals').upsert({ member_key: key, programme: P, belt: s.belt, status, note, decided_by: state.me, decided_at: new Date().toISOString() }), status === 'ready' ? 'Marked ready' : 'Marked not yet');
+      else await run(sb.from('cb_approvals').delete().eq('member_key', key).eq('programme', P), 'Cleared');
+      state.all.students.forEach(x => { if (x.member_key === key && (x.programme || 'Taekwondo') === P) Object.assign(x, { approval: status, approval_note: status ? note : null, decided_by: status ? state.me : null }); });
+      render(); open();
+    } catch (e) { toast(errMsg(e), 6000); }
+  };
+  const r = $('#apReady'); if (r) r.onclick = () => decide('ready');
+  const n = $('#apNot'); if (n) n.onclick = () => decide('not_yet');
+  const c = $('#apClear'); if (c) c.onclick = () => decide(null);
+  const t = $('#apText'); if (t) t.onclick = () => composeTexts('not_ready', [{ member_key: key, entry_id: null, s, e: null, d: null }]);
+  const ec = $('#editContact'); if (ec) ec.onclick = () => editContact(key, open);
+  wireBbcInvite($('#dlg'), () => { render(); open(); });
+}
+// Parent, mobile and email rows for the student and grading-day screens
+function contactRows(s) {
+  return `<dt>Parent</dt><dd>${esc(s.guardian_name || 'Not in EFC')}</dd>
+      <dt>Mobile</dt><dd>${s.phone ? `<a href="tel:${esc(String(s.phone).replace(/[^\d+]/g, ''))}">${esc(s.phone)}</a>` : '<span class="bad-text">None</span>'}</dd>
+      <dt>Email</dt><dd>${s.email ? esc(s.email) : '<span class="bad-text">None</span>'}</dd>`;
+}
+// Change a student's mobile and email (kept even when EFC updates); then carry on where staff were
+function editContact(key, after) {
+  const s = student(key) || state.all.students.find(x => x.member_key === key); if (!s) return;
+  openDlg(`<form id="ecForm" class="dlg"><div class="dlg-head"><div><h3>Mobile and email</h3><p class="sub">${esc(s.full_name)}${s.guardian_name ? ', parent ' + esc(s.guardian_name) : ''}</p></div><button type="button" class="x" data-close>Close</button></div>
+    <div class="field"><label for="ecPhone">Mobile, for texts</label><input id="ecPhone" type="tel" inputmode="tel" autocomplete="off" value="${esc(s.phone || '')}" placeholder="0412 345 678"></div>
+    <div class="field"><label for="ecEmail">Email, for booking and payment emails</label><input id="ecEmail" type="email" inputmode="email" autocomplete="off" value="${esc(s.email || '')}" placeholder="name@example.com"></div>
+    <p class="hint">Saved here only, so fix it in EFC too. The nightly EFC update won't overwrite it.</p>
+    <p class="bad-text" id="ecErr" hidden></p>
+    <div class="dlg-actions"><button type="button" class="btn" id="ecCancel">Cancel</button><button class="btn primary" id="ecGo" type="submit">Save</button></div></form>`);
+  $('#ecCancel').onclick = () => { if (after) after(); else dlg.close(); };
+  $('#ecPhone').focus();
+  $('#ecForm').onsubmit = async ev => {
+    ev.preventDefault(); $('#ecGo').disabled = true; $('#ecGo').textContent = 'Saving…'; $('#ecErr').hidden = true;
+    try {
+      const r = await run(sb.rpc('cb_set_contact', { p_member: key, p_phone: $('#ecPhone').value, p_email: $('#ecEmail').value }), 'Contact details saved');
+      // Cleared: texts and emails fall back to the parent's details from EFC, so fetch them
+      if (r && r.phone && r.email) patchStudent(key, { phone: r.phone, email: r.email }); else await loadAll();
+      render(); if (after) after(); else dlg.close();
+    } catch (er) { $('#ecErr').textContent = errMsg(er); $('#ecErr').hidden = false; $('#ecGo').disabled = false; $('#ecGo').textContent = 'Save'; }
+  };
+}
+
+/* ---------------- Texts (invites, congratulations, not yet) ---------------- */
+const KIND_NAME = { invite: 'Invitations', not_booked: 'Reminder to book', reminder: 'Grading day reminder', unpaid: 'Fee reminder', congrats: 'Congratulations', photo: 'Grading photos', retest: 'Fail message', not_ready: 'Not yet messages', bbc_followup: 'Black Belt Club follow-up' };
+const KIND_TPL = { invite: 'invite_text', not_booked: 'not_booked_text', reminder: 'reminder_text', unpaid: 'unpaid_text', congrats: 'congrats_text', photo: 'photo_text', retest: 'retest_text', not_ready: 'not_ready_text', bbc_followup: 'bbc_followup_text' };
+// Settings: each message, in the order they're used
+const KIND_HELP = { invite: 'Sent from a grading day to students marked ready. Include {link}.', not_booked: 'For families invited but not booked yet. Include {link}.',
+  reminder: 'For booked families, a day or two before.', unpaid: 'For booked families whose fee isn\'t marked paid.', congrats: 'After results: everyone who passed.', photo: 'After photos are taken on the grading day. Include {photo}: each family\'s link to their photo.',
+  retest: 'After results: a kind message for anyone who failed.', not_ready: 'From Who\'s ready, for a student marked not yet. {note} is the instructor\'s note.',
+  bbc_followup: 'From Cards to write, two weeks after a Black Belt Club card is written, for anyone who hasn\'t joined.' };
+// people: [{ member_key, entry_id, s, e, d }]
+function composeTexts(kind, people) {
+  const tpl = state.settings[KIND_TPL[kind]] || '';
+  const preview = p => fill($('#txTpl').value, vars(p.e, p.s, p.d));
+  openDlg(`<form id="txForm" class="dlg">
+    <div class="dlg-head"><div><h3>${KIND_NAME[kind]}</h3><p class="sub">Each family gets their own text from AMA.</p></div><button class="x" data-close>Close</button></div>
+    <div class="field"><label for="txTpl">Message</label><textarea id="txTpl" rows="4">${esc(tpl)}</textarea>
+      <p class="hint">Fills in {parent} {first} {next} {school} {date} {time} {link} {photo} {note} {video} {prep}. The saved wording is in Settings.</p></div>
+    <div class="field"><span class="label">How it reads for ${esc(people[0].s ? people[0].s.full_name : people[0].e.full_name)}</span><div class="msgprev" id="txPrev"></div><p class="hint" id="txLen"></p></div>
+    <ul class="list people" id="txList">${people.map((p, i) => { const ph = p.s && p.s.phone; return `<li><label class="item" style="min-height:52px"><input type="checkbox" data-i="${i}" ${ph ? 'checked' : 'disabled'}><div class="main"><div class="name">${esc((p.s && p.s.full_name) || p.e.full_name)}</div><div class="meta">${ph ? esc(ph) : '<span class="bad-text">No mobile</span>'}</div></div>${!ph && canGrade() ? `<button type="button" class="btn sm" data-addph="${i}">Add mobile</button>` : ''}</label></li>`; }).join('')}</ul>
+    <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="txGo" type="submit">Send</button></div>
+  </form>`);
+  const upd = () => { $('#txPrev').textContent = preview(people[0]); smsInfo($$('#txList input:checked').map(c => preview(people[+c.dataset.i]))); const n = $$('#txList input:checked').length; $('#txGo').textContent = `Send ${n} text${n === 1 ? '' : 's'}`; $('#txGo').disabled = !n; };
+  $('#txTpl').oninput = upd; $$('#txList input').forEach(c => c.onchange = upd); upd();
+  // Add a missing mobile, then come back to these texts (with the new number)
+  $$('#txList [data-addph]').forEach(b => b.onclick = ev => { ev.preventDefault(); const p = people[+b.dataset.addph];
+    editContact(p.member_key, () => composeTexts(kind, people.map(x => ({ ...x, s: student(x.member_key) || x.s })))); });
+  $('#txForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const items = $$('#txList input:checked').map(c => { const p = people[+c.dataset.i]; return { member_key: p.member_key, entry_id: p.entry_id, body: preview(p) }; });
+    $('#txGo').disabled = true; $('#txGo').textContent = 'Sending…';
+    try {
+      const r = await fnCall({ action: 'send', kind, items });
+      const bad = (r.results || []).filter(x => !x.ok);
+      toast(`${r.sent} sent${r.testing ? ' (test mode: logged, not sent)' : ''}${bad.length ? `, ${bad.length} not sent: ${bad[0].error}` : ''}`, 7000);
+      dlg.close(); await refreshEntries(); render();
+    } catch (e) { toast(errMsg(e), 7000); upd(); }
+  };
+}
+// SMS length: 160 characters is one text (70 if it has characters like é, curly quotes or emoji); longer texts go in parts
+function smsParts(t) {
+  const gsm = /^[A-Za-z0-9 @£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\\[~\]|€]*$/.test(t);
+  const len = gsm ? [...t].reduce((n, c) => n + ('^{}\\[~]|€'.includes(c) ? 2 : 1), 0) : [...t].length;
+  const one = gsm ? 160 : 70, many = gsm ? 153 : 67;
+  return { len, gsm, one, parts: len <= one ? 1 : Math.ceil(len / many) };
+}
+function smsInfo(texts) {
+  const el = $('#txLen'); if (!el) return;
+  if (!texts.length) { el.textContent = ''; return; }
+  const all = texts.map(smsParts), worst = all.reduce((a, b) => (b.parts > a.parts || (b.parts === a.parts && b.len > a.len) ? b : a));
+  const over = all.filter(x => x.parts > 1).length;
+  el.style.color = over ? 'var(--red)' : '';
+  el.textContent = over
+    ? `Longest: ${worst.len} characters, ${worst.parts} SMS parts. ${over} of ${texts.length} won't fit in one SMS (${worst.one} characters${worst.gsm ? '' : ': a name or symbol like é or ’ lowers the limit'}). Shorten the wording to keep it to one.`
+    : `Longest: ${worst.len} of ${worst.one} characters. Every text fits in one SMS.`;
+}
+async function fnCall(body) {
+  const { data: { session } } = await sb.auth.getSession();
+  let res;
+  try { res = await fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, ...(session ? { Authorization: 'Bearer ' + session.access_token } : {}) }, body: JSON.stringify(body) }); }
+  catch (e) { throw new Error('Could not reach the "cb" function in Supabase.'); }
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 404 && !data.error) throw new Error('The "cb" function is not set up in Supabase yet.');
+  if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+  return data;
+}
+
+/* ---------------- Grading days ---------------- */
+function renderDays() {
+  const v = $('#view-days');
+  const up = state.days.filter(d => !d.closed && d.grading_date >= today()).sort((a, b) => a.grading_date.localeCompare(b.grading_date));
+  const past = state.days.filter(d => !up.includes(d));
+  const row = d => { const es = entriesOf(d.day_id), n = k => es.filter(k).length;
+    const status = d.closed ? '<span class="tag plain">Finished</span>' : n(e => e.result) ? `<span class="tag ok">${n(e => e.result)} results</span>` : es.length ? `<span class="tag ${n(e => e.booked_at) === es.length ? 'ok' : 'info'}">${n(e => e.booked_at)} booked</span>` : '';
+    return `<li><button class="item" data-day="${d.day_id}"><div class="main"><div class="name">${isAll() ? esc(progLabel(d.programme || 'Taekwondo')) + ': ' : ''}${esc(fmtDate(d.grading_date))}${d.start_time ? ', ' + fmtTime(d.start_time) : ''}</div>
+      <div class="meta">${esc(d.location)}, ${esc(beltsText(d))}${d.move_up ? ', moving up to Taekwondo' : ''}</div>${fromText(d) ? `<div class="meta">${esc(fromText(d))}</div>` : ''}</div>
+      <div class="side"><span class="classes">${es.length} student${es.length === 1 ? '' : 's'}</span>${status}</div></button></li>`; };
+  v.innerHTML = `<div class="view-head"><h2>Grading days</h2>${canGrade() && !isAll() ? '<button class="btn primary" id="newDay">New grading day</button>' : ''}</div>
+    ${isAll() && canGrade() ? '<p class="hint">Every program\'s grading days. To add one, choose its program at the top.</p>' : ''}
+    <h3>Coming up</h3><ul class="list">${up.length ? up.map(row).join('') : '<li class="empty">No grading days coming up.</li>'}</ul>
+    ${past.length ? `<h3>Earlier</h3><ul class="list">${past.map(row).join('')}</ul>` : ''}`;
+  $$('#view-days [data-day]').forEach(b => b.onclick = () => go('day', b.dataset.day));
+  const nd = $('#newDay'); if (nd) nd.onclick = () => openDayForm();
+}
+function openDayForm(d = null) {
+  openDlg(`<form id="dayForm" class="dlg">
+    <div class="dlg-head"><h3>${d ? 'Edit grading day' : 'New grading day'}</h3><button class="x" data-close>Close</button></div>
+    <div class="grid2"><div class="field"><label for="dSchool">School</label><select id="dSchool">${SCHOOLS.map(s => `<option${d && d.location === s ? ' selected' : ''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label for="dDate">Date</label><input type="date" id="dDate" required value="${esc(d ? d.grading_date : '')}"></div>
+      <div class="field"><label for="dTime">Starts</label><input type="time" id="dTime" value="${esc(d && d.start_time ? String(d.start_time).slice(0, 5) : '')}"></div>
+      <div class="field"><label for="dBookBy">Bookings close</label><input type="datetime-local" id="dBookBy" value="${esc(d && d.book_by ? localInput(d.book_by) : '')}"></div></div>
+    <p class="hint">After bookings close, links tell families to call ${esc(state.settings.contact_phone || '(02) 9569 1943')}. Leave it blank to keep bookings open until the day.</p>
+    <div class="field" id="dFromField"><span class="label">Students from</span>
+      <div class="checks" id="dFrom">${SCHOOLS.map(x => `<label class="check"><input type="checkbox" value="${x}" ${(d ? daySchools(d) : defaultFrom(SCHOOLS[0])).includes(x) ? 'checked' : ''}> ${x}</label>`).join('')}</div>
+      <p class="hint">Sydenham members grade at Marrickville, so it's ticked for Marrickville days.</p></div>
+    <div class="field"><div class="row" style="justify-content:space-between"><span class="label">Belts (their belt now)</span><span class="row"><button type="button" class="btn link" id="dAll">All</button><button type="button" class="btn link" id="dNone">None</button></span></div>
+      <div class="checks" id="dBelts">${state.belts.map(b => `<label class="check"><input type="checkbox" value="${esc(b.belt)}" ${!d || !dayBelts(d) || dayBelts(d).includes(b.belt) ? 'checked' : ''}> ${swatch(b.belt)} ${esc(short(b.belt))}</label>`).join('')}</div></div>
+    ${isLD() ? `<label class="check" id="dMoveUpField"><input type="checkbox" id="dMoveUp" ${d && d.move_up ? 'checked' : ''}> Moving up to Taekwondo (Little Dragon belts grade to Yellow Belt, Master Belt to Orange Belt)</label>` : ''}
+    <div class="grid2"><div class="field"><label for="dSess">EFC session name</label><input type="text" id="dSess" value="${esc(d ? d.efc_session || '' : '')}" placeholder="Coloured Belt Grading"></div>
+      <div class="field" id="dSessSingle"><label for="dSessId">EFC session ID</label><input type="text" id="dSessId" value="${esc(d ? d.efc_session_id || '' : '')}" autocomplete="off"></div></div>
+    <p class="hint" id="dSessHintSingle">Online bookings go into this EFC session, so it needs the ID. Set the session to $0 in EFC: the fee is paid here.</p>
+    <div class="field" id="dSessExtra"></div>
+    <div class="field" id="dSessBelt"></div>
+    <div class="field"><label for="dNotes">Notes</label><textarea id="dNotes" rows="2">${esc(d ? d.notes || '' : '')}</textarea></div>
+    <div class="dlg-actions">${d ? '<button type="button" class="btn danger" id="dDel" style="margin-right:auto">Delete</button>' : ''}<button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="dGo">${d ? 'Save' : 'Add grading day'}</button></div>
+  </form>`);
+  // A per-belt EFC session for every extra school ticked in "Students from": those students are enrolled at their
+  // own school in EFC, and EFC splits a grading by belt, so each school needs a $0 session per belt. The day's own
+  // school uses the per-belt sessions below (or the single ID above). Stored in efc_school_belt_sessions: school -> { belt -> id }.
+  const renderSchoolBeltSess = () => {
+    const box = $('#dSessExtra'); if (!box) return;
+    const home = $('#dSchool').value;
+    const extras = $$('#dFrom input:checked').map(c => c.value).filter(x => x !== home);
+    const belts = $$('#dBelts input:checked').map(c => c.value);
+    const have = {}; box.querySelectorAll('.dSBInput').forEach(i => { if (i.value.trim()) (have[i.dataset.loc] = have[i.dataset.loc] || {})[i.dataset.belt] = i.value.trim(); });
+    const existing = (d && d.efc_school_belt_sessions) || {};
+    const val = (s, b) => (have[s] && have[s][b] != null) ? have[s][b] : (existing[s] && existing[s][b]) || '';
+    box.innerHTML = (extras.length && belts.length) ? `<span class="label">EFC session for the other schools, per belt</span>
+      <p class="hint">${esc(home)} students book into the sessions above. ${extras.join(', ')} students are enrolled at their own school in EFC, and EFC splits a grading by belt, so each school needs its own $0 session for each belt &mdash; paste the IDs. Left blank, those students are flagged to book by hand.</p>
+      ${extras.map(s => `<details style="margin:4px 0"${(existing[s] && Object.keys(existing[s]).length) ? ' open' : ''}><summary class="label" style="cursor:pointer">${esc(s)}</summary>
+        <div class="checks">${belts.map(b => `<div class="field" style="margin:0"><label>${esc(short(b))}</label><input type="text" class="dSBInput" data-loc="${esc(s)}" data-belt="${esc(b)}" value="${esc(val(s, b))}" autocomplete="off" placeholder="session ID"></div>`).join('')}</div></details>`).join('')}` : '';
+    box.hidden = !(extras.length && belts.length);
+  };
+  // Changing the school ticks that school's students (and Sydenham for Marrickville), unless other schools were picked by hand
+  let lastSchool = $('#dSchool').value;
+  $('#dSchool').onchange = () => {
+    const now = $('#dSchool').value, ticked = $$('#dFrom input:checked').map(c => c.value).sort().join('|');
+    if (ticked === defaultFrom(lastSchool).slice().sort().join('|')) $$('#dFrom input').forEach(c => c.checked = defaultFrom(now).includes(c.value));
+    else { const nw = $(`#dFrom input[value="${now}"]`); if (nw) nw.checked = true; }
+    lastSchool = now; renderSchoolBeltSess(); };
+  $$('#dFrom input').forEach(c => c.addEventListener('change', renderSchoolBeltSess));
+  renderSchoolBeltSess();
+  // An optional EFC session ID per belt: EFC splits a grading by belt, so a day covering several belts can send
+  // each belt's students to their own $0 session. Left blank, a belt uses the single session above.
+  const renderBeltSess = () => {
+    const box = $('#dSessBelt'); if (!box) return;
+    const belts = $$('#dBelts input:checked').map(c => c.value);
+    const have = {}; box.querySelectorAll('.dSessBeltInput').forEach(i => { if (i.value.trim()) have[i.dataset.belt] = i.value.trim(); });
+    const val = b => have[b] != null ? have[b] : (d && d.efc_belt_sessions && d.efc_belt_sessions[b]) || '';
+    const open = d && d.efc_belt_sessions && Object.keys(d.efc_belt_sessions).length;
+    box.innerHTML = belts.length ? `<details${open ? ' open' : ''}><summary class="label" style="cursor:pointer">A different EFC session per belt (optional)</summary>
+      <p class="hint">EFC runs a separate session for each belt. If this day's belts book into different EFC sessions, paste each belt's $0 session ID. Leave blank to use the single session above for all of them.</p>
+      <div class="checks">${belts.map(b => `<div class="field" style="margin:0"><label>${esc(short(b))}</label><input type="text" class="dSessBeltInput" data-belt="${esc(b)}" value="${esc(val(b))}" autocomplete="off" placeholder="session ID"></div>`).join('')}</div></details>` : '';
+    box.hidden = !belts.length;
+  };
+  $$('#dBelts input').forEach(c => c.addEventListener('change', () => { renderBeltSess(); renderSchoolBeltSess(); }));
+  renderBeltSess();
+  const beltSel = () => '#dBelts input';
+  $('#dAll').onclick = () => { $$(beltSel()).forEach(c => c.checked = true); renderBeltSess(); renderSchoolBeltSess(); };
+  $('#dNone').onclick = () => { $$(beltSel()).forEach(c => c.checked = false); renderBeltSess(); renderSchoolBeltSess(); };
+  $('#dayForm').onsubmit = async e => {
+    e.preventDefault();
+    const picked = $$('#dBelts input:checked').map(c => c.value);
+    if (!picked.length) return toast('Tick at least one belt.');
+    const from = $$('#dFrom input:checked').map(c => c.value), here = $('#dSchool').value;
+    if (!from.includes(here)) from.unshift(here);
+    const sessBox = $('#dSessExtra');
+    const sessBySchoolBelt = () => { const o = {}; if (sessBox) sessBox.querySelectorAll('.dSBInput').forEach(i => { const v = i.value.trim(); if (v) (o[i.dataset.loc] = o[i.dataset.loc] || {})[i.dataset.belt] = v; }); return o; };
+    const beltBox = $('#dSessBelt');
+    const sessByBelt = () => { const o = {}; if (beltBox) beltBox.querySelectorAll('.dSessBeltInput').forEach(i => { const v = i.value.trim(); if (v) o[i.dataset.belt] = v; }); return o; };
+    const mu = $('#dMoveUp');
+    const rec = { ...(d ? {} : { programme: state.programme }), move_up: !!(mu && mu.checked), schools: from.length === 1 ? null : SCHOOLS.filter(x => from.includes(x)), belts: picked.length === state.belts.length ? null : picked, location: $('#dSchool').value, grading_date: $('#dDate').value, start_time: $('#dTime').value || null, efc_session: $('#dSess').value.trim() || null, efc_session_id: $('#dSessId').value.trim() || null, efc_belt_sessions: sessByBelt(), efc_school_belt_sessions: sessBySchoolBelt(), notes: $('#dNotes').value.trim() || null, book_by: $('#dBookBy').value ? new Date($('#dBookBy').value).toISOString() : null };
+    try {
+      let id = d && d.day_id;
+      if (d) await run(sb.from('cb_days').update(rec).eq('day_id', id), 'Saved');
+      else { const r = await run(sb.from('cb_days').insert(rec).select()); id = r[0].day_id; toast('Grading day added'); }
+      dlg.close(); await refreshEntries(); go('day', id);
+    } catch (er) { toast(errMsg(er), 6000); }
+  };
+  const del = $('#dDel');
+  if (del) del.onclick = async () => {
+    if (entriesOf(d.day_id).some(x => x.booked_at || x.result) && !confirm('Students are booked or have results on this day. Delete it anyway?')) return;
+    try { await run(sb.from('cb_days').delete().eq('day_id', d.day_id), 'Grading day deleted'); dlg.close(); await refreshEntries(); go('days'); } catch (er) { toast(errMsg(er), 6000); }
+  };
+}
+
+const dayFilt = { belt: '', stage: null, sort: pref('day_sort', 'age') };
+function renderDay() {
+  // A day from another program (e.g. an address someone was sent): switch to that program
+  if (isAll() || !dayOf(state.day)) { const other = state.all.days.find(x => x.day_id === state.day); if (other) { state.programme = other.programme || 'Taekwondo'; savePref('programme', state.programme); applyProgramme(); $('#view-ready').dataset.built = ''; return render(); } }
+  const d = dayOf(state.day), v = $('#view-day');
+  if (!d) return go('days');
+  if (dayFilt.day !== d.day_id) { dayFilt.day = d.day_id; dayFilt.belt = ''; dayFilt.stage = null; }
+  const es = sortEntries(entriesOf(d.day_id), dayFilt.sort);
+  const dayBeltsHere = [...new Set(es.map(e => e.belt_from))].sort((a, b) => (beltOf(a).sort || 99) - (beltOf(b).sort || 99));
+  if (dayFilt.belt && !dayBeltsHere.includes(dayFilt.belt)) dayFilt.belt = '';
+  const shown = es.filter(e => !dayFilt.belt || e.belt_from === dayFilt.belt);   // the list, printout, CSVs and results follow the belt filter
+  if (state.resultsMode) return renderResults(d, shown);
+  if (state.photosMode) return renderPhotos(d, shown);
+  if (state.checkinMode) return renderCheckIn(d, shown);
+  const n = k => es.filter(k).length;
+  const notInvited = es.filter(e => !e.invited_at && !e.result);
+  const passed = es.filter(e => resultIs(e, 'pass'));
+  const toCongrats = passed.filter(e => !sentTo('congrats', e.entry_id));
+  const toRetest = es.filter(e => e.result === 'retest' && !sentTo('retest', e.entry_id));
+  const toPhoto = es.filter(e => e.photo_path && !sentTo('photo', e.entry_id));
+  const notBooked = es.filter(e => e.invited_at && !e.booked_at && !e.result);
+  const booked = es.filter(e => e.booked_at && !e.result);
+  const unpaid = es.filter(e => e.booked_at && !e.paid && !e.result);
+  const people = list => list.map(e => ({ member_key: e.member_key, entry_id: e.entry_id, e, s: student(e.member_key), d }));
+  const needs = {}; es.filter(e => e.result !== 'retest').forEach(e => { needs[toText(e)] = (needs[toText(e)] || 0) + 1; });
+  const cnt = (label, list) => `${label}${list.length ? ` (${list.length})` : ''}`;
+  // What to do, in order: before the day, on the day, after. It opens on the one that fits the date.
+  const stages = [];
+  if (canGrade() && !d.closed) stages.push(['before', 'Before', `
+      <button class="btn primary wide" id="addReady">Add everyone marked ready</button><button class="btn" id="addOne">Add a student</button>
+      <button class="btn${notInvited.length ? ' primary' : ''}" id="sendInv" ${notInvited.length ? '' : 'disabled'}>${cnt('Invite', notInvited)}</button>
+      <button class="btn" id="sendNotBooked" ${notBooked.length ? '' : 'disabled'}>${cnt('Remind to book', notBooked)}</button>
+      <button class="btn" id="sendReminder" ${booked.length ? '' : 'disabled'}>${cnt('Grading day reminder', booked)}</button>
+      <button class="btn" id="sendUnpaid" ${unpaid.length ? '' : 'disabled'}>${cnt('Fee reminder', unpaid)}</button>`]);
+  if (canApprove() && es.length) stages.push(['day', 'On the day', `
+      <button class="btn primary wide" id="checkinBtn">Check in students</button>
+      ${canGrade() ? `<button class="btn" id="resultsBtn">Enter results</button><button class="btn" id="photosBtn">Take photos${n(e => e.photo_path) ? ` (${n(e => e.photo_path)} of ${n(e => e.result !== 'retest')})` : ''}</button>` : ''}
+      <button class="btn" id="lineupBtn">Print line-up sheet</button>`]);
+  if (canGrade() && es.length) stages.push(['after', 'After', `
+      <button class="btn${toCongrats.length ? ' primary' : ''}" id="sendCongrats" ${toCongrats.length ? '' : 'disabled'}>${cnt('Text congratulations', toCongrats)}</button>
+      <button class="btn" id="sendRetest" ${toRetest.length ? '' : 'disabled'}>${cnt('Text fails', toRetest)}</button>
+      <button class="btn" id="sendPhotos" ${toPhoto.length ? '' : 'disabled'}>${cnt('Text photos', toPhoto)}</button>
+      <button class="btn" id="csvPassed" ${passed.length ? '' : 'disabled'}>Certificates CSV</button>
+      <button class="btn" id="closeDay">${d.closed ? 'Reopen this day' : 'Mark finished'}</button>`]);
+  const auto = d.closed || n(e => e.result) ? 'after' : d.grading_date <= today() ? 'day' : 'before';
+  const stage = (stages.find(x => x[0] === dayFilt.stage) || stages.find(x => x[0] === auto) || stages[0] || [])[0];
+  const fromCap = fromText(d) ? fromText(d)[0].toUpperCase() + fromText(d).slice(1) : '';
+  const facts = [d.start_time ? fmtTime(d.start_time) : '', beltsText(d), fromCap, d.move_up ? 'Moving up to Taekwondo' : '',
+    d.book_by ? (bookingShut(d) ? 'Bookings closed' : 'Bookings close ' + whenText(d.book_by)) : '', d.efc_session ? 'EFC: ' + d.efc_session : 'No EFC session named'].filter(Boolean);
+  v.innerHTML = `<div><button class="back" id="backDays">‹ Grading days</button>
+      <div class="view-head"><div><p class="sub">${esc(d.location)}${isAll() || state.programmes.length > 1 ? ', ' + esc(progLabel(d.programme || state.programme)) : ''}</p><h2 class="day-date">${esc(fmtDate(d.grading_date))}</h2></div>${canGrade() ? '<button class="btn sm" id="editDay">Edit</button>' : ''}</div>
+      <ul class="facts">${facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul>${d.notes ? `<p class="hint" style="margin-top:6px">${esc(d.notes)}</p>` : ''}</div>
+    <div class="tally"><div><b>${es.length}</b><span>students</span></div><div><b>${n(e => e.invited_at)}</b><span>invited</span></div><div><b>${n(e => e.booked_at)}</b><span>booked</span></div>
+      <div><b>${n(e => e.paid)}</b><span>paid</span></div><div><b>${n(e => e.checked_in_at)}</b><span>here</span></div><div><b>${passed.length}</b><span>passed</span></div></div>
+    ${stages.length ? `<div class="stage">${stages.length > 1 ? `<div class="stages" role="group" aria-label="Stage">${stages.map(([k, t]) => `<button type="button" data-stage="${k}" aria-pressed="${k === stage}">${t}</button>`).join('')}</div>` : ''}
+      ${stages.map(([k, , html]) => `<div class="actions" data-panel="${k}"${k === stage ? '' : ' hidden'}>${html}</div>`).join('')}</div>` : ''}
+    <div class="section-title"><h3>Students</h3>${es.length ? `<div class="list-tools">
+      <select id="dfBelt" aria-label="Belt"><option value="">All belts (${es.length})</option>${dayBeltsHere.map(b => `<option value="${esc(b)}"${b === dayFilt.belt ? ' selected' : ''}>${esc(short(b))} (${es.filter(e => e.belt_from === b).length})</option>`).join('')}</select>
+      <select id="dfSort" aria-label="Order">${Object.entries(SORTS).map(([k, t]) => `<option value="${k}"${k === dayFilt.sort ? ' selected' : ''}>${t}</option>`).join('')}</select></div>` : ''}</div>
+    <ul class="list" id="entryList">${shown.length ? shown.map(e => { const s = student(e.member_key) || {};
+      const warn = e.booking_error ? 'Booking failed' : e.efc_by_hand && !e.efc_by_hand_done_at ? 'Book in EFC by hand' : '';
+      const tags = e.result ? `<span class="tag ${e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[e.result]}</span>` : `${e.checked_in_at ? '<span class="tag ok">Here</span>' : ''}${e.booked_at ? '<span class="tag ok">Booked</span>' : e.yes_at ? '<span class="tag ok">Said YES</span>' : e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Not invited</span>'}${e.paid ? `<span class="tag ok">Paid${e.paid_how === 'card' ? ' by card' : ''}</span>` : e.booked_at ? '<span class="tag warn">Unpaid</span>' : ''}`;
+      return `<li><button class="item" style="${beltVar(e.belt_from)}" data-entry="${e.entry_id}"><div class="main"><div class="name">${esc(e.full_name)}</div>
+        <div class="meta">${esc(short(e.belt_from))} to ${esc(short(toText(e)))}, ${esc(ageText(s))}${s.location && s.location !== d.location ? ', from ' + esc(s.location) : ''}</div>${warn ? `<div class="meta bad-text">${warn}</div>` : ''}</div>
+        <div class="side"><span class="tags">${tags}</span>${s.black_belt_club ? '<span class="tag bbc">BBC</span>' : s.bbc_invited_at ? `<span class="tag bbcinv">${s.bbc_written_at ? 'BBC card written' : 'BBC card to write'}</span>` : ''}</div></button></li>`; }).join('') : '<li class="empty">No students on this day yet.</li>'}</ul>
+    ${es.length ? `<details class="fold"><summary>Getting ready: belts and certificates</summary><div class="fold-body">
+      <table class="grid"><thead><tr><th>New belt</th><th>Belts</th><th>Certificates</th></tr></thead><tbody>${Object.entries(needs).sort((a, b) => (beltOf(a[0]).sort || 99) - (beltOf(b[0]).sort || 99)).map(([b, c]) => `<tr><td>${esc(b)}</td><td>${c}</td><td>${c}</td></tr>`).join('')}</tbody></table>
+      <p class="hint">Everyone not failed${n(e => e.result) ? '' : ', until results are in'}. EFC doesn't hold belt sizes, so check sizes against the list.</p>
+      <div class="row"><button class="btn sm" id="printList">Print the list</button><button class="btn sm" id="csvAll">Certificates CSV, everyone</button></div></div></details>` : ''}`;
+  $('#backDays').onclick = () => go('days');
+  $$('#view-day [data-stage]').forEach(b => b.onclick = () => { dayFilt.stage = b.dataset.stage; $$('#view-day [data-stage]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); $$('#view-day [data-panel]').forEach(p => p.hidden = p.dataset.panel !== b.dataset.stage); });
+  const on = (id, f) => { const b = $(id); if (b) b.onclick = f; };
+  on('#editDay', () => openDayForm(d));
+  on('#addReady', () => addStudents(d, state.students.filter(s => forDay(d, s) && s.approval === 'ready')));
+  on('#addOne', () => pickStudent(d));
+  on('#sendInv', () => composeTexts('invite', people(notInvited)));
+  on('#sendNotBooked', () => composeTexts('not_booked', people(notBooked)));
+  on('#sendReminder', () => composeTexts('reminder', people(booked)));
+  on('#sendUnpaid', () => composeTexts('unpaid', people(unpaid)));
+  on('#sendRetest', () => composeTexts('retest', people(toRetest)));
+  on('#resultsBtn', () => go('day', d.day_id, true));
+  on('#photosBtn', () => go('day', d.day_id, 'photos'));
+  on('#sendPhotos', () => composeTexts('photo', people(toPhoto)));
+  on('#csvPassed', () => certCsv(d, shown.filter(e => resultIs(e, 'pass'))));
+  on('#csvAll', () => certCsv(d, shown.filter(e => e.result !== 'retest')));
+  on('#printList', () => printDay(d, shown));
+  on('#checkinBtn', () => go('day', d.day_id, 'check-in'));
+  on('#lineupBtn', () => printLineup(d, shown));
+  const dfb = $('#dfBelt'); if (dfb) dfb.onchange = () => { dayFilt.belt = dfb.value; renderDay(); };
+  const dfs = $('#dfSort'); if (dfs) dfs.onchange = () => { dayFilt.sort = dfs.value; savePref('day_sort', dfs.value); renderDay(); };
+  on('#sendCongrats', () => composeTexts('congrats', people(toCongrats)));
+  on('#closeDay', async () => { try { await run(sb.from('cb_days').update({ closed: !d.closed }).eq('day_id', d.day_id), d.closed ? 'Reopened' : 'Marked finished'); d.closed = !d.closed; render(); } catch (e) { toast(errMsg(e), 6000); } });
+  $$('#entryList [data-entry]').forEach(b => b.onclick = () => openEntry(b.dataset.entry));
+}
+async function addStudents(d, list) {
+  const have = new Set(entriesOf(d.day_id).map(e => e.member_key));
+  // Not someone already on a grading day, or who passed and is waiting to be promoted in EFC
+  const passedWaiting = s => state.entries.some(e => e.member_key === s.member_key && resultIs(e, 'pass') && e.belt_from === s.belt);
+  const add = list.filter(s => !have.has(s.member_key) && !openDayFor(s.member_key) && !passedWaiting(s));
+  const skipped = list.length - add.length;
+  if (!add.length) return toast(list.length ? 'They are all on a grading day already, or passed and waiting to be promoted in EFC.' : `No one at ${daySchools(d).join(' or ')} on ${beltsText(d).toLowerCase()} is marked ready yet. Mark students ready on Who's ready.`, 6000);
+  try {
+    const rows = await run(sb.from('cb_entries').insert(add.map(s => ({ day_id: d.day_id, member_key: s.member_key, full_name: s.full_name, belt_from: s.belt,
+      belt_to: d.move_up && s.up_belt ? s.up_belt : s.next_belt, to_programme: d.move_up && s.up_belt ? s.up_programme : (s.next_programme || null) }))).select());
+    (rows || []).forEach(r => { if (!state.all.entries.some(x => x.entry_id === r.entry_id)) state.all.entries.push(r); });
+    applyProgramme();
+    toast(`Added ${add.length}${skipped ? `; ${skipped} already on a grading day` : ''}`, 5000); dlg.close(); render();
+  } catch (e) { toast(errMsg(e), 6000); }
+}
+function pickStudent(d) {
+  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Add a student</h3><p class="sub">${esc(d.location)}, ${esc(beltsText(d))}</p></div><button class="x" data-close>Close</button></div>
+    <input type="search" id="psQ" placeholder="Find a student" aria-label="Find a student">
+    <label class="check"><input type="checkbox" id="psAny"> Include other schools</label>
+    <ul class="list" id="psList" style="max-height:50vh;overflow:auto"></ul></div>`);
+  const draw = () => { const q = $('#psQ').value.trim().toLowerCase(), any = $('#psAny').checked;
+    const l = state.students.filter(s => (any ? (!dayBelts(d) || dayBelts(d).includes(s.belt)) : forDay(d, s)) && (!q || s.full_name.toLowerCase().includes(q))).slice(0, 60);
+    $('#psList').innerHTML = l.map(s => `<li><button class="item" style="${beltVar(s.belt)}" data-key="${esc(s.member_key)}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(short(s.belt))} to ${esc(short(d.move_up && s.up_belt ? withProg(s.up_belt, s.up_programme) : sNext(s)))}, ${esc(s.location)}, ${esc(ageText(s))}</div></div><div class="side"><span class="tags">${readyTags(s)}</span></div></button></li>`).join('') || '<li class="empty">No one matches.</li>';
+    $$('#psList [data-key]').forEach(b => b.onclick = () => addStudents(d, [student(b.dataset.key)])); };
+  $('#psQ').oninput = draw; $('#psAny').onchange = draw; draw(); $('#psQ').focus();
+}
+function openEntry(id) {
+  const e = state.entries.find(x => x.entry_id === id); if (!e) return;
+  const d = dayOf(e.day_id), s = student(e.member_key);
+  const at = iso => new Date(iso).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' });
+  const booking = e.efc_by_hand && e.booked_at ? (e.efc_by_hand_done_at ? `Booked by hand in EFC, ${at(e.efc_by_hand_done_at)}` : `<span class="bad-text">Booked here, but they're from ${esc(s ? s.location : 'another school')}, so EFC can't book them automatically. Book them in EFC by hand, then press Done in EFC.</span>`)
+    : e.booked_at ? `Booked ${at(e.booked_at)}` : e.booking_error ? `<span class="bad-text">Failed: ${esc(e.booking_error)}${e.paid ? '. They have paid, so book them in EFC by hand, then press Mark booked.' : ''}</span>` : e.yes_at ? `Said YES ${at(e.yes_at)}, booking link sent, not booked yet` : e.invited_at ? `Invited ${at(e.invited_at)}, not booked yet${e.reply_text ? '. Replied: “' + esc(e.reply_text) + '”' : ''}` : 'Not invited yet';
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><div><h3>${esc(e.full_name)}</h3><p class="sub">${swatch(e.belt_from)} ${esc(e.belt_from)} to <b>${esc(toText(e))}</b></p></div><button class="x" data-close>Close</button></div>
+    <dl class="kv">
+      <dt>Booking</dt><dd>${booking}</dd>
+      <dt>Fee</dt><dd>${money(beltOf(e.belt_from).fee) || 'Not set'} ${e.paid ? `<span class="tag ok">Paid ${esc(PAID_HOW[e.paid_how] || '')}</span>` : '<span class="tag warn">Unpaid</span>'}</dd>
+      <dt>Result</dt><dd>${e.result ? RESULT[e.result] : e.checked_in_at ? 'Here, no result yet' : 'None yet'}</dd>
+      <dt>Photo</dt><dd>${e.photo_path ? `Taken${sentTo('photo', e.entry_id) ? ', texted to the family' : ''}` : e.photo_removed_at ? 'Removed (photos are kept 30 days)' : 'None yet'}</dd>
+      ${s ? contactRows(s) : ''}
+    </dl>
+    <div class="row">
+      ${canPay() && !e.paid ? '<button class="btn primary" id="recordPay">Record payment</button>' : ''}
+      ${canGrade() && e.efc_by_hand && !e.efc_by_hand_done_at ? '<button class="btn primary" id="byHandDone">Done in EFC</button>' : ''}
+      ${canGrade() && !e.booked_at ? '<button class="btn" id="markBooked">Mark booked</button>' : ''}
+      ${canPay() && e.paid && e.paid_how !== 'card' ? '<button class="btn" id="paidBtn">Mark unpaid</button>' : ''}
+      ${canGrade() && e.booked_at ? '<button class="btn" id="unbook">Clear booking</button>' : ''}
+      ${s && canGrade() ? '<button class="btn" id="editContact">Edit mobile or email</button>' : ''}</div>
+    <div class="section"><h3>Booking link</h3><div class="linkbox">${esc(bookingLink(e))}</div>
+      <div class="row"><button class="btn sm" id="copyLink">Copy link</button>${canGrade() && !e.result && !(e.booked_at && e.paid) ? '<button class="btn sm" id="newLink">Issue new link</button>' : ''}</div>
+      ${e.late_ok_until && new Date(e.late_ok_until) > new Date() ? `<p class="hint">Late booking allowed until ${esc(whenText(e.late_ok_until))}.</p>` : bookingShut(d) && !e.booked_at ? '<p class="hint">Bookings have closed for this day. Issue a new link to let them book or pay late. It works for 48 hours and the old link stops working.</p>' : ''}</div>
+    ${e.photo_path ? `<div class="section"><h3>Photo link</h3><div class="linkbox">${esc(photoLink(e))}</div><div class="row"><button class="btn sm" id="copyPhoto">Copy link</button></div></div>` : ''}
+    ${canGrade() && !e.result ? '<div class="row"><button class="btn link danger" id="removeEntry">Take off this day</button></div>' : ''}
+  </div>`);
+  // Save a change to this entry, show it straight away, keep the dialog open
+  const change = async (f, msg) => { try { await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), msg); Object.assign(e, f); render(); openEntry(id); } catch (er) { toast(errMsg(er), 6000); } };
+  $('#copyLink').onclick = async () => { try { await navigator.clipboard.writeText(bookingLink(e)); toast('Link copied'); } catch (er) { toast('Press and hold the link to copy it.'); } };
+  const nl = $('#newLink'); if (nl) nl.onclick = async () => {
+    if (!confirm(`Issue ${e.full_name} a new booking link? The old link stops working, and the new one works for 48 hours even after bookings close.`)) return;
+    const token = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(9)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    try {
+      const f = { token, late_ok_until: new Date(Date.now() + 48 * 3600 * 1000).toISOString() };
+      await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), 'New link issued');
+      Object.assign(e, f); render();
+      try { await navigator.clipboard.writeText(bookingLink(e)); toast('New link issued and copied'); } catch (er) { /* shown in the text instead */ }
+      composeTexts('not_booked', [{ member_key: e.member_key, entry_id: e.entry_id, e, s: student(e.member_key), d }]);
+    } catch (er) { toast(errMsg(er), 6000); }
+  };
+  const cp = $('#copyPhoto'); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(photoLink(e)); toast('Link copied'); } catch (er) { toast('Press and hold the link to copy it.'); } };
+  const rp = $('#recordPay'); if (rp) rp.onclick = () => recordPayment(e);
+  const ec = $('#editContact'); if (ec) ec.onclick = () => editContact(e.member_key, () => openEntry(id));
+  const p = $('#paidBtn'); if (p) p.onclick = async () => { try { await run(sb.rpc('cb_set_paid', { p_entry: e.entry_id, p_paid: false }), 'Marked unpaid'); Object.assign(e, { paid: false, paid_at: null, paid_how: null }); render(); openEntry(id); } catch (er) { toast(errMsg(er), 6000); } };
+  const bh = $('#byHandDone'); if (bh) bh.onclick = () => change({ efc_by_hand_done_at: new Date().toISOString() }, 'Ticked off');
+  const mb = $('#markBooked'); if (mb) mb.onclick = () => change({ booked_at: new Date().toISOString(), booking_error: null }, 'Marked booked');
+  const u = $('#unbook'); if (u) u.onclick = () => change({ booked_at: null }, 'Booking cleared (cancel it in EFC too)');
+  const r = $('#removeEntry'); if (r) r.onclick = async () => { try { await run(sb.from('cb_entries').delete().eq('entry_id', e.entry_id), 'Taken off this day'); state.all.entries = state.all.entries.filter(x => x.entry_id !== e.entry_id); applyProgramme(); dlg.close(); render(); } catch (er) { toast(errMsg(er), 6000); } };
+}
+// A payment taken by staff: marks them paid, then books the EFC session like a card payment
+function recordPayment(e) {
+  openDlg(`<form id="rpForm" class="dlg"><div class="dlg-head"><div><h3>Record payment</h3><p class="sub">${esc(e.full_name)}, ${money(beltOf(e.belt_from).fee) || 'fee not set'}</p></div><button class="x" data-close>Close</button></div>
+    <div class="field"><span class="label">How did they pay?</span><div class="checks" id="rpHow">${[['cash', 'Cash'], ['eftpos', 'EFTPOS'], ['transfer', 'Bank transfer'], ['other', 'Other']].map(([k, t], i) => `<label class="check"><input type="radio" name="rpHow" value="${k}" ${i === 1 ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
+    <p class="hint">${e.booked_at ? 'They are already booked.' : 'This also books them into the EFC session, or flags it to do by hand for a student from another school.'}</p>
+    <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="rpGo" type="submit">Record payment</button></div></form>`);
+  $('#rpForm').onsubmit = async ev => {
+    ev.preventDefault(); $('#rpGo').disabled = true; $('#rpGo').textContent = 'Saving…';
+    try {
+      const r = await fnCall({ action: 'record_payment', entry_id: e.entry_id, how: ($('#rpForm input[name=rpHow]:checked') || {}).value });
+      toast(r.booked ? (r.byHand ? 'Payment recorded. Book them in EFC by hand.' : 'Payment recorded and booked') : `Payment recorded. Booking failed: ${r.booking_error || 'check Settings'}`, 6000);
+      dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
+    } catch (er) { toast(errMsg(er), 6000); $('#rpGo').disabled = false; $('#rpGo').textContent = 'Record payment'; }
+  };
+}
+// Check-in on the day (iPad): tap Here as each student arrives (tap again to undo)
+function renderCheckIn(d, shown) {
+  const v = $('#view-day');
+  const es = sortEntries(shown, dayFilt.sort === 'name' ? 'name' : 'age');
+  let q = '';
+  const card = e => `<div class="rescard${e.checked_in_at ? ' in' : ''}" style="${beltVar(e.belt_from)}" data-card="${e.entry_id}"${q && !e.full_name.toLowerCase().includes(q) ? ' hidden' : ''}>
+      <div><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to ${esc(short(toText(e)))}, ${esc(ageText(student(e.member_key)))}${e.checked_in_at ? ', in at ' + esc(new Date(e.checked_in_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })) : ''}</div>
+      ${!e.booked_at || !e.paid ? `<div class="meta bad-text">${[!e.booked_at ? 'Not booked' : '', !e.paid ? 'Unpaid' : ''].filter(Boolean).join(', ')}</div>` : ''}</div>
+      <div class="res" data-entry="${e.entry_id}"><button type="button" data-r="in" aria-pressed="${!!e.checked_in_at}">${e.checked_in_at ? 'Here' : 'Tap when here'}</button></div></div>`;
+  v.innerHTML = `<div><button class="back" id="backDay">‹ ${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</button>
+      <div class="view-head"><h2>Check-in</h2><span class="sub" id="ciCount"></span></div></div>
+    <div class="progress"><i id="ciBar"></i></div>
+    <input type="search" class="bigsearch" id="ciQ" placeholder="Find a name" aria-label="Find a name">
+    <div class="bigcards" id="ciList">${es.map(card).join('') || '<p class="empty">No students on this day.</p>'}</div>
+    <div class="row"><button class="btn" id="ciPrint">Print line-up sheet</button></div>`;
+  const count = () => { const here = es.filter(e => e.checked_in_at).length; $('#ciCount').textContent = `${here} of ${es.length} here`; $('#ciBar').style.width = (es.length ? here / es.length * 100 : 0) + '%'; };
+  count();
+  $('#backDay').onclick = () => go('day', d.day_id);
+  $('#ciQ').oninput = () => { q = $('#ciQ').value.trim().toLowerCase(); $$('#ciList [data-card]').forEach(c => { const e = es.find(x => x.entry_id === c.dataset.card); c.hidden = !!q && !e.full_name.toLowerCase().includes(q); }); };
+  // One handler for the whole list (cards are redrawn as students are tapped in)
+  $('#ciList').onclick = async ev => {
+    const b = ev.target.closest('.res button'); if (!b) return;
+    const id = b.parentElement.dataset.entry, e = es.find(x => x.entry_id === id);
+    const now = e.checked_in_at ? 'clear' : 'in', before = e.checked_in_at;
+    e.checked_in_at = now === 'in' ? new Date().toISOString() : null;
+    b.closest('[data-card]').outerHTML = card(e); count();
+    try { await run(sb.rpc('cb_check_in', { p_entry: id, p_state: now })); if (q && now === 'in') { $('#ciQ').value = ''; $('#ciQ').oninput(); $('#ciQ').focus(); } }
+    catch (er) { e.checked_in_at = before; toast(errMsg(er), 6000); renderCheckIn(d, shown); }
+  };
+  $('#ciPrint').onclick = () => printLineup(d, shown);
+}
+// The line-up sheet for examiners: students in age order (youngest first), who's here, and boxes for results and notes
+function printLineup(d, shown) {
+  const es = sortEntries(shown, 'age');
+  const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print.');
+  const box = '<span style="display:inline-block;width:14px;height:14px;border:1.5px solid #333;vertical-align:middle"></span>';
+  w.document.write(`<!doctype html><title>Line-up ${esc(d.location)} ${esc(d.grading_date)}</title><style>body{font:13px Arial,sans-serif;margin:20px;color:#111}h2{margin:0 0 4px}p{margin:0 0 10px;color:#444}table{width:100%;border-collapse:collapse}td,th{border:1px solid #888;padding:6px;text-align:left;vertical-align:middle}th{background:#eee}td.c{text-align:center;white-space:nowrap}small{color:#555}@media print{body{margin:10mm}tr{page-break-inside:avoid}}</style>
+    <h2>Line-up · ${esc(d.location)} ${esc(progLabel(d.programme || state.programme))} grading</h2>
+    <p>${esc(fmtDate(d.grading_date))}${d.start_time ? ' · ' + esc(fmtTime(d.start_time)) : ''}${dayFilt.belt ? ' · ' + esc(dayFilt.belt) : ''} · ${es.length} student${es.length === 1 ? '' : 's'}, youngest first · ${es.filter(e => e.checked_in_at).length} here</p>
+    <table><tr><th>#</th><th>Name</th><th>Age</th><th>From</th><th>To</th><th>Here</th><th>Pass</th><th>Fail</th><th style="width:26%">Examiner notes</th></tr>
+    ${es.map((e, i) => { const s = student(e.member_key); return `<tr${e.checked_in_at ? '' : ' style="color:#666"'}><td>${i + 1}</td><td><b>${esc(e.full_name)}</b>${s && s.location !== d.location ? `<br><small>${esc(s.location)}</small>` : ''}</td><td>${yrs(s) ?? ''}</td><td>${esc(short(e.belt_from))}</td><td>${esc(short(toText(e)))}</td><td class="c">${e.checked_in_at ? '&#10003;' : box}</td><td class="c">${resultIs(e, 'pass') ? '&#10003;' : box}</td><td class="c">${e.result === 'retest' ? '&#10003;' : box}</td><td></td></tr>`; }).join('')}</table>`);
+  w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
+}
+const resultIs = (e, k) => k === 'pass' ? e.result === 'pass' || e.result === 'distinction' : e.result === k;
+// Black Belt Club invitation: a teacher asks for one (usually at a grading); it goes on the invitations list to write
+const bbcInviteBtn = s => !s || s.black_belt_club || !canApprove() ? '' : `<button type="button" class="bbcbtn" data-bbcinv="${esc(s.member_key)}" data-on="${s.bbc_invited_at ? '0' : '1'}">${s.bbc_invited_at ? (s.bbc_written_at ? 'Black Belt Club card written (tap to cancel)' : 'Black Belt Club card asked for (tap to cancel)') : 'Invite to Black Belt Club'}</button>`;
+function wireBbcInvite(root, after) {
+  root.querySelectorAll('[data-bbcinv]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    const on = b.dataset.on === '1', key = b.dataset.bbcinv, s = student(key) || {};
+    const before = { bbc_invited_at: s.bbc_invited_at || null, bbc_invited_by: s.bbc_invited_by || null, bbc_written_at: s.bbc_written_at || null, bbc_written_by: s.bbc_written_by || null };
+    // Show it straight away (the number on Cards to write too), then save
+    patchStudent(key, on ? { bbc_invited_at: s.bbc_invited_at || new Date().toISOString(), bbc_invited_by: s.bbc_invited_by || state.me } : { bbc_invited_at: null, bbc_invited_by: null, bbc_written_at: null, bbc_written_by: null });
+    after();
+    try { await run(sb.rpc('cb_bbc_invite', { p_member: key, p_on: on }), on ? 'Card to write: the team can see it on Cards to write' : 'Card cancelled'); }
+    catch (er) { patchStudent(key, before); after(); toast(errMsg(er), 6000); }
+  });
+}
+// Results on a tablet: one card per student, two big buttons (pass or fail)
+function renderResults(d, es) {
+  const v = $('#view-day');
+  v.innerHTML = `<div><button class="back" id="backDay">‹ ${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</button>
+      <div class="view-head"><h2>Results</h2><span class="sub" id="resCount"></span></div></div>
+    <p class="hint">Saves as you tap. Tap again to clear.</p>
+    <div class="bigcards">${es.map(e => `<div class="rescard" style="${beltVar(e.belt_from)}"><div><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to ${esc(short(toText(e)))}, ${esc(ageText(student(e.member_key)))}</div>${!e.checked_in_at && es.some(x => x.checked_in_at) ? '<div class="meta bad-text">Not checked in</div>' : ''}</div>
+      <div class="res" data-entry="${e.entry_id}">${Object.entries(RESULT_BUTTONS).map(([k, t]) => `<button type="button" data-r="${k}" aria-pressed="${resultIs(e, k)}">${t}</button>`).join('')}</div>
+      ${bbcInviteBtn(student(e.member_key))}</div>`).join('') || '<p class="empty">No students on this day.</p>'}</div>`;
+  const count = () => { const n = state.entries.filter(x => x.day_id === d.day_id && x.result).length; $('#resCount').textContent = `${n} of ${es.length} done`; };
+  count();
+  $('#backDay').onclick = () => go('day', d.day_id);
+  $$('.res[data-entry] button').forEach(b => b.onclick = async () => {
+    const box = b.parentElement, id = box.dataset.entry, e = state.entries.find(x => x.entry_id === id);
+    if (!e) return;
+    const val = resultIs(e, b.dataset.r) ? null : b.dataset.r;
+    box.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.r === val)));
+    try {
+      await run(sb.from('cb_entries').update({ result: val, result_at: val ? new Date().toISOString() : null, result_by: val ? state.me : null }).eq('entry_id', id));
+      e.result = val; count();
+    } catch (er) { toast(errMsg(er), 6000); box.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(resultIs(e, x.dataset.r)))); }
+  });
+  wireBbcInvite(v, () => renderResults(d, es));
+}
+// Grading photos on a phone or iPad: tap a student, take the photo with the Grandmaster, it saves straight away
+const PHOTO_BUCKET = 'grading-photos';
+// Make the photo a sensible size (phones take 10+ MB photos): a JPEG at most 2400px on its long side
+async function shrinkPhoto(file, max = 2400) {
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
+    const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.88));
+    if (blob) return blob;
+  } catch (e) { /* fall back to the file as it is */ }
+  if (/^image\/(jpeg|png|webp)$/.test(file.type) && file.size <= 15 * 1024 * 1024) return file;
+  throw new Error('This photo could not be read. Try taking it again.');
+}
+function renderPhotos(d, shown) {
+  const v = $('#view-day');
+  const es = shown.filter(e => e.result !== 'retest');
+  const thumbs = {};
+  const nextUp = () => es.find(e => !e.photo_path && !e.photo_removed_at);
+  const draw = () => {
+    const done = es.filter(e => e.photo_path).length, nx = nextUp();
+    const unsent = es.filter(e => e.photo_path && !sentTo('photo', e.entry_id));
+    v.innerHTML = `<div><button class="back" id="backDay">‹ ${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</button>
+        <div class="view-head"><h2>Photos with the Grandmaster</h2><span class="sub">${done} of ${es.length} taken</span></div></div>
+      <p class="hint">Tap Take photo and it saves straight away. The next student is outlined in gold. Photos are removed after 30 days.</p>
+      <div class="row"><button class="btn primary" id="phSend" ${unsent.length ? '' : 'disabled'}>Text photos${unsent.length ? ' (' + unsent.length + ')' : ''}</button></div>
+      <div class="bigcards">${es.length ? es.map(e => `<div class="phcard${nx && nx.entry_id === e.entry_id ? ' next' : ''}" style="${beltVar(e.belt_from)}" id="ph-${e.entry_id}">
+        ${thumbs[e.entry_id] ? `<img class="thumb" src="${esc(thumbs[e.entry_id])}" alt="">` : `<div class="thumb">${e.photo_path ? 'Saved' : e.photo_removed_at ? 'Removed' : 'No photo'}</div>`}
+        <div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to ${esc(short(toText(e)))}${e.photo_path && sentTo('photo', e.entry_id) ? ', texted' : ''}</div></div>
+        <button class="btn ${e.photo_path ? '' : 'primary'}" data-shoot="${e.entry_id}">${e.photo_path ? 'Retake' : 'Take photo'}</button></div>`).join('') : '<div class="empty">No students on this day yet.</div>'}</div>
+      <input type="file" id="phFile" accept="image/*" capture="environment" hidden>`;
+    $('#backDay').onclick = () => go('day', d.day_id);
+    $('#phSend').onclick = () => composeTexts('photo', unsent.map(e => ({ member_key: e.member_key, entry_id: e.entry_id, e, s: student(e.member_key), d })));
+    let target = null;
+    $$('[data-shoot]').forEach(b => b.onclick = () => { target = b.dataset.shoot; $('#phFile').value = ''; $('#phFile').click(); });
+    $('#phFile').onchange = async ev => {
+      const file = ev.target.files && ev.target.files[0], e = es.find(x => x.entry_id === target);
+      if (!file || !e) return;
+      const btn = $(`[data-shoot="${e.entry_id}"]`); btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const blob = await shrinkPhoto(file);
+        const type = blob.type || 'image/jpeg', ext = { 'image/png': 'png', 'image/webp': 'webp' }[type] || 'jpg';
+        const path = `${d.day_id}/${e.entry_id}-${Date.now()}.${ext}`, old = e.photo_path;
+        const up = await sb.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: type, upsert: true, cacheControl: '3600' });
+        if (up.error) throw up.error;
+        const at = new Date().toISOString();
+        await run(sb.from('cb_entries').update({ photo_path: path, photo_at: at, photo_by: state.me, photo_removed_at: null }).eq('entry_id', e.entry_id));
+        e.photo_path = path; e.photo_at = at; e.photo_by = state.me; e.photo_removed_at = null;
+        thumbs[e.entry_id] = URL.createObjectURL(blob);
+        if (old && old !== path) sb.storage.from(PHOTO_BUCKET).remove([old]).catch(() => {});   // the photo it replaced
+        toast(`Saved ${firstName(e.full_name)}'s photo`);
+        draw();
+        const nx = nextUp(); if (nx) { const el = $('#ph-' + nx.entry_id); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      } catch (er) {
+        const m = errMsg(er);
+        toast(/bucket|not found|row-level|policy/i.test(m) ? 'Photos aren\'t set up in Supabase yet: run supabase/coloured-belts-4.sql.' : m, 7000);
+        btn.disabled = false; btn.textContent = e.photo_path ? 'Retake' : 'Take photo';
+      }
+    };
+  };
+  draw();
+  // Thumbnails of photos already taken (private: short-lived links for grading staff)
+  const have = es.filter(e => e.photo_path && !thumbs[e.entry_id]);
+  if (have.length) sb.storage.from(PHOTO_BUCKET).createSignedUrls(have.map(e => e.photo_path), 3600).then(({ data }) => {
+    (data || []).forEach((x, i) => { if (x && x.signedUrl) thumbs[have[i].entry_id] = x.signedUrl; });
+    if (state.photosMode && state.day === d.day_id) draw();
+  }).catch(() => {});
+}
+// Certificates: a CSV with full name, belt going for and date
+function certCsv(d, list) {
+  const q = v => /[",\n]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : v;
+  const date = new Date(d.grading_date + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+  const csv = ['Full name,Belt going for,Date', ...list.map(e => [e.full_name, toText(e), date].map(q).join(','))].join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' }));
+  a.download = `certificates-${d.location.toLowerCase()}-${d.grading_date}.csv`; document.body.append(a); a.click(); a.remove();
+  toast(`Certificates CSV: ${list.length} ${list.length === 1 ? 'person' : 'people'}`);
+}
+function printDay(d, es) {
+  const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print.');
+  w.document.write(`<!doctype html><title>${esc(d.location)} grading ${esc(d.grading_date)}</title><style>body{font:14px Arial,sans-serif;margin:24px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:6px;text-align:left}</style>
+    <h2>${esc(d.location)} ${esc(progLabel(state.programme))} grading${d.move_up ? ' (moving up)' : ''} · ${esc(fmtDate(d.grading_date))} ${esc(fmtTime(d.start_time))}${dayFilt.belt ? ' · ' + esc(dayFilt.belt) : ''}</h2>
+    <table class="grid"><tr><th>#</th><th>Name</th><th>Age</th><th>School</th><th>From</th><th>To</th><th>Booked</th><th>Paid</th><th>Result</th></tr>${es.map((e, i) => { const s = student(e.member_key); return `<tr><td>${i + 1}</td><td>${esc(e.full_name)}</td><td>${yrs(s) ?? ''}</td><td>${esc(s ? s.location : '')}</td><td>${esc(e.belt_from)}</td><td>${esc(toText(e))}</td><td>${e.booked_at ? 'Yes' : ''}</td><td>${e.paid ? 'Yes' : ''}</td><td>${e.result ? RESULT[e.result] : ''}</td></tr>`; }).join('')}</table>`);
+  w.document.close(); w.focus(); w.print();
+}
+
+/* ---------------- Update EFC (checklist) ---------------- */
+/* ---------------- Black Belt Club invitations to write ---------------- */
+// One row per student (they can be in several programs), across every program
+function bbcPeople() { const seen = new Map(); state.all.students.forEach(s => { if (!seen.has(s.member_key)) seen.set(s.member_key, s); }); return [...seen.values()]; }
+// Black Belt Club follow-ups: card written 14+ days ago, not joined, and no follow-up text since the card
+const FOLLOW_DAYS = 14;
+const bbcFollowedUp = s => state.messages.some(m => m.kind === 'bbc_followup' && m.member_key === s.member_key && (m.status === 'sent' || m.status === 'test') && (!s.bbc_written_at || String(m.sent_at) >= String(s.bbc_written_at)));
+const bbcFollowUps = () => bbcPeople().filter(s => s.bbc_written_at && !s.black_belt_club && Date.parse(s.bbc_written_at) <= Date.now() - FOLLOW_DAYS * 86400000 && !bbcFollowedUp(s))
+  .sort((a, b) => String(a.bbc_written_at).localeCompare(String(b.bbc_written_at)));
+const bbcToWrite = () => bbcPeople().filter(s => s.bbc_invited_at && !s.bbc_written_at && !s.black_belt_club).sort((a, b) => String(a.bbc_invited_at).localeCompare(String(b.bbc_invited_at)));
+function renderBbc() {
+  const v = $('#view-bbc'), todo = bbcToWrite(), follow = bbcFollowUps();
+  const done = bbcPeople().filter(s => s.bbc_written_at).sort((a, b) => String(b.bbc_written_at).localeCompare(String(a.bbc_written_at))).slice(0, 40);
+  const when = iso => new Date(iso).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+  const progs = key => [...new Set(state.all.students.filter(x => x.member_key === key).map(x => progLabel(x.programme)))].join(', ');
+  v.innerHTML = `<div class="view-head"><div><h2>Cards to write</h2><p class="sub">Black Belt Club invitation cards teachers have asked for. Tick each one once it's written.</p></div></div>
+    <ul class="list">${todo.length ? todo.map(s => `<li><label class="item" style="${beltVar(s.belt, s.programme)}"><input type="checkbox" data-written="${esc(s.member_key)}" ${canApprove() ? '' : 'disabled'}>
+      <div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(s.location)}, ${esc(ageText(s))}, ${esc(progs(s.member_key))}${s.guardian_name ? ', parent ' + esc(s.guardian_name) : ''}</div><div class="meta">Asked for by ${esc(s.bbc_invited_by || 'staff')}, ${esc(when(s.bbc_invited_at))}</div></div></label></li>`).join('') : '<li class="empty">No invitations to write.</li>'}</ul>
+    ${follow.length ? `<div class="section-title"><div><h3>Follow up</h3><p class="hint">Cards written ${FOLLOW_DAYS} or more days ago, not joined yet.</p></div>${canApprove() ? `<button class="btn primary" id="bbcFollow">Text ${follow.length} parent${follow.length === 1 ? '' : 's'}</button>` : ''}</div>
+      <ul class="list">${follow.map(s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(s.location)}${s.guardian_name ? ', parent ' + esc(s.guardian_name) : ''}${s.phone ? '' : ', <span class="bad-text">no mobile</span>'}</div></div><div class="side"><span class="classes">${Math.floor((Date.now() - Date.parse(s.bbc_written_at)) / 86400000)}<small> days</small></span></div></button></li>`).join('')}</ul>` : ''}
+    ${done.length ? `<h3>Written</h3><ul class="list">${done.map(s => `<li><div class="item plain"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(s.location)}, written ${esc(when(s.bbc_written_at))} by ${esc(s.bbc_written_by || 'staff')}${bbcFollowedUp(s) && !s.black_belt_club ? ', followed up' : ''}</div></div><div class="side">${s.black_belt_club ? '<span class="tag bbc">Joined</span>' : ''}${canApprove() ? `<button class="btn sm" data-unwritten="${esc(s.member_key)}">Undo</button>` : ''}</div></div></li>`).join('')}</ul>` : ''}`;
+  $$('[data-written]').forEach(c => c.onchange = async () => {
+    const key = c.dataset.written;
+    patchStudent(key, { bbc_written_at: new Date().toISOString(), bbc_written_by: state.me }); render();
+    try { await run(sb.rpc('cb_bbc_written', { p_member: key, p_on: true }), 'Ticked off: card written'); }
+    catch (e) { patchStudent(key, { bbc_written_at: null, bbc_written_by: null }); render(); toast(errMsg(e), 6000); }
+  });
+  const fb = $('#bbcFollow'); if (fb) fb.onclick = () => composeTexts('bbc_followup', follow.map(s => ({ member_key: s.member_key, entry_id: null, s, e: null, d: null })));
+  $$('#view-bbc [data-key]').forEach(b => b.onclick = () => openStudent(b.dataset.key, b.dataset.prog));
+  $$('[data-unwritten]').forEach(b => b.onclick = async () => { try { await run(sb.rpc('cb_bbc_written', { p_member: b.dataset.unwritten, p_on: false })); patchStudent(b.dataset.unwritten, { bbc_written_at: null, bbc_written_by: null }); render(); } catch (e) { toast(errMsg(e), 6000); } });
+}
+function renderEfc() {
+  const v = $('#view-efc');
+  const todo = state.entries.filter(e => resultIs(e, 'pass') && !e.efc_done).map(e => ({ e, d: dayOf(e.day_id) })).filter(x => x.d)
+    .sort((a, b) => a.d.grading_date.localeCompare(b.d.grading_date) || a.e.full_name.localeCompare(b.e.full_name));
+  const done = state.entries.filter(e => e.efc_done).sort((a, b) => String(b.efc_done_at).localeCompare(String(a.efc_done_at))).slice(0, 30);
+  v.innerHTML = `<div class="view-head"><div><h2>Update EFC</h2><p class="sub">Promote each student in EFC, then tick them off.</p></div></div>
+    <p class="hint" id="efcAt">${state.efcAt ? `Belts and classes last came from EFC ${esc(new Date(state.efcAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}. New belts come back with the nightly update.` : 'Belts and classes come from EFC every night.'}</p>
+    <ul class="list">${todo.length ? todo.map(({ e, d }) => `<li><label class="item" style="${beltVar(e.belt_to)}"><input type="checkbox" data-efc="${e.entry_id}" ${canGrade() ? '' : 'disabled'}>
+      <div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div><div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></label></li>`).join('') : '<li class="empty">Nothing to update in EFC.</li>'}</ul>
+    ${done.length ? `<h3>Recently done</h3><ul class="list">${done.map(e => `<li><div class="item plain"><div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(toText(e))}, by ${esc(e.efc_done_by || 'staff')}</div></div>${canGrade() ? `<button class="btn sm" data-undo="${e.entry_id}">Undo</button>` : ''}</div></li>`).join('')}</ul>` : ''}
+    ${canGrade() ? `<details class="fold" id="importCard"><summary>Import an EFC list</summary><div class="fold-body">
+      <p class="hint">Export students from EFC as CSV or Excel. Belts, last grading dates, classes, birthdays and contacts are updated, and new students are added. Blank cells keep what's saved. Medical notes and balances are never stored.</p>
+      <div class="grid2"><div class="field"><label for="impFile">EFC file</label><input type="file" id="impFile" accept=".csv,.xlsx,.xls,.json,text/csv"></div>
+        <div class="field"><label for="impSchool">School, for rows with none</label><select id="impSchool"><option value="">Keep what's saved</option>${SCHOOLS.map(x => `<option>${x}</option>`).join('')}</select></div></div>
+      <div id="impPrev"></div></div></details>` : ''}`;
+  if (canGrade()) wireImport();
+  $$('[data-efc]').forEach(c => c.onchange = async () => {
+    const e = state.entries.find(x => x.entry_id === c.dataset.efc), f = { efc_done: true, efc_done_at: new Date().toISOString(), efc_done_by: state.me };
+    try { await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), 'Ticked off'); Object.assign(e, f); render(); }
+    catch (er) { c.checked = false; toast(errMsg(er), 6000); }
+  });
+  $$('[data-undo]').forEach(b => b.onclick = async () => {
+    const e = state.entries.find(x => x.entry_id === b.dataset.undo), f = { efc_done: false, efc_done_at: null, efc_done_by: null };
+    try { await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id)); Object.assign(e, f); render(); } catch (er) { toast(errMsg(er), 6000); }
+  });
+}
+
+/* ---------------- Import an EFC list ---------------- */
+// Column names EFC (and people) use, squashed to letters and numbers, for each field the import understands.
+const IMPORT_COLS = {
+  member_id: ['id', 'memberid', 'memberguid', 'efcid'],
+  reference: ['reference', 'ref', 'memberref', 'memberreference', 'membernumber', 'memberno', 'efcref', 'efcreference', 'membershipnumber'],
+  first_name: ['firstname', 'forename', 'givenname', 'memberfirstname'],
+  last_name: ['lastname', 'surname', 'familyname', 'memberlastname'],
+  full_name: ['name', 'fullname', 'member', 'membername', 'student', 'studentname'],
+  dob: ['dob', 'dateofbirth', 'birthdate', 'memberdob'],
+  belt: ['belt', 'grade', 'currentgrade', 'gradename', 'rank', 'currentbelt', 'currentrank'],
+  location: ['location', 'venue', 'school', 'club', 'locationname', 'venuename'],
+  programme: ['programme', 'program', 'programmename', 'programname'],
+  status: ['status', 'memberstatus'],
+  phone: ['mobile', 'telephonemobile', 'phone', 'mobilephone', 'contactmobile', 'mobilenumber', 'phonenumber', 'telephone'],
+  email: ['email', 'emailaddress', 'contactemail'],
+  guardian_name: ['contactname', 'parent', 'parentname', 'guardian', 'guardianname', 'contact'],
+  contact_first: ['contactfirstname', 'parentfirstname', 'guardianfirstname'],
+  contact_last: ['contactlastname', 'parentlastname', 'guardianlastname'],
+  promoted_on: ['lastgraded', 'gradedate', 'graded', 'gradedon', 'promoted', 'promotedon', 'lastgrading', 'lastgradingdate', 'dategraded', 'lastpromoted', 'lastpromotion', 'awarded', 'dateawarded'],
+  classes: ['attendedsincegrading', 'sincegrading', 'classessincegrading', 'attendedsincelastgrading', 'attendancesincegrading', 'attendedsincepromoted', 'attendedsincepromotion', 'classessince', 'attendedsince', 'classes', 'sessionssincegrading'],
+  attendance_total: ['attendancetotal', 'totalattendance', 'totalclasses', 'totalattended'],
+  last_attended: ['attended', 'lastattended', 'lastattendance', 'lastvisit', 'lastclass']
+};
+const IMPORT_LABEL = { member_id: 'EFC member ID', reference: 'EFC ref', first_name: 'First name', last_name: 'Last name', full_name: 'Name', dob: 'Date of birth', belt: 'Belt', location: 'School', programme: 'Programme', status: 'Status', phone: 'Mobile', email: 'Email', guardian_name: 'Parent', contact_first: 'Parent first name', contact_last: 'Parent last name', promoted_on: 'Last grading', classes: 'Classes since grading', attendance_total: 'Total classes', last_attended: 'Last attended' };
+const squash = h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+// A small CSV reader (quotes, commas and new lines inside quotes)
+function parseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  text = String(text).replace(/^\uFEFF/, '');
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  const head = (rows.shift() || []).map(h => h.trim());
+  return rows.filter(r => r.some(x => String(x).trim())).map(r => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ''])));
+}
+// Dates as YYYY-MM-DD from 2019-06-07, 7/6/2019 (Australian day first), 7 Jun 2019 or an Excel date number
+function isoDate(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'number' && v > 20000 && v < 80000) return new Date(Date.UTC(1899, 11, 30) + v * 864e5).toISOString().slice(0, 10);
+  const t = String(v).trim();
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/.exec(t);
+  if (m) { const y = m[3].length === 2 ? (Number(m[3]) > 30 ? '19' : '20') + m[3] : m[3]; return `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; }
+  const d = new Date(t); return isNaN(d) ? '' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// EFC belt names, matched to the belts set up here ("Yellow" or "yellow belt" -> "Yellow Belt", "Red 2" -> "Red Two Belt")
+function beltName(v, prog = state.programme) {
+  const t = String(v || '').trim(); if (!t) return '';
+  const k = x => squash(x).replace(/belt$/, '').replace(/2/g, 'two').replace(/3/g, 'three');
+  const hit = state.all.belts.filter(b => (b.programme || 'Taekwondo') === prog).find(b => k(b.belt) === k(t));
+  return hit ? hit.belt : t;
+}
+// EFC program names (or close) to the programs graded here; null for ones that aren't (e.g. Mini Dragons, clubs)
+function progName(v) {
+  const t = String(v || '').trim(); if (!t) return null;
+  const exact = state.programmes.find(x => [x.programme, x.label].some(n => n.toLowerCase() === t.toLowerCase()));
+  if (exact) return exact.programme;
+  const has = p => state.programmes.some(x => x.programme === p) ? p : null;
+  if (/mini dragon|club|team|leadership/i.test(t)) return null;
+  if (/little dragon/i.test(t)) return has('Taekwondo - Little Dragon');
+  if (/bjj.*kid|kid.*bjj/i.test(t)) return has('BJJ Kids');
+  if (/bjj|jiu/i.test(t)) return has('BJJ');
+  if (/kick/i.test(t)) return has('Kick Boxing');
+  if (/kung/i.test(t)) return has('Kung Fu');
+  if (/trick/i.test(t)) return has('Tricking');
+  if (/taekwondo|tkd/i.test(t)) return has('Taekwondo');
+  return null;
+}
+function schoolName(v) {
+  const t = String(v || '').trim(); if (!t) return '';
+  return SCHOOLS.find(x => x.toLowerCase() === t.toLowerCase()) || SCHOOLS.find(x => new RegExp('\\b' + x + '\\b', 'i').test(t)) || t;
+}
+// Turn a file's rows into import rows; returns { rows, used, unknown, skipped }
+function mapImport(raw, school) {
+  const heads = Object.keys(raw[0] || {});
+  const col = {}, used = [];
+  for (const [f, names] of Object.entries(IMPORT_COLS)) {
+    const h = heads.find(x => names.includes(squash(x)));
+    if (h && !Object.values(col).includes(h)) { col[f] = h; used.push(`${IMPORT_LABEL[f]} ← ${h}`); }
+  }
+  const unknown = heads.filter(h => !Object.values(col).includes(h));
+  const get = (r, f) => col[f] != null ? r[col[f]] : '';
+  const rows = [], other = [];
+  for (const r of raw) {
+    const progRaw = String(get(r, 'programme') || '').trim();
+    const prog = progRaw ? progName(progRaw) : isAll() ? 'Taekwondo' : state.programme;   // no program column: the program chosen at the top (Taekwondo in All programs)
+    if (!prog) { other.push(r); continue; }   // Mini Dragons, clubs and other programs aren't graded here
+    const parent = String(get(r, 'guardian_name') || '').trim() || [get(r, 'contact_first'), get(r, 'contact_last')].map(x => String(x || '').trim()).filter(Boolean).join(' ');
+    const num = v => { const n = parseInt(String(v ?? '').replace(/[^\d]/g, ''), 10); return isNaN(n) ? '' : n; };
+    rows.push({ member_id: String(get(r, 'member_id') || '').trim(), reference: String(get(r, 'reference') || '').trim(),
+      first_name: String(get(r, 'first_name') || '').trim(), last_name: String(get(r, 'last_name') || '').trim(), full_name: String(get(r, 'full_name') || '').trim(),
+      dob: isoDate(get(r, 'dob')), belt: beltName(get(r, 'belt'), prog), location: schoolName(get(r, 'location')) || school || '',
+      programme: prog, status: String(get(r, 'status') || '').trim(), phone: String(get(r, 'phone') || '').trim(), email: String(get(r, 'email') || '').trim(),
+      guardian_name: parent, promoted_on: isoDate(get(r, 'promoted_on')), classes: num(get(r, 'classes')), attendance_total: num(get(r, 'attendance_total')), last_attended: isoDate(get(r, 'last_attended')) });
+  }
+  return { rows, used, unknown, other: other.length, col };
+}
+async function readImportFile(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.json')) {
+    const j = JSON.parse(await file.text());
+    const list = Array.isArray(j) ? j : (j.results || j.data || []);
+    return list.map(x => (x && x.member) ? { ...x, ...x.member } : x).map(x => { const o = { ...x }; delete o.member; return o; });
+  }
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    if (!window.XLSX) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; sc.onload = ok; sc.onerror = () => no(new Error('Could not load the Excel reader. Save the file as CSV and try again.')); document.head.append(sc); });
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '', raw: true });
+  }
+  return parseCsv(await file.text());
+}
+function wireImport() {
+  const f = $('#impFile'); if (!f) return;
+  let raw = null;
+  const show = () => {
+    if (!raw) return;
+    const m = mapImport(raw, $('#impSchool').value);
+    const named = m.col.full_name || m.col.first_name || m.col.last_name, matched = m.col.member_id || m.col.reference || (named && m.col.dob);
+    const newBelts = [...new Set(m.rows.filter(r => r.belt && !state.all.belts.some(x => (x.programme || 'Taekwondo') === r.programme && x.belt === r.belt)).map(r => r.belt))];
+    $('#impPrev').innerHTML = `<div class="section">
+      <p><b>${m.rows.length}</b> student${m.rows.length === 1 ? '' : 's'} to import${m.other ? ` · ${m.other} in programs not graded here left out` : ''}</p>
+      <p class="hint">Columns used: ${esc(m.used.join(', ') || 'none')}</p>
+      ${m.unknown.length ? `<p class="hint">Not used: ${esc(m.unknown.join(', '))}</p>` : ''}
+      ${newBelts.length ? `<p class="hint">Belts not in Settings (fine for black belts): ${esc(newBelts.slice(0, 12).join(', '))}</p>` : ''}
+      ${matched ? '' : '<p class="bad-text">This file needs an EFC ref or member ID column (or name and date of birth) to match students.</p>'}
+      ${!m.col.member_id ? '<p class="hint">No EFC member ID column: new students are added, but online booking for them works after the next full EFC refresh.</p>' : ''}
+      <div class="row"><button class="btn primary" id="impGo" ${matched && m.rows.length ? '' : 'disabled'}>Import ${m.rows.length}</button></div></div>`;
+    const go = $('#impGo'); if (go) go.onclick = async () => {
+      go.disabled = true; const tot = { updated: 0, added: 0, skipped: 0 };
+      try {
+        for (let i = 0; i < m.rows.length; i += 800) {
+          go.textContent = `Importing ${Math.min(i + 800, m.rows.length)} of ${m.rows.length}…`;
+          const r = await run(sb.rpc('cb_import_efc', { p_rows: m.rows.slice(i, i + 800) }));
+          for (const k in tot) tot[k] += (r && r[k]) || 0;
+        }
+        toast(`EFC list imported: ${tot.updated} updated, ${tot.added} added${tot.skipped ? `, ${tot.skipped} skipped (no name or EFC ref)` : ''}`, 8000);
+        await loadAll(); $('#view-ready').dataset.built = ''; render();
+      } catch (e) { toast(errMsg(e), 8000); go.disabled = false; go.textContent = `Import ${m.rows.length}`; }
+    };
+  };
+  f.onchange = async () => {
+    raw = null; $('#impPrev').innerHTML = f.files[0] ? '<p class="hint">Reading…</p>' : '';
+    if (!f.files[0]) return;
+    const fold = $('#importCard'); if (fold) fold.open = true;
+    try { raw = await readImportFile(f.files[0]); if (!raw.length) throw new Error('No rows found in that file.'); show(); }
+    catch (e) { $('#impPrev').innerHTML = `<p class="bad-text">${esc(errMsg(e))}</p>`; }
+  };
+  $('#impSchool').onchange = show;
+}
+
+/* ---------------- Dashboard ---------------- */
+function renderDash() {
+  const v = $('#view-dash');
+  const school = v.dataset.school || '';
+  const inSchool = s => !school || s === school;
+  const days = state.days.filter(d => inSchool(d.location)), ids = new Set(days.map(d => d.day_id));
+  const es = state.entries.filter(e => ids.has(e.day_id));
+  const results = es.filter(e => e.result), passes = results.filter(e => e.result !== 'retest');
+  const fee = e => Number(beltOf(e.belt_from, progOfDay(e.day_id)).fee || 0);
+  const revenue = es.filter(e => e.paid).reduce((t, e) => t + fee(e), 0);
+  const st = state.students.filter(s => inSchool(s.location));
+  const od = st.filter(s => overdue(s) && !openDayFor(s.member_key));
+  const ready = st.filter(s => s.approval === 'ready' && !openDayFor(s.member_key));
+  const months = {}; results.forEach(e => { const k = dayOf(e.day_id).grading_date.slice(0, 7); months[k] = months[k] || { n: 0, p: 0, r: 0 }; months[k].n++; if (e.result !== 'retest') months[k].p++; });
+  es.filter(e => e.paid).forEach(e => { const k = dayOf(e.day_id).grading_date.slice(0, 7); months[k] = months[k] || { n: 0, p: 0, r: 0 }; months[k].r += fee(e); });
+  // Black Belt Club cards written (every program, each student once) and how many joined
+  const cards = bbcPeople().filter(s => s.bbc_written_at && inSchool(s.location)), joined = cards.filter(s => s.black_belt_club);
+  const mname = k => new Date(k + '-01T00:00:00').toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+  v.innerHTML = `<div class="view-head"><h2>Dashboard</h2><select id="dashSchool" aria-label="School" style="width:auto">${['', ...SCHOOLS].map(s => `<option value="${s}"${s === school ? ' selected' : ''}>${s || 'All schools'}</option>`).join('')}</select></div>
+    <div class="figures">
+      <div><b>${st.filter(eligible).length}</b><span>have enough classes</span></div>
+      <div><b>${ready.length}</b><span>marked ready, not on a grading day</span></div>
+      <div><b>${results.length ? Math.round(passes.length / results.length * 100) + '%' : '0'}</b><span>passed (${passes.length} of ${results.length})</span></div>
+      <div><b>${money(revenue) || '$0'}</b><span>grading fees paid</span></div>
+      <div class="${od.length ? 'alert' : ''}"><b>${od.length}</b><span>overdue for a grading</span></div>
+      <div><b>${cards.length ? Math.round(joined.length / cards.length * 100) + '%' : '0'}</b><span>Black Belt Club cards that joined (${joined.length} of ${cards.length})</span></div></div>
+    <h3>Each month</h3>${Object.keys(months).length ? `<div class="scroll"><table class="grid"><thead><tr><th>Month</th><th>Graded</th><th>Passed</th><th>Pass rate</th><th>Fees paid</th></tr></thead><tbody>${Object.keys(months).sort().reverse().map(k => `<tr><td>${esc(mname(k))}</td><td>${months[k].n}</td><td>${months[k].p}</td><td>${months[k].n ? Math.round(months[k].p / months[k].n * 100) + '%' : ''}</td><td>${money(months[k].r)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="hint">No results yet.</p>'}
+    <div><h3>Overdue for a grading</h3><p class="hint" style="margin-top:4px">On their belt at least twice as long as usual and not on a grading day. A long gap often means a student is about to drop off.</p></div>
+    ${od.length ? `<ul class="list">${od.sort((a, b) => b.weeks_at_belt - a.weeks_at_belt).slice(0, 50).map(s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${isAll() ? esc(progLabel(s.programme)) + ', ' : ''}${esc(short(s.belt))}, ${esc(s.location)}</div></div><div class="side"><span class="classes">${s.weeks_at_belt} weeks</span><span class="hint">${s.classes} classes</span></div></button></li>`).join('')}</ul>` : '<p class="hint">No one is overdue.</p>'}`;
+  $('#dashSchool').onchange = () => { v.dataset.school = $('#dashSchool').value; renderDash(); };
+  $$('#view-dash [data-key]').forEach(b => b.onclick = () => openStudent(b.dataset.key, b.dataset.prog));
+}
+
+/* ---------------- Settings (admins) ---------------- */
+function renderSettings() {
+  const v = $('#view-settings'), st = state.settings;
+  v.innerHTML = `<div class="view-head"><h2>Settings</h2></div>
+    ${isAll() ? '<div class="panel"><h3>Each belt</h3><p class="hint">Belt settings are per program. Choose a program at the top to change its classes, weeks and fees.</p></div>' : ''}
+    <form id="beltForm" class="panel"${isAll() ? ' hidden' : ''}><h3>Each belt: ${esc(progLabel(state.programme))}</h3>
+      <p class="hint">Classes needed since their last grading, the usual weeks between gradings (twice this is overdue), and the grading fee.</p>
+      <div class="scroll"><table class="grid"><thead><tr><th>Belt</th><th class="narrow-hide">Grades to</th><th>Classes</th><th>Weeks</th><th>Fee ($)</th></tr></thead><tbody>
+      ${state.belts.map(b => `<tr data-belt="${esc(b.belt)}"><td>${swatch(b.belt)} ${esc(short(b.belt))}</td><td class="narrow-hide">${esc(short(withProg(b.next_belt, b.next_programme)))}${b.up_belt && b.up_belt !== b.next_belt ? '<br><span class="hint">moving up: ' + esc(withProg(b.up_belt, b.up_programme)) + '</span>' : ''}</td>
+        <td><input type="number" min="0" max="500" name="classes" value="${b.classes_needed}" aria-label="${esc(b.belt)} classes needed"></td>
+        <td><input type="number" min="0" max="104" name="weeks" value="${b.weeks_between}" aria-label="${esc(b.belt)} weeks between"></td>
+        <td><input type="number" min="0" step="0.01" name="fee" value="${b.fee ?? ''}" aria-label="${esc(b.belt)} fee"></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="row"><button class="btn primary" type="submit" id="saveBelts">Save belts</button></div></form>
+    <form id="msgForm" class="panel"><h3>Texts and emails</h3>
+      <p class="hint">Fills in {parent} {first} {next} {school} {date} {time} {link} {photo} {note} {video} {prep}. Staff can still change the wording before each send.</p>
+      ${Object.keys(KIND_TPL).map(k => `<div class="field"><label for="tpl_${k}">${esc(KIND_NAME[k].replace(/ messages$/, ''))}</label><textarea id="tpl_${k}" data-col="${KIND_TPL[k]}" rows="3">${esc(st[KIND_TPL[k]] || '')}</textarea><p class="hint">${esc(KIND_HELP[k])}</p></div>`).join('')}
+      <div class="field"><label for="sBring">What to bring, in booking and payment emails</label><textarea id="sBring" rows="3">${esc(st.email_bring || 'Full long-sleeve uniform\nBelt\nDrink bottle')}</textarea>
+        <p class="hint">One item per line.</p></div>
+      <div class="field"><label for="sPhone">Phone number for families</label><input type="tel" id="sPhone" value="${esc(st.contact_phone || '(02) 9569 1943')}">
+        <p class="hint">Shown when a booking link has expired or bookings have closed.</p></div>
+      <div class="field"><label for="sHook">Booking sheet address</label><input type="url" id="sHook" value="${esc(st.booking_webhook || '')}" placeholder="https://script.google.com/macros/s/.../exec">
+        <p class="hint">Bookings are added to your Google Sheet, and the Zap books the EFC session. Set it up with <a href="https://github.com/theggatonklenner/theggatonklenner.github.io/blob/main/tools/booking-sheet.gs" target="_blank" rel="noopener">the booking sheet script</a>. A Zapier Catch Hook address also works.</p>
+        <div class="row"><span class="hint">Key for the script:</span><code id="sKey" style="user-select:all;overflow-wrap:anywhere">${esc(st.booking_key || 'run coloured-belts-7.sql')}</code><button type="button" class="btn sm" id="copyKey">Copy key</button></div></div>
+      <div class="row"><button class="btn primary" type="submit" id="saveMsgs">Save</button><button class="btn" type="button" id="checkTexts">Check texting</button></div></form>`;
+  $('#beltForm').onsubmit = async e => {
+    e.preventDefault(); $('#saveBelts').disabled = true;
+    try {
+      await Promise.all($$('#beltForm tr[data-belt]').map(tr => { const val = n => tr.querySelector(`[name=${n}]`).value;
+        return run(sb.from('cb_belts').update({ classes_needed: +val('classes') || 0, weeks_between: +val('weeks') || 0, fee: val('fee') === '' ? null : +val('fee'), updated_at: new Date().toISOString() }).eq('belt', tr.dataset.belt).eq('programme', state.programme)); }));
+      toast('Belts saved'); await loadAll(); render();
+    } catch (er) { toast(errMsg(er), 6000); $('#saveBelts').disabled = false; }
+  };
+  $('#msgForm').onsubmit = async e => {
+    e.preventDefault();
+    const hook = $('#sHook').value.trim();
+    if (hook && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(hook) && !/^https:\/\/hooks\.zapier\.com\//.test(hook)) return toast('The booking sheet address should look like https://script.google.com/macros/s/.../exec (or a Zapier hook address)', 7000);
+    const tpl = {}; $$('#msgForm textarea[data-col]').forEach(t => { if (t.value.trim()) tpl[t.dataset.col] = t.value.trim(); });
+    const f = { ...tpl, booking_webhook: hook || null, contact_phone: $('#sPhone').value.trim() || '(02) 9569 1943', ...($('#sBring').value.trim() ? { email_bring: $('#sBring').value.trim() } : {}), updated_at: new Date().toISOString() };
+    try { await run(sb.from('cb_settings').update(f).eq('id', 1), 'Saved'); Object.assign(state.settings, f); }
+    catch (er) { toast(errMsg(er), 6000); }
+  };
+  $('#copyKey').onclick = async () => { try { await navigator.clipboard.writeText(st.booking_key || ''); toast('Key copied'); } catch (e) { toast('Press and hold the key to copy it.'); } };
+  $('#checkTexts').onclick = async () => { try { const r = await fnCall({ action: 'check' }); toast(r.ready ? (r.testing ? 'Texting is in test mode (logged, not sent).' : 'Texting is set up.') : 'Texting is not set up: add GHL_TOKEN and GHL_LOCATION_ID in Supabase.', 6000); } catch (e) { toast(errMsg(e), 6000); } };
+}
+
+/* ---------------- Start ---------------- */
+function showOnly(id) { ['#signIn', '#noAccess', '#loading'].forEach(s => $(s).hidden = s !== id); if (id) { $$('.view').forEach(v => v.hidden = true); $('#tabs').hidden = true; } }
+async function start() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { showOnly('#signIn'); $('#signOut').hidden = true; return; }
+  $('#signOut').hidden = false;
+  state.me = (session.user.email || '').toLowerCase();
+  const { data: roles } = await sb.rpc('prep_my_roles');
+  state.roles = roles || [];
+  if (!has('instructor', 'grading', 'payments')) {
+    showOnly('#noAccess');
+    $('#noAccessText').textContent = `${(session.user.user_metadata || {}).full_name || state.me} can't use gradings yet. An admin can give you the Instructor, Grading or Payments role on Staff logins.`;
+    return;
+  }
+  try { await loadAll(); }
+  catch (e) { showOnly('#noAccess'); $('#noAccessText').textContent = /cb_|does not exist|schema cache/i.test(errMsg(e)) ? 'Gradings aren\'t set up in Supabase yet: run supabase/coloured-belts.sql (then -2 to -5, in order) in the SQL Editor.' : errMsg(e); return; }
+  showOnly(null); $('#tabs').hidden = false;
+  if (!has('instructor', 'grading')) state.view = 'days';   // payments staff: grading days (paid)
+  // The address they opened (or were sent back with from 404.html as ?p=...)
+  const asked = new URLSearchParams(location.search).get('p') || (location.pathname.startsWith(APP_BASE) ? location.pathname.slice(APP_BASE.length) : '');
+  applyPath(asked.replace(/^index\.html$/, ''));
+  state.loaded = true; state.loadedAt = Date.now();
+  setAddress(true);
+  render();
+  goLive();
+}
+/* ---------------- Live updates: other staff's changes show up without reloading ---------------- */
+let liveTimer = null, reloadTimer = null;
+// Redraw soon, but not while someone is typing in a search box or field on the page
+function liveRender() {
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(() => {
+    const a = document.activeElement;
+    if (a && a.closest && a.closest('.view') && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !['checkbox', 'radio', 'button'].includes(a.type)))) return liveRender();
+    render();
+  }, 300);
+}
+const quietReload = (ms = 1200) => { clearTimeout(reloadTimer); reloadTimer = setTimeout(async () => { try { await loadAll(); state.loadedAt = Date.now(); liveRender(); } catch (e) { /* try again next change */ } }, ms); };
+// Change every program row for a student (from a change here or from another device)
+function patchStudent(key, f) { state.all.students.forEach(s => { if (s.member_key === key) Object.assign(s, f); }); bbcBadge(); }
+// The number on the Cards to write tab
+function bbcBadge() { const b = $('#bbcCount'); if (!b || !state.all) return; const n = bbcToWrite().length + bbcFollowUps().length; b.hidden = !n; b.textContent = n; }
+const studentFields = m => ({ full_name: m.full_name, guardian_name: m.guardian_name, phone: m.phone || m.guardian_phone || null, email: m.email || m.guardian_email || null,
+  black_belt_club: !!(m.bbc_seen_at && Date.parse(m.bbc_seen_at) > Date.now() - 3 * 86400000),
+  bbc_invited_at: m.bbc_invited_at || null, bbc_invited_by: m.bbc_invited_by || null, bbc_written_at: m.bbc_written_at || null, bbc_written_by: m.bbc_written_by || null });
+function applyLive(p) {
+  const list = { cb_entries: ['entries', 'entry_id'], cb_days: ['days', 'day_id'] }[p.table];
+  if (list) {
+    const [k, id] = list, arr = state.all[k], key = (p.new && p.new[id]) || (p.old && p.old[id]), i = arr.findIndex(x => x[id] === key);
+    if (p.eventType === 'DELETE') { if (i >= 0) arr.splice(i, 1); }
+    else if (i >= 0) Object.assign(arr[i], p.new); else arr.push(p.new);
+    applyProgramme(); liveRender();
+  } else if (p.table === 'efc_members' && p.new && p.new.member_key) {
+    if (state.all.students.some(s => s.member_key === p.new.member_key)) { patchStudent(p.new.member_key, studentFields(p.new)); liveRender(); }
+  } else quietReload();   // ready / not yet, messages, settings: fetch everything again
+}
+function goLive() {
+  try {
+    sb.channel('cb-live').on('postgres_changes', { event: '*', schema: 'public' }, p => {
+      if (['cb_entries', 'cb_days', 'efc_members', 'cb_approvals', 'cb_messages', 'cb_belts', 'cb_settings'].includes(p.table)) applyLive(p);
+    }).subscribe();
+  } catch (e) { console.warn(e); }
+  // Back on the app after a while (a phone or iPad that was asleep): catch up
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - (state.loadedAt || 0) > 60000) quietReload(0); });
+}
+$('#siForm').onsubmit = async e => {
+  e.preventDefault(); $('#siGo').disabled = true;
+  const { error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
+  $('#siGo').disabled = false;
+  if (error) return toast(/invalid/i.test(error.message) ? 'Wrong email or password.' : error.message, 6000);
+  start();
+};
+$('#signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+start();
+</script>
+</body>
+</html>

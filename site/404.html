@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Page not found</title>
+<script>
+  // GitHub Pages shows this page for any address that isn't a file. Apps with their own addresses
+  // (e.g. /grading/coloured-belts/grading-days) are sent back to their page, which opens the right screen.
+  (function () {
+    var apps = ['/grading/coloured-belts/'];
+    for (var i = 0; i < apps.length; i++) {
+      var p = location.pathname, base = apps[i];
+      if (p.indexOf(base) === 0 && p.length > base.length && !/\.[a-z0-9]+$/i.test(p)) {
+        location.replace(base + '?p=' + encodeURIComponent(p.slice(base.length).replace(/\/+$/, '')) + location.hash);
+        return;
+      }
+    }
+  })();
+</script>
+<link rel="icon" href="/icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@700&display=swap">
+<style>
+  :root {
+    --bg:#0f1713; --surface:#15201a; --fg:#edf2ee; --muted:#a3b5a9; --line:#253629;
+    --green:#04794b; --accent:#f5c518; --on-accent:#14130a; color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --bg:#f4f7f4; --surface:#fff; --fg:#15201a; --muted:#52645a; --line:#dde6df; --accent:#b9860a; --on-accent:#fff; color-scheme: light; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background:
+      radial-gradient(60vw 60vw at 85% -10%, rgba(4,121,75,.22), transparent 60%),
+      radial-gradient(50vw 50vw at -10% 110%, rgba(245,197,24,.12), transparent 60%),
+      var(--bg);
+    color: var(--fg); font-family: Barlow, "Segoe UI", Arial, sans-serif; font-size: 17px; line-height: 1.5;
+    display: flex; align-items: center; justify-content: center; padding: 24px; -webkit-font-smoothing: antialiased;
+  }
+  main { width: 100%; max-width: 440px; text-align: center; }
+  .badge { width: 60px; height: 60px; border-radius: 15px; margin: 0 auto 22px;
+    background: #fff url(/icons/ama-id-cards.png) center/82% no-repeat; box-shadow: 0 .4vw 2vw rgba(0,0,0,.25), 0 0 0 1px var(--line); }
+  .big { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700;
+    font-size: clamp(90px, 26vw, 150px); line-height: .9; letter-spacing: .02em;
+    background: linear-gradient(180deg, var(--green), color-mix(in srgb, var(--green) 55%, var(--accent))); -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin: 0 0 6px; text-shadow: 0 1px 0 rgba(0,0,0,.05); }
+  h1 { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: 28px; margin: 0 0 8px; }
+  p { color: var(--muted); margin: 0 0 24px; }
+  a.btn { display: inline-flex; align-items: center; min-height: 50px; padding: 0 22px; border-radius: 13px;
+    background: var(--accent); color: var(--on-accent); font-weight: 700; text-decoration: none; }
+  a.btn:hover { filter: brightness(1.05); }
+</style>
+</head>
+<body>
+<main>
+  <div class="badge"></div>
+  <div class="big">404</div>
+  <h1>Page not found</h1>
+  <p>That page doesn't exist, or it may have moved.</p>
+  <a class="btn" href="/">Back to the AMA Toolkit</a>
+</main>
+</body>
+</html>

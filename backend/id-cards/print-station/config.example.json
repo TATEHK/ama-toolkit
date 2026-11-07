@@ -1,0 +1,10 @@
+{
+  "supabaseUrl": "https://YOUR-PROJECT-ID.supabase.co",
+  "supabaseAnonKey": "YOUR-ANON-PUBLIC-KEY",
+  "email": "printer@your-email.com",
+  "password": "the password you gave the print station account",
+  "printer": "PPC ID 4000",
+  "printerFallback": "PPC ID 4000 (Wi-Fi)",
+  "duplexSide": "duplexlong",
+  "scale": "noscale"
+}

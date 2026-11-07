@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>Share your memories</title>
+<link rel="icon" href="../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@700&display=swap">
+<style>
+  :root {
+    --bg:#0f1713; --surface:#15201a; --fg:#edf2ee; --muted:#a3b5a9; --line:#253629;
+    --green:#04794b; --accent:#f5c518; --on-accent:#14130a; --red:#e2645a; color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --bg:#f4f7f4; --surface:#fff; --fg:#15201a; --muted:#52645a; --line:#dde6df; --accent:#b9860a; --on-accent:#fff; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background:
+      radial-gradient(60vw 60vw at 85% -10%, rgba(4,121,75,.22), transparent 60%),
+      radial-gradient(50vw 50vw at -10% 110%, rgba(245,197,24,.12), transparent 60%),
+      var(--bg);
+    color: var(--fg); font-family: Barlow, "Segoe UI", Arial, sans-serif; font-size: 17px; line-height: 1.5;
+    font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased;
+    display: flex; justify-content: center; padding: 24px 16px 48px;
+  }
+  main { width: 100%; max-width: 480px; }
+  .badge { width: 54px; height: 54px; border-radius: 14px; margin: 8px auto 20px;
+    background: #fff url(../icons/ama-id-cards.png) center/82% no-repeat; box-shadow: 0 .4vw 2vw rgba(0,0,0,.25), 0 0 0 1px var(--line); }
+  h1 { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: 30px; line-height: 1.1; margin: 0 0 8px; text-align: center; }
+  .lede { color: var(--muted); text-align: center; margin: 0 0 24px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+  .drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--line); border-radius: 13px; padding: 28px 18px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s; }
+  .drop:hover, .drop.over { border-color: var(--accent); background: rgba(245,197,24,.06); }
+  .drop strong { color: var(--fg); display: block; font-size: 18px; margin-bottom: 4px; }
+  input[type=file] { display: none; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 22px; border-radius: 13px;
+    background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700; border: 0; cursor: pointer; width: 100%; margin-top: 16px; }
+  .btn:hover { filter: brightness(1.05); }
+  .btn[disabled] { opacity: .55; cursor: default; filter: none; }
+  ul.files { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .file { display: flex; align-items: center; gap: 12px; }
+  .thumb { width: 44px; height: 44px; border-radius: 9px; object-fit: cover; background: var(--bg); border: 1px solid var(--line); flex: none; display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+  .fmeta { flex: 1 1 auto; min-width: 0; }
+  .fname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
+  .bar { height: 6px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 5px; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .2s; }
+  .fstate { flex: none; font-size: 13px; color: var(--muted); min-width: 56px; text-align: right; }
+  .fstate.ok { color: var(--green); } .fstate.bad { color: var(--red); }
+  .note { color: var(--muted); font-size: 13px; text-align: center; margin-top: 18px; }
+  .center { text-align: center; }
+  .big-ok { font-size: 44px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="badge"></div>
+
+  <div id="loading" class="center"><p class="lede">Loading…</p></div>
+
+  <div id="bad" hidden>
+    <h1>Link not working</h1>
+    <p class="lede" id="badMsg">This upload link isn't valid or may have expired. Ask AMA for a new one.</p>
+  </div>
+
+  <div id="app" hidden>
+    <h1 id="title">Share your memories</h1>
+    <p class="lede" id="lede"></p>
+    <div class="card">
+      <label class="drop" id="drop" for="pick">
+        <strong>Add photos or videos</strong>
+        Tap to choose, or drag them here
+      </label>
+      <input type="file" id="pick" accept="image/*,video/*" multiple>
+      <ul class="files" id="list"></ul>
+      <p class="note" id="note" hidden></p>
+    </div>
+    <p class="note">They go straight to AMA. You can come back and add more any time.</p>
+  </div>
+</main>
+
+<script>
+const FN = 'https://ptdrcxngaptcgswfbjhg.supabase.co/functions/v1/drive-upload';
+const token = decodeURIComponent((location.hash.replace(/^#/, '') || new URLSearchParams(location.search).get('t') || '').trim());
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function start() {
+  if (!token) return showBad("This link is missing its code.");
+  let who;
+  try {
+    const r = await fetch(`${FN}?who=${encodeURIComponent(token)}`);
+    who = await r.json();
+    if (!r.ok) throw new Error(who.error || 'Invalid link');
+  } catch (e) { return showBad(e.message); }
+
+  $('#loading').hidden = true; $('#app').hidden = false;
+  const name = (who.person_name || '').split(' ')[0] || 'there';
+  $('#title').textContent = `${who.years} years at AMA`;
+  $('#lede').innerHTML = `Congratulations ${esc(name)}! To celebrate your ${esc(who.years)}-year milestone, we'd love to see your favourite photos and videos from your time with us.`;
+}
+
+function showBad(msg) { $('#loading').hidden = true; $('#bad').hidden = false; if (msg) $('#badMsg').textContent = msg; }
+
+const list = $('#list');
+const rows = new Map();
+
+function addRow(file) {
+  const li = document.createElement('li'); li.className = 'file';
+  const thumb = document.createElement('div'); thumb.className = 'thumb'; thumb.textContent = (file.type.split('/')[0] === 'video') ? 'VID' : 'IMG';
+  if (file.type.startsWith('image/')) { const img = document.createElement('img'); img.className = 'thumb'; img.src = URL.createObjectURL(file); img.onload = () => URL.revokeObjectURL(img.src); thumb.replaceWith(img); li._thumb = img; }
+  const meta = document.createElement('div'); meta.className = 'fmeta';
+  meta.innerHTML = `<div class="fname">${esc(file.name)}</div><div class="bar"><i></i></div>`;
+  const state = document.createElement('div'); state.className = 'fstate'; state.textContent = 'Waiting';
+  li.append(li._thumb || thumb, meta, state);
+  list.appendChild(li);
+  return { bar: meta.querySelector('i'), state };
+}
+
+async function uploadOne(file) {
+  const ui = addRow(file);
+  ui.state.textContent = 'Starting';
+  try {
+    const s = await fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, filename: file.name, contentType: file.type || 'application/octet-stream' }) });
+    const sj = await s.json();
+    if (!s.ok) throw new Error(sj.error || 'Could not start');
+    await new Promise((res, rej) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', sj.uploadUrl);
+      xhr.upload.onprogress = e => { if (e.lengthComputable) { ui.bar.style.width = (e.loaded / e.total * 100) + '%'; ui.state.textContent = Math.round(e.loaded / e.total * 100) + '%'; } };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? res() : rej(new Error('Upload failed (' + xhr.status + ')'));
+      xhr.onerror = () => rej(new Error('Network error'));
+      xhr.send(file);
+    });
+    ui.bar.style.width = '100%'; ui.state.textContent = 'Done'; ui.state.className = 'fstate ok';
+  } catch (e) {
+    ui.state.textContent = 'Failed'; ui.state.className = 'fstate bad';
+    ui.state.title = e.message;
+  }
+}
+
+let busy = 0;
+async function handleFiles(files) {
+  for (const f of files) { busy++; uploadOne(f).finally(() => { busy--; }); }
+}
+
+$('#pick').addEventListener('change', e => { handleFiles([...e.target.files]); e.target.value = ''; });
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { if (e.dataTransfer?.files?.length) handleFiles([...e.dataTransfer.files]); });
+
+start();
+</script>
+</body>
+</html>

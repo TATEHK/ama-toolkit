@@ -1,0 +1,18 @@
+{
+  "name": "ama-print-station",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prints approved AMA ID card jobs on the PPC ID 4000 card printer",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "printers": "node agent.js --list-printers"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.45.4",
+    "pdf-to-printer": "5.8.1"
+  }
+}

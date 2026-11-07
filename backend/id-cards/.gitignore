@@ -1,0 +1,6 @@
+# Never upload the print station's login details
+print-station/config.json
+print-station/node_modules/
+print-station/agent.log
+print-station/agent.log.old
+card-artwork/signature.png

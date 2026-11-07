@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0f1713">
+<title>Grading photo</title>
+<link rel="icon" href="../icons/ama-id-cards.png">
+<script>
+  // Short grading photo links for texts (app.train-ama.com/p#<code>): open the photo page with the code
+  location.replace('../grading/coloured-belts/photo/#c=' + encodeURIComponent(location.hash.replace(/^#/, '')));
+</script>
+<style>
+  html, body { margin: 0; height: 100%; background: #0f1713; color: #edf2ee;
+    font-family: Barlow, "Segoe UI", Arial, sans-serif; }
+  .wrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; }
+  .logo { width: 56px; height: 56px; border-radius: 14px; background: #fff url(../icons/ama-id-cards.png) center/82% no-repeat; }
+  .spin { width: 30px; height: 30px; border: 3px solid #253629; border-top-color: #f5c518; border-radius: 50%; animation: s 1s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  p { color: #a3b5a9; margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo"></div>
+  <div class="spin"></div>
+  <p>Opening your grading photo…</p>
+</div>
+</body>
+</html>

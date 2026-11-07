@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>FreeKiosk Test</title>
+<style>
+  body { margin: 0; font: 18px/1.45 "Segoe UI", Arial, sans-serif; background: #f3f6f4; color: #16211b; }
+  main { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  p { margin: 0 0 12px; color: #5a6b61; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin: 12px 0; }
+  label { display: flex; flex-direction: column; font-size: 14px; font-weight: 600; color: #5a6b61; gap: 4px; }
+  input { font: inherit; padding: 10px 12px; border: 1px solid #cdd8d1; border-radius: 10px; width: 160px; }
+  button { font: inherit; font-weight: 700; padding: 12px 20px; border-radius: 10px; border: 0; background: #04794b; color: #fff; }
+  ul { list-style: none; padding: 0; margin: 16px 0; display: flex; flex-direction: column; gap: 8px; }
+  li { background: #fff; border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  li b { display: block; }
+  .ok { color: #04794b; } .bad { color: #b3261e; } .wait { color: #8a4f00; }
+  code { font-size: 14px; word-break: break-all; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FreeKiosk test</h1>
+  <p>Open this page on the tablet inside FreeKiosk (for example as its Start URL for a minute), with REST API turned on. Tap Run. If a test works, FreeKiosk shows a small "Hello from AMA" message. Send a photo of the results.</p>
+  <div class="row">
+    <label>Port<input id="port" type="number" value="8080"></label>
+    <label>API key (if you set one)<input id="key" type="text" autocomplete="off"></label>
+    <button id="run" type="button">Run</button>
+  </div>
+  <ul id="out"></ul>
+  <p id="info"></p>
+</main>
+<script>
+var $ = function (id) { return document.getElementById(id); };
+$('info').innerHTML = '<code>' + navigator.userAgent.replace(/[<>&]/g, '') + '</code><br>Secure page: ' + (window.isSecureContext ? 'yes' : 'no') + ' · FreeKiosk bridge: ' + (window.ReactNativeWebView ? 'yes' : 'no');
+function line(name) {
+  var li = document.createElement('li'); li.innerHTML = '<b>' + name + '</b><span class="wait">Trying...</span>'; $('out').appendChild(li);
+  return function (ok, text) { li.querySelector('span').className = ok ? 'ok' : 'bad'; li.querySelector('span').textContent = text; };
+}
+function timeout(p, ms) { return Promise.race([p, new Promise(function (_, bad) { setTimeout(function () { bad(new Error('no answer after ' + ms / 1000 + ' s')); }, ms); })]); }
+function test(name, host, opts, readable) {
+  var done = line(name), port = $('port').value || 8080, key = $('key').value.trim();
+  if (key && opts.mode === 'cors') opts.headers = Object.assign({}, opts.headers || {}, { 'X-Api-Key': key });
+  return timeout(fetch('http://' + host + ':' + port + opts.path, opts), 6000).then(function (r) {
+    if (!readable) return done(true, 'Sent (the reply can\'t be read in this mode). Did a message pop up?');
+    return r.text().then(function (t) { done(r.ok, 'Reply ' + r.status + ': ' + t.slice(0, 160)); });
+  })['catch'](function (e) { done(false, 'Blocked or no answer: ' + (e && e.message || e)); });
+}
+$('run').onclick = function () {
+  $('out').innerHTML = '';
+  var hello = JSON.stringify({ text: 'Hello from AMA' });
+  var seq = [
+    ['1. Status, readable (127.0.0.1)', '127.0.0.1', { path: '/api/status', method: 'GET', mode: 'cors' }, true],
+    ['2. Status, readable (localhost)', 'localhost', { path: '/api/status', method: 'GET', mode: 'cors' }, true],
+    ['3. Message, simple send', '127.0.0.1', { path: '/api/toast', method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: hello }, false],
+    ['4. Message, proper JSON', '127.0.0.1', { path: '/api/toast', method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: hello }, true],
+    ['5. Message, simple send (localhost)', 'localhost', { path: '/api/toast', method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: hello }, false]
+  ];
+  (function go(i) { if (i < seq.length) test.apply(null, seq[i]).then(function () { setTimeout(function () { go(i + 1); }, 1500); }); })(0);
+};
+</script>
+</body>
+</html>

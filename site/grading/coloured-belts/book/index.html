@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>Book a Grading</title>
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="../../../icons/ama-id-cards.png">
+<link rel="apple-touch-icon" href="../../../icons/ama-apple-touch.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="../../../config.js"></script>
+<style>
+  /* Same look as AMA Gradings: pine black, gold for the one thing to press, green for done */
+  :root {
+    --bg: #0f1713; --panel: #15201a; --raise: #1b2821; --line: #253629; --line2: #31473a;
+    --text: #edf2ee; --sub: #a3b5a9; --faint: #74897b; --gold: #f5c518; --on-gold: #14130a; --green: #2f9e5b; --green-text: #7fd6a2; --red: #ef8a73;
+    --display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; --body: Barlow, "Segoe UI", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.5 var(--body); -webkit-font-smoothing: antialiased; }
+  [hidden] { display: none !important; }
+  .top { padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px 0; }
+  .top-in { max-width: 480px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .top img { width: 44px; height: 44px; object-fit: contain; flex: none; }
+  .top b { display: block; font: 700 19px/1.1 var(--display); }
+  .top span { font-size: 14px; color: var(--sub); }
+  main { max-width: 480px; margin: 0 auto; padding: 18px 16px 40px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .card + .card { margin-top: 12px; }
+  h1 { font: 700 32px/1.05 var(--display); margin: 0; }
+  h1 .belt { color: var(--gold); }
+  h2 { font: 700 21px/1.2 var(--display); margin: 0; }
+  .facts { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .facts li { display: flex; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .facts svg { width: 22px; height: 22px; flex: none; color: var(--gold); }
+  .facts small { display: block; color: var(--sub); font-size: 13.5px; line-height: 1.2; }
+  .facts strong { font-weight: 600; }
+  .closes { border: 1px solid rgba(245,197,24,.45); color: var(--gold); border-radius: 10px; padding: 10px 14px; font-size: 15px; font-weight: 600; display: flex; gap: 10px; align-items: center; }
+  .closes svg { width: 20px; height: 20px; flex: none; }
+  .total { display: flex; justify-content: space-between; align-items: baseline; }
+  .total span { color: var(--sub); }
+  .total strong { font: 700 36px/1 var(--display); }
+  .btn { min-height: 56px; border-radius: 12px; border: 0; background: var(--gold); color: var(--on-gold); font: 700 18px var(--body); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; width: 100%; }
+  .btn:hover { background: #ffd23a; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn svg { width: 20px; height: 20px; }
+  .btn.plain { background: none; color: var(--text); border: 1px solid var(--line2); font-size: 16px; min-height: 50px; }
+  .btn.plain:hover { border-color: var(--sub); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .secure { display: flex; gap: 8px; align-items: flex-start; color: var(--sub); font-size: 14px; line-height: 1.4; margin: -4px 0 0; }
+  .secure svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+  .hint { color: var(--sub); font-size: 15px; margin: 0; }
+  .spin { width: 20px; height: 20px; border: 3px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; flex: none; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .loading { display: flex; gap: 12px; align-items: center; color: var(--sub); }
+  /* Paid or booked */
+  .success { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .tick { width: 60px; height: 60px; border-radius: 50%; background: var(--green); display: grid; place-items: center; animation: pop .4s cubic-bezier(.2,1.4,.5,1) both; }
+  .tick svg { width: 32px; height: 32px; color: #fff; }
+  .tick path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw .35s .25s ease-out forwards; }
+  @keyframes pop { from { transform: scale(.5); opacity: 0; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  #booked { font: 700 32px/1.05 var(--display); margin: 8px 0 0; }
+  #bookedSub { color: var(--sub); margin: 0; }
+  .bring { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .bring li { display: flex; gap: 12px; align-items: center; font-weight: 500; }
+  .bring li::before { content: ""; width: 22px; height: 22px; border-radius: 50%; flex: none;
+    background: var(--green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 13px no-repeat; }
+  .err { color: var(--red); border: 1px solid rgba(239,138,115,.45); border-radius: 10px; padding: 12px 14px; margin: 0; font-weight: 600; }
+  .err a { color: inherit; font-weight: 700; }
+  footer { color: var(--sub); font-size: 15px; margin-top: 20px; }
+  footer a { color: var(--gold); font-weight: 600; text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .tick, .tick path, .spin { animation: none; } .tick path { stroke-dashoffset: 0; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <img src="../../../icons/ama-logo.png" alt="AMA">
+    <div><b>Australian Martial Arts Academy</b><span id="school">Grading booking</span></div>
+  </div>
+</header>
+<main>
+  <div class="card">
+    <div id="loading" class="loading"><div class="spin"></div><span id="loadingText">Loading…</span></div>
+
+    <div id="info" hidden style="display:flex;flex-direction:column;gap:16px">
+      <!-- Paid or booked -->
+      <div class="success" id="successBox" hidden>
+        <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+        <div id="booked" hidden></div>
+        <p id="bookedSub"></p>
+      </div>
+      <div id="headBox">
+        <h1 id="title"></h1>
+      </div>
+      <ul class="facts" id="details"></ul>
+      <div class="closes" id="closes" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span></span></div>
+
+      <!-- Before paying -->
+      <div class="total" id="total" hidden><span>Grading fee</span><strong id="totalAmt"></strong></div>
+      <button class="btn" id="pay" hidden>Pay and book</button>
+      <p class="secure" id="secure" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span id="feeNote"></span></p>
+      <button class="btn" id="book">Book this grading</button>
+
+      <!-- After -->
+      <div class="row2" id="afterBtns" hidden>
+        <a class="btn plain" id="receipt" hidden target="_blank" rel="noopener">View receipt</a>
+        <button class="btn plain" id="cal" type="button">Add to calendar</button>
+      </div>
+    </div>
+    <p class="err" id="error" hidden></p>
+  </div>
+
+  <div class="card" id="bringCard" hidden>
+    <h2>What to bring</h2>
+    <ul class="bring" id="bring"></ul>
+    <p class="hint">Please arrive 15 minutes early. Family and friends are welcome to come and watch.</p>
+  </div>
+
+  <footer id="foot">Questions? Call us on <a id="footTel" href="tel:0295691943">(02) 9569 1943</a></footer>
+</main>
+<script>
+// A family's booking link from a coloured belt grading invitation: /grading/coloured-belts/book/#t=<token>
+const CFG = window.TOOLKIT_CONFIG || {};
+const $ = s => document.querySelector(s);
+const token = new URLSearchParams(location.hash.replace(/^#/, '')).get('t') || '';
+const backFromStripe = /[?&]paid=1/.test(location.search);
+const fmtDate = d => new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const fmtWhen = iso => new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' });
+const fmtTime = t => { if (!t) return ''; const [h, m] = t.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`; };
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ICON = {
+  date: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  time: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  where: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  fee: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10.5h18M7 15h3"/></svg>',
+  belt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 10h19v4h-19z"/><path d="M10 14l-2 6M14 14l2 6"/><rect x="10" y="9" width="4" height="6" rx="1"/></svg>'
+};
+const PHONE = '(02) 9569 1943';
+const HOW = { card: 'by card', cash: 'in cash', eftpos: 'by EFTPOS', transfer: 'by bank transfer' };
+async function call(action, extra = {}) {
+  try {
+    const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/cb', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY }, body: JSON.stringify({ action, token, ...extra }) });
+    return await r.json();
+  } catch (e) { return { ok: false, error: 'Something went wrong. Please try again.' }; }
+}
+let last = null;
+function setPhone(p) {
+  p = p || PHONE;
+  $('#footTel').textContent = p; $('#footTel').href = 'tel:' + p.replace(/[^\d+]/g, '');
+}
+function show(r) {
+  $('#loading').hidden = true;
+  setPhone(r.phone);
+  if (!r.first) { showError(r.error || `This link isn't valid any more. Please call us on ${PHONE}.`, r.phone); return; }
+  last = r;
+  $('#error').hidden = true;
+  const money = n => '$' + Number(n).toFixed(n % 1 ? 2 : 0);
+  const fee = r.fee != null ? money(r.fee) : '';
+  const hasFee = r.fee > 0, done = !!(r.booked || r.paid), open = !r.closed && !r.booking_closed;
+  const day = fmtDate(r.date);
+  $('#school').textContent = r.school ? `AMA ${r.school}` : 'Grading booking';
+  $('#info').hidden = false;
+  $('#title').innerHTML = `${esc(r.first)}'s grading for <span class="belt">${esc(r.belt_to)}</span>`;
+  const facts = [['date', 'Date', day], ...(r.time ? [['time', 'Time', fmtTime(r.time) + ' (arrive 15 mins early)']] : []), ['where', 'Where', `AMA ${r.school}`]];
+  if (done) facts.unshift(['belt', 'Grading for', `${r.first}: ${r.belt_to}`]);
+  if (fee && r.paid) facts.push(['fee', 'Fee', `${fee} paid${HOW[r.paid_how] ? ' ' + HOW[r.paid_how] : ''}`]);
+  $('#details').innerHTML = facts.map(([i, k, v]) => `<li>${ICON[i]}<div><small>${esc(k)}</small><strong>${esc(v)}</strong></div></li>`).join('');
+  // Bookings close notice
+  $('#closes').hidden = !(r.book_by && !done && open);
+  if (r.book_by) $('#closes span').textContent = `Bookings close ${fmtWhen(r.book_by)}`;
+  // Before paying: with a fee, pay by card (which books it). Without a fee: just book. Other payments are taken by staff.
+  const canPay = open && hasFee && r.card && !r.paid;
+  $('#total').hidden = !canPay; $('#totalAmt').textContent = fee;
+  $('#pay').hidden = !canPay;
+  $('#pay').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>` + esc(r.booked ? `Pay the ${fee} fee` : `Pay ${fee} and book`);
+  $('#secure').hidden = !canPay;
+  $('#feeNote').textContent = `Secure card payment by Stripe. Paying books ${r.first}'s place straight away, and your receipt is emailed to you.`;
+  $('#book').hidden = !open || hasFee || done;
+  $('#book').textContent = 'Book this grading';
+  // Paid or booked
+  $('#successBox').hidden = !done; $('#booked').hidden = !done; $('#headBox').hidden = done;
+  $('#booked').textContent = r.paid && r.booked ? 'Paid and booked' : r.paid ? 'Paid, thank you' : 'Booked in!';
+  $('#bookedSub').textContent = r.paid && !r.booked ? 'We\'re booking the grading for you, and the front desk will confirm it.'
+    : `See you on ${day.split(',')[0]}${r.time ? ' at ' + fmtTime(r.time) : ''}. Good luck, ${r.first}!`;
+  $('#afterBtns').hidden = !done || !!r.closed;
+  $('#receipt').hidden = !r.receipt; if (r.receipt) $('#receipt').href = r.receipt;
+  $('#afterBtns').style.gridTemplateColumns = r.receipt ? '1fr 1fr' : '1fr';
+  // What to bring (once booked or paid, and while paying)
+  const bring = Array.isArray(r.bring) && r.bring.length ? r.bring : ['Full long-sleeve uniform', 'Belt', 'Drink bottle'];
+  $('#bring').innerHTML = bring.map(b => `<li>${esc(b)}</li>`).join('');
+  $('#bringCard').hidden = !!r.closed || (!done && !open);
+  if (open && hasFee && !r.card && !r.paid && !r.booked) showError(`Online payment isn't available for this grading. Please call us on ${r.phone || PHONE} to book.`, r.phone);
+  if (r.closed && !done) showError('This grading has finished.');
+  else if (r.booking_closed && !done) showError(`Bookings for this grading have closed. Please call us on ${r.phone || PHONE}.`, r.phone);
+  if (r.error && r.first) showError(r.error, r.phone);
+}
+// An error, with the phone number as a tap-to-call link
+function showError(msg, phone) {
+  const p = phone || PHONE, i = msg.indexOf(p);
+  $('#error').innerHTML = i < 0 ? esc(msg) : esc(msg.slice(0, i)) + `<a href="tel:${esc(p.replace(/[^\d+]/g, ''))}">${esc(p)}</a>` + esc(msg.slice(i + p.length));
+  $('#error').hidden = false;
+}
+$('#book').onclick = async () => {
+  $('#book').disabled = true; $('#book').innerHTML = '<span class="spin"></span>Booking…'; $('#error').hidden = true;
+  const r = await call('book');
+  $('#book').disabled = false;
+  show(r);
+};
+$('#pay').onclick = async () => {
+  $('#pay').disabled = true; $('#pay').innerHTML = '<span class="spin"></span>Opening secure payment…'; $('#error').hidden = true;
+  const r = await call('pay', { back: location.origin + location.pathname });
+  if (r.ok && r.url) { location.href = r.url; return; }
+  $('#pay').disabled = false;
+  show({ ...(last || {}), ...r, error: r.error || 'Something went wrong. Please try again.' });
+};
+// Add to calendar: an .ics file for the grading (2 hours from the start time, or all day)
+$('#cal').onclick = () => {
+  const r = last; if (!r) return;
+  const d = r.date.replace(/-/g, ''), pad = n => String(n).padStart(2, '0');
+  let when;
+  if (r.time) {
+    const [h, m] = r.time.split(':').map(Number), end = h * 60 + m + 120;
+    when = `DTSTART;TZID=Australia/Sydney:${d}T${pad(h)}${pad(m)}00\r\nDTEND;TZID=Australia/Sydney:${d}T${pad(Math.floor(end / 60) % 24)}${pad(end % 60)}00`;
+  } else {
+    const n = new Date(r.date + 'T00:00:00'); n.setDate(n.getDate() + 1);
+    when = `DTSTART;VALUE=DATE:${d}\r\nDTEND;VALUE=DATE:${n.getFullYear()}${pad(n.getMonth() + 1)}${pad(n.getDate())}`;
+  }
+  const bring = (r.bring || []).join(', ');
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//AMA//Grading//EN', 'BEGIN:VEVENT', `UID:${token.slice(0, 16)}-${d}@ama-grading`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`, when, `SUMMARY:${r.first}'s grading (${r.belt_to})`, `LOCATION:AMA ${r.school}`,
+    `DESCRIPTION:Please arrive 15 minutes early.${bring ? ' Bring: ' + bring + '.' : ''}`, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+  a.download = `${r.first}-grading.ics`; document.body.appendChild(a); a.click(); a.remove();
+};
+if (backFromStripe) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* ignore */ } }
+(async () => {
+  if (!token) return show({ error: `This link is missing its code. Open it from the text message you were sent, or call us on ${PHONE}.` });
+  if (backFromStripe) $('#loadingText').textContent = 'Confirming your payment…';
+  let r = await call('info');
+  // Back from Stripe before the payment has come through: check again for a few seconds
+  for (let i = 0; backFromStripe && r.first && !r.paid && i < 5; i++) { await new Promise(ok => setTimeout(ok, 2000)); r = await call('info'); }
+  show(r);
+})();
+</script>
+</body>
+</html>

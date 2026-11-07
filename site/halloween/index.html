@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>AMA Halloween</title>
+<link href="https://fonts.googleapis.com/css2?family=Creepster&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  /* Full-screen Halloween display for the dojang TV. Kept simple for older smart-TV browsers:
+     plain CSS animations (transform + opacity), -webkit- prefixes, no modern layout tricks. */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0612; }
+  body {
+    font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; color: #fff;
+    -webkit-user-select: none; user-select: none; cursor: none;
+    background: radial-gradient(130% 90% at 72% 18%, #3a1a5e 0%, #1a0b2e 42%, #0a0612 100%);
+  }
+  .scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; }
+
+  /* Vignette so edges fall into darkness */
+  .vignette { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+    background: radial-gradient(120% 120% at 50% 42%, rgba(0,0,0,0) 48%, rgba(0,0,0,.72) 100%); z-index: 6; pointer-events: none; }
+
+  /* Stars */
+  #stars i { position: absolute; width: .35vw; height: .35vw; background: #fff; border-radius: 50%; opacity: .5;
+    -webkit-animation: tw 3s ease-in-out infinite; animation: tw 3s ease-in-out infinite; }
+  @-webkit-keyframes tw { 0%,100% { opacity: .15; } 50% { opacity: .85; } }
+  @keyframes tw { 0%,100% { opacity: .15; } 50% { opacity: .85; } }
+
+  /* Moon */
+  .moon { position: absolute; right: 10vw; top: 9vh; width: 20vh; height: 20vh; border-radius: 50%;
+    background: radial-gradient(circle at 38% 36%, #fff7e0 0%, #f4e4b0 46%, #d9c48a 75%, #c3ad73 100%);
+    box-shadow: 0 0 6vh 2vh rgba(255,240,200,.35), 0 0 16vh 6vh rgba(255,225,160,.18); z-index: 1; }
+  .moon b { position: absolute; border-radius: 50%; background: rgba(150,132,92,.5); }
+  .moon b.c1 { width: 22%; height: 22%; left: 24%; top: 30%; }
+  .moon b.c2 { width: 14%; height: 14%; left: 56%; top: 50%; }
+  .moon b.c3 { width: 10%; height: 10%; left: 40%; top: 64%; }
+
+  /* Hill silhouette + fence */
+  .ground { position: absolute; left: 0; bottom: 0; width: 100%; height: 26vh; z-index: 4;
+    background: radial-gradient(120% 140% at 50% 140%, #140a22 0%, #0a0612 70%); }
+  .hill { position: absolute; left: -5%; bottom: 0; width: 110%; height: 22vh; z-index: 3;
+    background: #0d0718; border-radius: 50% 50% 0 0 / 100% 100% 0 0; }
+
+  /* Bats flying across */
+  .bat { position: absolute; z-index: 5; width: 7vh; -webkit-animation: flyacross linear infinite; animation: flyacross linear infinite; }
+  .bat svg { display: block; width: 100%; height: auto; -webkit-animation: flap .34s ease-in-out infinite; animation: flap .34s ease-in-out infinite; }
+  .bat.b1 { top: 22vh; -webkit-animation-duration: 15s; animation-duration: 15s; }
+  .bat.b2 { top: 38vh; width: 5vh; -webkit-animation-duration: 20s; animation-duration: 20s; -webkit-animation-delay: -6s; animation-delay: -6s; }
+  .bat.b3 { top: 14vh; width: 4vh; -webkit-animation-duration: 24s; animation-duration: 24s; -webkit-animation-delay: -12s; animation-delay: -12s; }
+  .bat.b4 { top: 30vh; width: 8.5vh; -webkit-animation-duration: 13s; animation-duration: 13s; -webkit-animation-delay: -3s; animation-delay: -3s; }
+  @-webkit-keyframes flyacross { from { -webkit-transform: translateX(-12vw); } to { -webkit-transform: translateX(114vw); } }
+  @keyframes flyacross { from { transform: translateX(-12vw); } to { transform: translateX(114vw); } }
+  @-webkit-keyframes flap { 0%,100% { -webkit-transform: scaleY(1); } 50% { -webkit-transform: scaleY(.6); } }
+  @keyframes flap { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(.6); } }
+
+  /* Ghosts bobbing */
+  .ghost { position: absolute; z-index: 5; width: 11vh; opacity: .9;
+    -webkit-animation: bob 6s ease-in-out infinite; animation: bob 6s ease-in-out infinite; }
+  .ghost.g1 { left: 13vw; top: 44vh; -webkit-animation-duration: 7s; animation-duration: 7s; }
+  .ghost.g2 { right: 15vw; top: 52vh; width: 8vh; opacity: .75; -webkit-animation-delay: -3s; animation-delay: -3s; }
+  @-webkit-keyframes bob { 0%,100% { -webkit-transform: translateY(0); } 50% { -webkit-transform: translateY(-3.5vh); } }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3.5vh); } }
+
+  /* Jack-o'-lanterns along the bottom */
+  .pumpkins { position: absolute; left: 0; bottom: 2.5vh; width: 100%; z-index: 6;
+    display: flex; justify-content: center; align-items: flex-end; gap: 6vw; }
+  .pumpkin { width: 13vh; -webkit-animation: glow 2.4s ease-in-out infinite; animation: glow 2.4s ease-in-out infinite; }
+  .pumpkin:nth-child(2) { width: 16vh; -webkit-animation-delay: -.8s; animation-delay: -.8s; }
+  .pumpkin:nth-child(3) { -webkit-animation-delay: -1.5s; animation-delay: -1.5s; }
+  @-webkit-keyframes glow { 0%,100% { -webkit-filter: drop-shadow(0 0 1.2vh rgba(255,140,20,.65)); } 50% { -webkit-filter: drop-shadow(0 0 2.6vh rgba(255,170,40,1)); } }
+  @keyframes glow { 0%,100% { filter: drop-shadow(0 0 1.2vh rgba(255,140,20,.65)); } 50% { filter: drop-shadow(0 0 2.6vh rgba(255,170,40,1)); } }
+
+  /* Title */
+  .mid { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 7;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .mid .pre { font-size: 2.6vw; font-weight: 700; letter-spacing: .5em; text-transform: uppercase; color: #ff8c1a; text-indent: .5em;
+    text-shadow: 0 0 1.4vh rgba(255,120,10,.7); margin-bottom: .4vh; }
+  .mid h1 { font-family: "Creepster", "Impact", "Arial Black", sans-serif; font-weight: 400;
+    font-size: 15vw; line-height: .92; margin: 0; color: #ff9f1a; letter-spacing: .02em;
+    text-shadow: 0 0 2vh rgba(255,120,0,.8), 0 0 5vh rgba(255,60,0,.5), 0 .6vw 0 #7a2d00;
+    -webkit-animation: flicker 5s linear infinite; animation: flicker 5s linear infinite; }
+  .mid .sub { margin-top: 1.5vh; font-size: 3vw; font-weight: 700; color: #f3e9ff; letter-spacing: .04em; }
+  .mid .sub .ama { color: #8f6bd8; }
+  @-webkit-keyframes flicker { 0%,19%,21%,51%,55%,100% { opacity: 1; } 20% { opacity: .72; } 53% { opacity: .82; } }
+  @keyframes flicker { 0%,19%,21%,51%,55%,100% { opacity: 1; } 20% { opacity: .72; } 53% { opacity: .82; } }
+
+  .clock { position: absolute; left: 50%; top: 4vh; -webkit-transform: translateX(-50%); transform: translateX(-50%); z-index: 7;
+    font-size: 2.4vw; font-weight: 700; color: #cbb8e8; letter-spacing: .08em; opacity: .8; }
+
+  /* Drifting fog */
+  .fog { position: absolute; left: 0; bottom: 0; width: 200%; height: 16vh; z-index: 5; pointer-events: none;
+    background: radial-gradient(60% 100% at 20% 100%, rgba(170,140,210,.16), rgba(0,0,0,0) 70%),
+                radial-gradient(60% 100% at 60% 100%, rgba(150,120,200,.14), rgba(0,0,0,0) 70%);
+    -webkit-animation: drift 26s linear infinite; animation: drift 26s linear infinite; }
+  @-webkit-keyframes drift { from { -webkit-transform: translateX(0); } to { -webkit-transform: translateX(-50%); } }
+  @keyframes drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+  @media (orientation: portrait) {
+    .mid .pre { font-size: 4.6vw; }
+    .mid h1 { font-size: 16vw; }
+    .mid .sub { font-size: 5vw; }
+    .clock { font-size: 4.4vw; }
+    .moon { width: 24vw; height: 24vw; right: 8vw; }
+    .bat.b1 { width: 11vw; } .bat.b4 { width: 13vw; }
+    .pumpkin { width: 20vw; } .pumpkin:nth-child(2) { width: 24vw; }
+  }
+</style>
+</head>
+<body>
+<div class="scene">
+  <div id="stars"></div>
+  <div class="moon"><b class="c1"></b><b class="c2"></b><b class="c3"></b></div>
+
+  <div class="bat b1">BAT</div>
+  <div class="bat b2">BAT</div>
+  <div class="bat b3">BAT</div>
+  <div class="bat b4">BAT</div>
+
+  <div class="ghost g1">GHOST</div>
+  <div class="ghost g2">GHOST</div>
+
+  <div class="hill"></div>
+  <div class="ground"></div>
+  <div class="fog"></div>
+
+  <div class="pumpkins">
+    <div class="pumpkin">PUMPKIN</div>
+    <div class="pumpkin">PUMPKIN</div>
+    <div class="pumpkin">PUMPKIN</div>
+  </div>
+
+  <div class="vignette"></div>
+
+  <div class="clock" id="clock"></div>
+  <div class="mid">
+    <div class="pre">Australian Martial Arts Academy</div>
+    <h1>Happy Halloween</h1>
+    <div class="sub">Trick or treat at the <span class="ama">dojang</span> tonight</div>
+  </div>
+</div>
+
+<script>
+  // SVG art, injected so the markup above stays readable. Plain strings — no modern JS.
+  var BAT = '<svg viewBox="0 0 120 60"><path fill="#0b0310" d="M60 14c3-6 8-10 12-8-2 3-1 7 1 8 5-10 15-12 22-6-4 0-6 3-6 7 6-3 13-2 18 3-7-1-11 2-14 7-4 6-14 10-21 6-4-2-7-6-12-6s-8 4-12 6c-7 4-17 0-21-6-3-5-7-8-14-7 5-5 12-6 18-3 0-4-2-7-6-7 7-6 17-4 22 6 2-1 3-5 1-8 4-2 9 2 12 8z"/></svg>';
+  var GHOST = '<svg viewBox="0 0 100 130"><path fill="rgba(240,245,255,.92)" d="M50 6C26 6 14 25 14 50v62c0 6 7 9 11 4l6-7c2-3 6-3 8 0l5 7c2 3 6 3 8 0l5-7c2-3 6-3 8 0l6 7c4 5 11 2 11-4V50C92 25 74 6 50 6z"/><circle cx="37" cy="48" r="7" fill="#1a0b2e"/><circle cx="63" cy="48" r="7" fill="#1a0b2e"/><ellipse cx="50" cy="70" rx="7" ry="10" fill="#1a0b2e"/></svg>';
+  var PUMPKIN = '<svg viewBox="0 0 140 120"><rect x="64" y="2" width="12" height="20" rx="4" fill="#4a7a32"/><ellipse cx="70" cy="70" rx="66" ry="48" fill="#ff7a18"/><ellipse cx="34" cy="70" rx="26" ry="48" fill="#e8690f"/><ellipse cx="106" cy="70" rx="26" ry="48" fill="#e8690f"/><ellipse cx="70" cy="70" rx="20" ry="48" fill="#ff8a2a"/><path fill="#ffdf6b" d="M44 56l18 10-18 10z"/><path fill="#ffdf6b" d="M96 56l-18 10 18 10z"/><path fill="#ffdf6b" d="M50 92c8-10 32-10 40 0-6-4-12-5-20-5s-14 1-20 5z"/><path fill="#1a0b08" d="M70 80l-7 10h14z"/></svg>';
+  var i, html, s, n, sx;
+  var bats = document.getElementsByClassName('bat'); for (i = 0; i < bats.length; i++) bats[i].innerHTML = BAT;
+  var gh = document.getElementsByClassName('ghost'); for (i = 0; i < gh.length; i++) gh[i].innerHTML = GHOST;
+  var pk = document.getElementsByClassName('pumpkin'); for (i = 0; i < pk.length; i++) pk[i].innerHTML = PUMPKIN;
+
+  // Stars
+  html = ''; for (i = 0; i < 90; i++) {
+    html += '<i style="left:' + (Math.random() * 100).toFixed(1) + '%;top:' + (Math.random() * 62).toFixed(1) +
+      '%;-webkit-animation-delay:-' + (Math.random() * 3).toFixed(1) + 's;animation-delay:-' + (Math.random() * 3).toFixed(1) + 's"></i>';
+  }
+  document.getElementById('stars').innerHTML = html;
+
+  // Clock (local device time)
+  function tick() {
+    var d = new Date(), h = d.getHours(), m = d.getMinutes();
+    var ap = h < 12 ? 'AM' : 'PM', hh = h % 12; if (hh === 0) hh = 12;
+    document.getElementById('clock').textContent = hh + ':' + (m < 10 ? '0' + m : m) + ' ' + ap;
+  }
+  tick(); setInterval(tick, 15000);
+</script>
+</body>
+</html>

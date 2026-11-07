@@ -1,0 +1,1890 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>TV Display</title>
+<link rel="icon" href="../../icons/ama-id-cards.png">
+<link rel="apple-touch-icon" href="../../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../../config.js"></script>
+<script src="../../hub-signin.js"></script>
+<script src="../../idle-logout.js"></script>
+<script src="../poster.js"></script>
+<style>
+  /* Same look as AMA Gradings: pine black, gold for the one thing to press, green for done */
+  :root {
+    --bg: #0f1713; --surface: #15201a; --raise: #1b2821; --fg: #edf2ee; --muted: #a3b5a9; --faint: #74897b; --line: #253629; --line2: #31473a;
+    --accent: #f5c518; --on-accent: #14130a; --accent-soft: rgba(245,197,24,.12); --gold: #f5c518; --on-gold: #14130a;
+    --ok: #7fd6a2; --danger: #ef8a73; --warn: #f0b45a; --hover: #1b2821;
+    --shadow: 0 0 0 1px var(--line);
+    --font-display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --font-body: Barlow, "Segoe UI", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body.partyonly .full { display: none !important; }   /* a login with party mode only sees just that */
+  body.noslides .onlyslides { display: none !important; }    /* can manage screens but not slide content */
+  body.noscreens .onlyscreens { display: none !important; }  /* can manage slide content but not screens/settings */
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=checkbox] { accent-color: var(--accent); width: 20px; height: 20px; flex: none; }
+
+  .appbar { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px; }
+  .appbar-inner { max-width: 820px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+  .home-btn { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--muted); text-decoration: none; }
+  .home-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .home-btn svg { width: 20px; height: 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+  .brand img { width: 34px; height: 34px; border-radius: 8px; }
+  .brand h1 { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: .01em; white-space: nowrap; }
+
+  main { max-width: 820px; margin: 0 auto; padding: 16px 16px 48px; display: flex; flex-direction: column; gap: 14px; }
+  h2 { font-family: var(--font-display); font-weight: 700; font-size: 24px; margin: 0; letter-spacing: .01em; }
+  h3 { font-family: var(--font-display); font-weight: 600; font-size: 18px; margin: 0; }
+  .view-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .hint { font-size: 14px; color: var(--muted); margin: 0; }
+  .card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  label, .label { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], input[type=time], textarea, select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--raise); }
+  textarea { min-height: 120px; resize: vertical; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 1px solid var(--line2); background: var(--surface); font-weight: 600; cursor: pointer; text-decoration: none; color: inherit; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn.danger { color: var(--danger); }
+  .btn.sm { min-height: 36px; padding: 4px 12px; font-size: 14px; white-space: nowrap; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1 1 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .check { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 15px; color: var(--fg); font-weight: 400; }
+  .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--gold); color: var(--on-gold); }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .tag.warn { color: var(--warn); } .tag.muted { color: var(--muted); }
+  .code { font-family: var(--font-display); font-weight: 700; font-size: 34px; letter-spacing: .2em; }
+  .auth { max-width: 400px; margin: 8vh auto 0; width: 100%; }
+
+  .slides { list-style: none; margin: 0; padding: 0; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+  .slides li + li { border-top: 1px solid var(--line); }
+  .slide { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+  .slide.off { opacity: .55; }
+  .thumb { flex: none; width: 96px; height: 54px; border-radius: 8px; background: #000 center/cover no-repeat; display: flex; align-items: center; justify-content: center; color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 13px; overflow: hidden; position: relative; text-align: center; line-height: 1.1; padding: 4px; }
+  .thumb.t-party { background: linear-gradient(135deg, #e0218a, #7b2ff7, #1e90ff); }
+  .thumb.t-green { background-color: #04794b; } .thumb.t-dark { background-color: #0e1612; } .thumb.t-gold { background-color: #f2d500; color: #16211b; } .thumb.t-light { background-color: #e7ece9; color: #16211b; }
+  .thumb .play { position: absolute; width: 0; height: 0; border-left: 14px solid rgba(255,255,255,.9); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+  .slide .main { flex: 1; min-width: 0; cursor: pointer; }
+  .slide .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slide .meta { font-size: 13px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .moves { display: flex; flex-direction: column; gap: 2px; }
+  .moves button { width: 34px; height: 26px; border-radius: 7px; border: 1px solid var(--line2); background: var(--surface); cursor: pointer; color: var(--muted); font-size: 13px; line-height: 1; }
+  .moves button:disabled { opacity: .3; cursor: default; }
+  .swatches { display: flex; gap: 8px; }
+  .swatches label { cursor: pointer; }
+  .swatches input { position: absolute; opacity: 0; }
+  .swatches span { display: block; width: 44px; height: 32px; border-radius: 8px; border: 2px solid var(--line); }
+  .swatches input:checked + span { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+  #party.on { background: var(--gold); color: var(--on-gold); }
+  .booked { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .booked li { display: flex; align-items: center; gap: 10px; }
+  .booked .thumb { width: 64px; height: 36px; font-size: 10px; }
+  .booked .when { font-size: 13px; color: var(--muted); }
+  #status .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); margin-right: 6px; vertical-align: 1px; }
+  #status .dot.on { background: #1fa85c; box-shadow: 0 0 0 3px rgba(31,168,92,.2); }
+  #status .screens { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  #status .screens li { display: flex; gap: 6px 10px; align-items: flex-start; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  #status .screens li:last-child { border-bottom: 0; }
+  #status .screens li > .grow { flex: 1 1 240px; }
+  #status .screens .grow > div { font-size: 13px; color: var(--muted); }
+  .cd-to { display: flex; flex-direction: column; gap: 6px; }
+  #party.on .hint { color: var(--on-gold); opacity: .85; }
+  /* Fixed colours on the gold card, so the buttons read the same in light and dark mode */
+  #party.on .btn { background: #ffffff; color: #16211b; border-color: rgba(0,0,0,.18); }
+  #party.on .btn.primary { background: #04794b; border-color: #04794b; color: #ffffff; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { flex: 1; border: 0; background: var(--surface); padding: 9px 6px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg.disp button { padding: 11px 6px; font-size: 16px; }
+  .seg.disp button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .partyprev { aspect-ratio: 16 / 9; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #fff; padding: 12px;
+    background: linear-gradient(135deg, #e0218a 0%, #7b2ff7 55%, #1e90ff 100%); font-family: var(--font-display); }
+  .partyprev b { font-size: 30px; line-height: 1.05; } .partyprev span { font-family: var(--font-body); font-size: 15px; margin-top: 6px; }
+  .pages { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pages button { border: 2px solid var(--line); border-radius: 10px; padding: 0; background: #000; cursor: pointer; overflow: hidden; position: relative; }
+  .pages button img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; }
+  .pages button span { position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,.65); color: #fff; font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+  .pages button:hover { border-color: var(--accent); }
+  .tpls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tpls button { border: 2px solid var(--line); border-radius: 10px; padding: 0; background: #000; cursor: pointer; overflow: hidden; position: relative; }
+  .tpls button img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+  .tpls button span { position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,.65); color: #fff; font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+  .tpls button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+  .posterprev { width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; background: #000; display: block; touch-action: none; }
+  .posterprev.up { width: auto; height: min(56vh, 520px); aspect-ratio: auto; align-self: center; max-width: 100%; }
+  .prevs { display: flex; gap: 10px; align-items: flex-end; }
+  .prevs .posterprev { flex: 1 1 0; min-width: 0; }
+  .prevs .posterprev.up { flex: 0 0 auto; width: 28%; height: auto; }
+  .prevs .side { font-size: 12px; color: var(--muted); text-align: center; }
+  .range { display: flex; align-items: center; gap: 10px; } .range input { flex: 1; accent-color: var(--accent); }
+  .saved { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .saved li { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+  .saved li.pick { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+  .offs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .offs li { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .offs .dw, .sdays { display: flex; gap: 3px; }
+  .sdays button { flex: 1 1 0; min-width: 0; padding: 0; min-height: 36px; border-radius: 8px; border: 1px solid var(--line2); background: var(--surface); font-weight: 600; font-size: 13px; cursor: pointer; color: var(--muted); }
+  .sdays button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .trow { display: flex; gap: 8px; align-items: center; }
+  .trow input[type=time] { flex: 1 1 0; min-width: 0; }
+  .offs .dw button { flex: 1 1 0; min-width: 0; padding: 0; min-height: 36px; border-radius: 8px; border: 1px solid var(--line2); background: var(--surface); font-weight: 600; font-size: 13px; cursor: pointer; color: var(--muted); }
+  .offs .dw button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .offs .tm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .offs .tm input[type=time] { width: auto; }
+  .offs .tm input[type=number] { width: 80px; }
+  .offs .tm select { width: auto; flex: 1 1 140px; }
+  .days { width: 100%; border-collapse: collapse; }
+  .days td { padding: 5px 4px; vertical-align: middle; }
+  .days td:first-child { width: 1%; white-space: nowrap; }
+  .days input[type=time] { width: 100%; min-width: 0; }
+  .days tr.closed input[type=time] { display: none; }
+  .days .shut { display: none; color: var(--muted); font-size: 14px; }
+  .days tr.closed .shut { display: inline; }
+  .evnav { display: flex; align-items: center; gap: 8px; }
+  .evnav b { flex: 1; text-align: center; font-size: 17px; }
+  .evlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .evlist li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .evlist li > b { flex: none; width: 92px; font-size: 14px; }
+  .evlist li small { display: block; color: var(--muted); font-size: 13px; }
+  .evlist li.past { opacity: .5; }
+  .addgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .addgrid button { text-align: left; border: 1px solid var(--line2); background: var(--surface); border-radius: 12px; padding: 12px; cursor: pointer; min-height: 72px; }
+  .addgrid button b { display: block; font-size: 16px; }
+  .addgrid button span { font-size: 13px; color: var(--muted); }
+  .addgrid button:hover { border-color: var(--accent); }
+  .progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .progress div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+  dialog { border: 0; padding: 0; background: var(--surface); color: var(--fg); border-radius: 16px; width: min(600px, calc(100% - 24px)); max-height: calc(100dvh - 24px); box-shadow: var(--shadow); }
+  dialog::backdrop { background: rgba(10, 20, 15, .5); }
+  @media (max-width: 600px) { dialog { margin: auto 0 0; width: 100%; max-width: 100%; border-radius: 16px 16px 0 0; } }
+  .dlg { padding: 16px; display: flex; flex-direction: column; gap: 12px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .dlg-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .x { border: 0; background: none; color: var(--accent); font-weight: 600; cursor: pointer; padding: 6px; }
+  .preview-img { width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; background: #000 center/contain no-repeat; }
+  #toast { inset: auto; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); margin: 0; border: 0; width: max-content;
+    background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 15px; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
+  #toast[hidden] { display: none; }
+  /* Same look as AMA Gradings */
+  body { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--gold); }
+  .appbar { background: rgba(15,23,19,.96); }
+  input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], input[type=time], input[type=search], input[type=url], textarea, select { background: var(--raise); border-color: var(--line2); color: var(--fg); }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--gold); }
+  .btn { border-color: var(--line2); }
+  .btn.primary { background: var(--gold); border-color: var(--gold); color: var(--on-gold); font-weight: 700; }
+  dialog { border: 1px solid var(--line2); box-shadow: 0 10px 50px rgba(0,0,0,.6); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  .seg { border-color: var(--line2); }
+  .seg button { background: none; }
+  .seg button[aria-pressed="true"] { background: var(--raise); color: var(--gold); box-shadow: inset 0 -2px 0 var(--gold); }
+  .shufrow { display: flex; align-items: center; gap: 12px; }
+  .shufrow .hint { flex: 1; min-width: 0; }
+  #shuffleBtn { flex: none; }
+  #shuffleBtn[aria-pressed="true"] { color: var(--gold); border-color: var(--gold); }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="home-btn" id="homeBtn" href="/" aria-label="Back to AMA Toolkit" title="AMA Toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></a>
+    <div class="brand"><img src="../../icons/ama-id-cards.png" alt=""><h1>TV Display</h1></div>
+    <button class="btn sm" id="signOut" hidden>Sign out</button>
+  </div>
+</header>
+
+<main>
+  <section id="signIn" class="auth card" hidden>
+    <h2>Sign in</h2>
+    <p class="hint">Use your AMA login to change what's on the dojang TV.</p>
+    <form id="signInForm" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="siEmail">Email</label><input type="email" id="siEmail" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input type="password" id="siPass" autocomplete="current-password" required></div>
+      <button class="btn primary" id="siGo" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <section id="problem" class="card" hidden></section>
+
+  <section id="app" hidden style="display:flex;flex-direction:column;gap:14px">
+    <div class="seg disp" id="dispSeg" role="group" aria-label="Which screen"><button type="button" data-disp="tv">TV</button><button type="button" data-disp="tablet">Tablets</button></div>
+    <div class="card" id="partyOnly" hidden></div>
+    <div class="card full onlyscreens" id="status" hidden></div>
+    <div class="card" id="party"></div>
+    <div class="view-head full"><h2 class="onlyslides">Slides</h2><div class="row"><a class="btn sm" id="previewBtn" target="_blank" rel="noopener">Preview</a><a class="btn sm" id="remoteBtn" href="../remote/">Remote</a><button class="btn primary sm onlyslides" id="addBtn">Add</button></div></div>
+    <div class="shufrow full onlyslides"><p class="hint" id="slidesHint">The TV shows these in order, on a loop, and picks up changes within 20 seconds.</p><button class="btn sm" id="shuffleBtn" type="button" aria-pressed="false" title="Play the slides in a random order"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg><span id="shuffleTxt">Shuffle</span></button></div>
+    <ul class="slides full onlyslides" id="list"></ul>
+
+    <div class="card full onlyslides" id="eventsCard" hidden></div>
+    <div class="card full onlyslides" id="locCard" hidden></div>
+
+    <h2 class="full onlyscreens" style="margin-top:8px">Settings</h2>
+    <form class="card full onlyscreens" id="setForm">
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <div><div class="label">Screen code</div><div class="code" id="code"></div></div>
+        <button type="button" class="btn sm" id="newCode">New code</button>
+      </div>
+      <div class="field"><span class="label">Link for this screen</span>
+        <div class="row" id="linkLocRow" hidden><label for="linkLoc" class="label" style="margin:0">For a device at</label><select id="linkLoc" style="width:auto;flex:1"></select></div>
+        <div class="row"><code id="screenLink" class="grow" style="word-break:break-all;font-size:14px"></code><button type="button" class="btn sm" id="copyLink">Copy</button><button type="button" class="btn sm" id="qrLink">QR code</button></div></div>
+      <p class="hint" id="linkHint"></p>
+      <p class="hint">A new code stops any screen using the old code or link until it gets the new one.</p>
+      <div class="grid2">
+        <div class="field"><label for="setSecs">Seconds per slide</label><input type="number" id="setSecs" min="3" max="600" step="1"></div>
+        <div class="field"><span class="label">On screen</span><label class="check"><input type="checkbox" id="setClock"> Clock</label><label class="check" style="min-height:28px"><input type="checkbox" id="setLogo"> AMA logo</label></div>
+      </div>
+      <div class="field" id="bannerBox" hidden><label for="setBanner">Message at the bottom (optional)</label><input type="text" id="setBanner" maxlength="80" placeholder="e.g. Tap to sign in"><p class="hint">Shown along the bottom of the screen with every slide. Leave it empty for none.</p></div>
+      <div class="field" id="pqrBox" hidden><span class="label">QR code during parties</span>
+        <input type="text" id="setPqr" inputmode="url" autocapitalize="off" spellcheck="false" maxlength="1000" placeholder="Link, e.g. the participation waiver form">
+        <input type="text" id="setPqrText" maxlength="80" placeholder="Scan to complete the participation waiver" style="margin-top:6px" aria-label="Text next to the QR code">
+        <p class="hint">While a party is on, the tablets show the poster with a big QR code for this link along the bottom, easy to scan with a phone. Leave the link empty for none.</p></div>
+      <div class="field" id="batBox" hidden><label for="setBatWarn">Low battery warning</label>
+        <div class="row"><span class="hint">Red bar at the top below</span><input type="number" id="setBatWarn" min="0" max="100" step="5" style="width:90px">%<span class="hint">(0 = off). It hides while charging.</span></div></div>
+      <div class="field" id="signinBox" hidden><label for="setSignin">Sign-in page (optional)</label>
+        <div class="row"><input type="text" id="setSignin" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="e.g. https://kiosk.efcaquila.net/" class="grow" style="flex:1 1 200px;width:auto"><button type="button" class="btn sm" id="signinTest">Test</button></div>
+        <div class="field"><label for="setSigninOpen">A tap</label><select id="setSigninOpen"><option value="kiosk">Handled by FreeKiosk (slides as its screensaver)</option><option value="page">Goes to the sign-in page</option><option value="frame">Shows it inside the slides</option></select></div>
+        <div class="grid2" id="kioskRow" hidden><div class="field"><label for="setKioskPort">FreeKiosk REST API port</label><input type="number" id="setKioskPort" min="1" max="65535" placeholder="8080"></div>
+          <div class="field"><label for="setKioskKey">API key (optional)</label><input type="text" id="setKioskKey" maxlength="80" autocomplete="off" placeholder="Leave empty"></div></div>
+        <div class="row" id="signinIdleRow"><label for="setSigninIdle" class="label" style="margin:0">Back to the slides after</label><select id="setSigninIdle" style="width:auto"><option value="30">30 seconds</option><option value="45">45 seconds</option><option value="60">1 minute</option><option value="90">1.5 minutes</option><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option></select><span class="hint">with no taps</span></div>
+        <p class="hint" id="signinHint"></p></div>
+      <div class="field" id="quietBox" hidden><span class="label">Slideshow hours</span>
+        <label class="check"><input type="checkbox" id="setQuiet"> Only play the slideshow at set times</label>
+        <div id="quietRow" style="display:flex;flex-direction:column;gap:10px">
+          <table class="days"><tbody id="qDays"></tbody></table>
+          <div class="row"><button type="button" class="btn sm" id="qCopy">Copy Monday to Tuesday to Friday</button></div>
+          <div class="field"><label for="setQStyle">At other times the TV shows</label><select id="setQStyle"><option value="logo">Just the AMA logo (dimmed, on black)</option><option value="black">A black screen</option></select></div>
+          <p class="hint" style="margin:0">A party still shows at any time. A location can have its own hours instead (Locations, Edit, Settings). Many TVs also have their own off timer in their settings, which saves power.</p>
+        </div></div>
+      <div class="field" id="offBox" hidden><span class="label">Scheduled screen-off times</span>
+        <p class="hint" style="margin:0">On top of the slideshow hours: the screen goes off at these times for the minutes set, e.g. Saturday 10:00 for 5 minutes. A party still shows.</p>
+        <ul class="offs" id="offRows"></ul>
+        <div class="row"><button type="button" class="btn sm" id="offAdd">Add a time</button></div></div>
+      <div class="field" id="pinBox" hidden><span class="label">Staff code</span>
+        <p class="hint" style="margin:0" id="pinHint"></p>
+        <div class="row"><input type="password" id="setPin" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="4 to 8 digits" aria-label="New staff code" style="width:150px"><button type="button" class="btn sm" id="pinSave">Set code</button><button type="button" class="btn sm danger" id="pinClear" hidden>Remove</button></div></div>
+      <div class="row"><button class="btn primary" type="submit" id="setSave">Save settings</button></div>
+    </form>
+  </section>
+</main>
+
+<dialog id="dlg"></dialog>
+<div id="toast" role="status" popover="manual" hidden></div>
+<input type="file" id="pickPhotos" accept="image/*,application/pdf,.pdf" multiple hidden>
+<input type="file" id="pickParty" accept="image/*,application/pdf,.pdf" hidden>
+<input type="file" id="pickTpl" accept="image/*,application/pdf,.pdf" hidden>
+<input type="file" id="pickImport" accept=".json,application/json" hidden>
+<input type="file" id="pickEvents" accept=".json,application/json" hidden>
+<input type="file" id="pickVideo" accept="video/mp4,video/webm,video/quicktime,video/*" hidden>
+<input type="file" id="pickBg" accept="image/*" hidden>
+
+<script>
+const CFG = window.TOOLKIT_CONFIG || {};
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+// Sign in with the AMA Admin Hub mobile and PIN (hub-signin.js)
+const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#signInForm' };
+if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
+if (window.AmaIdle) AmaIdle.watch({ sb });
+const MEDIA = (CFG.SUPABASE_URL || '').replace(/\/$/, '') + '/storage/v1/object/public/tv/';
+const dlg = $('#dlg');
+const THEMES = { green: ['Green', '#04794b'], dark: ['Dark', '#0e1612'], gold: ['Gold', '#f2d500'], light: ['Light', '#e7ece9'], party: ['Party (confetti)', 'linear-gradient(135deg,#e0218a,#7b2ff7,#1e90ff)'] };
+const LIVE = {
+  next_grading: ['Next grading', 'The next black belt grading date and how long to go'],
+  month: ['Month theme', '"This is the Month of ..." for the current month'],
+  events: ['Events this month', "What's left of this month's events, and next month's near the end of the month"],
+  birthdays: ['Birthdays today', 'Members with a birthday today, from EFC (first name and last initial). Only shows on days someone has one']
+};
+// An old slide of a kind that's since been removed still opens, so it can be deleted
+const liveInfo = k => LIVE[k] || ['Live', 'No longer shown on the TV'];
+const KIND = { photo: 'Photo', video: 'Video', text: 'Info slide', live: 'Live', countdown: 'Countdown', qr: 'QR code' };
+// Which screen is being edited: the dojang TV (settings row 1) or the tablets (row 2)
+const urlDisp = new URLSearchParams(location.search).get('display');
+let savedDisp = null; try { savedDisp = localStorage.getItem('tvEditDisplay'); } catch (e) { /* ignore */ }
+const state = { display: (urlDisp || savedDisp) === 'tablet' ? 'tablet' : 'tv', me: '', slides: [], partySlides: [], settings: null, templates: null, bookings: null, screens: null, nextGrading: null, events: null, months: null };
+
+/* ---------- Small helpers ---------- */
+let toastTimer;
+function toast(msg, ms = 3000) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer);
+  try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* older browsers */ }
+  if (ms) toastTimer = setTimeout(() => { t.hidden = true; try { t.hidePopover(); } catch (e) { /* ignore */ } }, ms);
+}
+function openDlg(html) {
+  dlg.innerHTML = html;
+  dlg.querySelectorAll('[data-close]').forEach(b => { b.type = 'button'; b.onclick = e => { e.preventDefault(); dlg.close(); }; });
+  if (!dlg.open) dlg.showModal();
+  const t = $('#toast'); if (!t.hidden) { try { t.hidePopover(); t.showPopover(); } catch (e) { /* ignore */ } }
+}
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+function confirmBox(text, yes) {
+  return new Promise(res => {
+    openDlg(`<div class="dlg"><h3>Are you sure?</h3><p style="margin:0">${esc(text)}</p><div class="row" style="justify-content:flex-end"><button class="btn" id="cfNo">Cancel</button><button class="btn danger" id="cfYes">${esc(yes)}</button></div></div>`);
+    $('#cfNo').onclick = () => { dlg.close(); res(false); }; $('#cfYes').onclick = () => { dlg.close(); res(true); };
+  });
+}
+function show(id) { ['#signIn', '#problem', '#app'].forEach(s => $(s).hidden = s !== id); $('#signOut').hidden = id === '#signIn'; }
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2));
+const fmtDate = iso => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '';
+// Slide times of day: "5pm to 7pm", "From 5pm", "Until 9am"; days: "Mon to Fri", "Sat, Sun"
+const hm12 = v => { const [h, m] = String(v).split(':').map(Number); return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h < 12 ? 'am' : 'pm'}`; };
+const DAY3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function daysText(d) {
+  if (!d || !d.length || d.length === 7) return '';
+  const w = [1, 2, 3, 4, 5, 6, 0].filter(x => d.includes(x));
+  if (w.join() === '1,2,3,4,5') return 'Mon to Fri';
+  if (w.join() === '6,0') return 'Weekends';
+  const k = w.map(x => x || 7); if (w.length > 2 && k.every((x, i) => !i || x === k[i - 1] + 1)) return `${DAY3[w[0]]} to ${DAY3[w[w.length - 1]]}`;
+  return w.map(x => DAY3[x]).join(', ');
+}
+function timesText(s) {
+  const f = s.show_from, t = s.show_to, d = daysText(s.show_days);
+  const tm = f && t ? `${hm12(f)} to ${hm12(t)}` : f ? `From ${hm12(f)}` : t ? `Until ${hm12(t)}` : '';
+  return [tm, d].filter(Boolean).join(', ');
+}
+function onNow(s, at = new Date()) {
+  if (s.show_days && s.show_days.length && !s.show_days.includes(at.getDay())) return false;
+  const n = at.getHours() * 60 + at.getMinutes(), m = v => { const [h, mm] = String(v).split(':').map(Number); return h * 60 + mm; };
+  const f = s.show_from ? m(s.show_from) : null, t = s.show_to ? m(s.show_to) : null;
+  if (f == null && t == null) return true; if (t == null) return n >= f; if (f == null) return n < t;
+  return f < t ? n >= f && n < t : f > t ? n >= f || n < t : true;
+}
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+const daysFromToday = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(today() + 'T00:00:00')) / 86400000);
+const countText = n => n <= 0 ? 'Today' : n === 1 ? 'Tomorrow' : n < 21 ? `${n} days to go` : `${Math.round(n / 7)} weeks to go`;
+const longDate = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+const whenText = iso => { const d = new Date(iso); return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) + ', ' + timeText(iso); };
+const ago = iso => { const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000)); return s < 60 ? `${s} s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : whenText(iso); };
+
+// Bookings for this screen's party slides only
+const mine = list => { const ids = new Set(state.partySlides.concat(state.slides).map(x => x.id)); return list.filter(b => ids.has(b.slide_id)); };
+const other = () => state.display === 'tv' ? 'tablet' : 'tv';
+const otherSid = () => state.display === 'tablet' ? 1 : 2;
+const otherNoun = () => state.display === 'tv' ? 'tablets' : 'TV';
+const here = () => state.display === 'tv' ? 'the TV' : 'the tablets';
+const Here = () => state.display === 'tv' ? 'The TV is' : 'The tablets are';
+// A template's version for a screen: the upright one on the tablets (when it has one)
+const tabletOf = t => ({ id: t.id, title: t.title, image_path: t.tablet_image_path, settings: t.tablet_settings, _local: t._localTab });
+const hasTablet = t => !!(t && t.tablet_image_path && t.tablet_settings);
+const variant = (t, d) => d === 'tablet' && hasTablet(t) ? tabletOf(t) : t;
+// Locations: slugs -> "Sydenham" / "All locations"
+const locName = slugs => !slugs || !slugs.length ? 'All locations' : slugs.map(x => ((state.locations || []).find(l => l.slug === x) || {}).name || x).join(', ');
+const locChecks = (id, cur) => `<div class="checks" id="${id}">${(state.locations || []).map(l => `<label class="check"><input type="checkbox" value="${esc(l.slug)}"${(cur || []).includes(l.slug) ? ' checked' : ''}> ${esc(l.name)}</label>`).join('')}</div>`;
+const locPicked = id => [...document.querySelectorAll(`#${id} input:checked`)].map(i => i.value);
+const sid = () => state.display === 'tablet' ? 2 : 1;
+const noun = () => state.display === 'tablet' ? 'tablet' : 'TV';
+function setDisplay(d) {
+  state.display = d; try { localStorage.setItem('tvEditDisplay', d); } catch (e) { /* ignore */ }
+  try { history.replaceState(null, '', location.pathname + (d === 'tablet' ? '?display=tablet' : '')); } catch (e) { /* ignore */ }
+  load();
+}
+$$('#dispSeg [data-disp]').forEach(b => b.onclick = () => { if (b.dataset.disp !== state.display) setDisplay(b.dataset.disp); });
+
+/* ---------- Loading ---------- */
+async function load() {
+  const staff = await sb.rpc('tv_is_staff');
+  if (staff.error) return problem(/tv_is_staff|schema cache|does not exist|function/i.test(staff.error.message || '') ? 'setup' : staff.error.message);
+  state.partyOnly = false;
+  if (!staff.data) {
+    const [rem, par] = await Promise.all([sb.rpc('tv_can', { p_perm: 'remote' }), sb.rpc('tv_can', { p_perm: 'party' })]);
+    if (!par.data) return problem(rem.data ? 'remoteonly' : 'noaccess');
+    state.partyOnly = true;
+    $('#partyOnly').innerHTML = `<div class="row"><p class="hint grow" style="margin:0">Your login can use party mode: birthday posters and messages, now or booked ahead.</p>${rem.data ? '<a class="btn sm" href="../remote/">Remote</a>' : ''}</div>`;
+  }
+  document.body.classList.toggle('partyonly', state.partyOnly); $('#partyOnly').hidden = !state.partyOnly;
+  // Slides vs screens: a login may manage slide content, the device/settings, or both. Admins and
+  // "edit" holders get both (tv_can returns true for them). The remote is part of the screens side.
+  if (!state.partyOnly) {
+    const [sl, scr, rem] = await Promise.all([
+      sb.rpc('tv_can', { p_perm: 'slides' }), sb.rpc('tv_can', { p_perm: 'screens' }), sb.rpc('tv_can', { p_perm: 'remote' })]);
+    // If the database predates the split, tv_can('slides'/'screens') may error — fall back to full access.
+    state.canSlides = (sl.error || sl.data !== false);
+    state.canScreens = (scr.error || scr.data !== false);
+    state.canRemote = state.canScreens || (!rem.error && !!rem.data);
+    document.body.classList.toggle('noslides', !state.canSlides);
+    document.body.classList.toggle('noscreens', !state.canScreens);
+    const rb = $('#remoteBtn'); if (rb) rb.hidden = !state.canRemote;
+  }
+  const [{ data: slides, error: e1 }, { data: settings, error: e2 }] = await Promise.all([
+    sb.from('tv_slides').select('*').eq('display', state.display).order('position').order('created_at'),
+    sb.from('tv_settings').select('*').eq('id', sid()).maybeSingle()
+  ]);
+  if (e1 || e2) return problem(/tv_slides|tv_settings|schema cache|does not exist/i.test((e1 || e2).message) ? 'setup' : (e1 || e2).message);
+  state.slides = (slides || []).filter(x => !x.party);
+  state.partySlides = (slides || []).filter(x => x.party).reverse(); state.settings = settings;
+  state.slideTimes = !slides || !slides.length || 'show_from' in slides[0];   // false: database not updated for times yet
+  const tp = await sb.from('tv_poster_templates').select('*').order('position').order('created_at');
+  state.templates = tp.error ? null : (tp.data || []);   // null: database not updated for posters yet
+  const [bk, sc, fd] = await Promise.all([
+    sb.from('tv_party_bookings').select('*').gt('ends_at', new Date().toISOString()).order('starts_at'),
+    sb.from('tv_screens').select('*').eq('display', state.display).order('first_seen').order('screen_id'),
+    settings ? sb.rpc('tv_feed', { p_code: settings.screen_code }) : Promise.resolve({})
+  ]);
+  state.bookings = bk.error ? null : mine(bk.data || []);    // null: database not updated for bookings yet
+  state.screens = sc.error ? null : (sc.data || []);
+  const [ev, mo, ot] = await Promise.all([sb.from('tv_events').select('*').order('starts_on'), sb.from('tv_months').select('*'),
+    sb.from('tv_settings').select('id, only_slide, only_until').eq('id', otherSid()).maybeSingle()]);
+  state.other = ot.error ? null : (Array.isArray(ot.data) ? ot.data[0] : ot.data) || null;   // the other screen, for linked parties
+  state.events = ev.error ? null : (ev.data || []);   // null: database not updated for events yet
+  state.months = mo.error ? [] : (mo.data || []);
+  const lc = await sb.from('tv_locations').select('*').order('position').order('name');
+  state.locations = lc.error ? null : (lc.data || []);   // null: database not updated for locations yet
+  const pi = await sb.rpc('tv_staff_code_info');
+  state.pin = pi.error ? null : (pi.data || { set: false });   // null: database not updated for the staff code yet
+  state.normal = !pi.error;   // the "Back to normal" button for one device
+  state.nextGrading = (fd && fd.data && fd.data.live && fd.data.live.next_grading && fd.data.live.next_grading.date) || null;
+  show('#app'); draw();
+}
+function problem(kind) {
+  show('#problem');
+  $('#problem').innerHTML = kind === 'setup'
+    ? `<h2>Setup needed</h2><p class="hint">The TV display isn't set up in Supabase yet. In Supabase, open SQL Editor &gt; New query, paste the whole of <code>supabase/tv-setup.sql</code> from the theggatonklenner.github.io repository, click Run (choose "with RLS" if asked), then tap Try again.</p><div class="row"><button class="btn primary" id="retry">Try again</button></div>`
+    : kind === 'remoteonly'
+    ? `<h2>TV remote</h2><p class="hint">Your login can use the TV remote, but not the editor.</p><div class="row"><a class="btn primary" href="../remote/">Open the remote</a></div>`
+    : kind === 'noaccess'
+    ? `<h2>No access</h2><p class="hint">Your login doesn't have TV access. Ask an admin to give it to you on the Staff logins page.</p><div class="row"><button class="btn primary" id="retry">Try again</button></div>`
+    : `<h2>Can't open the TV editor</h2><p class="hint">${esc(kind)}</p><div class="row"><button class="btn primary" id="retry">Try again</button></div>`;
+  if ($('#retry')) $('#retry').onclick = load;
+}
+
+/* ---------- The list ---------- */
+function thumb(s) {
+  if (s.kind === 'qr') return `<div class="thumb t-${esc(s.theme)}"><span style="width:40px;height:40px;border-radius:4px;background:#fff url('${MEDIA + esc(s.media_path)}') center/90% no-repeat"></span></div>`;
+  if (s.kind === 'photo') return `<div class="thumb" style="background-image:url('${MEDIA + esc(s.media_path)}')"></div>`;
+  if (s.kind === 'video') return `<div class="thumb"><span class="play"></span></div>`;
+  if (s.kind === 'text') return `<div class="thumb t-${esc(s.theme)}"${s.media_path ? ` style="background-image:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)),url('${MEDIA + esc(s.media_path)}')"` : ''}>${esc((s.title || 'Info').slice(0, 24))}</div>`;
+  if (s.kind === 'countdown') { const to = countTo(s); return `<div class="thumb t-${esc(s.theme)}">${esc(to ? countText(daysFromToday(to)) : 'Countdown')}</div>`; }
+  return `<div class="thumb t-${esc(s.theme)}">${esc(LIVE[s.live_kind] ? liveInfo(s.live_kind)[0] : 'Live')}</div>`;
+}
+const countTo = s => s.count_to === 'grading' ? state.nextGrading : s.event_on;
+function slideName(s) { return s.title || (s.kind === 'live' ? liveInfo(s.live_kind)[0] : s.kind === 'countdown' && s.count_to === 'grading' ? 'Black belt grading' : KIND[s.kind] || 'Slide'); }
+function draw() {
+  const S = state.settings, list = state.slides, t = today();
+  drawParty();
+  $('#code').textContent = S.screen_code;
+  $('#setSecs').value = S.seconds; $('#setClock').checked = S.show_clock; $('#setLogo').checked = S.show_logo;
+  drawShuffle();
+  $('#offBox').hidden = !('offs' in S); if ('offs' in S) { offState = JSON.parse(JSON.stringify(S.offs || [])); drawOffs(); }
+  $('#bannerBox').hidden = !('banner' in S) || state.display !== 'tablet'; $('#setBanner').value = S.banner || '';   // tablets only (the TV isn't touched)
+  $('#batBox').hidden = !('battery_warn' in S) || state.display !== 'tablet';   // tablets only
+  $('#pqrBox').hidden = !('party_qr_url' in S) || state.display !== 'tablet';
+  $('#setPqr').value = S.party_qr_url || ''; $('#setPqrText').value = S.party_qr_text || '';
+  if ('battery_warn' in S) $('#setBatWarn').value = S.battery_warn;
+  $('#signinBox').hidden = !('signin_url' in S) || state.display !== 'tablet';   // tablets only: the TV is a normal browser
+  if ('signin_url' in S) { $('#setSignin').value = S.signin_url || ''; $('#setSigninOpen').value = S.signin_open || 'page';
+    if (!('kiosk_port' in S)) { const k = $('#setSigninOpen option[value="kiosk"]'); if (k) k.remove(); if (S.signin_open === 'kiosk') $('#setSigninOpen').value = 'page'; }
+    $('#setKioskPort').value = S.kiosk_port || 8080; $('#setKioskKey').value = S.kiosk_key || ''; signinHint(); const iv = String(S.signin_idle || 60); if (![...$('#setSigninIdle').options].some(o => o.value === iv)) $('#setSigninIdle').insertAdjacentHTML('beforeend', `<option value="${iv}">${iv} seconds</option>`); $('#setSigninIdle').value = iv; }
+  $('#quietBox').hidden = !('quiet_on' in S);
+  if ('quiet_on' in S) {
+    // Each day's hours: from quiet_days, or (older setting) the same every day: on at quiet_to, off at quiet_from
+    const t5 = v => String(v || '').slice(0, 5), all = { on: t5(S.quiet_to) || '07:00', off: t5(S.quiet_from) || '21:00' };
+    const days = S.quiet_days || { 0: all, 1: all, 2: all, 3: all, 4: all, 5: all, 6: all };
+    $('#qDays').innerHTML = hoursRows('qd', days);
+    hoursWire('qd', '#qDays', '#qCopy', 'Copied. Save settings to keep it.');
+    $('#setQuiet').checked = S.quiet_on; $('#setQStyle').value = S.quiet_style || 'logo';
+    $('#quietRow').hidden = !S.quiet_on; $('#setQuiet').onchange = () => { $('#quietRow').hidden = !$('#setQuiet').checked; };
+  }
+  $('#previewBtn').href = `../?code=${encodeURIComponent(S.screen_code)}&preview=1`;
+  drawPin();
+  $$('#dispSeg [data-disp]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.disp === state.display)));
+  $('.brand h1').textContent = state.display === 'tablet' ? 'Tablet Display' : 'TV Display';
+  $('#remoteBtn').href = state.display === 'tablet' ? '../remote/?display=tablet' : '../remote/';
+  $('#linkLocRow').hidden = !(state.locations && state.locations.length);
+  if (state.locations) { const cur = $('#linkLoc').value; $('#linkLoc').innerHTML = '<option value="">Any (set it in the status card)</option>' + state.locations.map(l => `<option value="${esc(l.slug)}"${cur === l.slug ? ' selected' : ''}>${esc(l.name)}</option>`).join(''); }
+  $('#screenLink').textContent = screenLink();
+  drawLocations();
+  $('#linkHint').innerHTML = state.display === 'tablet'
+    ? 'On each tablet, open this link (or scan the QR code with its camera); use the same link on as many tablets as you like. It starts playing straight away, upright. Tap the screen for full screen, and add it to the home screen so it opens with one tap.'
+    : 'On the TV, open the web browser and go to this link, or go to <b>app.train-ama.com/tv</b> and type the code once. Press OK for full screen.';
+  drawStatus(); drawEvents();
+  $('#list').innerHTML = list.length ? list.map((s, i) => {
+    let out = (s.starts_on && s.starts_on > t) ? `Starts ${fmtDate(s.starts_on)}` : (s.ends_on && s.ends_on < t) ? `Ended ${fmtDate(s.ends_on)}` : '';
+    if (!out && s.kind === 'countdown') { const to = countTo(s); if (s.count_to === 'date' && to < t) out = `Passed ${fmtDate(to)}`; else if (!to) out = 'No grading date set'; }
+    const what = s.kind === 'countdown' ? (s.count_to === 'grading' ? 'Countdown to the next grading' : `Countdown to ${fmtDate(s.event_on)}`) : s.kind === 'live' ? 'Live' : KIND[s.kind];
+    return `<li class="slide${!s.enabled || out ? ' off' : ''}" data-id="${s.id}">
+      ${thumb(s)}
+      <div class="main" data-open="${s.id}"><div class="name">${esc(slideName(s))}</div>
+        <div class="meta"><span>${esc(what)}</span><span>· ${s.kind === 'video' && !s.seconds ? 'plays to the end' : (s.seconds || S.seconds) + ' s'}</span>
+          ${s.locations && s.locations.length ? `<span class="tag">${esc(locName(s.locations))}</span>` : ''}${!s.enabled ? '<span class="tag muted">Off</span>' : ''}${out ? `<span class="tag warn">${out}</span>` : (s.ends_on ? `<span class="tag muted">Until ${fmtDate(s.ends_on)}</span>` : '')}${timesText(s) ? `<span class="tag${onNow(s) ? '' : ' muted'}" title="${onNow(s) ? 'On now' : 'Not on right now'}">${esc(timesText(s))}</span>` : ''}</div></div>
+      <label class="check" style="min-height:0" title="Show on the TV"><input type="checkbox" data-on="${s.id}" ${s.enabled ? 'checked' : ''} aria-label="Show ${esc(slideName(s))} on the TV"></label>
+      <div class="moves"><button data-up="${s.id}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button><button data-down="${s.id}" ${i === list.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button></div></li>`;
+  }).join('') : '<li style="padding:28px 16px;text-align:center;color:var(--muted)">No slides yet. Tap Add to put photos, videos or info on the TV.</li>';
+  $$('#list [data-open]').forEach(b => b.onclick = () => openSlide(state.slides.find(s => s.id === b.dataset.open)));
+  $$('#list [data-on]').forEach(c => c.onchange = async () => {
+    const { error } = await sb.from('tv_slides').update({ enabled: c.checked }).eq('id', c.dataset.on);
+    if (error) { c.checked = !c.checked; return toast('Not saved: ' + error.message, 5000); }
+    toast(c.checked ? 'On the TV' : 'Hidden from the TV'); load();
+  });
+  $$('#list [data-up], #list [data-down]').forEach(b => b.onclick = () => move(b.dataset.up || b.dataset.down, b.dataset.up ? -1 : 1));
+}
+async function move(id, dir) {
+  const list = state.slides, i = list.findIndex(s => s.id === id), j = i + dir;
+  if (j < 0 || j >= list.length) return;
+  // Renumber in the new order so positions are always distinct
+  const order = list.slice(); [order[i], order[j]] = [order[j], order[i]];
+  state.slides = order; draw();
+  for (let k = 0; k < order.length; k++) {
+    if (order[k].position !== k + 1) {
+      const { error } = await sb.from('tv_slides').update({ position: k + 1 }).eq('id', order[k].id);
+      if (error) { toast('Not saved: ' + error.message, 5000); break; }
+    }
+  }
+  load();
+}
+
+/* ---------- Adding ---------- */
+$('#addBtn').onclick = () => {
+  openDlg(`<div class="dlg"><div class="dlg-head"><h3>Add to the TV</h3><button class="x" data-close>Close</button></div>
+    <div class="addgrid">
+      <button data-add="photos"><b>Photos</b><span>One or several at once, or a PDF (each page becomes a slide)</span></button>
+      <button data-add="video"><b>Video</b><span>MP4, up to 50 MB, plays without sound</span></button>
+      <button data-add="text"><b>Info slide</b><span>Announcements, class times, notices</span></button>
+      <button data-add="qr"><b>QR code</b><span>"Scan to book a free trial", Instagram, any link</span></button>
+      <button data-add="countdown"><b>Countdown</b><span>"Grading in 12 days", "Comp in 3 weeks"</span></button>
+      ${Object.entries(LIVE).map(([k, [n, d]]) => `<button data-add="live:${k}"><b>Live: ${esc(n)}</b><span>${esc(d)}</span></button>`).join('')}
+    </div>
+    <p class="hint">Live slides fill themselves in from Black Belt Gradings and only show when there's something to show.</p></div>`);
+  $$('#dlg [data-add]').forEach(b => b.onclick = () => {
+    const a = b.dataset.add;
+    if (a === 'photos') { dlg.close(); $('#pickPhotos').click(); }
+    else if (a === 'video') { dlg.close(); $('#pickVideo').click(); }
+    else if (a === 'text') openSlide(null, { kind: 'text', theme: 'green' });
+    else if (a === 'qr') openSlide(null, { kind: 'qr', theme: 'green' });
+    else if (a === 'countdown') openSlide(null, { kind: 'countdown', theme: 'green', count_to: 'date' });
+    else addLive(a.split(':')[1]);
+  });
+};
+async function addLive(kind) {
+  if (state.slides.some(s => s.kind === 'live' && s.live_kind === kind) && !await confirmBox(`There's already a "${LIVE[kind][0]}" slide. Add another?`, 'Add another')) return;
+  const { error } = await sb.from('tv_slides').insert({ display: state.display,  kind: 'live', live_kind: kind, theme: kind === 'month' ? 'gold' : kind === 'birthdays' ? 'party' : 'green' });
+  if (error) return toast('Not added: ' + error.message, 5000);
+  dlg.close(); toast(`Added: ${LIVE[kind][0]}`); load();
+}
+// Photos are made TV-sized (up to 1920 x 1080) before uploading, so they load fast
+function resize(file, maxW = 1920, maxH = 1080) {
+  return new Promise((ok, bad) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? ok(b) : bad(new Error('Could not read that photo.')), 'image/jpeg', 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); bad(new Error(`Could not read ${file.name}. Try a JPEG or PNG.`)); };
+    img.src = url;
+  });
+}
+// PDFs (e.g. designs exported from Canva): each page is turned into a TV-sized image
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let pdfLoading = null;
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (!pdfLoading) pdfLoading = new Promise((ok, bad) => {
+    const sc = document.createElement('script'); sc.src = PDFJS;
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; ok(window.pdfjsLib); };
+    sc.onerror = () => { pdfLoading = null; bad(new Error('Could not load the PDF reader. Check your connection.')); };
+    document.head.appendChild(sc);
+  });
+  return pdfLoading;
+}
+const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+// A name for a birthday design from its text, e.g. "HAPPY BIRTHDAY KIAN From Australian Martial Arts Academy" -> "Kian"
+function guessName(text) {
+  // Outlined lettering sometimes comes out as overlapping pairs ("Za ac ca ar ri ia ah h"): join them back up
+  text = String(text).replace(/(?:^|\s)([A-Za-z]{1,2}(?:\s+[A-Za-z]{1,2}){3,})(?=\s|$)/g, (m, run) => {
+    const t = run.split(/\s+/); let w = t[0];
+    for (let i = 1; i < t.length; i++) { if (t[i].length === 2 && t[i][0].toLowerCase() === w[w.length - 1].toLowerCase()) w += t[i][1]; else if (!(t[i].length === 1 && t[i].toLowerCase() === w[w.length - 1].toLowerCase())) return m; }
+    return ' ' + w + ' ';
+  });
+  const skip = new Set('HAPPY BIRTHDAY FROM AUSTRALIAN MARTIAL ARTS ACADEMY THE AND AN A OF TO LET LETS KICK OFF AWESOME DAY BLAST INTO EPIC ADVENTURE AMA'.split(' '));
+  // ...and lettering drawn twice (fill and outline) comes out doubled: "ZZAACC..." -> "ZAC..."
+  text = text.replace(/\b(?:([A-Za-z])\1){3,}\b/g, m => m.replace(/([A-Za-z])\1/g, '$1'));
+  const words = String(text).toUpperCase().replace(/[^A-Z' ]+/g, ' ').replace(/'/g, '').split(/\s+/).filter(w => w.length >= 3 && !skip.has(w));
+  const count = {}; words.forEach(w => { count[w] = (count[w] || 0) + 1; });
+  const best = Object.keys(count).sort((a, b) => count[b] - count[a] || b.length - a.length)[0];
+  return best ? best[0] + best.slice(1).toLowerCase() : '';
+}
+async function pdfPages(file, onPage, maxW = 1920, maxH = 1080) {
+  const lib = await loadPdfJs();
+  const doc = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const out = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i), v1 = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: Math.min(maxW / v1.width, maxH / v1.height) });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: g, viewport: vp }).promise;
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88));
+    let text = '';
+    try {
+      // Outlined lettering can come out one letter at a time: join runs of single letters back into words
+      let word = '';
+      for (const it of (await page.getTextContent()).items) {
+        if (/^[A-Za-z]$/.test(it.str)) { word += it.str; continue; }
+        if (word) { text += ' ' + word; word = ''; }
+        text += ' ' + it.str;
+      }
+      if (word) text += ' ' + word;
+    } catch (e) { /* no text */ }
+    out.push({ blob, url: URL.createObjectURL(blob), name: guessName(text), page: i });
+    if (onPage) onPage(i, doc.numPages);
+  }
+  return out;
+}
+async function upload(folder, blob, ext, type) {
+  const path = `${folder}/${uuid()}.${ext}`;
+  const { error } = await sb.storage.from('tv').upload(path, blob, { contentType: type, upsert: false, cacheControl: '31536000' });
+  if (error) throw error;
+  return path;
+}
+function progress(title, n) {
+  openDlg(`<div class="dlg"><h3>${esc(title)}</h3><div class="progress"><div id="prog"></div></div><p class="hint" id="progText">0 of ${n}</p></div>`);
+  return (i, text) => { const p = $('#prog'); if (p) p.style.width = Math.round(i / n * 100) + '%'; const t = $('#progText'); if (t) t.textContent = text || `${i} of ${n}`; };
+}
+$('#pickPhotos').onchange = async e => {
+  const picked = [...e.target.files]; e.target.value = ''; if (!picked.length) return;
+  // Turn any PDFs into one image per page first
+  const items = [];
+  let failed = [], done = 0;
+  for (const f of picked) {
+    if (!isPdf(f)) { items.push({ file: f, name: f.name }); continue; }
+    try { progress(`Reading ${f.name}`, 1)(0, 'Reading the PDF...'); (await pdfPages(f)).forEach(p => items.push({ blob: p.blob, name: `${f.name} page ${p.page}` })); }
+    catch (er) { failed.push(f.name); }
+  }
+  const step = progress(`Adding ${items.length} photo${items.length === 1 ? '' : 's'}`, items.length);
+  for (const it of items) {
+    try {
+      const path = await upload('photos', it.blob || await resize(it.file), 'jpg', 'image/jpeg');
+      const { error } = await sb.from('tv_slides').insert({ display: state.display,  kind: 'photo', media_path: path });
+      if (error) throw error;
+      done++;
+    } catch (er) { failed.push(it.name); }
+    step(done + failed.length);
+  }
+  dlg.close();
+  toast(`Added ${done} photo${done === 1 ? '' : 's'}${failed.length ? `; couldn't add ${failed.join(', ')}` : ''}`, failed.length ? 7000 : 3000);
+  load();
+};
+$('#pickVideo').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  if (f.size > 50 * 1024 * 1024) return toast(`That video is ${Math.round(f.size / 1048576)} MB. Videos can be up to 50 MB; trim it or save it smaller first.`, 8000);
+  progress('Uploading video', 1)(0, 'Uploading... keep this page open');
+  try {
+    const ext = (f.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+    const path = await upload('videos', f, ext, f.type || 'video/mp4');
+    const { error } = await sb.from('tv_slides').insert({ display: state.display,  kind: 'video', media_path: path, title: f.name.replace(/\.[^.]+$/, '') });
+    if (error) throw error;
+    dlg.close(); toast(ext === 'mov' ? 'Video added. If the TV won\'t play it, save it as MP4 and add it again.' : 'Video added', ext === 'mov' ? 8000 : 3000); load();
+  } catch (er) { dlg.close(); toast('Video not added: ' + (er.message || er), 7000); }
+};
+
+/* ---------- Editing one slide ---------- */
+function openSlide(s, fresh) {
+  const x = s || fresh, isNew = !s;
+  let bgPath = x.media_path || null;
+  const themePick = `<div class="field"><span class="label">Colour</span><div class="swatches">${Object.entries(THEMES).map(([k, [n, c]]) => `<label title="${n}"><input type="radio" name="theme" value="${k}" ${x.theme === k ? 'checked' : ''}><span style="background:${c}" aria-label="${n}"></span></label>`).join('')}</div></div>`;
+  const body = {
+    photo: () => `<div class="preview-img" style="background-image:url('${MEDIA + esc(x.media_path)}')"></div>
+      <div class="field"><label for="slTitle">Caption (optional)</label><input type="text" id="slTitle" maxlength="120" value="${esc(x.title || '')}"></div>`,
+    video: () => `<video src="${MEDIA + esc(x.media_path)}" controls muted playsinline style="width:100%;border-radius:10px;background:#000;aspect-ratio:16/9"></video>
+      <div class="field"><label for="slTitle">Name (only shown here)</label><input type="text" id="slTitle" maxlength="120" value="${esc(x.title || '')}"></div>`,
+    text: () => `<div class="field"><label for="slTitle">Heading</label><input type="text" id="slTitle" maxlength="120" value="${esc(x.title || '')}" placeholder="e.g. No classes on Monday"></div>
+      <div class="field"><label for="slBody">Text</label><textarea id="slBody" placeholder="e.g. The dojang is closed for the public holiday. Classes are back on Tuesday.">${esc(x.body || '')}</textarea></div>
+      ${themePick}
+      <div class="field"><span class="label">Background photo (optional)</span><div class="row"><span class="hint grow" id="bgName">${bgPath ? 'Photo added' : 'None'}</span><button type="button" class="btn sm" id="bgPick">${bgPath ? 'Change' : 'Add photo'}</button><button type="button" class="btn sm danger" id="bgClear" ${bgPath ? '' : 'hidden'}>Remove</button></div></div>`,
+    qr: () => `<div class="field"><label for="slLink">Link</label><input type="text" id="slLink" inputmode="url" autocapitalize="off" spellcheck="false" autocomplete="off" maxlength="500" value="${esc(x.link || '')}" placeholder="e.g. instagram.com/amamarrickville"></div>
+      <div class="field"><label for="slTitle">Heading</label><input type="text" id="slTitle" maxlength="120" value="${esc(x.title || '')}" placeholder="e.g. Scan to book a free trial"></div>
+      <div class="field"><label for="slBody">Text (optional)</label><textarea id="slBody" style="min-height:70px" placeholder="e.g. Point your phone camera at the code.">${esc(x.body || '')}</textarea></div>
+      <div class="row" style="align-items:center"><canvas id="qrPrev" width="120" height="120" style="width:120px;height:120px;border-radius:8px;background:#fff;border:1px solid var(--line)"></canvas><p class="hint grow" id="qrNote">Paste the link and the code appears here. Test it with your phone camera before you save.</p></div>
+      ${themePick}`,
+    countdown: () => `<div class="field"><label for="slTitle">Event</label><input type="text" id="slTitle" maxlength="120" value="${esc(x.title || '')}" placeholder="e.g. Comp, Christmas break"></div>
+      <div class="field"><span class="label">Count down to</span><div class="cd-to">
+        <label class="check"><input type="radio" name="cdTo" value="date" ${x.count_to !== 'grading' ? 'checked' : ''}> A date</label>
+        <input type="date" id="slEvent" value="${esc(x.event_on || '')}" min="${today()}">
+        <label class="check"><input type="radio" name="cdTo" value="grading" ${x.count_to === 'grading' ? 'checked' : ''}> The next black belt grading (from Black Belt Gradings)</label></div></div>
+      <p class="hint" id="cdPrev"></p>
+      ${themePick}`,
+    live: () => `<p class="hint">${esc(liveInfo(x.live_kind)[1])}. ${x.live_kind === 'events' ? 'It uses the events list (Edit events below).' : x.live_kind === 'month' ? 'It uses the month themes in Edit events, and changes by itself each month.' : x.live_kind === 'birthdays' ? 'It fills in by itself from EFC member birthdays, and only shows on days a current member has one.' : 'It fills in by itself from Black Belt Gradings.'}</p>
+      <div class="field"><label for="slTitle">Heading (optional)</label><input type="text" id="slTitle" maxlength="120" value="${esc(x.title || '')}" placeholder="${esc({ next_grading: 'Next black belt grading', events: "What's on at AMA", month: 'The month name', birthdays: 'AMA members’ birthdays today' }[x.live_kind] || '')}"></div>${themePick}
+      ${x.live_kind === 'events' || x.live_kind === 'month' ? '<div class="row"><button type="button" class="btn" id="slEvents">Edit events</button></div>' : ''}`
+  }[x.kind]();
+  openDlg(`<form class="dlg" id="slForm">
+    <div class="dlg-head"><div><h3>${isNew ? (x.kind === 'countdown' ? 'New countdown' : x.kind === 'qr' ? 'New QR code' : 'New info slide') : esc(x.kind === 'live' ? 'Live: ' + liveInfo(x.live_kind)[0] : KIND[x.kind])}</h3>${!isNew && x.updated_by ? `<p class="hint">Last changed by ${esc(x.updated_by)}</p>` : ''}</div><button class="x" data-close>Close</button></div>
+    ${body}
+    <div class="grid2">
+      <div class="field"><label for="slSecs">Seconds on screen</label><input type="number" id="slSecs" min="3" max="600" step="1" value="${x.seconds || ''}" placeholder="${x.kind === 'video' ? 'Whole video' : 'Default (' + state.settings.seconds + ')'}"></div>
+      <div class="field"><span class="label">TV</span><label class="check"><input type="checkbox" id="slOn" ${x.enabled !== false ? 'checked' : ''}> Show on the TV</label></div>
+      <div class="field"><label for="slFrom">Show from (optional)</label><input type="date" id="slFrom" value="${esc(x.starts_on || '')}"></div>
+      <div class="field"><label for="slUntil">Show until (optional)</label><input type="date" id="slUntil" value="${esc(x.ends_on || '')}"></div>
+    </div>
+    ${state.slideTimes ? `<div class="field"><span class="label">Time of day (optional)</span>
+      <div class="trow"><input type="time" id="slTFrom" aria-label="From" value="${esc((x.show_from || '').slice(0, 5))}"><span class="hint">to</span><input type="time" id="slTTo" aria-label="Until" value="${esc((x.show_to || '').slice(0, 5))}"></div>
+      <div class="sdays" role="group" aria-label="Days" id="slDays" style="margin-top:8px">${[1, 2, 3, 4, 5, 6, 0].map(d => `<button type="button" data-d="${d}" aria-pressed="${!(x.show_days && x.show_days.length) || x.show_days.includes(d)}">${DAY3[d]}</button>`).join('')}</div>
+      <p class="hint">e.g. 5pm to 7pm on Mon to Fri: it only comes on then. Leave the times empty for all day.</p></div>` : ''}
+    ${state.locations && state.locations.length ? `<div class="field"><span class="label">Show at</span>${locChecks('slLocs', x.locations)}<p class="hint">None ticked: every location.</p></div>` : ''}
+    <div class="row">${!isNew ? '<button type="button" class="btn danger" id="slDel">Delete</button>' : ''}<span class="grow"></span><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="slSave">${isNew ? 'Add' : 'Save'}</button></div>
+  </form>`);
+  const t = $('#slTitle'); if (t && isNew) t.focus();
+  if ($('#slEvents')) $('#slEvents').onclick = () => openEvents();
+  $$('#slDays [data-d]').forEach(b => b.onclick = () => b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')));
+  if (x.kind === 'qr') {
+    const prev = async () => {
+      const link = cleanLink($('#slLink').value), c = $('#qrPrev'), g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      if (!link) { $('#qrNote').textContent = $('#slLink').value.trim() ? "That doesn't look like a link yet." : 'Paste the link and the code appears here. Test it with your phone camera before you save.'; return; }
+      try { await drawQr(c, link); $('#qrNote').textContent = `Opens ${link}. Test it with your phone camera before you save.`; }
+      catch (er) { $('#qrNote').textContent = er.message || String(er); }
+    };
+    $('#slLink').oninput = prev; prev(); if (isNew) $('#slLink').focus();
+  }
+  if (x.kind === 'countdown') {
+    const cdTo = () => $('#slForm input[name=cdTo]:checked').value;
+    const prev = () => {
+      const g = cdTo() === 'grading', to = g ? state.nextGrading : $('#slEvent').value;
+      $('#slEvent').disabled = g;
+      const what = t.value.trim() || (g ? 'Black belt grading' : 'Countdown');
+      $('#cdPrev').textContent = !to ? (g ? 'No grading date is set in Black Belt Gradings yet, so it stays off the TV until there is one.' : 'Pick the date.')
+        : to < today() ? 'That date has passed.' : `The TV shows: ${what} · ${countText(daysFromToday(to))} · ${longDate(to)}. It goes away by itself after the day.`;
+    };
+    $$('#slForm input[name=cdTo]').forEach(r => r.onchange = prev); $('#slEvent').oninput = prev; t.oninput = prev; prev();
+  }
+  if (x.kind === 'text') {
+    $('#bgPick').onclick = () => { $('#pickBg').onchange = async e => {
+      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      $('#bgName').textContent = 'Uploading...';
+      try { bgPath = await upload('photos', await resize(f), 'jpg', 'image/jpeg'); $('#bgName').textContent = 'Photo added'; $('#bgClear').hidden = false; $('#bgPick').textContent = 'Change'; }
+      catch (er) { $('#bgName').textContent = 'None'; toast(er.message || String(er), 6000); }
+    }; $('#pickBg').click(); };
+    $('#bgClear').onclick = () => { bgPath = null; $('#bgName').textContent = 'None'; $('#bgClear').hidden = true; $('#bgPick').textContent = 'Add photo'; };
+  }
+  $('#slForm').onsubmit = async e => {
+    e.preventDefault();
+    const from = $('#slFrom').value || null, until = $('#slUntil').value || null;
+    if (from && until && until < from) return toast('"Show until" is before "Show from".');
+    const rec = { ...($('#slLocs') ? { locations: locPicked('slLocs').length ? locPicked('slLocs') : null } : {}), title: t ? (t.value.trim() || null) : x.title, seconds: $('#slSecs').value ? Math.max(3, Math.min(600, +$('#slSecs').value)) : null, enabled: $('#slOn').checked, starts_on: from, ends_on: until };
+    if ($('#slTFrom')) {
+      rec.show_from = $('#slTFrom').value || null; rec.show_to = $('#slTTo').value || null;
+      const days = $$('#slDays [aria-pressed="true"]').map(b => +b.dataset.d).sort();
+      if (!days.length) return toast('Pick at least one day.');
+      if (rec.show_from && rec.show_from === rec.show_to) return toast('The start and end times are the same.');
+      rec.show_days = days.length === 7 ? null : days;
+    }
+    if (x.kind === 'text') { rec.body = $('#slBody').value.trim() || null; rec.media_path = bgPath; if (!rec.title && !rec.body) return toast('Add a heading or some text.'); }
+    if (x.kind === 'qr') {
+      rec.body = $('#slBody').value.trim() || null;
+      const link = cleanLink($('#slLink').value);
+      if (!link) return toast('Paste the link the code should open.');
+      rec.link = link;
+      if (link !== x.link || !x.media_path) {
+        try { const c = document.createElement('canvas'); await drawQr(c, link, 1000); rec.media_path = await upload('qr', await new Promise(r => c.toBlob(r, 'image/png')), 'png', 'image/png'); }
+        catch (er) { return toast('Not saved: ' + (er.message || er), 6000); }
+      }
+    }
+    if (x.kind === 'countdown') {
+      rec.count_to = $('#slForm input[name=cdTo]:checked').value;
+      rec.event_on = rec.count_to === 'date' ? ($('#slEvent').value || null) : null;
+      if (rec.count_to === 'date' && !rec.event_on) return toast('Pick the date to count down to.');
+      if (rec.count_to === 'date' && rec.event_on < today()) return toast('That date has passed.');
+      if (rec.count_to === 'date' && !rec.title) return toast('Name the event, e.g. Comp.');
+    }
+    const th = $('#slForm input[name=theme]:checked'); if (th) rec.theme = th.value;
+    $('#slSave').disabled = true;
+    const { error } = isNew ? await sb.from('tv_slides').insert({ display: state.display,  ...rec, kind: x.kind, theme: rec.theme || 'green' }) : await sb.from('tv_slides').update(rec).eq('id', s.id);
+    if (error) { $('#slSave').disabled = false; return toast('Not saved: ' + error.message, 5000); }
+    if (!isNew && s.kind === 'qr' && rec.media_path && s.media_path && s.media_path !== rec.media_path) sb.storage.from('tv').remove([s.media_path]).catch(() => {});
+    if (!isNew && s.kind === 'text' && s.media_path && s.media_path !== bgPath) sb.storage.from('tv').remove([s.media_path]).catch(() => {});
+    dlg.close(); toast(isNew ? 'Added' : 'Saved'); load();
+  };
+  if (!isNew) $('#slDel').onclick = async () => {
+    if (!await confirmBox(`Delete this ${KIND[s.kind].toLowerCase()} from the TV?`, 'Delete')) return openSlide(s);
+    const { error } = await sb.from('tv_slides').delete().eq('id', s.id);
+    if (error) return toast('Not deleted: ' + error.message, 5000);
+    if (s.media_path) sb.storage.from('tv').remove([s.media_path]).catch(() => {});
+    toast('Deleted'); load();
+  };
+}
+
+/* ---------- QR codes ---------- */
+// "instagram.com/ama" -> "https://instagram.com/ama"; anything that isn't a web link -> ''
+function cleanLink(v) {
+  v = String(v || '').trim(); if (!v) return '';
+  if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+  try {
+    const u = new URL(v);
+    if (!/^https?:$/.test(u.protocol) || !/\.[a-z]{2,}$/i.test(u.hostname)) return '';
+    return u.pathname === '/' && !u.search && !u.hash ? u.origin : u.href;
+  } catch (e) { return ''; }
+}
+const QRLIB = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+let qrLoading = null;
+function loadQr() {
+  if (window.qrcode) return Promise.resolve(window.qrcode);
+  if (!qrLoading) qrLoading = new Promise((ok, bad) => {
+    const sc = document.createElement('script'); sc.src = QRLIB;
+    sc.onload = () => ok(window.qrcode); sc.onerror = () => { qrLoading = null; bad(new Error('Could not load the QR code maker. Check your connection.')); };
+    document.head.appendChild(sc);
+  });
+  return qrLoading;
+}
+// Black squares on white, with the blank border phones need to read it
+async function drawQr(canvas, text, size) {
+  const lib = await loadQr();
+  if (lib.stringToBytesFuncs && lib.stringToBytesFuncs['UTF-8']) lib.stringToBytes = lib.stringToBytesFuncs['UTF-8'];
+  const q = lib(0, 'M'); q.addData(text); q.make();
+  const n = q.getModuleCount(), cell = Math.max(1, Math.floor((size || canvas.width) / (n + 8)));
+  canvas.width = canvas.height = cell * (n + 8);
+  const g = canvas.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, canvas.width, canvas.height); g.fillStyle = '#000';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) g.fillRect((c + 4) * cell, (r + 4) * cell, cell, cell);
+  return canvas;
+}
+
+/* ---------- Events calendar ---------- */
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const day = iso => new Date(iso + 'T00:00:00');
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function eventDates(e, month) {
+  const a = day(e.starts_on), b = e.ends_on && e.ends_on !== e.starts_on ? day(e.ends_on) : null, m = day(month).getMonth();
+  if (!b) return a.toLocaleDateString('en-AU', { weekday: 'short' }) + ' ' + a.getDate();
+  if (a.getMonth() === m && b.getMonth() === m) return `${a.getDate()}–${b.getDate()}`;
+  return `${a.getDate()} ${MON[a.getMonth()]} – ${b.getDate()} ${MON[b.getMonth()]}`;
+}
+function drawEvents() {
+  const box = $('#eventsCard');
+  if (state.events === null) { box.hidden = true; return; }
+  box.hidden = false;
+  const t = today(), left = state.events.filter(e => (e.ends_on || e.starts_on) >= t).length;
+  const onTv = state.slides.some(x => x.kind === 'live' && x.live_kind === 'events' && x.enabled);
+  box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="grow"><h3>Events calendar</h3>
+    <p class="hint">${left ? `${left} upcoming event${left === 1 ? '' : 's'}.` : 'No upcoming events yet.'} ${onTv ? 'The "Events this month" slide shows this month, and next month near the end of the month.' : 'Add the "Live: Events this month" slide to show them on the TV.'}</p></div>
+    <button class="btn" id="evOpen">Edit events</button></div>`;
+  $('#evOpen').onclick = () => openEvents();
+}
+function openEvents(month) {
+  let m = month || today().slice(0, 8) + '01', editing = null;
+  const render = () => {
+    const d0 = day(m), end = ymd(new Date(d0.getFullYear(), d0.getMonth() + 1, 0)), t = today();
+    const list = state.events.filter(e => e.starts_on <= end && (e.ends_on || e.starts_on) >= m);
+    const theme = (state.months.find(x => x.month === m) || {}).theme || '';
+    const ed = editing ? state.events.find(e => e.id === editing) : null;
+    openDlg(`<div class="dlg">
+      <div class="dlg-head"><div><h3>Events</h3><p class="hint">The TV shows what's left of this month, and adds next month in the last 10 days of the month.</p></div><button class="x" data-close>Close</button></div>
+      <div class="evnav"><button type="button" class="btn sm" id="evPrev" aria-label="Previous month">‹</button><b>${d0.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}</b><button type="button" class="btn sm" id="evNext" aria-label="Next month">›</button></div>
+      <div class="field"><label for="evTheme">Month theme (optional)</label><div class="row"><input type="text" id="evTheme" class="grow" maxlength="80" value="${esc(theme)}" placeholder="e.g. Month of Positivity"><button type="button" class="btn sm" id="evThemeSave">Save</button></div></div>
+      ${list.length ? `<ul class="evlist">${list.map(e => `<li class="${(e.ends_on || e.starts_on) < t ? 'past' : ''}"><b>${esc(eventDates(e, m))}</b><div class="grow">${esc(e.title)}${e.note ? `<small>${esc(e.note)}</small>` : ''}</div>
+        <button type="button" class="btn sm" data-ev-edit="${e.id}">Edit</button><button type="button" class="btn sm danger" data-ev-del="${e.id}" aria-label="Delete ${esc(e.title)}">Delete</button></li>`).join('')}</ul>`
+        : `<p class="hint">No events in ${d0.toLocaleDateString('en-AU', { month: 'long' })}.</p>`}
+      <form id="evForm" style="display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px">
+        <h3 style="font-size:16px">${ed ? 'Change event' : 'Add an event'}</h3>
+        <div class="grid2"><div class="field"><label for="evStart">Date</label><input type="date" id="evStart" required value="${esc(ed ? ed.starts_on : '')}"></div>
+          <div class="field"><label for="evEnd">Until (optional)</label><input type="date" id="evEnd" value="${esc(ed ? ed.ends_on || '' : '')}"></div></div>
+        <div class="field"><label for="evTitle">What</label><input type="text" id="evTitle" required maxlength="100" value="${esc(ed ? ed.title : '')}" placeholder="e.g. Concord Grading"></div>
+        <div class="field"><label for="evNote">Note (optional)</label><input type="text" id="evNote" maxlength="100" value="${esc(ed ? ed.note || '' : '')}" placeholder="e.g. 1:30 pm, Marrickville"></div>
+        <div class="row">${ed ? '<button type="button" class="btn" id="evCancel">Cancel</button>' : ''}<span class="grow"></span><button class="btn primary" type="submit" id="evSave">${ed ? 'Save' : 'Add'}</button></div>
+      </form>
+      <div class="row"><button type="button" class="btn sm" id="evImport">Import a calendar file</button></div>
+    </div>`);
+    const go = k => { const x = day(m); x.setMonth(x.getMonth() + k); m = ymd(x); editing = null; render(); };
+    $('#evPrev').onclick = () => go(-1); $('#evNext').onclick = () => go(1);
+    $('#evThemeSave').onclick = async () => {
+      const v = $('#evTheme').value.trim();
+      let { error } = await sb.from('tv_months').delete().eq('month', m);
+      if (!error && v) ({ error } = await sb.from('tv_months').insert({ month: m, theme: v }));
+      if (error) return toast('Not saved: ' + error.message, 5000);
+      state.months = state.months.filter(x => x.month !== m).concat(v ? [{ month: m, theme: v }] : []);
+      toast(v ? 'Theme saved' : 'Theme removed');
+    };
+    $$('[data-ev-edit]').forEach(b => b.onclick = () => { editing = b.dataset.evEdit; render(); $('#evTitle').focus(); });
+    $$('[data-ev-del]').forEach(b => b.onclick = async () => {
+      const { error } = await sb.from('tv_events').delete().eq('id', b.dataset.evDel);
+      if (error) return toast('Not deleted: ' + error.message, 5000);
+      state.events = state.events.filter(e => e.id !== b.dataset.evDel); if (editing === b.dataset.evDel) editing = null;
+      toast('Deleted'); render(); drawEvents();
+    });
+    if ($('#evCancel')) $('#evCancel').onclick = () => { editing = null; render(); };
+    $('#evForm').onsubmit = async e => {
+      e.preventDefault();
+      const rec = { starts_on: $('#evStart').value, ends_on: $('#evEnd').value || null, title: $('#evTitle').value.trim(), note: $('#evNote').value.trim() || null };
+      if (!rec.starts_on || !rec.title) return toast('Add the date and what it is.');
+      if (rec.ends_on && rec.ends_on < rec.starts_on) return toast('"Until" is before the date.');
+      if (rec.ends_on === rec.starts_on) rec.ends_on = null;
+      $('#evSave').disabled = true;
+      const { error } = editing ? await sb.from('tv_events').update(rec).eq('id', editing) : await sb.from('tv_events').insert(rec);
+      if (error) { $('#evSave').disabled = false; return toast('Not saved: ' + error.message, 5000); }
+      toast(editing ? 'Saved' : 'Added');
+      const { data } = await sb.from('tv_events').select('*').order('starts_on'); state.events = data || state.events;
+      editing = null; m = rec.starts_on.slice(0, 8) + '01'; render(); drawEvents();
+    };
+    $('#evImport').onclick = () => { $('#pickEvents').onchange = async ev => {
+      const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+      try {
+        const j = JSON.parse(await f.text()), isDate = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+        const rows = (j.events || []).filter(x => isDate(x.start) && x.title).map(x => ({ starts_on: x.start, ends_on: isDate(x.end) && x.end > x.start ? x.end : null, title: String(x.title).trim().slice(0, 100), note: x.note ? String(x.note).trim().slice(0, 100) : null }));
+        const months = Object.entries(j.months || {}).filter(([k, v]) => /^\d{4}-\d{2}$/.test(k) && v).map(([k, v]) => ({ month: k + '-01', theme: String(v).trim().slice(0, 80) }));
+        if (!rows.length && !months.length) return toast("That file doesn't have any events in it.", 5000);
+        const key = x => `${x.starts_on}|${x.ends_on || ''}|${x.title.toLowerCase()}`, have = new Set(state.events.map(key));
+        const add = rows.filter(x => !have.has(key(x)));
+        if (add.length) { const { error } = await sb.from('tv_events').insert(add); if (error) throw error; }
+        for (const mo of months) {
+          const { error } = await sb.from('tv_months').delete().eq('month', mo.month); if (error) throw error;
+          const r = await sb.from('tv_months').insert(mo); if (r.error) throw r.error;
+        }
+        await load(); toast(`Added ${add.length} event${add.length === 1 ? '' : 's'}${rows.length - add.length ? ` (${rows.length - add.length} were already there)` : ''}${months.length ? ` and ${months.length} month themes` : ''}.`, 5000);
+        render();
+      } catch (er) { toast('Not imported: ' + (er.message || er), 6000); }
+    }; $('#pickEvents').click(); };
+  };
+  render();
+}
+
+/* ---------- Party mode: show only one thing (e.g. a birthday message) for a while ---------- */
+const partyOn = () => { const S = state.settings; return !!(S && S.only_slide && S.only_until && new Date(S.only_until) > new Date()); };
+const timeText = iso => new Date(iso).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+function drawParty() {
+  const box = $('#party'), S = state.settings;
+  if (!('only_slide' in S)) { box.hidden = true; return; }   // database not updated yet
+  box.hidden = false;
+  if (partyOn()) {
+    const sl = findSlide(S.only_slide), both = partnerOn(sl);
+    const sameDay = new Date(S.only_until).toDateString() === new Date().toDateString();
+    box.className = 'card on';
+    box.innerHTML = `<div class="row" style="justify-content:space-between"><h3>Party mode is on</h3><span class="chip" style="background:var(--on-gold);color:var(--gold)">${both ? 'TV + tablets' : state.display === 'tv' ? 'TV' : 'Tablets'}</span></div>
+      <div class="row" style="align-items:center">${thumb(sl)}<p class="grow" style="margin:0">${both ? 'The TV and the tablets are' : Here()} showing only <b>${esc(slideName(sl))}</b> until <b>${timeText(S.only_until)}</b>${sameDay ? '' : ' ' + new Date(S.only_until).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}. Then ${both ? 'they go' : 'it goes'} back to the slideshow by itself.</p></div>
+      <div class="row"><button class="btn primary" id="partyStop">Back to normal now</button><button class="btn" id="partyMore">1 more hour</button></div>`;
+    $('#partyStop').onclick = async () => { await setParty(null, null, both ? null : undefined); toast('Back to normal. It switches within a few seconds.', 4000); };
+    $('#partyMore').onclick = async () => { await setParty(S.only_slide, new Date(new Date(S.only_until).getTime() + 3600e3).toISOString(), both ? sl.linked : undefined); toast(`Party mode until ${timeText(state.settings.only_until)}`); };
+  } else if (activeBookings().length) {
+    // One or more parties on now (different locations can each have one)
+    const act = activeBookings();
+    box.className = 'card on';
+    box.innerHTML = `<div class="row" style="justify-content:space-between"><h3>Party mode is on</h3><span class="chip" style="background:var(--on-gold);color:var(--gold)">${act.some(b => findSlide(b.slide_id).linked) ? 'TV + tablets' : state.display === 'tv' ? 'TV' : 'Tablets'}</span></div>
+      ${act.map((b, i) => { const sl = findSlide(b.slide_id); return `<div class="row" style="align-items:center">${thumb(sl)}<p class="grow" style="margin:0">${sl.linked ? 'The TV and the tablets' : here()[0].toUpperCase() + here().slice(1)}${sl.locations && sl.locations.length ? ` at <b>${esc(locName(sl.locations))}</b>` : ''} ${sl.linked || state.display === 'tablet' ? 'are' : 'is'} showing only <b>${esc(slideName(sl))}</b> until <b>${timeText(b.ends_at)}</b>. Then ${sl.linked ? 'they go' : 'it goes'} back to the slideshow by itself.</p></div>
+        <div class="row"><button class="btn primary" data-stop="${b.id}"${i ? '' : ' id="partyStop"'}>Back to normal now</button><button class="btn" data-more="${b.id}"${i ? '' : ' id="partyMore"'}>1 more hour</button><button class="btn" data-editbk="${b.id}">Edit</button></div>`; }).join('')}
+      <div class="row"><button class="btn sm" id="partyStart">${state.locations ? 'Start one somewhere else' : 'Start a different one'}</button>${state.bookings ? '<button class="btn sm" id="partyBook">Book for later</button>' : ''}</div>${bookedList()}`;
+    $$('#party [data-stop]').forEach(x => x.onclick = async () => { const b = act.find(y => y.id === x.dataset.stop); if (await moveBooking(b, new Date().toISOString())) toast('Back to normal. It switches within a few seconds.', 4000); });
+    $$('#party [data-more]').forEach(x => x.onclick = async () => { const b = act.find(y => y.id === x.dataset.more), t = new Date(new Date(b.ends_at).getTime() + 3600e3).toISOString(); if (await moveBooking(b, t)) toast(`Party until ${timeText(t)}`); });
+    $('#partyStart').onclick = () => openParty();
+    if ($('#partyBook')) $('#partyBook').onclick = () => openParty({ book: true });
+  } else {
+    box.className = 'card';
+    box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="grow"><h3>Party mode</h3><p class="hint">Show just one thing on ${here()}, like a birthday poster, for a set time. Then it goes back to the slideshow by itself.</p></div>
+      <div class="row">${state.bookings ? '<button class="btn" id="partyBook">Book for later</button>' : ''}<button class="btn primary" id="partyStart">Start now</button></div></div>${bookedList()}`;
+    $('#partyStart').onclick = () => openParty();
+    if ($('#partyBook')) $('#partyBook').onclick = () => openParty({ book: true });
+  }
+  $$('#party [data-editbk]').forEach(b => b.onclick = () => editBooking(state.bookings.find(x => x.id === b.dataset.editbk)));
+  $$('#party [data-unbook]').forEach(b => b.onclick = async () => {
+    const bk = state.bookings.find(x => x.id === b.dataset.unbook);
+    if (!await confirmBox(`Cancel the party booked for ${whenText(bk.starts_at)}?`, 'Cancel booking')) return;
+    const cur = await sb.from('tv_party_bookings').select('starts_at').eq('id', bk.id).maybeSingle();   // its time now (it may have just been edited)
+    const startsAt = (cur.data && cur.data.starts_at) || bk.starts_at;
+    const { error } = await sb.from('tv_party_bookings').delete().eq('id', bk.id);
+    if (error) return toast('Not cancelled: ' + error.message, 5000);
+    const pl = findSlide(bk.slide_id).linked;   // and the same booking on the other screen
+    if (pl) await sb.from('tv_party_bookings').delete().eq('slide_id', pl).eq('starts_at', startsAt);
+    toast('Booking cancelled'); load();
+  });
+}
+// Bookings: a party that switches itself on at the start time and off at the end
+const activeBookings = () => (state.bookings || []).filter(b => new Date(b.starts_at) <= new Date() && new Date(b.ends_at) > new Date());
+function bookedList(skip) {
+  const list = (state.bookings || []).filter(b => b.id !== skip && new Date(b.starts_at) > new Date());
+  if (!list.length) return '';
+  return `<div class="label" style="margin-top:12px">Booked</div><ul class="booked">${list.map(b => {
+    const sl = state.partySlides.concat(state.slides).find(x => x.id === b.slide_id) || {};
+    const sameDay = new Date(b.starts_at).toDateString() === new Date(b.ends_at).toDateString();
+    return `<li>${thumb(sl)}<div class="grow"><b>${esc(slideName(sl))}</b>${sl.linked ? ' <span class="tag muted">+ ' + otherNoun() + '</span>' : ''}${state.locations ? ` <span class="tag">${esc(locName(sl.locations))}</span>` : ''}<div class="when">${esc(whenText(b.starts_at))} to ${esc(sameDay ? timeText(b.ends_at) : whenText(b.ends_at))}</div></div><button class="btn sm" data-editbk="${b.id}">Edit</button><button class="btn sm" data-unbook="${b.id}">Cancel</button></li>`;
+  }).join('')}</ul>`;
+}
+// Edit a booked party (or one on now): what it says, where, and when. The linked copy on the other screen changes too.
+const hm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+function editBooking(b) {
+  if (!b) return;
+  const sl = findSlide(b.slide_id), on = new Date(b.starts_at) <= new Date();
+  const st = new Date(b.starts_at), en = new Date(b.ends_at);
+  // A poster made from a template: its title is "Name (Template)", so the name can be changed and the poster redrawn
+  const pm = sl.kind === 'photo' && /^(.*) \((.+)\)$/.exec(sl.title || ''), tpl = pm && (state.templates || []).find(t => t.title === pm[2]);
+  const isMsg = sl.kind === 'text';
+  openDlg(`<form class="dlg" id="bkForm">
+    <div class="dlg-head"><div><h3>Edit party</h3><p class="hint">${on ? 'On now.' : 'Booked.'}${sl.linked ? ' Changes the ' + otherNoun() + ' too.' : ''}</p></div><button class="x" data-close>Close</button></div>
+    ${tpl ? `<div class="field"><label for="bkName">Birthday child's name</label><input type="text" id="bkName" maxlength="40" autocomplete="off" value="${esc(pm[1])}"></div>
+      <div class="prevs"><canvas class="posterprev${state.display === 'tablet' && hasTablet(tpl) ? ' up' : ''}" id="bkCanvas" width="1920" height="1080" aria-label="Poster preview"></canvas></div>`
+    : isMsg ? `<div class="field"><label for="bkHead">Heading</label><input type="text" id="bkHead" maxlength="120" value="${esc(sl.title || '')}"></div>
+      <div class="field"><label for="bkLine">Second line (optional)</label><input type="text" id="bkLine" maxlength="160" value="${esc(sl.body || '')}"></div>`
+    : `<div class="row" style="align-items:center">${thumb(sl)}<p class="grow hint" style="margin:0"><b>${esc(slideName(sl))}</b>. To show a different image, cancel this and book again.</p></div>`}
+    ${state.locations && state.locations.length ? `<div class="field"><label for="bkWhere">Where</label><select id="bkWhere"><option value="">All locations</option>${state.locations.map(l => `<option value="${esc(l.slug)}"${(sl.locations || [])[0] === l.slug ? ' selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>` : ''}
+    <div class="grid2">
+      <div class="field"><label for="bkDate">Date</label><input type="date" id="bkDate" value="${ymd(st)}"${on ? ' disabled' : ` min="${today()}"`}></div><span></span>
+      <div class="field"><label for="bkFrom">Starts</label><input type="time" id="bkFrom" value="${hm(st)}"${on ? ' disabled' : ''}></div>
+      <div class="field"><label for="bkTo">Ends</label><input type="time" id="bkTo" value="${hm(en)}"></div></div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="bkGo">Save</button></div>
+  </form>`);
+  if (tpl) { const draw = () => drawPoster($('#bkCanvas'), variant(tpl, state.display), $('#bkName').value); $('#bkName').oninput = draw; draw(); }
+  $('#bkForm').onsubmit = async e => {
+    e.preventDefault();
+    if (!$('#bkTo').value) return toast('Choose the end time.');
+    const where = $('#bkWhere') ? $('#bkWhere').value : null, locs = where ? [where] : null;
+    let starts = st, until;
+    if (on) { const [h, m] = $('#bkTo').value.split(':').map(Number); until = new Date(); until.setHours(h, m, 0, 0); if (until <= new Date()) until.setDate(until.getDate() + 1); }
+    else {
+      const dd = $('#bkDate').value, f = $('#bkFrom').value, t = $('#bkTo').value;
+      if (!dd || !f || !t) return toast('Fill in the date, start and end times.');
+      starts = new Date(`${dd}T${f}`); until = new Date(`${dd}T${t}`);
+      if (until <= starts) until.setDate(until.getDate() + 1);   // ends after midnight
+      if (until <= new Date()) return toast('That time has already passed.');
+    }
+    const sameWhere = x => { const bl = findSlide(x.slide_id).locations; return !where || !bl || !bl.length || bl.includes(where); };
+    const clash = (state.bookings || []).find(x => x.id !== b.id && x.slide_id !== sl.linked && new Date(x.starts_at) < until && new Date(x.ends_at) > starts && sameWhere(x));
+    if (clash) return toast(`Another party is booked then${where ? ' at ' + locName([where]) : ''} (${whenText(clash.starts_at)} to ${timeText(clash.ends_at)}).`, 6000);
+    const ids = [sl.id].concat(sl.linked ? [sl.linked] : []);
+    $('#bkGo').disabled = true;
+    try {
+      // What it shows
+      if (tpl) {
+        const nm = $('#bkName').value.trim();
+        if (!nm) throw new Error("Type the birthday child's name.");
+        if (nm !== pm[1]) {
+          toast('Making the poster...', 0);
+          const old = [sl.media_path];
+          const mk = async d => upload('photos', await posterBlob(variant(tpl, d), nm, 'image/jpeg'), 'jpg', 'image/jpeg');
+          const title = `${nm} (${tpl.title})`;
+          let r = await sb.from('tv_slides').update({ title, media_path: await mk(state.display) }).eq('id', sl.id); if (r.error) throw r.error;
+          if (sl.linked) {
+            const o = await sb.from('tv_slides').select('media_path').eq('id', sl.linked).maybeSingle();
+            if (o.data && o.data.media_path) old.push(o.data.media_path);
+            r = await sb.from('tv_slides').update({ title, media_path: await mk(other()) }).eq('id', sl.linked); if (r.error) throw r.error;
+          }
+          sb.storage.from('tv').remove(old.filter(Boolean)).catch(() => {});
+        }
+      } else if (isMsg) {
+        const head = $('#bkHead').value.trim();
+        if (!head) throw new Error('Type the heading.');
+        const r = await sb.from('tv_slides').update({ title: head, body: $('#bkLine').value.trim() || null }).in('id', ids); if (r.error) throw r.error;
+      }
+      // Where
+      if (state.locations) { const r = await sb.from('tv_slides').update({ locations: locs }).in('id', ids); if (r.error) throw r.error; }
+      // When (the other screen's booking has the same start time)
+      const times = { starts_at: starts.toISOString(), ends_at: until.toISOString() };
+      let r = await sb.from('tv_party_bookings').update(times).eq('id', b.id); if (r.error) throw r.error;
+      if (sl.linked) { r = await sb.from('tv_party_bookings').update(times).eq('slide_id', sl.linked).eq('starts_at', b.starts_at); if (r.error) throw r.error; }
+    } catch (er) { $('#bkGo').disabled = false; return toast('Not saved: ' + (er.message || er), 6000); }
+    dlg.close(); toast(on ? 'Saved. The screens update within a few seconds.' : 'Saved', 4000); load();
+  };
+}
+async function moveBooking(b, ends, noReload) {
+  // Ending it now: the end must stay after the start
+  // (one ended within a second of starting is simply removed)
+  const min = new Date(new Date(b.starts_at).getTime() + 1000).toISOString(), pl = findSlide(b.slide_id).linked;
+  const q = () => sb.from('tv_party_bookings');
+  const { error } = ends > min ? await q().update({ ends_at: ends }).eq('id', b.id) : await q().delete().eq('id', b.id);
+  if (error) { toast('Not saved: ' + error.message, 5000); return false; }
+  if (pl) await (ends > min ? q().update({ ends_at: ends }) : q().delete()).eq('slide_id', pl).eq('starts_at', b.starts_at);   // the same booking on the other screen
+  if (!noReload) await load(); return true;
+}
+
+/* ---------- TV status: is it on, what's it showing, and a remote refresh ---------- */
+const ONLINE_MS = 75e3;   // the TV checks in every 20 seconds
+function drawStatus() {
+  const box = $('#status');
+  if (state.screens === null) { box.hidden = true; return; }   // database not updated yet
+  box.hidden = false;
+  const list = state.screens, on = list.filter(x => Date.now() - new Date(x.last_seen) < ONLINE_MS);
+  const N = noun(), Ns = N === 'TV' ? 'TVs' : 'tablets';
+  const head = !list.length ? `No ${N} has checked in yet` : on.length ? (list.length > 1 ? `${on.length} of ${list.length} ${Ns} online` : `The ${N} is online`) : (list.length > 1 ? `The ${Ns} are offline` : `The ${N} is offline`);
+  box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="grow"><h3><span class="dot${on.length ? ' on' : ''}"></span>${esc(head)}</h3>
+      ${!list.length ? `<p class="hint">Open the link under Settings on the ${N}. It shows up here within 20 seconds.</p>` : ''}</div>
+      <button class="btn" id="tvReload"${list.length ? '' : ' disabled'}>Refresh the ${N === 'TV' ? 'TV' : 'tablets'}</button></div>
+    ${list.length ? `<ul class="screens">${list.map((x, i) => {
+      const live = Date.now() - new Date(x.last_seen) < ONLINE_MS;
+      const what = x.showing ? esc(x.showing) : 'Starting up';
+      const label = x.name ? esc(x.name) : list.length > 1 ? `${N === 'TV' ? 'TV' : 'Tablet'} ${i + 1}` : '';
+      const bt = x.details && x.details.battery, btWarn = (state.settings && state.settings.battery_warn) || 0;
+      const batt = state.display === 'tablet' && bt && bt.level != null ? ` <span class="tag${!bt.charging && btWarn && bt.level < btWarn ? ' warn' : ' muted'}" title="Battery">${bt.charging ? 'Charging ' : 'Battery '}${esc(bt.level)}%</span>` : '';
+      const where = state.locations ? ` <span class="tag${x.location ? '' : ' warn'}">${x.location ? esc(locName([x.location])) : 'No location'}</span>` : '';
+      const darkTag = x.blackout ? ' <span class="tag warn">Blacked out</span>' : '';
+      const taken = live && /^(Party mode|Blacked out)/.test(x.showing || ''), freed = live && /\(back to normal here\)/.test(x.showing || '');
+      const normBtn = state.normal ? (taken ? `<button class="btn sm" data-normal-tv="${esc(x.screen_id)}" data-on="1">Back to normal</button>` : freed ? `<button class="btn sm" data-normal-tv="${esc(x.screen_id)}" data-on="">Show the party again</button>` : '') : '';
+      return `<li><div class="grow"><b>${label ? label + ': ' : ''}${live ? 'Showing: ' + what : 'Offline'}</b>${where}${batt}${darkTag}
+        <div>${live ? `Checked in ${esc(ago(x.last_seen))}` : `Last seen ${esc(ago(x.last_seen))}${x.showing ? `, showing ${what}` : ''}`}${x.started_at ? ` · page loaded ${esc(ago(x.started_at))}` : ''}</div></div>
+        <div class="row" style="flex-wrap:wrap;justify-content:flex-end">${normBtn}${'blackout' in x ? `<button class="btn sm" data-dark-tv="${esc(x.screen_id)}" data-on="${x.blackout ? '' : '1'}" style="${x.blackout ? 'background:var(--gold);border-color:var(--gold);color:var(--on-gold)' : 'background:#111;border-color:#111;color:#fff'}">${x.blackout ? 'Back on' : 'Black out'}</button>` : ''}<button class="btn sm" data-name-tv="${esc(x.screen_id)}">${state.locations ? 'Edit' : x.name ? 'Rename' : 'Name'}</button>${!live ? `<button class="btn sm" data-forget-tv="${esc(x.screen_id)}">Remove</button>` : ''}</div></li>`;
+    }).join('')}</ul>` : ''}
+    ${'blackout' in state.settings ? (state.settings.blackout
+      ? `<div class="row" style="background:#111;color:#fff;border-radius:10px;padding:10px 12px"><span class="grow"><b>${N === 'TV' ? 'The screen is' : 'The tablets are'} blacked out</b> until you turn ${N === 'TV' ? 'it' : 'them'} back on.</span><button class="btn sm" id="tvDark" style="background:var(--gold);border-color:var(--gold);color:var(--on-gold)">Turn ${N === 'TV' ? 'the screen' : 'them'} back on</button></div>`
+      : `<div class="row"><button class="btn" id="tvDark" style="background:#111;border-color:#111;color:#fff">Black out ${N === 'TV' ? 'every TV' : 'all tablets'}</button><span class="hint grow">Black until you turn ${N === 'TV' ? 'them' : 'them'} back on, even during a party. For just one, use its own button above.</span></div>`) : ''}`;
+  if ($('#tvDark')) $('#tvDark').onclick = async () => {
+    const on = !state.settings.blackout; $('#tvDark').disabled = true;
+    const { error } = await sb.rpc('tv_remote_send', { p_cmd: on ? 'blackout' : 'wake', p_slide: null, p_display: state.display });
+    if (error) { $('#tvDark').disabled = false; return toast('Not sent: ' + error.message, 5000); }
+    toast(on ? 'The screen goes black within 20 seconds.' : 'The screen comes back on within a few seconds.', 4000); load();
+  };
+  $('#tvReload').onclick = async () => {
+    $('#tvReload').disabled = true;
+    const { error } = await sb.from('tv_settings').update({ reload_at: new Date().toISOString() }).eq('id', sid());
+    if (error) { $('#tvReload').disabled = false; return toast('Not sent: ' + error.message, 5000); }
+    toast('Sent. The TV reloads within 20 seconds.', 4000);
+    setTimeout(pollStatus, 25e3);
+    setTimeout(() => { const b = $('#tvReload'); if (b) b.disabled = false; }, 5000);
+  };
+  $$('#status [data-normal-tv]').forEach(b => b.onclick = async () => {
+    const on = !!b.dataset.on; b.disabled = true;
+    const { error } = await sb.rpc('tv_screen_normal', { p_screen: b.dataset.normalTv, p_on: on });
+    if (error) { b.disabled = false; return toast('Not sent: ' + error.message, 6000); }
+    toast(on ? `Just that ${noun()} goes back to normal within a few seconds. The others carry on.` : `That ${noun()} shows the party or blackout again.`, 4000); setTimeout(pollStatus, 1500);
+  });
+  $$('#status [data-dark-tv]').forEach(b => b.onclick = async () => {
+    const on = !!b.dataset.on; b.disabled = true;
+    const { error } = await sb.rpc('tv_screen_blackout', { p_screen: b.dataset.darkTv, p_on: on });
+    if (error) { b.disabled = false; return toast((/function|schema cache/i.test(error.message) ? 'Run supabase/tv-setup.sql again first. ' : 'Not sent: ') + error.message, 6000); }
+    toast(on ? `That ${noun()} goes black within 20 seconds.` : `That ${noun()} comes back on within a few seconds.`, 4000); pollStatus();
+  });
+  $$('#status [data-name-tv]').forEach(b => b.onclick = () => {
+    const x = state.screens.find(y => y.screen_id === b.dataset.nameTv); if (!x) return;
+    openDlg(`<form class="dlg" id="nmForm"><div class="dlg-head"><div><h3>This ${noun()}</h3><p class="hint">Showing: ${esc(x.showing || '-')}</p></div><button class="x" data-close>Close</button></div>
+      <div class="field"><label for="nmIn">Name</label><input type="text" id="nmIn" maxlength="40" value="${esc(x.name || '')}" placeholder="e.g. Front desk"></div>
+      ${state.locations ? `<div class="field"><label for="nmLoc">Location</label><select id="nmLoc"><option value="">No location</option>${state.locations.map(l => `<option value="${esc(l.slug)}"${x.location === l.slug ? ' selected' : ''}>${esc(l.name)}</option>`).join('')}</select>
+        <p class="hint">It shows the slides and parties for its location, plus anything for every location. With no location, only those for every location.</p></div>` : ''}
+      <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="nmSave">Save</button></div></form>`);
+    $('#nmIn').focus();
+    $('#nmForm').onsubmit = async e => {
+      e.preventDefault();
+      const { error } = await sb.from('tv_screens').update({ name: $('#nmIn').value.trim() || null, ...($('#nmLoc') ? { location: $('#nmLoc').value || null } : {}) }).eq('screen_id', x.screen_id);
+      if (error) return toast('Not saved: ' + error.message, 5000);
+      dlg.close(); toast('Saved'); pollStatus();
+    };
+  });
+  $$('#status [data-forget-tv]').forEach(b => b.onclick = async () => {
+    const { error } = await sb.from('tv_screens').delete().eq('screen_id', b.dataset.forgetTv);
+    if (error) return toast('Not removed: ' + error.message, 5000);
+    pollStatus();
+  });
+}
+async function pollStatus() {
+  if ($('#app').hidden || state.screens === null) return;
+  const [{ data, error }, bk] = await Promise.all([
+    sb.from('tv_screens').select('*').eq('display', state.display).order('first_seen').order('screen_id'),
+    state.bookings ? sb.from('tv_party_bookings').select('*').gt('ends_at', new Date().toISOString()).order('starts_at') : Promise.resolve({})
+  ]);
+  if (!error) { state.screens = data || []; drawStatus(); }
+  if (bk.data) state.bookings = mine(bk.data);
+  if (state.settings) drawParty();   // a booked party starting or ending while the page is open
+}
+setInterval(() => { if (!document.hidden) pollStatus(); }, 15e3);
+// Party on this screen; partner (when given, even null) does the same on the other screen
+async function setParty(slideId, until, partner) {
+  const { error } = await sb.from('tv_settings').update({ only_slide: slideId, only_until: until }).eq('id', sid());
+  if (error) { toast('Not saved: ' + error.message, 5000); return false; }
+  if (partner !== undefined) {
+    const r = await sb.from('tv_settings').update({ only_slide: partner, only_until: partner ? until : null }).eq('id', otherSid());
+    if (r.error) toast(`Not changed on the ${otherNoun()}: ` + r.error.message, 5000);
+  }
+  await load(); return true;
+}
+// Is this party slide's partner showing on the other screen right now?
+const partnerOn = sl => !!(sl && sl.linked && state.other && state.other.only_slide === sl.linked && state.other.only_until && new Date(state.other.only_until) > new Date());
+const findSlide = id => state.partySlides.concat(state.slides).find(x => x.id === id) || {};
+function openParty(opts) {
+  let when = opts && opts.book ? 'later' : 'now', bDate = today(), bFrom = '', bTo = '';
+  let mode = state.templates && state.templates.length ? 'poster' : 'message', photo = null, caption = '', pages = null, pick = (state.partySlides[0] || {}).id || null;
+  let tplId = (state.templates && state.templates[0] || {}).id || null, posterName = '';
+  let both = !!state.other;   // also on the other screen (TV and tablets together)
+  let where = ''; try { where = localStorage.getItem('tvPartyLoc') || ''; } catch (e) { /* ignore */ }
+  if (state.locations && where && !state.locations.some(l => l.slug === where)) where = '';
+  const render = () => {
+    openDlg(`<form class="dlg" id="pForm">
+      <div class="dlg-head"><div><h3>Party mode</h3><p class="hint">Only this shows on ${here()}${both ? ' and the ' + otherNoun() : ''} until the time is up.</p></div><button class="x" data-close>Close</button></div>
+      <div class="seg" role="group" aria-label="What to show">${state.templates ? `<button type="button" data-m="poster" aria-pressed="${mode === 'poster'}">Poster</button>` : ''}<button type="button" data-m="message" aria-pressed="${mode === 'message'}">${state.templates ? 'Message' : 'Birthday message'}</button><button type="button" data-m="image" aria-pressed="${mode === 'image'}">Upload an image</button>${state.partySlides.length ? `<button type="button" data-m="saved" aria-pressed="${mode === 'saved'}">Saved (${state.partySlides.length})</button>` : ''}</div>
+      ${mode === 'poster' ? (state.templates.length ? `
+        <div class="tpls">${state.templates.map(t => `<button type="button" data-tpl="${t.id}" aria-pressed="${t.id === tplId}"><img src="${MEDIA + esc(variant(t, state.display).image_path)}" alt=""><span>${esc(t.title)}</span></button>`).join('')}</div>
+        <div class="field"><label for="pPoster">Birthday child's name</label><input type="text" id="pPoster" maxlength="40" placeholder="e.g. Kian" autocomplete="off" value="${esc(posterName)}"></div>
+        <div class="prevs"><canvas class="posterprev${state.display === 'tablet' && hasTablet(state.templates.find(x => x.id === tplId)) ? ' up' : ''}" id="pCanvas" width="1920" height="1080" aria-label="Poster preview"></canvas>
+          ${both ? `<canvas class="posterprev${other() === 'tablet' && hasTablet(state.templates.find(x => x.id === tplId)) ? ' up' : ''}" id="pCanvas2" width="1920" height="1080" aria-label="Poster on the ${otherNoun()}"></canvas>` : ''}</div>
+        ${both && !hasTablet(state.templates.find(x => x.id === tplId)) ? `<p class="hint">This template has no tablet version yet, so the tablets show the TV poster (smaller).</p>` : ''}
+        <div class="row"><button type="button" class="btn sm" id="pDownload">Download</button><span class="grow"></span>${state.partyOnly ? '' : '<button type="button" class="btn sm" id="pManage">Manage templates</button>'}</div>`
+        : state.partyOnly ? `<p class="hint">No poster templates yet. Someone with the TV editor can add them.</p>`
+        : `<p class="hint">No poster templates yet. Import the AMA templates file, or add a design with the name area left empty.</p>
+        <div class="row"><button type="button" class="btn primary" id="pImport">Import templates</button><button type="button" class="btn" id="pAddTpl">Add template</button></div>`)
+      : mode === 'message' ? `
+        <div class="field"><label for="pName">Birthday child's name</label><input type="text" id="pName" maxlength="60" placeholder="e.g. Kara" autocomplete="off"></div>
+        <div class="field"><label for="pHead">Heading</label><input type="text" id="pHead" maxlength="120" value="Happy Birthday!"></div>
+        <div class="field"><label for="pLine">Second line (optional)</label><input type="text" id="pLine" maxlength="160" placeholder="e.g. Turning 7 today!"></div>
+        <div class="partyprev" id="pPrev"><b></b><span></span></div>`
+      : mode === 'image' && pages && !photo ? `
+        <p class="hint">Tap the design to show. Or save them all, so next time it's one tap under Saved.</p>
+        <div class="pages">${pages.map((p, i) => `<button type="button" data-page="${i}"><img src="${p.url}" alt="Page ${p.page}"><span>${esc(p.name || 'Page ' + p.page)}</span></button>`).join('')}</div>
+        <div class="row"><button type="button" class="btn" id="pSaveAll">Save all ${pages.length} for next time</button><button type="button" class="btn sm" id="pPick">Choose a different file</button></div>`
+      : mode === 'image' ? `
+        <div class="field"><span class="label">Image or PDF</span><div class="row"><span class="hint grow" id="pFile">${photo ? 'Ready' : 'Nothing chosen'}</span><button type="button" class="btn sm" id="pPick">${photo ? 'Change' : 'Choose file'}</button></div></div>
+        ${photo ? `<div class="preview-img" style="background-image:url('${MEDIA + esc(photo)}')"></div>` : '<p class="hint">Use the birthday design made for the party: an image, or the PDF from Canva (you then pick the page). It fills the screen.</p>'}
+        <div class="field"><label for="pCap">Name it (only shown in the editor)</label><input type="text" id="pCap" maxlength="120" value="${esc(caption)}" placeholder="e.g. Kian"></div>`
+      : `<ul class="saved">${state.partySlides.map(x => `<li class="${x.id === pick ? 'pick' : ''}" data-pick="${x.id}">${thumb(x)}<span class="grow">${esc(slideName(x))}</span><button type="button" class="btn sm danger" data-forget="${x.id}">Delete</button></li>`).join('')}</ul>`}
+      ${state.locations && state.locations.length ? `<div class="field"><label for="pWhere">Where</label><select id="pWhere"><option value="">All locations</option>${state.locations.map(l => `<option value="${esc(l.slug)}"${where === l.slug ? ' selected' : ''}>${esc(l.name)}</option>`).join('')}</select><p class="hint">Only devices at this location show it.</p></div>` : ''}
+      ${state.other ? `<label class="check"><input type="checkbox" id="pBoth" ${both ? 'checked' : ''}> Also on the ${otherNoun()}</label>` : ''}
+      ${state.bookings ? `<div class="field"><span class="label">When</span><div class="seg" role="group" aria-label="When"><button type="button" data-when="now" aria-pressed="${when === 'now'}">Now</button><button type="button" data-when="later" aria-pressed="${when === 'later'}">Book for later</button></div></div>` : ''}
+      ${when === 'later' ? `<div class="grid2">
+        <div class="field"><label for="bDate">Date</label><input type="date" id="bDate" min="${today()}" value="${esc(bDate)}"></div><span></span>
+        <div class="field"><label for="bFrom">Starts</label><input type="time" id="bFrom" value="${esc(bFrom)}"></div>
+        <div class="field"><label for="bTo">Ends</label><input type="time" id="bTo" value="${esc(bTo)}"></div></div>
+        <p class="hint">The TV switches to this by itself at the start and back to the slideshow at the end.</p>` : `
+      <div class="field"><label for="pFor">Show it for</label><select id="pFor"><option value="60">1 hour</option><option value="120">2 hours</option><option value="180" selected>3 hours</option><option value="day">The rest of today</option><option value="until">Until a set time...</option></select></div>
+      <div class="field" id="pUntilRow" hidden><label for="pUntil">Until</label><input type="time" id="pUntil"></div>`}
+      <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="pGo">${when === 'later' ? 'Book it' : 'Show it now'}</button></div>
+    </form>`);
+    const keep = () => { if ($('#pWhere')) { where = $('#pWhere').value; try { localStorage.setItem('tvPartyLoc', where); } catch (e) { /* ignore */ } } if ($('#bDate')) { bDate = $('#bDate').value; bFrom = $('#bFrom').value; bTo = $('#bTo').value; } if ($('#pPoster')) posterName = $('#pPoster').value; };
+    $$('#pForm [data-m]').forEach(b => b.onclick = () => { keep(); mode = b.dataset.m; render(); });
+    $$('#pForm [data-when]').forEach(b => b.onclick = () => { keep(); when = b.dataset.when; render(); });
+    if ($('#pBoth')) $('#pBoth').onchange = () => { keep(); both = $('#pBoth').checked; render(); };
+    ['#bDate', '#bFrom', '#bTo'].forEach(id => { if ($(id)) $(id).oninput = keep; });
+    if (mode === 'poster') {
+      const imp = $('#pImport'); if (imp) imp.onclick = () => importTemplates(() => { tplId = (state.templates[0] || {}).id; openParty(); });
+      const add = $('#pAddTpl'); if (add) add.onclick = () => openTemplate(null);
+      const man = $('#pManage'); if (man) man.onclick = () => openTemplates();
+      const draw = () => {
+        const t = state.templates.find(x => x.id === tplId); if (!t) return;
+        if ($('#pCanvas')) drawPoster($('#pCanvas'), variant(t, state.display), $('#pPoster').value);
+        if ($('#pCanvas2')) drawPoster($('#pCanvas2'), variant(t, other()), $('#pPoster').value);
+      };
+      $$('#pForm [data-tpl]').forEach(b => b.onclick = () => { keep(); tplId = b.dataset.tpl; render(); });
+      const nm = $('#pPoster'); if (nm) { nm.oninput = () => { posterName = nm.value; draw(); }; nm.focus(); draw(); }
+      const dl = $('#pDownload'); if (dl) dl.onclick = async () => {
+        const t = state.templates.find(x => x.id === tplId); if (!t) return;
+        const blob = await posterBlob(variant(t, state.display), $('#pPoster').value, 'image/png');
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `birthday-${(($('#pPoster').value || 'poster').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'poster'}.png`; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      };
+    }
+    if ($('#pFor')) $('#pFor').onchange = () => { $('#pUntilRow').hidden = $('#pFor').value !== 'until'; };
+    if (mode === 'message') {
+      const prev = () => { const n = $('#pName').value.trim(), h = $('#pHead').value.trim() || 'Happy Birthday!';
+        $('#pPrev b').textContent = n ? h.replace(/!?\s*$/, '') + ' ' + n + '!' : h; $('#pPrev span').textContent = $('#pLine').value.trim(); };
+      ['#pName', '#pHead', '#pLine'].forEach(id => $(id).oninput = prev); prev(); $('#pName').focus();
+    }
+    if (mode === 'image') {
+      $('#pPick').onclick = () => { $('#pickParty').onchange = async e => {
+        const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+        const status = $('#pFile');
+        try {
+          if (isPdf(f)) {
+            if (status) status.textContent = 'Reading the PDF...';
+            pages = await pdfPages(f, (i, n) => { const st = $('#pFile'); if (st) st.textContent = `Reading page ${i} of ${n}...`; });
+            photo = null;
+            if (pages.length === 1) { status && (status.textContent = 'Uploading...'); caption = pages[0].name; photo = await upload('photos', pages[0].blob, 'jpg', 'image/jpeg'); pages = null; }
+          } else {
+            if (status) status.textContent = 'Uploading...';
+            pages = null; caption = ''; photo = await upload('photos', await resize(f), 'jpg', 'image/jpeg');
+          }
+          render();
+        } catch (er) { const st = $('#pFile'); if (st) st.textContent = 'Nothing chosen'; toast(er.message || String(er), 6000); }
+      }; $('#pickParty').click(); };
+      $$('#pForm [data-page]').forEach(b => b.onclick = async () => {
+        const p = pages[+b.dataset.page];
+        b.disabled = true; toast('Uploading...', 0);
+        try { photo = await upload('photos', p.blob, 'jpg', 'image/jpeg'); caption = p.name || `Page ${p.page}`; pages = null; toast('Ready', 1500); render(); }
+        catch (er) { b.disabled = false; toast(er.message || String(er), 6000); }
+      });
+      const all = $('#pSaveAll'); if (all) all.onclick = async () => {
+        all.disabled = true; let n = 0;
+        try {
+          for (const p of pages) {
+            toast(`Saving ${++n} of ${pages.length}...`, 0);
+            const path = await upload('photos', p.blob, 'jpg', 'image/jpeg');
+            const { error } = await sb.from('tv_slides').insert({ display: state.display,  kind: 'photo', media_path: path, title: p.name || `Design ${p.page}`, party: true });
+            if (error) throw error;
+          }
+          toast(`Saved ${pages.length} designs. Pick one under Saved.`, 4000);
+          pages = null; await load(); pick = (state.partySlides[0] || {}).id || null; mode = 'saved'; render();
+        } catch (er) { all.disabled = false; toast('Stopped: ' + (er.message || er), 6000); }
+      };
+      const cap = $('#pCap'); if (cap) cap.oninput = () => { caption = cap.value; };
+    }
+    if (mode === 'saved') {
+      $$('#pForm [data-pick]').forEach(li => li.onclick = e => { if (e.target.dataset.forget) return; pick = li.dataset.pick; render(); });
+      $$('#pForm [data-forget]').forEach(b => b.onclick = async () => {
+        const x = state.partySlides.find(y => y.id === b.dataset.forget);
+        if (partyOn() && state.settings.only_slide === x.id) return toast("That's on the TV now. Go back to normal first.");
+        const bk = (state.bookings || []).find(y => y.slide_id === x.id);
+        if (bk) return toast(`That's booked for ${whenText(bk.starts_at)}. Cancel the booking first.`, 5000);
+        const { error } = await sb.from('tv_slides').delete().in('id', [x.id].concat(x.linked ? [x.linked] : []));   // and its partner on the other screen
+        if (error) return toast('Not deleted: ' + error.message, 5000);
+        if (x.media_path) sb.storage.from('tv').remove([x.media_path]).catch(() => {});
+        await load(); if (pick === x.id) pick = (state.partySlides[0] || {}).id || null; if (!state.partySlides.length) mode = 'message'; render();
+      });
+    }
+    $('#pForm').onsubmit = async e => {
+      e.preventDefault();
+      let until, starts = null;
+      // Same place: either is for all locations, or they share one
+      const sameWhere = b => { const bl = findSlide(b.slide_id).locations; return !where || !bl || !bl.length || bl.includes(where); };
+      if (when === 'later') {
+        keep();
+        if (!bDate || !bFrom || !bTo) return toast('Fill in the date, start and end times.');
+        starts = new Date(`${bDate}T${bFrom}`); until = new Date(`${bDate}T${bTo}`);
+        if (until <= starts) until.setDate(until.getDate() + 1);   // ends after midnight
+        if (until <= new Date()) return toast('That time has already passed.');
+        const clash = (state.bookings || []).find(b => new Date(b.starts_at) < until && new Date(b.ends_at) > starts && sameWhere(b));
+        if (clash) return toast(`Another party is booked then${where ? ' at ' + locName([where]) : ''} (${whenText(clash.starts_at)} to ${timeText(clash.ends_at)}).`, 6000);
+      } else { const v = $('#pFor').value;
+      if (v === 'day') { const d = new Date(); d.setHours(23, 59, 0, 0); until = d; }
+      else if (v === 'until') {
+        if (!$('#pUntil').value) return toast('Choose the time to stop.');
+        const [h, m] = $('#pUntil').value.split(':').map(Number), d = new Date(); d.setHours(h, m, 0, 0);
+        if (d <= new Date()) d.setDate(d.getDate() + 1);   // a time earlier than now means tomorrow
+        until = d;
+      } else until = new Date(Date.now() + Number(v) * 60e3); }
+      keep();
+      const locs = where ? [where] : null;
+      let id = null, id2 = null, rec = null, rec2 = null;
+      const fail = msg => { $('#pGo').disabled = false; toast(msg, 6000); };
+      $('#pGo').disabled = true;
+      try {
+        if (mode === 'saved') {
+          id = pick; const sl = state.partySlides.find(x => x.id === pick) || {};
+          if (both) { if (sl.linked) id2 = sl.linked; else rec2 = { kind: sl.kind, title: sl.title, body: sl.body, media_path: sl.media_path, theme: sl.theme, locations: locs }; }
+          if (state.locations) { const { error } = await sb.from('tv_slides').update({ locations: locs }).in('id', [id].concat(id2 ? [id2] : [])); if (error) throw error; }
+        } else if (mode === 'poster') {
+          const t = (state.templates || []).find(x => x.id === tplId), nm = $('#pPoster') ? $('#pPoster').value.trim() : '';
+          if (!t) return fail('Pick a poster first.');
+          if (!nm) return fail("Type the birthday child's name.");
+          const make = async d => ({ kind: 'photo', title: `${nm} (${t.title})`, media_path: await upload('photos', await posterBlob(variant(t, d), nm, 'image/jpeg'), 'jpg', 'image/jpeg') });
+          rec = await make(state.display);
+          if (both) rec2 = await make(other());
+        } else if (mode === 'message') {
+          const n = $('#pName').value.trim(), h = $('#pHead').value.trim() || 'Happy Birthday!';
+          rec = { kind: 'text', theme: 'party', title: n ? h.replace(/!?\s*$/, '') + ' ' + n + '!' : h, body: $('#pLine').value.trim() || null };
+          if (both) rec2 = { ...rec };
+        } else {
+          if (!photo) return fail(pages ? 'Tap the design to show first.' : 'Choose the image first.');
+          rec = { kind: 'photo', media_path: photo, title: ($('#pCap') ? $('#pCap').value.trim() : caption) || null };
+          if (both) rec2 = { ...rec };
+        }
+        const add = async (r, d, linked) => {
+          const { data, error } = await sb.from('tv_slides').insert({ ...r, ...(state.locations ? { locations: locs } : {}), display: d, party: true, linked: linked || null }).select('id').single();
+          if (error) throw error;
+          return (Array.isArray(data) ? data[0] : data || {}).id;
+        };
+        if (rec) id = await add(rec, state.display);
+        if (rec2) {   // the other screen's copy, linked both ways
+          id2 = await add(rec2, other(), id);
+          const { error } = await sb.from('tv_slides').update({ linked: id2 }).eq('id', id);
+          if (error) throw error;
+        }
+      } catch (er) { return fail('Not saved: ' + (er.message || er)); }
+      if (!id) { $('#pGo').disabled = false; return toast('Choose what to show.'); }
+      dlg.close();
+      const whereTxt = (id2 ? 'The TV and the tablets switch' : (state.display === 'tv' ? 'The TV switches' : 'The tablets switch')) + (locs ? ` at ${locName(locs)}` : '');
+      if (!starts && state.bookings) {
+        // "Start now" is a booking from now, so different locations can each have a party at once.
+        // One already on for the same place ends now (it's being replaced).
+        const now = new Date();
+        for (const b of state.bookings.filter(b => new Date(b.starts_at) <= now && new Date(b.ends_at) > now && sameWhere(b))) await moveBooking(b, now.toISOString(), true);
+        if (partyOn()) await setParty(null, null);
+        starts = now; var nowStart = true;
+      }
+      if (starts) {
+        const rows = [id].concat(id2 ? [id2] : []).map(x => ({ slide_id: x, starts_at: starts.toISOString(), ends_at: until.toISOString() }));
+        const { error } = await sb.from('tv_party_bookings').insert(rows);
+        if (error) { toast('Not booked: ' + error.message, 6000); return load(); }
+        toast(nowStart ? `Party mode on until ${timeText(until.toISOString())}. ${whereTxt} within 20 seconds.` : `Booked for ${whenText(starts.toISOString())} to ${timeText(until.toISOString())}. ${whereTxt} on and off by itself.`, 6000);
+        return load();
+      }
+      if (await setParty(id, until.toISOString(), id2 ? id2 : undefined)) toast(`Party mode on until ${timeText(until.toISOString())}. ${whereTxt} within 20 seconds.`, 5000);
+    };
+  };
+  render();
+}
+
+/* ---------- Birthday posters: a template with the name drawn on ---------- */
+const imgCache = {};
+function loadImg(src) {
+  if (!imgCache[src]) imgCache[src] = new Promise((ok, bad) => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => ok(im); im.onerror = () => { delete imgCache[src]; bad(new Error('Could not load that design.')); };
+    im.src = src;
+  });
+  return imgCache[src];
+}
+const tplSrc = t => t._local || (MEDIA + t.image_path);
+const drawSeq = {};
+async function drawPoster(canvas, t, name) {
+  const key = canvas.id || 'x', seq = drawSeq[key] = (drawSeq[key] || 0) + 1;
+  try { const im = await loadImg(tplSrc(t)); if (seq !== drawSeq[key]) return; await AMAPoster.render(canvas, im, t.settings, name); }
+  catch (er) { toast(er.message || String(er), 5000); }
+}
+async function posterBlob(t, name, type) {
+  const c = document.createElement('canvas');
+  await AMAPoster.render(c, await loadImg(tplSrc(t)), t.settings, name);
+  return new Promise((ok, bad) => c.toBlob(b => b ? ok(b) : bad(new Error('Could not make the poster.')), type, 0.9));
+}
+function openTemplates() {
+  const list = state.templates || [];
+  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Poster templates</h3><p class="hint">Designs with the name area left empty. The name is drawn on when you make a poster.</p></div><button class="x" data-close>Close</button></div>
+    <ul class="saved">${list.map(t => `<li>${`<div class="thumb" style="background-image:url('${MEDIA + esc(t.image_path)}')"></div>`}<div class="grow"><b>${esc(t.title)}</b><div class="hint">${hasTablet(t) ? 'TV and tablet versions' : 'TV version only'}</div></div>
+      <button type="button" class="btn sm" data-edit="${t.id}">TV</button><button type="button" class="btn sm" data-tab="${t.id}">${hasTablet(t) ? 'Tablet' : 'Add tablet'}</button><button type="button" class="btn sm danger" data-del="${t.id}" aria-label="Delete ${esc(t.title)}">Delete</button></li>`).join('') || '<li class="hint">None yet.</li>'}</ul>
+    <div class="row"><button type="button" class="btn primary" id="tAdd">Add template</button><button type="button" class="btn" id="tImport">Import</button><span class="grow"></span><button type="button" class="btn" id="tBack">Back to party mode</button></div></div>`);
+  $('#tAdd').onclick = () => openTemplate(null);
+  $('#tImport').onclick = () => importTemplates(openTemplates);
+  $('#tBack').onclick = () => openParty();
+  $$('#dlg [data-edit]').forEach(b => b.onclick = () => openTemplate(list.find(t => t.id === b.dataset.edit)));
+  $$('#dlg [data-tab]').forEach(b => b.onclick = () => openTemplate(list.find(t => t.id === b.dataset.tab), 'tablet'));
+  $$('#dlg [data-del]').forEach(b => b.onclick = async () => {
+    const t = list.find(x => x.id === b.dataset.del);
+    if (!await confirmBox(`Delete the "${t.title}" template? Posters already made with it are kept.`, 'Delete')) return openTemplates();
+    const { error } = await sb.from('tv_poster_templates').delete().eq('id', t.id);
+    if (error) return toast('Not deleted: ' + error.message, 5000);
+    sb.storage.from('tv').remove([t.image_path].concat(t.tablet_image_path ? [t.tablet_image_path] : [])).catch(() => {});
+    await load(); openTemplates();
+  });
+}
+// Add or change a template: the design, where the name goes (drag a box on the preview) and how it looks
+// ver 'tablet': the template's upright version for the tablets (same lettering to start with, its own name area)
+function openTemplate(existing, ver) {
+  const tab = ver === 'tablet';
+  const base = { font: 'Luckiest Guy', fill: '#ffffff', stroke: '#000000', strokeWidth: 0.09, curve: 0, spacing: 0, uppercase: true, box: { cx: 960, cy: 540, h: 180, maxW: 1200 } };
+  const copy = o => JSON.parse(JSON.stringify(o));
+  const t = tab ? { title: existing.title, image_path: existing.tablet_image_path || null,
+      settings: existing.tablet_settings ? copy(existing.tablet_settings) : { ...copy(existing.settings), size: undefined, box: { cx: 620, cy: 780, h: 150, maxW: 900 }, w: 1240, h: 1754 } }
+    : existing ? { ...existing, settings: copy(existing.settings) } : { title: '', settings: base, image_path: null };
+  if (tab && t.settings.box && t.settings.box.h) delete t.settings.size;   // a new tablet version: sized from its name box (keep the size of one with just a baseline)
+  let blob = null, pages = null, sample = (existing && existing.settings.sample) || 'Kian';
+  const S = () => t.settings;
+  const view = () => {
+    const st = S();
+    openDlg(`<form class="dlg" id="tForm"><div class="dlg-head"><div><h3>${tab ? `${esc(t.title)}: tablet version` : existing ? 'Edit template' : 'Add template'}</h3><p class="hint">${tab ? 'The upright design for the tablets (A4 shape), with the name area left empty.' : 'Use the design with the name area left empty'} (in Canva, delete the name and download it as PNG or PDF).</p></div><button class="x" data-close>Close</button></div>
+      ${pages ? `<p class="hint">Pick the page to use.</p><div class="pages">${pages.map((p, i) => `<button type="button" data-tpage="${i}"><img src="${p.url}" alt="Page ${p.page}"><span>Page ${p.page}</span></button>`).join('')}</div>`
+      : !t.image_path && !blob ? `<div class="row"><button type="button" class="btn primary" id="tPick">Choose the design</button><span class="hint">Image or PDF, ${tab ? 'upright like the tablets' : '16:9 like the TV'}</span></div>`
+      : `<canvas class="posterprev${tab ? ' up' : ''}" id="tCanvas" width="${st.w || 1920}" height="${st.h || 1080}"></canvas>
+        <p class="hint">Drag on the preview to mark where the name goes (the height of the letters, and how wide it can get).</p>
+        <div class="grid2"><div class="field"><label for="tTitle">Template name</label><input type="text" id="tTitle" maxlength="60" required value="${esc(t.title)}" placeholder="e.g. Ninja"${tab ? ' readonly' : ''}></div>
+          <div class="field"><label for="tSample">Try a name</label><input type="text" id="tSample" maxlength="40" value="${esc(sample)}"></div></div>
+        <div class="grid2"><div class="field"><label for="tFont">Lettering</label><select id="tFont">${Object.keys(AMAPoster.FONTS).map(f => `<option${f === st.font ? ' selected' : ''}>${f}</option>`).join('')}</select></div>
+          <div class="field"><span class="label">Colours</span><div class="row"><label class="check" style="min-height:0"><input type="color" id="tFill" value="${esc(st.fill || '#ffffff')}"> Letters</label><label class="check" style="min-height:0"><input type="color" id="tStroke" value="${esc(st.stroke || '#000000')}"> Outline</label></div></div></div>
+        <div class="field"><label for="tSw">Outline thickness</label><div class="range"><input type="range" id="tSw" min="0" max="0.16" step="0.005" value="${st.stroke ? st.strokeWidth || 0 : 0}"></div></div>
+        <div class="grid2"><div class="field"><label for="tCurve">Curve</label><div class="range"><input type="range" id="tCurve" min="0" max="30" step="1" value="${st.curve || 0}"></div></div>
+          <div class="field"><label for="tSpace">Letter spacing</label><div class="range"><input type="range" id="tSpace" min="0" max="0.2" step="0.01" value="${st.spacing || 0}"></div></div></div>
+        <label class="check"><input type="checkbox" id="tCaps" ${st.uppercase ? 'checked' : ''}> Capital letters</label>
+        <div class="row"><button type="button" class="btn sm" id="tPick">Change the design</button><span class="grow"></span><button type="button" class="btn" id="tCancel">Cancel</button><button class="btn primary" type="submit" id="tSave">Save template</button></div>`}
+    </form>`);
+    const pickBtn = $('#tPick'); if (pickBtn) pickBtn.onclick = () => { $('#pickTpl').onchange = async e => {
+      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      try {
+        if (isPdf(f)) { toast('Reading the PDF...', 0); pages = tab ? await pdfPages(f, null, 1240, 1754) : await pdfPages(f); toast('Ready', 800); if (pages.length === 1) { await useBlob(pages[0].blob); pages = null; } }
+        else await useBlob(tab ? await resize(f, 1240, 1754) : await resize(f));
+        view();
+      } catch (er) { toast(er.message || String(er), 6000); }
+    }; $('#pickTpl').click(); };
+    const useBlob = async b => {
+      blob = b; t._local = URL.createObjectURL(b);
+      if (tab) {   // the poster is the design's own size; keep the name area in proportion
+        const im = await loadImg(t._local), st = S(), ow = st.w || 1240, oh = st.h || 1754;
+        st.w = im.naturalWidth; st.h = im.naturalHeight;
+        const k = st.w / ow; st.box = { ...st.box, cx: Math.round(st.box.cx * k), maxW: Math.round(st.box.maxW * k) };
+        ['cy', 'base', 'h'].forEach(c => { if (st.box[c] != null) st.box[c] = Math.round(st.box[c] * st.h / oh); });
+      }
+    };
+    $$('#tForm [data-tpage]').forEach(b => b.onclick = async () => { await useBlob(pages[+b.dataset.tpage].blob); pages = null; view(); });
+    const cv = $('#tCanvas'); if (!cv) return;
+    const read = () => {
+      const st = S();
+      st.font = $('#tFont').value; st.weight = AMAPoster.FONTS[st.font].weight; st.fill = $('#tFill').value;
+      const sw = +$('#tSw').value; st.stroke = sw > 0 ? $('#tStroke').value : ''; st.strokeWidth = sw;
+      st.curve = +$('#tCurve').value; st.spacing = +$('#tSpace').value; st.uppercase = $('#tCaps').checked;
+      sample = $('#tSample').value; t.title = $('#tTitle').value;
+    };
+    let drag = null;
+    const redraw = async () => {
+      await drawPoster(cv, t, sample);
+      const g = cv.getContext('2d'), b = drag || S().box;
+      if (b && (drag || !S().size)) {   // show the name area
+        const w = b.maxW, h = b.h || 0, x = b.cx - w / 2, y = (b.cy != null ? b.cy : b.base) - h / 2;
+        g.save(); g.setLineDash([18, 12]); g.lineWidth = 5; g.strokeStyle = '#00e0ff'; g.strokeRect(x, y, w, h); g.restore();
+      }
+    };
+    ['#tFont', '#tFill', '#tStroke', '#tSw', '#tCurve', '#tSpace', '#tCaps', '#tSample'].forEach(id => { $(id).oninput = () => { read(); redraw(); }; });
+    // Drag to mark the name area (in poster pixels)
+    const at = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * cv.width, y: (e.clientY - r.top) / r.height * cv.height }; };
+    let start = null;
+    cv.onpointerdown = e => { start = at(e); cv.setPointerCapture(e.pointerId); };
+    cv.onpointermove = e => {
+      if (!start) return; const p = at(e);
+      const w = Math.abs(p.x - start.x), h = Math.abs(p.y - start.y);
+      if (w < 20 || h < 20) return;
+      drag = { cx: (p.x + start.x) / 2, cy: (p.y + start.y) / 2, h, maxW: w }; redraw();
+    };
+    cv.onpointerup = () => {
+      if (drag) { const st = S(); st.box = { cx: Math.round(drag.cx), cy: Math.round(drag.cy), h: Math.round(drag.h), maxW: Math.round(drag.maxW) }; delete st.size; }
+      start = null; drag = null; redraw();
+    };
+    $('#tCancel').onclick = () => openTemplates();
+    $('#tForm').onsubmit = async e => {
+      e.preventDefault(); read();
+      if (!t.title.trim()) return toast('Give the template a name.');
+      $('#tSave').disabled = true;
+      try {
+        let path = t.image_path;
+        if (blob) path = await upload('templates', blob, 'jpg', 'image/jpeg');
+        const st = { ...S(), sample }; if (tab) { st.w = st.w || 1240; st.h = st.h || 1754; }
+        const rec = tab ? { tablet_image_path: path, tablet_settings: st } : { title: t.title.trim(), image_path: path, settings: st };
+        const { error } = existing ? await sb.from('tv_poster_templates').update({ ...rec, updated_at: new Date().toISOString() }).eq('id', existing.id)
+          : await sb.from('tv_poster_templates').insert({ ...rec, position: (state.templates || []).length + 1 });
+        if (error) throw error;
+        const old = existing && (tab ? existing.tablet_image_path : existing.image_path);
+        if (blob && old) sb.storage.from('tv').remove([old]).catch(() => {});
+        toast('Template saved'); await load(); openTemplates();
+      } catch (er) { $('#tSave').disabled = false; toast('Not saved: ' + (er.message || er), 6000); }
+    };
+    redraw();
+  };
+  view();
+}
+// Import a templates file: { app: 'ama-tv-templates', templates: [{ title, settings, image: 'data:image/jpeg;base64,...',
+//   tablet: { settings, image } }] }. A template already here (same title) gets the file's tablet version added or updated.
+function importTemplates(after) {
+  $('#pickImport').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    let list;
+    try { const j = JSON.parse(await f.text()); list = (j.templates || []).filter(x => x && x.title && ((x.image && x.settings) || (x.tablet && x.tablet.image && x.tablet.settings))); if (!list.length) throw new Error(); }
+    catch (er) { return toast("That isn't a poster templates file.", 5000); }
+    const tpls = state.templates || [];
+    // Find the template a file entry belongs to: same name, or one of its other names (e.g. Hedgehog / Sonic)
+    const norm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const findFor = x => {
+      const keys = [x.title].concat(x.match || []).map(norm).filter(Boolean);
+      return tpls.find(t => keys.includes(norm(t.title))) || tpls.find(t => keys.some(k => k.length > 3 && norm(t.title).includes(k)));
+    };
+    let added = 0, tablets = 0, skipped = 0, n = 0;
+    const unmatched = [], used = new Set();
+    const up = async img => { const b = await (await fetch(img)).blob(); return upload('templates', b, 'jpg', b.type || 'image/jpeg'); };
+    const addTablet = async (cur, x) => {
+      const path = await up(x.tablet.image);
+      const { error } = await sb.from('tv_poster_templates').update({ tablet_image_path: path, tablet_settings: x.tablet.settings, updated_at: new Date().toISOString() }).eq('id', cur.id);
+      if (error) throw error;
+      if (cur.tablet_image_path) sb.storage.from('tv').remove([cur.tablet_image_path]).catch(() => {});
+      tablets++; used.add(cur.id);
+    };
+    try {
+      for (const x of list) {
+        toast(`Importing ${++n} of ${list.length}...`, 0);
+        const cur = findFor(x);
+        if (cur && used.has(cur.id) && x.tablet) { unmatched.push(x); continue; }
+        if (!cur) {
+          if (!x.image || !x.settings) { unmatched.push(x); continue; }   // a tablet version on its own: ask which template it's for
+          const rec = { title: x.title, image_path: await up(x.image), settings: x.settings, position: tpls.length + added + 1 };
+          if (x.tablet) { rec.tablet_image_path = await up(x.tablet.image); rec.tablet_settings = x.tablet.settings; tablets++; }
+          const { error } = await sb.from('tv_poster_templates').insert(rec); if (error) throw error; added++;
+        } else if (x.tablet) await addTablet(cur, x);
+        else skipped++;
+      }
+    } catch (er) { toast('Import stopped: ' + (er.message || er), 6000); await load(); return; }
+    const done = () => toast([added && `Imported ${added} template${added === 1 ? '' : 's'}`, tablets && `added ${tablets} tablet version${tablets === 1 ? '' : 's'}`, skipped && `skipped ${skipped} already here`].filter(Boolean).join(', ') || 'Nothing new in that file.', 5000);
+    await load();
+    if (!unmatched.length || !(state.templates || []).length) { done(); if (after) after(); return; }
+    // Some tablet versions didn't match a template by name: pick which template each one goes with
+    const free = () => (state.templates || []);
+    openDlg(`<form class="dlg" id="mForm"><div class="dlg-head"><div><h3>Which template is each one for?</h3><p class="hint">${tablets ? `Added ${tablets} tablet version${tablets === 1 ? '' : 's'}. ` : ''}These didn't match a template by name. Pick the template each tablet design goes with.</p></div><button class="x" data-close>Close</button></div>
+      <ul class="saved">${unmatched.map((x, i) => `<li><div class="thumb" style="width:40px;height:56px;background-image:url('${x.tablet.image}')"></div><div class="grow"><b>${esc(x.title)}</b>
+        <select data-match="${i}" aria-label="Template for ${esc(x.title)}" style="margin-top:4px"><option value="">Skip</option>${free().map(t => `<option value="${t.id}">${esc(t.title)}${hasTablet(t) ? ' (replace its tablet version)' : ''}</option>`).join('')}</select></div></li>`).join('')}</ul>
+      <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="mSave">Add tablet versions</button></div></form>`);
+    $('#mForm').onsubmit = async ev => {
+      ev.preventDefault(); $('#mSave').disabled = true;
+      try {
+        for (const sel of $$('#mForm [data-match]')) {
+          if (!sel.value) continue;
+          const cur = (state.templates || []).find(t => t.id === sel.value);
+          toast('Adding...', 0); await addTablet(cur, unmatched[+sel.dataset.match]);
+        }
+        dlg.close(); await load(); done(); if (after) after();
+      } catch (er) { $('#mSave').disabled = false; toast('Stopped: ' + (er.message || er), 6000); }
+    };
+  };
+  $('#pickImport').click();
+}
+
+/* ---------- Sign-in page: test it shows inside the display ---------- */
+function signinHint() {
+  const mode = $('#setSigninOpen').value, page = mode !== 'frame';
+  $('#signinIdleRow').hidden = page; $('#signinTest').hidden = page; $('#kioskRow').hidden = mode !== 'kiosk';
+  $('#signinHint').innerHTML = mode === 'kiosk'
+    ? 'In FreeKiosk on each tablet: <b>Start URL</b> = the sign-in page above; <b>Screensaver</b> on, its URL = this tablet link, delay e.g. 60 seconds, brightness normal; <b>REST API</b> on (port as above). During a party (or a blackout) the tablet puts it on the main screen within 20 seconds, so taps don\'t leave it, then goes back to the sign-in page. Without the REST API, a tap during a party shows the sign-in page until the screensaver comes back.'
+    : page
+    ? 'The slides show with "Tap to sign in"; a tap opens the sign-in page. To come back to the slides by itself, run the tablet link in the <b>Fully Kiosk Browser</b> app with <b>Auto Reload on Idle</b> set (e.g. 60 seconds). During a party (or a blackout) taps do nothing.'
+    : 'The screen shows this page. When nobody has used it for that long, it shows the slides; a tap brings the sign-in page back, fresh for the next person. During a party (or a blackout) it stays on that and taps do nothing. Use Test: some sites (like ESC) refuse to be shown inside another page.';
+}
+$('#setSigninOpen').onchange = signinHint;
+$('#signinTest').onclick = () => {
+  const raw = $('#setSignin').value.trim(), url = raw ? cleanLink(raw) : '';
+  if (!url) return toast('Paste the sign-in link first.');
+  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Sign-in page test</h3><p class="hint">If the sign-in page shows below, it will work on the ${noun()}. If this stays blank or says it refused to connect, that site doesn't allow being shown inside another page.</p></div><button class="x" data-close>Close</button></div>
+    <iframe src="${esc(url)}" title="Sign-in page test" style="width:100%;height:min(60vh,560px);border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>
+    <div class="row"><a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">Open it on its own</a></div></div>`);
+};
+
+/* ---------- Scheduled screen-off times ---------- */
+let offState = [];
+const DAYS3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function offFor() {   // who it's for: every device, a location, or one named device
+  const locs = (state.locations || []).map(l => [`loc:${l.slug}`, `At ${l.name}`]);
+  const devs = (state.screens || []).map((x, i) => [`dev:${x.screen_id}`, x.name ? `Only ${x.name}` : `Only ${noun()} ${i + 1}`]);
+  return [['all', `Every ${noun()}`]].concat(locs, devs);
+}
+function drawOffs() {
+  const opts = offFor();
+  $('#offRows').innerHTML = offState.map((o, i) => {
+    const has = opts.some(([v]) => v === (o.for || 'all'));
+    return `<li data-off="${i}"><div class="dw" role="group" aria-label="Days">${[1, 2, 3, 4, 5, 6, 0].map(d => `<button type="button" data-d="${d}" aria-pressed="${o.days.includes(d)}">${DAYS3[d]}</button>`).join('')}</div>
+      <div class="tm"><label class="label" style="margin:0">At</label><input type="time" data-at value="${esc(o.at || '')}" aria-label="Time">
+        <label class="label" style="margin:0">for</label><input type="number" data-min min="1" max="720" value="${o.minutes || 5}" aria-label="Minutes"><span class="hint">min</span></div>
+      <div class="tm"><select data-for aria-label="Which screens">${opts.map(([v, t]) => `<option value="${esc(v)}"${(o.for || 'all') === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}${has ? '' : `<option value="${esc(o.for)}" selected>A device no longer here</option>`}</select>
+        <button type="button" class="btn sm danger" data-offdel aria-label="Remove this time">Remove</button></div></li>`;
+  }).join('') || '<li class="hint" style="border:0;padding:0">None yet.</li>';
+  $$('#offRows [data-d]').forEach(b => b.onclick = () => { readOffs(); const o = offState[+b.closest('[data-off]').dataset.off], d = +b.dataset.d;
+    o.days = o.days.includes(d) ? o.days.filter(x => x !== d) : o.days.concat(d).sort(); drawOffs(); });
+  $$('#offRows [data-offdel]').forEach(b => b.onclick = () => { readOffs(); offState.splice(+b.closest('[data-off]').dataset.off, 1); drawOffs(); });
+}
+function readOffs() {
+  $$('#offRows [data-off]').forEach(li => { const o = offState[+li.dataset.off]; if (!o) return;
+    o.at = li.querySelector('[data-at]').value; o.minutes = +li.querySelector('[data-min]').value; o.for = li.querySelector('[data-for]').value; });
+}
+$('#offAdd').onclick = () => {
+  readOffs();
+  const last = offState[offState.length - 1];
+  // A copy of the last one, 30 minutes later (Saturday 10:00, 10:30, 11:00 ...)
+  let at = '10:00';
+  if (last && last.at) { const [h, m] = last.at.split(':').map(Number), t = (h * 60 + m + 30) % 1440; at = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; }
+  offState.push(last ? { ...last, days: last.days.slice(), at } : { days: [6], at, minutes: 5, for: 'all' });
+  drawOffs();
+};
+
+/* ---------- Slideshow hours for each day (used in Settings and for each location) ---------- */
+const DAYN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function hoursRows(p, days) {
+  return [1, 2, 3, 4, 5, 6, 0].map(d => { const h = days[d];
+    return `<tr data-day="${d}" class="${h ? '' : 'closed'}"><td><label class="check" style="min-height:0"><input type="checkbox" id="${p}${d}On" ${h ? 'checked' : ''}> ${DAYN[d].slice(0, 3)}</label></td>
+      <td><span class="shut">Off all day</span><input type="time" id="${p}${d}From" value="${esc(h ? h.on : '15:00')}" aria-label="${DAYN[d]} from"></td>
+      <td><input type="time" id="${p}${d}To" value="${esc(h ? h.off : '21:00')}" aria-label="${DAYN[d]} until"></td></tr>`; }).join('');
+}
+function hoursWire(p, body, copy, msg) {
+  $$(`${body} input[type=checkbox]`).forEach(c => c.onchange = () => { c.closest('tr').classList.toggle('closed', !c.checked); });
+  $(copy).onclick = () => { [2, 3, 4, 5].forEach(d => {
+    $(`#${p}${d}On`).checked = $(`#${p}1On`).checked; $(`#${p}${d}From`).value = $(`#${p}1From`).value; $(`#${p}${d}To`).value = $(`#${p}1To`).value; $(`#${p}${d}On`).onchange(); }); toast(msg); };
+}
+// The hours as saved: {"1": {"on": "15:00", "off": "21:00"}, "0": null, ...}, or a message saying what's wrong
+function hoursRead(p) {
+  const days = {};
+  for (let d = 0; d < 7; d++) {
+    if (!$(`#${p}${d}On`).checked) { days[d] = null; continue; }
+    const on = $(`#${p}${d}From`).value, off = $(`#${p}${d}To`).value;
+    if (!on || !off) return `Fill in both times for ${DAYN[d]}.`;
+    if (off <= on) return `${DAYN[d]}: the end time must be after the start time.`;
+    days[d] = { on, off };
+  }
+  return days;
+}
+const hoursText = h => { const open = [1, 2, 3, 4, 5, 6, 0].filter(d => h[d]); return open.length ? open.map(d => `${DAYN[d].slice(0, 3)} ${h[d].on}-${h[d].off}`).join(', ') : 'Off every day'; };
+
+/* ---------- Locations ---------- */
+function drawLocations() {
+  const box = $('#locCard');
+  if (!state.locations) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="grow"><h3>Locations</h3>
+    <p class="hint">${state.locations.length ? esc(state.locations.map(l => l.name).join(', ')) : 'None yet.'} Give each ${noun()} a location in the status card above; slides and parties can be for one location or all.</p>
+    ${state.locations.some(l => l.hours) ? `<ul class="booked">${state.locations.filter(l => l.hours).map(l => `<li><div class="grow"><b>${esc(l.name)}</b><div class="when">Own slideshow hours: ${esc(hoursText(l.hours))}</div></div></li>`).join('')}</ul>` : ''}</div>
+    <button class="btn" id="locEdit">Edit</button></div>`;
+  $('#locEdit').onclick = openLocations;
+}
+function openLocations() {
+  const slugOf = n => n.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30);
+  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Locations</h3><p class="hint">Renaming keeps everything at that location. Removing one leaves its devices with no location.</p></div><button class="x" data-close>Close</button></div>
+    <ul class="saved">${state.locations.map(l => `<li><input type="text" data-loc="${esc(l.slug)}" value="${esc(l.name)}" maxlength="40" aria-label="Name of ${esc(l.name)}" class="grow">${'hours' in l ? `<button type="button" class="btn sm" data-locset="${esc(l.slug)}" aria-label="Settings for ${esc(l.name)}">Settings</button>` : ''}<button type="button" class="btn sm danger" data-locdel="${esc(l.slug)}" aria-label="Remove ${esc(l.name)}">Remove</button></li>`).join('')}</ul>
+    <form id="locAdd" class="row"><input type="text" id="locNew" maxlength="40" placeholder="New location, e.g. Parramatta" class="grow" style="flex:1 1 160px;width:auto"><button class="btn" type="submit">Add</button></form></div>`);
+  $$('#dlg [data-loc]').forEach(i => i.onchange = async () => {
+    const v = i.value.trim(); if (!v) { i.value = (state.locations.find(l => l.slug === i.dataset.loc) || {}).name; return; }
+    const { error } = await sb.from('tv_locations').update({ name: v }).eq('slug', i.dataset.loc);
+    if (error) return toast('Not saved: ' + error.message, 5000);
+    toast('Saved'); await load(); openLocations();
+  });
+  $$('#dlg [data-locset]').forEach(b => b.onclick = () => openLocSettings(state.locations.find(x => x.slug === b.dataset.locset)));
+  $$('#dlg [data-locdel]').forEach(b => b.onclick = async () => {
+    const l = state.locations.find(x => x.slug === b.dataset.locdel);
+    if (!await confirmBox(`Remove ${l.name}? Its devices will have no location until you give them one.`, 'Remove')) return openLocations();
+    const { error } = await sb.from('tv_locations').delete().eq('slug', l.slug);
+    if (error) return toast('Not removed: ' + error.message, 5000);
+    await load(); openLocations();
+  });
+  $('#locAdd').onsubmit = async e => {
+    e.preventDefault(); const name = $('#locNew').value.trim(), slug = slugOf(name);
+    if (slug.length < 2) return toast('Type the location name.');
+    if (state.locations.some(l => l.slug === slug)) return toast('That location is already there.');
+    const { error } = await sb.from('tv_locations').insert({ slug, name, position: state.locations.length + 1 });
+    if (error) return toast('Not added: ' + error.message, 5000);
+    await load(); openLocations();
+  };
+}
+
+// A location's own settings: its slideshow hours (for the TV and the tablets there)
+function openLocSettings(l) {
+  if (!l) return;
+  let own = !!l.hours;
+  const main = (state.settings && state.settings.quiet_days) || null;
+  const start = l.hours || main || { 0: null, 1: { on: '15:00', off: '21:00' }, 2: { on: '15:00', off: '21:00' }, 3: { on: '15:00', off: '21:00' }, 4: { on: '15:00', off: '21:00' }, 5: { on: '15:00', off: '21:00' }, 6: { on: '08:00', off: '13:00' } };
+  openDlg(`<form class="dlg" id="lsForm"><div class="dlg-head"><div><h3>${esc(l.name)}</h3><p class="hint">Settings for every TV and tablet at ${esc(l.name)}.</p></div><button class="x" data-close>Close</button></div>
+    <div class="field"><span class="label">Slideshow hours</span>
+      <label class="check"><input type="radio" name="lsOwn" value="main" ${own ? '' : 'checked'}> Same as the main settings for each screen</label>
+      <label class="check"><input type="radio" name="lsOwn" value="own" id="lsOwn" ${own ? 'checked' : ''}> Its own hours</label></div>
+    <div id="lsHours" ${own ? '' : 'hidden'} style="display:flex;flex-direction:column;gap:10px">
+      <table class="days"><tbody id="lsDays">${hoursRows('ld', start)}</tbody></table>
+      <div class="row"><button type="button" class="btn sm" id="lsCopy">Copy Monday to Tuesday to Friday</button></div>
+      <p class="hint" style="margin:0">Outside these hours the screens show the logo or a black screen (as set in each screen's Settings). A party still shows at any time.</p></div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="lsGo">Save</button></div></form>`);
+  hoursWire('ld', '#lsDays', '#lsCopy', 'Copied. Save to keep it.');
+  $$('#lsForm input[name=lsOwn]').forEach(r => r.onchange = () => { own = $('#lsOwn').checked; $('#lsHours').hidden = !own; });
+  $('#lsForm').onsubmit = async e => {
+    e.preventDefault();
+    let hours = null;
+    if (own) { hours = hoursRead('ld'); if (typeof hours === 'string') return toast(hours); }
+    const { error } = await sb.from('tv_locations').update({ hours }).eq('slug', l.slug);
+    if (error) return toast('Not saved: ' + error.message, 5000);
+    dlg.close(); toast(`Saved. Screens at ${l.name} change within a few seconds.`, 4000); await load();
+  };
+}
+
+/* ---------- Settings ---------- */
+const screenLink = () => `https://app.train-ama.com/tv/?code=${encodeURIComponent(state.settings.screen_code)}${$('#linkLoc') && $('#linkLoc').value ? '&loc=' + encodeURIComponent($('#linkLoc').value) : ''}`;
+$('#linkLoc').onchange = () => { $('#screenLink').textContent = screenLink(); };
+$('#copyLink').onclick = async () => {
+  try { await navigator.clipboard.writeText(screenLink()); toast('Link copied'); }
+  catch (e) { toast('Could not copy. Press and hold the link to copy it.', 4000); }
+};
+$('#qrLink').onclick = async () => {
+  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Scan on the ${noun()}</h3><p class="hint">Point the ${noun()}'s camera at this code and open the link.</p></div><button class="x" data-close>Close</button></div>
+    <canvas id="linkQr" width="320" height="320" style="width:min(320px,100%);aspect-ratio:1;align-self:center;background:#fff;border-radius:10px"></canvas>
+    <p class="hint" style="word-break:break-all;text-align:center">${esc(screenLink())}</p></div>`);
+  try { await drawQr($('#linkQr'), screenLink(), 640); } catch (er) { toast(er.message || String(er), 5000); }
+};
+/* ---------- Staff code: back to normal on one device ---------- */
+function drawPin() {
+  const P = state.pin; $('#pinBox').hidden = !P; if (!P) return;
+  $('#pinHint').innerHTML = `During a party or blackout, staff can hold the top-left corner of a ${noun() === 'TV' ? 'screen' : 'tablet'} for 3 seconds and type this code. Just that ${noun() === 'TV' ? 'screen' : 'tablet'} goes back to normal${state.display === 'tablet' ? ' (the sign-in page)' : ''}; the others carry on. The same code works on the TV and the tablets. `
+    + (P.set ? `<b>A code is set</b>${P.updated_by ? ` (by ${esc(P.updated_by)})` : ''}. Type a new one to change it.` : '<b>No code is set yet</b>, so this is off.');
+  $('#pinClear').hidden = !P.set; $('#pinSave').textContent = P.set ? 'Change code' : 'Set code';
+}
+$('#pinSave').onclick = async () => {
+  const v = $('#setPin').value.replace(/\s/g, '');
+  if (!/^[0-9]{4,8}$/.test(v)) return toast('The staff code needs 4 to 8 digits.');
+  const { data, error } = await sb.rpc('tv_staff_code_set', { p_code: v });
+  if (error) return toast('Not saved: ' + error.message, 5000);
+  state.pin = data; $('#setPin').value = ''; drawPin(); toast('Staff code saved. Tell your staff the new code.', 4000);
+};
+$('#pinClear').onclick = async () => {
+  if (!await confirmBox('Remove the staff code? Staff then can\'t put a single device back to normal from the device itself.', 'Remove')) return;
+  const { data, error } = await sb.rpc('tv_staff_code_set', { p_code: null });
+  if (error) return toast('Not removed: ' + error.message, 5000);
+  state.pin = data; drawPin(); toast('Staff code removed');
+};
+$('#setForm').onsubmit = async e => {
+  e.preventDefault();
+  const secs = Math.max(3, Math.min(600, +$('#setSecs').value || 10));
+  const rec = { seconds: secs, show_clock: $('#setClock').checked, show_logo: $('#setLogo').checked };
+  if (!$('#bannerBox').hidden) rec.banner = $('#setBanner').value.trim();
+  if (!$('#pqrBox').hidden) {
+    let u = $('#setPqr').value.trim();
+    if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+    if (u && !/^https?:\/\/\S+\.\S+$/i.test(u)) return toast('The party QR code link doesn\'t look right. Paste the whole link.', 5000);
+    rec.party_qr_url = u || null; rec.party_qr_text = $('#setPqrText').value.trim() || null;
+  }
+  if (state.display === 'tv' && state.settings) { if (state.settings.banner) rec.banner = ''; if (state.settings.signin_url) rec.signin_url = null; }   // clear any left over from before
+  if (!$('#batBox').hidden) { const b = +$('#setBatWarn').value; if (!(b >= 0 && b <= 100)) return toast('The battery warning is a % from 0 to 100.'); rec.battery_warn = Math.round(b); }
+  if (!$('#signinBox').hidden) {
+    const raw = $('#setSignin').value.trim(), url = raw ? cleanLink(raw) : '';
+    if (raw && !url) return toast("That doesn't look like a link.");
+    if (url && !/^https:/i.test(url)) return toast('The sign-in page needs a secure link (https://).');
+    rec.signin_url = url || null; rec.signin_idle = +$('#setSigninIdle').value;
+    if ('signin_open' in state.settings) rec.signin_open = $('#setSigninOpen').value;
+    if ('kiosk_port' in state.settings) {
+      const port = +$('#setKioskPort').value || 8080;
+      if (port < 1 || port > 65535) return toast('The REST API port is a number like 8080.');
+      if (rec.signin_open === 'kiosk' && !url) return toast('Add the sign-in page link (FreeKiosk goes back to it after a party).');
+      rec.kiosk_port = port; rec.kiosk_key = $('#setKioskKey').value.trim() || null;
+    }
+  }
+  if (!$('#offBox').hidden) {
+    readOffs();
+    for (const o of offState) {
+      if (!o.days.length) return toast('Pick the days for each screen-off time.');
+      if (!o.at) return toast('Fill in the time for each screen-off time.');
+      if (!(o.minutes >= 1 && o.minutes <= 720)) return toast('Minutes off must be between 1 and 720.');
+    }
+    rec.offs = offState;
+  }
+  if (!$('#quietBox').hidden) {
+    rec.quiet_on = $('#setQuiet').checked;
+    if (rec.quiet_on) {
+      const days = hoursRead('qd');
+      if (typeof days === 'string') return toast(days);
+      rec.quiet_days = days; rec.quiet_style = $('#setQStyle').value;
+    }
+  }
+  const { error } = await sb.from('tv_settings').update(rec).eq('id', sid());
+  if (error) return toast('Not saved: ' + error.message, 5000);
+  toast('Settings saved'); load();
+};
+// Shuffle: the screens play the slides in a random order (a new order each time round)
+function drawShuffle() {
+  const S = state.settings || {}, on = !!S.shuffle, who = state.display === 'tv' ? 'The TV shows' : 'The tablets show';
+  $('#shuffleBtn').hidden = !('shuffle' in S);
+  $('#shuffleBtn').setAttribute('aria-pressed', String(on));
+  $('#shuffleTxt').textContent = on ? 'Shuffle on' : 'Shuffle';
+  $('#slidesHint').textContent = `${who} these ${on ? 'in a random order (shuffled each time round)' : 'in order'}, on a loop, and ${state.display === 'tv' ? 'picks' : 'pick'} up changes within 20 seconds.`;
+}
+$('#shuffleBtn').onclick = async () => {
+  const S = state.settings, on = !S.shuffle;
+  S.shuffle = on; drawShuffle();   // show it straight away
+  const { error } = await sb.from('tv_settings').update({ shuffle: on }).eq('id', sid());
+  if (error) { S.shuffle = !on; drawShuffle(); return toast('Not saved: ' + error.message, 5000); }
+  toast(on ? 'Shuffle on: slides play in a random order' : 'Shuffle off: slides play in order');
+};
+$('#newCode').onclick = async () => {
+  if (!await confirmBox('Make a new screen code? Any TV using the old code stops until the new one is typed in.', 'New code')) return;
+  const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = crypto.getRandomValues(new Uint32Array(6));
+  const code = Array.from(r, n => a[n % a.length]).join('');
+  const { error } = await sb.from('tv_settings').update({ screen_code: code }).eq('id', sid());
+  if (error) return toast('Not saved: ' + error.message, 5000);
+  toast(`New code: ${code}`, 6000); load();
+};
+
+/* ---------- Sign in ---------- */
+$('#signOut').onclick = async () => { await sb.auth.signOut(); show('#signIn'); };
+$('#signInForm').onsubmit = async e => {
+  e.preventDefault(); $('#siGo').disabled = true;
+  const { data, error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
+  $('#siGo').disabled = false;
+  if (error) return toast(/invalid/i.test(error.message) ? 'Wrong email or password.' : error.message, 5000);
+  $('#siPass').value = ''; state.me = (data.user.email || '').toLowerCase(); load();
+};
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return show('#signIn');
+  state.me = (session.user.email || '').toLowerCase(); load();
+})();
+</script>
+</body>
+</html>

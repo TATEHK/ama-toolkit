@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>TV Remote</title>
+<link rel="icon" href="../../icons/ama-id-cards.png">
+<link rel="apple-touch-icon" href="../../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../../config.js"></script>
+<script src="../../hub-signin.js"></script>
+<script src="../../idle-logout.js"></script>
+<style>
+  /* Same look as AMA Gradings: pine black, gold for the one thing to press, green for done */
+  :root {
+    --bg: #0f1713; --surface: #15201a; --raise: #1b2821; --fg: #edf2ee; --muted: #a3b5a9; --faint: #74897b; --line: #253629; --line2: #31473a;
+    --accent: #f5c518; --on-accent: #14130a; --accent-soft: rgba(245,197,24,.12); --gold: #f5c518; --on-gold: #14130a;
+    --ok: #7fd6a2; --danger: #ef8a73; --warn: #f0b45a; --hover: #1b2821;
+    --shadow: 0 0 0 1px var(--line);
+    --font-display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --font-body: Barlow, "Segoe UI", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=checkbox] { accent-color: var(--accent); width: 20px; height: 20px; flex: none; }
+
+  .appbar { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px; }
+  .appbar-inner { max-width: 820px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+  .home-btn { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--muted); text-decoration: none; }
+  .home-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .home-btn svg { width: 20px; height: 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+  .brand img { width: 34px; height: 34px; border-radius: 8px; }
+  .brand h1 { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: .01em; white-space: nowrap; }
+
+  main { max-width: 820px; margin: 0 auto; padding: 16px 16px 48px; display: flex; flex-direction: column; gap: 14px; }
+  h2 { font-family: var(--font-display); font-weight: 700; font-size: 24px; margin: 0; letter-spacing: .01em; }
+  h3 { font-family: var(--font-display); font-weight: 600; font-size: 18px; margin: 0; }
+  .view-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .hint { font-size: 14px; color: var(--muted); margin: 0; }
+  .card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  label, .label { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], textarea, select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--raise); }
+  textarea { min-height: 120px; resize: vertical; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 1px solid var(--line2); background: var(--surface); font-weight: 600; cursor: pointer; text-decoration: none; color: inherit; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn.danger { color: var(--danger); }
+  .btn.sm { min-height: 36px; padding: 4px 12px; font-size: 14px; white-space: nowrap; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1 1 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .check { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 15px; color: var(--fg); font-weight: 400; }
+  .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--gold); color: var(--on-gold); }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .tag.warn { color: var(--warn); } .tag.muted { color: var(--muted); }
+  .thumb { flex: none; width: 96px; height: 54px; border-radius: 8px; background: #000 center/cover no-repeat; display: flex; align-items: center; justify-content: center; color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 13px; overflow: hidden; position: relative; text-align: center; line-height: 1.1; padding: 4px; }
+  .thumb.t-party { background: linear-gradient(135deg, #e0218a, #7b2ff7, #1e90ff); }
+  .thumb.t-green { background-color: #04794b; } .thumb.t-dark { background-color: #0e1612; } .thumb.t-gold { background-color: #f2d500; color: #16211b; } .thumb.t-light { background-color: #e7ece9; color: #16211b; }
+  .thumb .play { position: absolute; width: 0; height: 0; border-left: 14px solid rgba(255,255,255,.9); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+  .auth { max-width: 420px; margin: 24px auto; width: 100%; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { flex: 1; border: 0; background: var(--surface); padding: 11px 6px; font-weight: 600; font-size: 16px; color: var(--muted); cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .now { display: flex; flex-direction: column; gap: 4px; }
+  .now .what { font-family: var(--font-display); font-weight: 700; font-size: 26px; line-height: 1.15; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); margin-right: 6px; vertical-align: 1px; }
+  .dot.on { background: #1fa85c; box-shadow: 0 0 0 3px rgba(31,168,92,.2); }
+  .dot.wait { background: var(--gold); }
+  .pad { display: grid; grid-template-columns: 1fr 1.25fr 1fr; gap: 10px; }
+  .pad button { min-height: 92px; border-radius: 16px; border: 1px solid var(--line2); background: var(--surface); box-shadow: var(--shadow); font-weight: 700; font-size: 17px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; touch-action: manipulation; }
+  .pad button svg { width: 30px; height: 30px; }
+  .pad button.main { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .pad button:active { transform: scale(.97); }
+  .pad button:disabled { opacity: .45; }
+  .btn.dark { background: #111; border-color: #111; color: #fff; min-height: 52px; }
+  .btn.wake { background: var(--gold); border-color: var(--gold); color: var(--on-gold); min-height: 52px; }
+  .slides { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .slides button { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; border: 1px solid var(--line2); background: var(--surface); border-radius: 12px; padding: 8px; cursor: pointer; }
+  .slides button.cur { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .slides .nm { font-weight: 600; }
+  .slides .sub { font-size: 13px; color: var(--muted); }
+  .slides .thumb { width: 80px; height: 45px; font-size: 11px; }
+  #toast { inset: auto; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); margin: 0; border: 0; width: max-content;
+    background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 15px; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
+  #toast[hidden] { display: none; }
+  /* Same look as AMA Gradings */
+  body { line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--gold); }
+  .appbar { background: rgba(15,23,19,.96); }
+  input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], input[type=time], input[type=search], input[type=url], textarea, select { background: var(--raise); border-color: var(--line2); color: var(--fg); }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--gold); }
+  .btn { border-color: var(--line2); }
+  .btn.primary { background: var(--gold); border-color: var(--gold); color: var(--on-gold); font-weight: 700; }
+  dialog { border: 1px solid var(--line2); box-shadow: 0 10px 50px rgba(0,0,0,.6); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  .seg { border-color: var(--line2); }
+  .seg button { background: none; }
+  .seg button[aria-pressed="true"] { background: var(--raise); color: var(--gold); box-shadow: inset 0 -2px 0 var(--gold); }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="home-btn" id="homeBtn" href="/" aria-label="Back to AMA Toolkit" title="AMA Toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></a>
+    <div class="brand"><img src="../../icons/ama-id-cards.png" alt=""><h1>TV Remote</h1></div>
+    <a class="btn sm" href="../edit/">Editor</a>
+  </div>
+</header>
+
+<main>
+    <section id="signIn" class="auth card" hidden>
+    <h2>Sign in</h2>
+    <p class="hint">Use your AMA login to control the dojang TV.</p>
+    <form id="signInForm" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="siEmail">Email</label><input type="email" id="siEmail" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input type="password" id="siPass" autocomplete="current-password" required></div>
+      <button class="btn primary" id="siGo" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <section id="problem" class="card" hidden></section>
+
+  <section id="app" hidden style="display:flex;flex-direction:column;gap:14px">
+    <div class="seg" id="dispSeg" role="group" aria-label="Which screen"><button type="button" data-disp="tv">TV</button><button type="button" data-disp="tablet">Tablets</button></div>
+    <div class="card now">
+      <div class="label" id="conn"><span class="dot"></span>Connecting...</div>
+      <div class="what" id="what">&nbsp;</div>
+      <div class="row"><span class="chip" id="pausedChip" hidden>Paused</span><span class="hint" id="note"></span></div>
+    </div>
+    <div class="pad">
+      <button type="button" id="bBack" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Back</button>
+      <button type="button" id="bPause" class="main"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg><span>Pause</span></button>
+      <button type="button" id="bNext" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>Next</button>
+    </div>
+    <button type="button" class="btn dark" id="bDark">Black out the screen</button>
+    <h2 style="margin-top:6px">Show now</h2>
+    <p class="hint">Tap a slide to put it on the screen straight away. Pause first to keep it there while you talk.</p>
+    <ul class="slides" id="list"></ul>
+    <button type="button" class="btn" id="bDone">Done: carry on the slideshow</button>
+  </section>
+</main>
+<div id="toast" role="status" popover="manual" hidden></div>
+
+<script>
+const CFG = window.TOOLKIT_CONFIG || {};
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+// Sign in with the AMA Admin Hub mobile and PIN (hub-signin.js)
+const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#signInForm' };
+if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
+if (window.AmaIdle) AmaIdle.watch({ sb });
+const MEDIA = (CFG.SUPABASE_URL || '').replace(/\/$/, '') + '/storage/v1/object/public/tv/';
+const KIND = { photo: 'Photo', video: 'Video', text: 'Info slide', countdown: 'Countdown', qr: 'QR code' };
+const LIVE = { next_grading: 'Next grading', events: 'Events this month', month: 'Month theme' };
+let display = new URLSearchParams(location.search).get('display') === 'tablet' ? 'tablet' : 'tv';
+try { if (!new URLSearchParams(location.search).get('display') && localStorage.getItem('tvRemoteDisplay') === 'tablet') display = 'tablet'; } catch (e) { /* ignore */ }
+const noun = () => display === 'tablet' ? 'tablet' : 'TV';
+let slides = [], screen = null, lastPress = 0, pollT = null, helloT = null, dark = false, darkAt = 0;
+
+let toastTimer;
+function toast(msg, ms = 2000) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer);
+  try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* older browsers */ }
+  if (ms) toastTimer = setTimeout(() => { t.hidden = true; try { t.hidePopover(); } catch (e) { /* ignore */ } }, ms);
+}
+function show(id) { ['#signIn', '#problem', '#app'].forEach(s => $(s).hidden = s !== id); }
+const name = s => s.title || (s.kind === 'live' ? (LIVE[s.live_kind] || 'Live') : s.kind === 'countdown' && s.count_to === 'grading' ? 'Black belt grading' : KIND[s.kind] || 'Slide');
+function thumb(s) {
+  if (s.kind === 'photo') return `<div class="thumb" style="background-image:url('${MEDIA + esc(s.media_path)}')"></div>`;
+  if (s.kind === 'video') return `<div class="thumb"><span class="play"></span></div>`;
+  if (s.kind === 'qr') return `<div class="thumb t-${esc(s.theme)}"><span style="width:34px;height:34px;border-radius:4px;background:#fff url('${MEDIA + esc(s.media_path)}') center/90% no-repeat"></span></div>`;
+  return `<div class="thumb t-${esc(s.theme || 'green')}">${esc(name(s).slice(0, 22))}</div>`;
+}
+
+async function load() {
+  let staff = await sb.rpc('tv_can', { p_perm: 'remote' });
+  if (staff.error && /tv_can|schema cache|function/i.test(staff.error.message || '')) staff = await sb.rpc('tv_is_staff');   // database not updated yet
+  // The screens side of the TV editor includes the remote, so allow it too.
+  if (!staff.error && !staff.data) { const s = await sb.rpc('tv_can', { p_perm: 'screens' }); if (!s.error && s.data) staff = s; }
+  if (staff.error || !staff.data) return problem(staff.error ? 'The TV display isn\'t set up in Supabase yet, or the connection failed. Try again in a moment.' : 'Your login doesn\'t have the TV remote. Ask an admin to give you TV access on the Staff logins page.');
+  $$('#dispSeg [data-disp]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.disp === display)));
+  const { data, error } = await sb.from('tv_slides').select('*').eq('display', display).eq('enabled', true).eq('party', false).order('position').order('created_at');
+  if (error) return problem(error.message);
+  const t = new Date(), today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  const mins = v => { const [h, m] = String(v).split(':').map(Number); return h * 60 + m; }, n = t.getHours() * 60 + t.getMinutes();
+  const timeOk = s => { if (s.show_days && s.show_days.length && !s.show_days.includes(t.getDay())) return false;   // slide times of day
+    const f = s.show_from ? mins(s.show_from) : null, to = s.show_to ? mins(s.show_to) : null;
+    return f == null && to == null ? true : to == null ? n >= f : f == null ? n < to : f < to ? n >= f && n < to : f > to ? n >= f || n < to : true; };
+  slides = (data || []).filter(s => (!s.starts_on || s.starts_on <= today) && (!s.ends_on || s.ends_on >= today) && timeOk(s));
+  show('#app'); drawList();
+  await hello(); poll();
+}
+function problem(msg) { show('#problem'); $('#problem').innerHTML = `<h2>Can't open the remote</h2><p class="hint">${esc(msg)}</p><div class="row"><button class="btn primary" id="retry">Try again</button></div>`; $('#retry').onclick = load; }
+function drawList() {
+  const cur = screen && screen.details && screen.details.slide;
+  $('#list').innerHTML = slides.length ? slides.map(s => `<li><button type="button" data-show="${s.id}" class="${s.id === cur ? 'cur' : ''}">${thumb(s)}<div class="grow"><div class="nm">${esc(name(s))}</div><div class="sub">${s.id === cur ? 'On the TV now' : esc(s.kind === 'live' ? 'Live' : KIND[s.kind] || '')}</div></div></button></li>`).join('')
+    : '<li class="hint">No slides are on. Add some in the editor.</li>';
+  $$('#list [data-show]').forEach(b => b.onclick = () => press('show', b.dataset.show));
+}
+// Keeps the TV listening closely (for 10 minutes after the last use)
+async function hello() {
+  clearTimeout(helloT);
+  const { data, error } = await sb.rpc('tv_remote_send', { p_cmd: 'hello', p_slide: null, p_display: display });
+  if (error && /function|schema cache/i.test(error.message)) return problem('The remote needs the latest database update: run supabase/tv-setup.sql again in Supabase.');
+  if (data && 'blackout' in data) { dark = !!data.blackout; darkAt = Date.now(); }
+  helloT = setTimeout(hello, 4 * 60e3);
+}
+async function press(cmd, slide = null) {
+  if (Date.now() - lastPress < 250) return; lastPress = Date.now();
+  const { data, error } = await sb.rpc('tv_remote_send', { p_cmd: cmd, p_slide: slide, p_display: display });
+  if (error) return toast(/Unknown button/.test(error.message) ? 'Blackout needs the latest database update: run supabase/tv-setup.sql again in Supabase.' : 'Not sent: ' + error.message, 6000);
+  if (data && 'blackout' in data) { dark = !!data.blackout; darkAt = Date.now(); }
+  if (cmd === 'blackout') toast('Blacking out the screen...');
+  if (cmd === 'wake') toast('Turning the screen back on...');
+  clearTimeout(helloT); helloT = setTimeout(hello, 4 * 60e3);
+  if (navigator.vibrate) try { navigator.vibrate(15); } catch (e) { /* ignore */ }
+  if (cmd === 'done') toast('The slideshow carries on.');
+  setTimeout(poll, 700);
+}
+async function poll() {
+  clearTimeout(pollT);
+  const { data } = await sb.from('tv_screens').select('*').eq('display', display).order('last_seen', { ascending: false });
+  screen = (data || [])[0] || null;   // the one heard from most recently (with several tablets they all follow the remote)
+  const age = screen ? (Date.now() - new Date(screen.last_seen)) / 1000 : Infinity;
+  const listening = age < 8, online = age < 75, d = (screen && screen.details) || {};
+  const N = noun(), heard = (data || []).filter(x => Date.now() - new Date(x.last_seen) < 8000).length;
+  $('#conn').innerHTML = listening ? `<span class="dot on"></span>${heard > 1 ? `${heard} ${N}s are listening` : `The ${N} is listening`}` : online ? `<span class="dot wait"></span>Waking the ${N} up (up to 20 seconds)...` : '<span class="dot"></span>' + (screen ? `The ${N} is offline` : `No ${N} has checked in yet`);
+  const what = screen ? (screen.showing || 'Starting up') : `Open the ${N}'s link on the ${N}`;
+  $('#what').textContent = online ? what : '-';
+  if (listening && Date.now() - darkAt > 6000) dark = what === 'Blacked out';   // someone else may have changed it
+  $('#bDark').textContent = dark ? 'Turn the screen back on' : 'Black out the screen';
+  $('#bDark').className = 'btn ' + (dark ? 'wake' : 'dark');
+  const blocked = dark || /^(Party mode|Quiet hours)/.test(what);
+  $('#note').textContent = dark ? 'The screen is blacked out until you turn it back on.' : blocked && online ? 'The remote works again when party mode or quiet hours end.' : '';
+  const paused = listening && !!d.paused;
+  $('#pausedChip').hidden = !paused;
+  $('#bPause').querySelector('span').textContent = paused ? 'Play' : 'Pause';
+  $('#bPause').querySelector('svg').innerHTML = paused ? '<path d="M7 5l12 7-12 7z"/>' : '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+  $('#bPause').dataset.paused = paused ? '1' : '';
+  ['#bBack', '#bPause', '#bNext'].forEach(id => $(id).disabled = !online || blocked);
+  drawList();
+  if (!document.hidden) pollT = setTimeout(poll, 1500);
+}
+$('#bNext').onclick = () => press('next');
+$('#bBack').onclick = () => press('back');
+$('#bPause').onclick = () => press($('#bPause').dataset.paused ? 'play' : 'pause');
+$('#bDone').onclick = () => press('done');
+$('#bDark').onclick = () => press(dark ? 'wake' : 'blackout');
+$$('#dispSeg [data-disp]').forEach(b => b.onclick = () => {
+  if (b.dataset.disp === display) return;
+  display = b.dataset.disp; try { localStorage.setItem('tvRemoteDisplay', display); } catch (e) { /* ignore */ }
+  try { history.replaceState(null, '', location.pathname + (display === 'tablet' ? '?display=tablet' : '')); } catch (e) { /* ignore */ }
+  screen = null; dark = false; darkAt = 0; load();
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#app').hidden) { hello(); poll(); } });
+
+$('#signInForm').onsubmit = async e => {
+  e.preventDefault(); $('#siGo').disabled = true;
+  const { error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
+  $('#siGo').disabled = false;
+  if (error) return toast(/invalid/i.test(error.message) ? 'Wrong email or password.' : error.message, 5000);
+  $('#siPass').value = ''; load();
+};
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return show('#signIn');
+  load();
+})();
+</script>
+</body>
+</html>

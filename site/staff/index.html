@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>Staff Logins</title>
+<link rel="icon" href="../icons/ama-id-cards.png">
+<link rel="apple-touch-icon" href="../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../hub-signin.js"></script>
+<script src="../idle-logout.js"></script>
+<style>
+  /* Same look as AMA Gradings: pine black, gold for the one thing to press, green for done */
+  :root {
+    --bg: #0f1713; --surface: #15201a; --raise: #1b2821; --fg: #edf2ee; --muted: #a3b5a9; --faint: #74897b; --line: #253629; --line2: #31473a;
+    --accent: #f5c518; --on-accent: #14130a; --accent-soft: rgba(245,197,24,.12); --gold: #f5c518; --on-gold: #14130a;
+    --ok: #7fd6a2; --danger: #ef8a73; --warn: #f0b45a; --hover: #1b2821;
+    --shadow: 0 0 0 1px var(--line);
+    --font-display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --font-body: Barlow, "Segoe UI", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 20px; height: 20px; flex: none; }
+
+  .appbar { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px; }
+  .appbar-inner { max-width: 820px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+  .home-btn { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--muted); text-decoration: none; }
+  .home-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .home-btn svg { width: 20px; height: 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; color: inherit; text-decoration: none; }
+  .brand img { width: 34px; height: 34px; border-radius: 8px; }
+  .brand h1 { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: .01em; white-space: nowrap; }
+
+  main { max-width: 820px; margin: 0 auto; padding: 16px 16px 48px; display: flex; flex-direction: column; gap: 14px; }
+  h2 { font-family: var(--font-display); font-weight: 700; font-size: 24px; margin: 0; letter-spacing: .01em; }
+  h3 { font-family: var(--font-display); font-weight: 600; font-size: 18px; margin: 0; }
+  .view-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .back { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 15px; }
+  .muted { color: var(--muted); } .small { font-size: 14px; }
+  .hint { font-size: 14px; color: var(--muted); margin: 0; }
+  .card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  label, .label { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  input[type=text], input[type=email], input[type=tel], input[type=password], input[type=search], select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--raise); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 1px solid var(--line2); background: var(--surface); font-weight: 600; cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn.danger { color: var(--danger); }
+  .btn.sm { min-height: 36px; padding: 4px 12px; font-size: 14px; white-space: nowrap; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row > .grow { flex: 1 1 0; }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
+  .check { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 15px; color: var(--fg); font-weight: 400; }
+
+  .people { list-style: none; margin: 0; padding: 0; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+  .people li + li { border-top: 1px solid var(--line); }
+  .person { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: none; border: 0; text-align: left; cursor: pointer; min-height: 64px; }
+  .person:hover { background: var(--hover); }
+  .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .who strong { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .who .meta { font-size: 13px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .chev { color: var(--muted); font-size: 22px; flex: none; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .tag.warn { color: var(--warn); } .tag.muted { color: var(--muted); } .tag.ok { color: var(--ok); }
+  .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--gold); color: var(--on-gold); white-space: nowrap; }
+  .empty { text-align: center; color: var(--muted); padding: 36px 16px; }
+  .auth { max-width: 380px; margin: 10vh auto 0; }
+
+  dialog { border: 0; padding: 0; background: var(--surface); color: var(--fg); border-radius: 16px; width: min(560px, calc(100% - 24px)); max-height: calc(100dvh - 24px); box-shadow: var(--shadow); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  @media (max-width: 600px) { dialog { margin: auto 0 0; width: 100%; max-width: 100%; border-radius: 16px 16px 0 0; } }
+  .dlg { padding: 16px; display: flex; flex-direction: column; gap: 14px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .dlg-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .dlg-head h3 { word-break: break-all; }
+  .section { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .x { border: 0; background: none; color: var(--accent); font-weight: 600; cursor: pointer; padding: 6px; }
+
+  #toast { inset: auto; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); margin: 0; border: 0; width: max-content;
+    background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 15px; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
+  #toast[hidden] { display: none; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 12px; }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="home-btn" id="homeBtn" href="/" aria-label="Back to AMA Toolkit" title="AMA Toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></a>
+    <div class="brand"><img src="../icons/ama-id-cards.png" alt=""><h1>Staff logins</h1></div>
+    <button class="btn sm" id="signOut" hidden>Sign out</button>
+  </div>
+</header>
+
+<main>
+
+  <section id="signIn" class="auth card" hidden>
+    <h2>Staff logins</h2>
+    <p class="hint">Sign in with your email and password, or your hub mobile and PIN. Staff logins is for admins only.</p>
+    <form id="signInForm" class="card" style="padding:0;box-shadow:none">
+      <div class="field"><label for="siEmail">Email</label><input type="email" id="siEmail" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input type="password" id="siPass" autocomplete="current-password" required></div>
+      <button class="btn primary" id="siGo" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <section id="app" hidden>
+    <div class="view-head"><h2>Logins</h2><div class="row" style="margin:0"><button class="btn sm" id="logBtn">Activity log</button><button class="btn sm" id="bulkBtn">Add several</button><button class="btn primary sm" id="addBtn">Add login</button></div></div>
+    <p class="hint">Logins and permissions for AMA ID Cards, Black Belt Gradings and the dojang TV. Tap someone to change their details or permissions, or remove their login. People without an email sign in with their hub mobile and PIN.</p>
+    <input type="search" id="search" placeholder="Search name, email or mobile" aria-label="Search name, email or mobile" style="margin:12px 0">
+    <ul class="people" id="list"></ul>
+    <p class="hint" id="count" style="margin-top:8px"></p>
+  </section>
+
+  <section id="problem" class="card" hidden></section>
+</main>
+
+<dialog id="dlg"></dialog>
+<div id="toast" role="status" popover="manual" hidden></div>
+
+<script>
+const SUPABASE_URL = 'https://ptdrcxngaptcgswfbjhg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_YsRY6SlgR7U_ohn_xxQD1A_lrowkIGS'; // public by design; the function checks who is signed in
+const FN = SUPABASE_URL + '/functions/v1/staff';
+const CARD = { admin: 'Admin', edit: 'Edit people', delete: 'Delete people', send: 'Send to print', approve: 'Approve prints', viewer: 'View only', printer: 'Print station' };
+const TV = { edit: 'Editor', slides: 'Slides', screens: 'Screens', party: 'Party mode', remote: 'Remote' };
+const PREP = { admin: 'Admin', instructor: 'Instructor', attendance: 'Attendance', payments: 'Payments', grading: 'Grading', certificates: 'Certificates', idcards: 'ID cards', viewer: 'Viewer' };
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Sign in with the AMA Admin Hub mobile and PIN (hub-signin.js)
+const HUB = { sb, url: SUPABASE_URL, key: SUPABASE_KEY, form: '#signInForm' };
+if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
+if (window.AmaIdle) AmaIdle.watch({ sb });
+const dlg = $('#dlg');
+let state = { me: null, users: [] }, toastTimer;
+
+function toast(msg, ms = 4000) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer);
+  try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* older browsers */ }
+  toastTimer = setTimeout(() => { t.hidden = true; try { t.hidePopover(); } catch (e) { /* ignore */ } }, ms);
+}
+function show(id) { ['#signIn', '#app', '#problem'].forEach(s => $(s).hidden = s !== id); $('#signOut').hidden = id === '#signIn'; }
+function openDlg(html) { dlg.innerHTML = html; dlg.querySelectorAll('[data-close]').forEach(b => { b.type = 'button'; b.onclick = e => { e.preventDefault(); dlg.close(); }; }); if (!dlg.open) dlg.showModal(); const t = $('#toast'); if (!t.hidden) { try { t.hidePopover(); t.showPopover(); } catch (e) { /* ignore */ } } }
+function confirmBox(text, yes, danger) {
+  return new Promise(res => {
+    openDlg(`<div class="dlg"><h3>Are you sure?</h3><p style="margin:0">${esc(text)}</p><div class="row" style="justify-content:flex-end"><button class="btn" id="cfNo">Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}" id="cfYes">${esc(yes)}</button></div></div>`);
+    $('#cfNo').onclick = () => { dlg.close(); res(false); }; $('#cfYes').onclick = () => { dlg.close(); res(true); };
+  });
+}
+
+async function api(body) {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) throw new Error('Sign in first.');
+  let res;
+  try {
+    res = await fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token, apikey: SUPABASE_KEY }, body: JSON.stringify(body) });
+  } catch (e) { const er = new Error('Could not reach the staff function. Check your connection, and that the "staff" function is deployed in Supabase.'); er.setup = true; throw er; }
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 404 && !data.error) { const er = new Error('The "staff" function is not set up in Supabase yet.'); er.setup = true; throw er; }
+  // An older staff function doesn't make set-up links: it asks for a password, or doesn't know "link"
+  const OLD = 'The staff function in Supabase is an older version without set-up links. Re-deploy it: Edge Functions > staff > Code, paste the whole of supabase/functions/staff/index.ts, Deploy.';
+  if (!res.ok && ((body.invite && /8 characters/.test(data.error || '')) || (body.action === 'link' && /Unknown action/.test(data.error || '')))) throw new Error(OLD);
+  if (!res.ok) { const er = new Error(data.error || data.message || 'Something went wrong.'); er.status = res.status; throw er; }
+  if ((body.invite && !data.existed || body.action === 'link') && !data.link) throw new Error(OLD);
+  return data;
+}
+// Show a set-up link to copy or share (text, WhatsApp, email...)
+function showLink(email, link, fresh) {
+  const msg = `Hi, here's your link to set up your AMA login (${email}). Open it and choose a password: ${link}`;
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><div><h3>${fresh ? 'Login added' : 'New set-up link'}</h3><p class="hint">Send this link to ${esc(email)}. It opens a page where they choose their password, then shows their apps.</p></div><button class="x" data-close>Close</button></div>
+    <textarea id="linkText" rows="5" readonly style="width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg)">${esc(msg)}</textarea>
+    <div class="row"><button class="btn primary" id="copyMsg" type="button">Copy message</button><button class="btn" id="copyLink" type="button">Copy link only</button>${navigator.share ? '<button class="btn" id="shareLink" type="button">Share</button>' : ''}</div>
+    <p class="hint">The link works once, for a limited time. If it runs out, make a new one from their login. Their login shows "Not set up yet" until they've chosen a password.</p>
+  </div>`);
+  const copy = async (t, what) => { try { await navigator.clipboard.writeText(t); toast(`${what} copied`); } catch (e) { $('#linkText').select(); toast('Press and hold the text to copy it.'); } };
+  $('#copyMsg').onclick = () => copy(msg, 'Message');
+  $('#copyLink').onclick = () => copy(link, 'Link');
+  const sh = $('#shareLink'); if (sh) sh.onclick = () => navigator.share({ title: 'Your AMA login', text: msg }).catch(() => {});
+}
+
+const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+const who = u => u.name || (u.hub_only ? (u.hub_mobile || 'No name') : u.email);   // what to call someone
+const listText = (roles, names) => roles.length ? (roles.includes('admin') ? 'Admin' : roles.map(r => names[r] || r).join(', ')) : 'No access';
+
+async function load() {
+  try {
+    const d = await api({ action: 'list' });
+    if (!Array.isArray(d.card_perms)) { const er = new Error('The "staff" function in Supabase is an older copy. Update it with the latest supabase/functions/staff/index.ts.'); er.setup = true; er.outdated = true; throw er; }
+    state.me = d.me; state.users = d.users.map(u => ({ ...u, card_perms: u.card_perms || [], prep_roles: u.prep_roles || [], tv_perms: u.tv_perms || [] }));
+    state.audit = Array.isArray(d.audit) ? d.audit : [];   // activity log (supabase/staff-admin.sql)
+    state.hub = d.hub === true;   // hub mobile links (supabase/hub-login.sql)
+    state.tv = d.tv_perms === undefined ? 'outdated' : d.tv_perms === null ? 'setup' : 'ready';   // TV permissions: function and database ready?
+    show('#app'); draw();
+  } catch (e) {
+    show('#problem');
+    $('#problem').innerHTML = e.outdated
+      ? `<h2>Update needed</h2><p class="hint">${esc(e.message)}</p><p class="hint">In Supabase: Edge Functions &gt; <b>staff</b> &gt; Code. Replace everything with the whole of <code>supabase/functions/staff/index.ts</code> from the theggatonklenner.github.io repository, and Deploy. Check "Verify JWT with legacy secret" is still off.</p><div class="row"><button class="btn" id="retry">Try again</button></div>`
+      : e.setup
+      ? `<h2>Set up needed</h2><p class="hint">${esc(e.message)}</p><p class="hint">In Supabase: Edge Functions &gt; Deploy a new function &gt; Via Editor. Name it <b>staff</b>, paste the whole of <code>supabase/functions/staff/index.ts</code> from the theggatonklenner.github.io repository, and Deploy. Then turn off "Verify JWT with legacy secret" for it.</p><div class="row"><button class="btn" id="retry">Try again</button></div>`
+      : `<h2>Can't open staff logins</h2><p class="hint">${esc(e.message)}</p><div class="row"><button class="btn" id="retry">Try again</button></div>`;
+    $('#retry').onclick = load;
+  }
+}
+
+function draw() {
+  const q = $('#search').value.trim().toLowerCase();
+  const qd = q.replace(/\D/g, '');
+  const rows = state.users.filter(u => !q || (u.name || '').toLowerCase().includes(q) || (!u.hub_only && u.email.includes(q)) || (qd.length >= 3 && (u.hub_mobile || '').replace(/\D/g, '').includes(qd)));
+  $('#list').innerHTML = rows.length ? rows.map(u => `<li><button class="person" data-email="${esc(u.email)}">
+      <div class="who"><strong>${esc(who(u))}</strong>
+        <span class="meta">${[u.name || u.hub_only ? (u.hub_only ? '' : u.email) : '', u.hub_mobile || ''].filter(Boolean).map(x => `<span>${esc(x)}</span><span>·</span>`).join('')}${u.card_perms.includes('admin') && u.prep_roles.includes('admin') ? '<span class="chip">Admin</span>' : ''}
+          <span>ID Cards: ${esc(listText(u.card_perms, CARD))}</span><span>·</span><span>Prep: ${esc(listText(u.prep_roles, PREP))}</span>${state.tv === 'ready' ? `<span>·</span><span>TV: ${esc(tvText(u))}</span>` : ''}${u.hub_only ? '<span class="tag muted">Hub sign-in</span>' : ''}
+          ${!u.has_login ? '<span class="tag warn">No login yet</span>' : u.hub_only ? (u.last_sign_in_at ? '' : '<span class="tag muted">Never signed in</span>') : u.setup_pending ? '<span class="tag warn">Not set up yet</span>' : u.setup_at ? '<span class="tag ok">Set up</span>' : !u.last_sign_in_at ? '<span class="tag muted">Never signed in</span>' : ''}
+          ${u.owner ? '<span class="tag ok">Owner</span>' : u.staff_admin ? '<span class="tag ok">Staff admin</span>' : ''}${u.email === state.me ? '<span class="tag muted">You</span>' : ''}</span></div>
+      <span class="chev" aria-hidden="true">›</span></button></li>`).join('')
+    : `<li class="empty">${state.users.length ? 'No one matches.' : 'No logins yet.'}</li>`;
+  $('#count').textContent = `${state.users.length} login${state.users.length === 1 ? '' : 's'}`;
+  document.querySelectorAll('#list [data-email]').forEach(b => b.onclick = () => openPerson(b.dataset.email));
+}
+
+const checks = (id, names, cur) => `<div class="checks" id="${id}">${Object.entries(names).map(([k, t]) => `<label class="check"><input type="checkbox" value="${k}"${cur.includes(k) ? ' checked' : ''}> ${t}</label>`).join('')}</div>`;
+// Dojang TV: one choice (the editor includes the remote). Admins in either app can always use the TV.
+const isAdmin = u => u.card_perms.includes('admin') || u.prep_roles.includes('admin');
+const tvText = u => isAdmin(u) ? 'Admin' : u.tv_perms.includes('edit') ? 'Editor' : u.tv_perms.length ? ['slides', 'screens', 'party', 'remote'].filter(k => u.tv_perms.includes(k)).map(k => TV[k]).join(', ') : 'No access';
+const tvField = cur => state.tv === 'ready'
+  ? `<div class="field"><span class="label">Dojang TV</span>${checks('tvChecks', TV, cur.includes('edit') ? ['edit', 'slides', 'screens', 'party', 'remote'] : cur)}
+      <p class="hint">Editor: everything (the whole editor). Slides: add and edit slide content, events and month themes. Screens: screen codes, kiosk and sign-in settings, blackout hours and the remote. Party mode: start, stop and book parties and birthday posters. Remote: the phone remote. Admins in AMA ID Cards or Black Belt Gradings can always use the TV.</p></div>`
+  : `<div class="field"><span class="label">Dojang TV</span><p class="hint">${state.tv === 'setup' ? 'To set who can use the TV, first run supabase/tv-setup.sql in Supabase.' : 'To set who can use the TV, update the "staff" function in Supabase with the latest supabase/functions/staff/index.ts.'}</p></div>`;
+const tvPicked = () => state.tv !== 'ready' ? undefined : (l => l.includes('edit') ? ['edit'] : l)(picked('tvChecks'));
+// Editor includes the others: ticking it ticks them
+function tvLink() {
+  const box = document.querySelector('#tvChecks'); if (!box) return;
+  const by = v => box.querySelector(`input[value="${v}"]`);
+  const ed = by('edit'), scr = by('screens'), rem = by('remote');
+  const sync = () => {
+    // Editor is the umbrella: it ticks and locks everything else.
+    box.querySelectorAll('input:not([value="edit"])').forEach(c => { if (ed.checked) c.checked = true; c.disabled = ed.checked; });
+    // Screens includes the remote, so Screens ticks and locks Remote.
+    if (scr && rem && !ed.checked) { if (scr.checked) rem.checked = true; rem.disabled = scr.checked; }
+  };
+  [ed, scr].forEach(c => { if (c) c.onchange = sync; }); sync();
+}
+const picked = id => [...document.querySelectorAll(`#${id} input:checked`)].map(i => i.value);
+const makePassword = () => { const a = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const r = crypto.getRandomValues(new Uint32Array(12)); return Array.from(r, n => a[n % a.length]).join(''); };
+const ROLE_HELP = '<p class="hint">Admin can do everything in that app. Tick only what each person needs; with no ticks they can\'t use that app. Print station is only for the printer laptop\'s login.</p>';
+
+function openPerson(email) {
+  const u = state.users.find(x => x.email === email); if (!u) return;
+  const self = email === state.me;
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><div><h3>${esc(who(u))}</h3><p class="hint">${u.hub_only ? `Signs in with their hub mobile and PIN · added ${fmtDate(u.created_at)} · ${u.last_sign_in_at ? 'last signed in ' + fmtDate(u.last_sign_in_at) : 'never signed in'}` : u.has_login ? `${u.name ? esc(u.email) + ' · ' : ''}Added ${fmtDate(u.created_at)} · ${u.setup_pending ? '<b>not set up yet</b> (they haven\'t used their set-up link)' : u.setup_at ? 'set up ' + fmtDate(u.setup_at) : ''}${!u.setup_pending && u.setup_at ? ' · ' : ''}${!u.setup_pending ? (u.last_sign_in_at ? 'last signed in ' + fmtDate(u.last_sign_in_at) : 'never signed in') : ''}` : 'Has roles but no login yet'}</p></div><button class="x" data-close>Close</button></div>
+    ${u.owner && !self ? '<p class="hint" id="ownerNote">This is the owner\'s login. Only they can change it.</p>' : ''}
+    ${u.has_login ? `<form id="detailsForm" class="section" style="border-top:0;padding-top:0"><h3>Details</h3>
+      <div class="grid2"><div class="field"><label for="stName">Name</label><input type="text" id="stName" value="${esc(u.name || '')}" autocomplete="off"></div>
+        ${state.hub ? `<div class="field"><label for="stMobile">Mobile</label><input type="tel" id="stMobile" value="${esc(u.hub_mobile || '')}" placeholder="e.g. 0412 345 678" autocomplete="off"></div>` : ''}</div>
+      ${state.hub ? `<p class="hint">${u.hub_only ? 'Their hub mobile: they sign in with it and their hub PIN.' : 'Their hub mobile (optional): with it they can also sign in with their hub mobile and PIN.'} PINs, lockouts and switching access off stay in the hub.</p>` : ''}
+      <div class="row"><button class="btn" id="saveDetails" type="submit">Save details</button></div></form>` : ''}
+    <form id="rolesForm" class="section">
+      <h3>Permissions</h3>
+      <div class="field"><span class="label">AMA ID Cards</span>${checks('cardChecks', CARD, u.card_perms)}</div>
+      <div class="field"><span class="label">Black Belt Gradings</span>${checks('prepChecks', PREP, u.prep_roles)}</div>
+      ${tvField(u.tv_perms)}
+      ${self ? '<p class="hint">You can\'t remove your own admin access.</p>' : ROLE_HELP}
+      <div class="row"><button class="btn primary" id="saveRoles" type="submit">Save permissions</button></div>
+    </form>
+    ${u.has_login ? `<div class="section"><h3>Staff admin</h3>
+      <label class="check"><input type="checkbox" id="saToggle"${u.staff_admin ? ' checked' : ''}${(self || u.owner) ? ' disabled' : ''}> Can manage staff logins — add people, set permissions, and see the activity log</label>
+      <p class="hint">${u.owner ? 'The owner is always a Staff admin.' : self ? 'You can\'t remove your own Staff admin access.' : 'Staff admins are the only people who can open this page.'}</p></div>` : ''}
+    ${u.hub_only ? '' : u.has_login ? `<form id="pwForm" class="section"><h3>New password</h3>
+      <div class="row"><input type="text" id="newPw" class="grow" autocomplete="new-password" placeholder="At least 8 characters" aria-label="New password" style="flex:1 1 180px;width:auto"><button type="button" class="btn sm" id="genPw">Make one</button></div>
+      <p class="hint">Give the new password to them in person. They can keep using it.</p>
+      <div class="row"><button class="btn" id="savePw" type="submit">Set password</button><button class="btn" id="mailPw" type="button">Make a set-up link</button></div>
+      <p class="hint">Or make a link for them to choose their own password (for a first login, or if they've forgotten it).</p></form>` : `<div class="section"><p class="hint">To give them a login, use Add login with this email.</p></div>`}
+    ${u.has_login ? `<div class="section"><div class="row"><button class="btn" id="signoutBtn">Sign out everywhere</button></div><p class="hint">Ends their active logins on every device; they'll have to sign in again. Takes effect within the hour.</p></div>` : ''}
+    ${!self ? `<div class="section"><div class="row"><button class="btn danger" id="removeBtn">${u.has_login ? 'Remove login' : 'Remove roles'}</button></div><p class="hint">Removes their access to all the apps. Their name stays on anything they did.</p></div>` : ''}
+  </div>`);
+  tvLink();
+  if (u.owner && !self) dlg.querySelectorAll('input, button:not([data-close]), select, textarea').forEach(el => { el.disabled = true; });
+  $('#rolesForm').onsubmit = async e => {
+    e.preventDefault(); $('#saveRoles').disabled = true;
+    try { await api({ action: 'roles', email, card_perms: picked('cardChecks'), prep_roles: picked('prepChecks'), tv_perms: tvPicked() }); dlg.close(); toast('Permissions saved'); await load(); }
+    catch (er) { toast(er.message, 7000); $('#saveRoles').disabled = false; }
+  };
+  const saT = $('#saToggle');
+  if (saT && !saT.disabled) saT.onchange = async () => {
+    saT.disabled = true;
+    try { await api({ action: 'staff_admin', email, on: saT.checked }); toast(saT.checked ? 'Made a Staff admin' : 'Removed Staff admin'); await load(); openPerson(email); }
+    catch (er) { toast(er.message, 7000); saT.checked = !saT.checked; saT.disabled = false; }
+  };
+  const pw = $('#pwForm');
+  if (pw) {
+    $('#genPw').onclick = () => { $('#newPw').value = makePassword(); };
+    pw.onsubmit = async e => {
+      e.preventDefault(); const p = $('#newPw').value;
+      if (p.length < 8) return toast('The password needs at least 8 characters.');
+      $('#savePw').disabled = true;
+      try { await api({ action: 'password', email, password: p }); toast(`Password set for ${email}`); $('#savePw').disabled = false; }
+      catch (er) { toast(er.message, 7000); $('#savePw').disabled = false; }
+    };
+  }
+  const mp = $('#mailPw');
+  if (mp) mp.onclick = async () => {
+    mp.disabled = true;
+    try { const r = await api({ action: 'link', email }); showLink(email, r.link, false); }
+    catch (er) { toast(er.message, 7000); mp.disabled = false; }
+  };
+  const df = $('#detailsForm');
+  if (df) df.onsubmit = async e => {
+    e.preventDefault();
+    const body = { action: 'details', email, name: $('#stName').value.trim() };
+    if ($('#stMobile')) body.mobile = $('#stMobile').value.trim();
+    if (!body.name) return toast('Enter their name.');
+    $('#saveDetails').disabled = true;
+    try { await api(body); toast('Details saved'); await load(); openPerson(email); }
+    catch (er) { toast(er.message, 7000); $('#saveDetails').disabled = false; }
+  };
+  const so = $('#signoutBtn');
+  if (so) so.onclick = async () => {
+    if (!await confirmBox(`Sign ${who(u)} out of every device? They'll have to sign in again.`, 'Sign out everywhere')) return openPerson(email);
+    so.disabled = true;
+    try { const r = await api({ action: 'signout', email }); toast(r.sessions ? `Signed out of ${r.sessions} session${r.sessions === 1 ? '' : 's'}` : 'No active sessions'); }
+    catch (er) { toast(er.message, 7000); so.disabled = false; }
+  };
+  const rm = $('#removeBtn');
+  if (rm) rm.onclick = async () => {
+    if (!await confirmBox(`Remove ${who(u)}? They will no longer be able to sign in to AMA ID Cards, Black Belt Gradings or the TV.`, 'Remove', true)) return openPerson(email);
+    try { await api({ action: 'remove', email }); toast(`${who(u)} removed`); await load(); }
+    catch (er) { toast(er.message, 7000); openPerson(email); }
+  };
+}
+
+function openAdd() {
+  openDlg(`<form id="addForm" class="dlg">
+    <div class="dlg-head"><h3>Add login</h3><button class="x" data-close>Close</button></div>
+    <div class="field"><label for="addName">Name</label><input type="text" id="addName" required autocomplete="off"></div>
+    <div class="grid2">${state.hub ? '<div class="field"><label for="addMobile">Mobile</label><input type="tel" id="addMobile" autocomplete="off" placeholder="e.g. 0412 345 678"></div>' : ''}
+      <div class="field"><label for="addEmail">Email${state.hub ? ' (optional)' : ''}</label><input type="email" id="addEmail" ${state.hub ? '' : 'required '}autocomplete="off"></div></div>
+    ${state.hub ? '<p class="hint" id="addHubHint">No email? They sign in with their hub mobile and PIN. With an email they can also use a password.</p>' : ''}
+    <div id="addEmailBits"><div class="field"><span class="label">How they sign in</span>
+      <label class="check"><input type="radio" name="addHow" value="email" checked> Give me a link to send them, to choose their own password</label>
+      <label class="check"><input type="radio" name="addHow" value="password" id="addHowPw"> Set a starting password</label></div>
+    <div class="field" id="addPwRow" hidden><label for="addPw">Starting password</label><div class="row"><input type="text" id="addPw" autocomplete="new-password" placeholder="At least 8 characters" style="flex:1 1 180px;width:auto"><button type="button" class="btn sm" id="addGen">Make one</button></div></div>
+    <p class="hint" id="addMailHint">After adding, you get a link to copy or share (text, WhatsApp, email). It opens a page where they choose a password.</p></div>
+    <div class="field"><span class="label">AMA ID Cards</span>${checks('cardChecks', CARD, [])}</div>
+    <div class="field"><span class="label">Black Belt Gradings</span>${checks('prepChecks', PREP, [])}</div>
+    ${tvField([])}
+    ${ROLE_HELP}
+    <p class="hint">If the email already has a login, its permissions are updated (no link is made). Leave the password blank to keep their current one.</p>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="addGo" type="submit">Add login</button></div>
+  </form>`);
+  $('#addGen').onclick = () => { $('#addPw').value = makePassword(); };
+  const how = () => (document.querySelector('input[name=addHow]:checked') || {}).value || 'email';
+  document.querySelectorAll('input[name=addHow]').forEach(r => r.onchange = () => { $('#addPwRow').hidden = how() !== 'password'; $('#addMailHint').hidden = how() !== 'email'; });
+  tvLink();
+  const emailBits = () => { $('#addEmailBits').hidden = state.hub && !$('#addEmail').value.trim(); };
+  $('#addEmail').oninput = emailBits; emailBits();
+  $('#addForm').onsubmit = async e => {
+    e.preventDefault();
+    const name = $('#addName').value.trim(), mobile = $('#addMobile') ? $('#addMobile').value.trim() : '';
+    const email = $('#addEmail').value.trim().toLowerCase(), invite = !!email && how() === 'email', password = !email || invite ? '' : $('#addPw').value;
+    if (!name) return toast('Enter their name.');
+    if (!email && !mobile) return toast('Enter their mobile or email.');
+    if (password && password.length < 8) return toast('The password needs at least 8 characters.');
+    $('#addGo').disabled = true;
+    try {
+      const r = await api({ action: 'create', email, name, ...(mobile ? { mobile } : {}), password, invite, card_perms: picked('cardChecks'), prep_roles: picked('prepChecks'), tv_perms: tvPicked() });
+      if (r.link) { await load(); showLink(email, r.link, true); return; }
+      dlg.close(); toast(r.hub_only ? `Login added for ${name}. They sign in with their hub mobile and PIN.` : r.existed ? `${email} already had a login; permissions updated` : `Login added for ${name}${password ? '. Give them the starting password.' : ''}`, 6000); await load();
+    } catch (er) { toast(er.message, 7000); $('#addGo').disabled = false; }
+  };
+}
+
+// Add several: paste names and mobiles (e.g. copied from the hub's "Hub staff" sheet). No permissions; set them after.
+function parsePeople(text) {
+  return text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
+    const cells = l.split(/\t|,|;/).map(c => c.trim()).filter(Boolean);
+    const mobile = cells.find(c => c.replace(/\D/g, '').length >= 9) || '';
+    const name = cells.filter(c => c !== mobile && !/^\d|^(true|false)$/i.test(c))[0] || '';
+    return { name, mobile };
+  }).filter(p => !/^name$/i.test(p.name));   // header row
+}
+function openBulk() {
+  if (!state.hub) return toast('Run supabase/hub-login.sql in Supabase first.', 6000);
+  openDlg(`<form id="bulkForm" class="dlg">
+    <div class="dlg-head"><div><h3>Add several</h3><p class="hint">One person per line: name and mobile. You can copy the Name and Mobile columns straight from the hub's Hub staff sheet.</p></div><button class="x" data-close>Close</button></div>
+    <textarea id="bulkText" rows="8" placeholder="Alex Kim	0412 345 678" style="width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg)"></textarea>
+    <p class="hint" id="bulkCount">Nobody yet.</p>
+    <p class="hint">They sign in with their hub mobile and PIN, and start with no permissions. Tap each person afterwards to give them what they need. Anyone whose mobile already has a login is skipped.</p>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="bulkGo" type="submit" disabled>Add</button></div>
+  </form>`);
+  const count = () => { const ppl = parsePeople($('#bulkText').value), good = ppl.filter(p => p.name && p.mobile.replace(/\D/g, '').length >= 9);
+    $('#bulkCount').textContent = ppl.length ? `${good.length} ${good.length === 1 ? 'person' : 'people'} to add${ppl.length > good.length ? `, ${ppl.length - good.length} line${ppl.length - good.length === 1 ? '' : 's'} without a name and mobile` : ''}.` : 'Nobody yet.';
+    $('#bulkGo').disabled = !good.length; $('#bulkGo').textContent = good.length ? `Add ${good.length}` : 'Add'; };
+  $('#bulkText').oninput = count;
+  $('#bulkForm').onsubmit = async e => {
+    e.preventDefault(); $('#bulkGo').disabled = true; $('#bulkGo').textContent = 'Adding…';
+    try {
+      const r = await api({ action: 'bulk', people: parsePeople($('#bulkText').value) });
+      await load();
+      openDlg(`<div class="dlg"><div class="dlg-head"><h3>Added ${r.added.length}</h3><button class="x" data-close>Close</button></div>
+        ${r.added.length ? `<p class="hint">${esc(r.added.join(', '))}</p>` : ''}
+        ${r.skipped.length ? `<h3>Skipped ${r.skipped.length}</h3><ul class="hint" style="margin:0;padding-left:18px">${r.skipped.map(x => `<li>${esc(x.name)}: ${esc(x.why)}</li>`).join('')}</ul>` : ''}
+        <p class="hint">They have no permissions yet. Tap each person to give them what they need.</p>
+        <div class="row" style="justify-content:flex-end"><button class="btn primary" data-close>Done</button></div></div>`);
+    } catch (er) { toast(er.message, 7000); count(); }
+  };
+}
+
+$('#search').oninput = draw;
+const nameFor = email => { const u = (state.users || []).find(x => x.email === email); return u ? who(u) : (email && email.endsWith('@staff.amatoolkit.local') ? 'a hub login' : email || 'someone'); };
+const AUDIT_VERB = { create: 'added', roles: 'changed permissions for', password: 'set a password for', link: 'made a set-up link for', details: 'edited the details of', hub: 'changed the hub mobile of', remove: 'removed', bulk: 'added several logins', staff_admin: 'changed Staff admin for' };
+function logLine(e) {
+  let verb = AUDIT_VERB[e.action] || e.action;
+  if (e.action === 'staff_admin') verb = (e.detail && e.detail.on) ? 'made a Staff admin:' : 'removed Staff admin from:';
+  const tgt = e.target_email ? ' ' + nameFor(e.target_email) : '';
+  return `<li><div class="who"><strong>${esc(nameFor(e.actor_email))}</strong> <span class="meta"><span>${esc(verb + tgt)}</span><span>·</span><span>${esc(fmtDate(e.at))}</span></span></div></li>`;
+}
+function openLog() {
+  const items = state.audit || [];
+  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Activity log</h3><p class="hint">The ${items.length ? 'last ' + items.length + ' change' + (items.length === 1 ? '' : 's') : 'recent changes'} to staff logins.</p></div><button class="x" data-close>Close</button></div>
+    ${items.length ? `<ul class="list">${items.map(logLine).join('')}</ul>` : '<p class="hint">No changes recorded yet.</p>'}</div>`);
+}
+$('#logBtn').onclick = openLog;
+$('#bulkBtn').onclick = openBulk;
+$('#addBtn').onclick = openAdd;
+$('#signOut').onclick = async () => { await sb.auth.signOut(); state = { me: null, users: [] }; show('#signIn'); };
+$('#signInForm').onsubmit = async e => {
+  e.preventDefault(); $('#siGo').disabled = true;
+  const { error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
+  $('#siGo').disabled = false;
+  if (error) return toast(/invalid/i.test(error.message) ? 'Wrong email or password.' : error.message, 6000);
+  $('#siPass').value = ''; load();
+};
+(async () => { const { data: { session } } = await sb.auth.getSession(); session ? load() : show('#signIn'); })();
+</script>
+</body>
+</html>

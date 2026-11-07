@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0f1713">
+<title>Black Belt Essay</title>
+<link rel="icon" href="../icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<style>
+  /* Same look as AMA Gradings: pine black, gold for the one thing to press, green for done */
+  :root {
+    --bg: #0f1713; --surface: #15201a; --raise: #1b2821; --fg: #edf2ee; --muted: #a3b5a9; --faint: #74897b; --line: #253629; --line2: #31473a;
+    --accent: #f5c518; --on-accent: #14130a; --accent-soft: rgba(245,197,24,.12); --gold: #f5c518; --on-gold: #14130a;
+    --ok: #7fd6a2; --danger: #ef8a73; --warn: #f0b45a; --hover: #1b2821;
+    --shadow: 0 0 0 1px var(--line); --tabbar-h: 64px; --info: #a3b5a9; --belt: #000;
+    --font-display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --font-body: Barlow, "Segoe UI", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.5; }
+  [hidden] { display: none !important; }
+  button, input, textarea { font: inherit; color: inherit; }
+  .appbar { background: var(--surface); border-bottom: 1px solid var(--line); padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px; }
+  .appbar-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+  .appbar img { width: 34px; height: 34px; object-fit: contain; }
+  .appbar h1 { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 0; }
+  main { max-width: 720px; margin: 0 auto; padding: 16px 16px 48px; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  h2 { font-family: var(--font-display); font-size: 26px; margin: 0; }
+  h3 { font-size: 16px; margin: 0; }
+  .muted { color: var(--muted); } .small { font-size: 14px; }
+  .question { font-size: 18px; font-weight: 600; white-space: pre-wrap; border-left: 4px solid var(--gold); padding: 4px 0 4px 12px; margin: 0; }
+  .banner { border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .banner.ok { border: 1px solid rgba(47,158,91,.6); } .banner.warn { border: 1px solid rgba(245,197,24,.45); } .banner.bad { border: 1px solid rgba(239,138,115,.45); }
+  .feedback { white-space: pre-wrap; margin: 0; }
+  textarea { width: 100%; min-height: 320px; padding: 12px; border: 1px solid var(--line2); border-radius: 10px; background: var(--raise); line-height: 1.55; resize: vertical; }
+  textarea:disabled { background: var(--bg); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .btn { font-weight: 600; min-height: 44px; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line2); background: var(--surface); cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 15px; }
+  .err { color: var(--danger); margin: 0; }
+</style>
+</head>
+<body>
+<header class="appbar"><div class="appbar-inner"><img src="../icon-192.png" alt=""><h1>Black Belt Essay</h1></div></header>
+<main>
+  <p class="muted" id="loading">Loading...</p>
+  <section class="card" id="bad" hidden><h2>This link isn't right</h2><p class="muted">Check you opened the whole link you were sent, or ask your instructor for a new one.</p></section>
+
+  <section id="essay" hidden style="display:flex;flex-direction:column;gap:14px">
+    <div class="card">
+      <h2 id="hello"></h2>
+      <p class="muted small" id="forWhat"></p>
+      <p class="question" id="question"></p>
+      <p class="small" id="rules"></p>
+    </div>
+    <div id="status"></div>
+    <form class="card" id="form">
+      <h3>Your essay</h3>
+      <p class="muted small">Type or paste it here, or upload a file (PDF, Word, or a photo of a handwritten essay). You can do both.</p>
+      <textarea id="body" aria-label="Your essay" placeholder="Start writing here..."></textarea>
+      <p class="small muted" id="count">0 words</p>
+      <div class="row"><input type="file" id="file" accept=".pdf,.doc,.docx,.txt,image/*" hidden><button type="button" class="btn" id="pick">Upload a file</button><span class="small muted grow" id="fileName">No file</span></div>
+      <label class="check" id="keepRow" hidden><input type="checkbox" id="keep" checked> Keep the file I handed in before (<span id="oldFile"></span>)</label>
+      <p class="err" id="err" hidden></p>
+      <div class="row"><button class="btn primary" type="submit" id="go">Hand in</button></div>
+      <p class="small muted" id="draftNote">What you type is saved on this device as you go, until you hand it in.</p>
+    </form>
+  </section>
+</main>
+<script>
+// A student's personal essay link: ...essay/#t=<secret>. No login; the secret finds their essay.
+const CFG = window.PREP_CONFIG;
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const token = new URLSearchParams(location.hash.replace(/^#/, '')).get('t') || '';
+const draftKey = 'essayDraft:' + token.slice(0, 12);
+const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private window */ } }, del: k => { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } } };
+const words = t => (t.trim().match(/\S+/g) || []).length;
+const fmtDate = iso => new Date(iso.length === 10 ? iso + 'T00:00:00' : iso).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'long' });
+const fmtWhen = iso => new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const MAX = 10 * 1024 * 1024;
+let E = null, file = null;
+
+function count() {
+  const n = words($('#body').value), min = E && E.min_words;
+  $('#count').textContent = `${n} word${n === 1 ? '' : 's'}${min ? ` (at least ${min})` : ''}`;
+  $('#count').style.color = min && n > 0 && n < min ? 'var(--warn)' : '';
+}
+function draw() {
+  $('#loading').hidden = true;
+  if (!E) { $('#bad').hidden = false; $('#essay').hidden = true; return; }
+  $('#essay').hidden = false;
+  $('#hello').textContent = `Hi ${E.first_name}`;
+  $('#forWhat').textContent = `Your essay for ${E.target_rank}${E.cycle ? ' · ' + E.cycle : ''}`;
+  $('#question').textContent = E.question || 'Your instructor will tell you the essay question.';
+  const days = E.due ? Math.round((new Date(E.due + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000) : null;
+  $('#rules').innerHTML = [E.min_words ? `At least <b>${E.min_words}</b> words.` : '', E.due ? `Due <b>${esc(fmtDate(E.due))}</b>${days < 0 ? ` <span style="color:var(--danger)">(${-days} day${days === -1 ? '' : 's'} late)</span>` : days === 0 ? ' (today)' : days <= 7 ? ` (${days} day${days === 1 ? '' : 's'} to go)` : ''}.` : ''].filter(Boolean).join(' ');
+  const st = E.status;
+  $('#status').innerHTML = E.overdue ? `<div class="banner bad"><b>The due date has passed</b><span class="small">Essays closed on ${esc(fmtDate(E.due))} and can no longer be changed. Please speak to your instructor if you need to.</span></div>`
+    : st === 'submitted' ? `<div class="banner ok"><b>Handed in ${esc(fmtWhen(E.submitted_at))}</b><span class="small">Thank you. You can still change it and hand it in again until it's marked.</span></div>`
+    : st === 'needs_changes' ? `<div class="banner warn"><b>Your instructor has sent it back for some changes</b>${E.feedback ? `<p class="feedback">${esc(E.feedback)}</p>` : ''}<span class="small">Make the changes below, then hand it in again.</span></div>`
+    : st === 'reviewed' ? `<div class="banner ok"><b>Your essay has been marked${E.mark ? ': ' + esc(E.mark) : ''}</b>${E.feedback ? `<p class="feedback">${esc(E.feedback)}</p>` : ''}<span class="small">Well done. It can't be changed now.</span></div>` : '';
+  const saved = st === 'not_submitted' ? store.get(draftKey) : null;
+  $('#body').value = saved != null ? saved : (E.body || '');
+  $('#body').disabled = $('#pick').disabled = $('#go').disabled = !!E.locked;
+  $('#form').querySelectorAll('p.muted.small')[0].hidden = !!E.locked;
+  $('#draftNote').hidden = !!E.locked || st !== 'not_submitted';
+  $('#go').textContent = E.overdue ? 'Closed' : E.locked ? 'Marked' : E.version ? 'Hand in again' : 'Hand in';
+  $('#keepRow').hidden = !E.file_name || !!E.locked; $('#oldFile').textContent = E.file_name || '';
+  $('#fileName').textContent = E.locked && E.file_name ? 'File: ' + E.file_name : 'No file';
+  file = null; count();
+}
+async function load() {
+  if (token.length < 8) { E = null; return draw(); }
+  const { data, error } = await sb.rpc('prep_essay_get', { p_token: token });
+  E = error ? null : data; draw();
+}
+$('#body').oninput = () => { count(); if (E && E.status === 'not_submitted') store.set(draftKey, $('#body').value); };
+$('#pick').onclick = () => $('#file').click();
+$('#file').onchange = e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  if (f.size > MAX) { $('#err').textContent = 'That file is bigger than 10 MB. Try a PDF, or a smaller photo.'; $('#err').hidden = false; return; }
+  file = f; $('#err').hidden = true; $('#fileName').textContent = f.name;
+};
+$('#form').onsubmit = async e => {
+  e.preventDefault(); if (!E || E.locked) return;
+  const text = $('#body').value, keep = !$('#keepRow').hidden && $('#keep').checked;
+  if (!text.trim() && !file && !keep) { $('#err').textContent = 'Type or paste your essay, or choose a file.'; $('#err').hidden = false; return; }
+  if (E.min_words && text.trim() && !file && words(text) < E.min_words && !confirm(`Your essay has ${words(text)} words, and it needs at least ${E.min_words}. Hand it in anyway?`)) return;
+  $('#go').disabled = true; $('#err').hidden = true; $('#go').textContent = file ? 'Uploading...' : 'Handing in...';
+  try {
+    let path = null;
+    if (file) {
+      const safe = file.name.replace(/[^A-Za-z0-9._-]+/g, '-').slice(-80) || 'essay';
+      path = `${token}/${Date.now()}-${safe}`;
+      const { error } = await sb.storage.from('prep-essays').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+      if (error) throw new Error(/mime|type/i.test(error.message) ? 'That kind of file can\'t be uploaded. Use a PDF, Word file or photo.' : /size|large/i.test(error.message) ? 'That file is too big (10 MB at most).' : error.message);
+    }
+    const { error } = await sb.rpc('prep_essay_submit', { p_token: token, p_body: text, p_file_path: path, p_file_name: file ? file.name : null, p_file_type: file ? (file.type || null) : null, p_keep_file: !file && keep });
+    if (error) throw new Error(error.message);
+    store.del(draftKey);
+    await load(); window.scrollTo(0, 0);
+  } catch (er) { $('#err').textContent = 'Not handed in: ' + (er.message || er); $('#err').hidden = false; $('#go').disabled = false; $('#go').textContent = E.version ? 'Hand in again' : 'Hand in'; }
+};
+load();
+</script>
+</body>
+</html>

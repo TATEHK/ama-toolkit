@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#04794b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Clipboard">
+<title>Clipboard</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<style>
+  /* Same look as AMA ID Cards and Black Belt Prep */
+  :root {
+    --bg: #f3f6f4; --surface: #ffffff; --fg: #16211b; --muted: #5a6b61; --line: #dfe7e2;
+    --accent: #04794b; --on-accent: #ffffff; --accent-soft: #e3f2ea; --hover: #eef5f1;
+    --gold: #f2d500; --on-gold: #1d1d1d; --ok: #04794b; --danger: #b3261e; --warn: #8a4f00;
+    --shadow: 0 1px 2px rgba(16,33,27,.06), 0 4px 14px rgba(16,33,27,.06);
+    --font-display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --font-body: "Source Sans 3", "Segoe UI", Arial, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1612; --surface: #16211b; --fg: #e6efe9; --muted: #93a79b; --line: #26352c;
+      --accent: #3fbf7f; --on-accent: #06150d; --accent-soft: #1b3326; --hover: #1c2b23;
+      --gold: #e8d23a; --ok: #5cd394; --danger: #f2867d; --warn: #f0b45a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .appbar { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px; }
+  .appbar-inner { max-width: 820px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+  .home-btn { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--muted); text-decoration: none; }
+  .home-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .home-btn svg { width: 20px; height: 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+  .brand img { width: 34px; height: 34px; border-radius: 8px; }
+  .brand h1 { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: .01em; }
+
+  main { max-width: 820px; margin: 0 auto; padding: 16px 16px 48px; display: flex; flex-direction: column; gap: 14px; }
+  h2 { font-family: var(--font-display); font-weight: 700; font-size: 24px; margin: 0; letter-spacing: .01em; }
+  h3 { font-family: var(--font-display); font-weight: 600; font-size: 19px; margin: 0; }
+  .hint { font-size: 14px; color: var(--muted); margin: 0; }
+  .card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  label, .label { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  input[type=text], input[type=email], input[type=password], input[type=search], textarea, select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  textarea { min-height: 180px; resize: vertical; line-height: 1.45; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn.danger { color: var(--danger); }
+  .btn.sm { min-height: 36px; padding: 4px 12px; font-size: 14px; white-space: nowrap; }
+  .btn.ghost { border-color: transparent; background: none; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1 1 0; }
+  .check { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 15px; color: var(--fg); font-weight: 400; }
+  .check input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+  .search { font-size: 18px; min-height: 52px !important; border-radius: 14px !important; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+  .bar select { width: auto; min-height: 36px; padding: 4px 10px; font-size: 14px; }
+
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  @media (min-width: 700px) { .list { grid-template-columns: 1fr 1fr; } }
+  .tpl { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); display: flex; align-items: stretch; overflow: hidden; }
+  .tpl .copy { flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+  .tpl .copy:hover { background: var(--hover); }
+  .tpl .copy:active { background: var(--accent-soft); }
+  .tpl .t { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 6px; }
+  .tpl .t .pin { color: var(--warn); font-size: 13px; }
+  .tpl .p { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+  .tpl .m { font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 0 8px; border-radius: 999px; border: 1px solid currentColor; }
+  .tpl .side { display: flex; flex-direction: column; border-left: 1px solid var(--line); }
+  .tpl .side button { flex: 1; border: 0; background: none; padding: 0 14px; cursor: pointer; font-weight: 700; color: var(--accent); min-width: 72px; }
+  .tpl .side button + button { border-top: 1px solid var(--line); color: var(--muted); font-weight: 600; font-size: 14px; }
+  .tpl .side button:hover { background: var(--hover); }
+  .tpl.flash { box-shadow: 0 0 0 2px var(--ok), var(--shadow); }
+  .empty { text-align: center; color: var(--muted); padding: 32px 16px; }
+  .banner { font-size: 14px; color: var(--warn); background: var(--surface); border-radius: 10px; padding: 8px 12px; box-shadow: var(--shadow); }
+  .auth { max-width: 400px; margin: 8vh auto 0; width: 100%; }
+  .foot { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
+  code { background: var(--accent-soft); border-radius: 5px; padding: 0 5px; font-size: 14px; }
+
+  dialog { border: 0; padding: 0; background: var(--surface); color: var(--fg); border-radius: 16px; width: min(600px, calc(100% - 24px)); max-height: calc(100dvh - 24px); box-shadow: var(--shadow); }
+  dialog::backdrop { background: rgba(10, 20, 15, .5); }
+  @media (max-width: 600px) { dialog { margin: auto 0 0; width: 100%; max-width: 100%; border-radius: 16px 16px 0 0; } }
+  .dlg { padding: 16px; display: flex; flex-direction: column; gap: 12px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .dlg-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .x { border: 0; background: none; color: var(--accent); font-weight: 600; cursor: pointer; padding: 6px; }
+  .preview { white-space: pre-wrap; background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 15px; max-height: 30vh; overflow: auto; }
+
+  #toast { inset: auto; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); margin: 0; border: 0; width: max-content;
+    background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 15px; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
+  #toast[hidden] { display: none; }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="home-btn" id="homeBtn" href="/" aria-label="Back to AMA Grading Toolkit" title="AMA Grading Toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></a>
+    <div class="brand"><img src="icon-192.png" alt=""><h1>Clipboard</h1></div>
+    <button class="btn primary sm" id="newBtn" hidden>New</button>
+  </div>
+</header>
+
+<main>
+  <section id="signIn" class="auth card" hidden>
+    <h2>Sign in</h2>
+    <p class="hint">Use your AMA login. Templates are shared by all AMA staff and are the same on every device.</p>
+    <form id="signInForm" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="siEmail">Email</label><input type="email" id="siEmail" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input type="password" id="siPass" autocomplete="current-password" required></div>
+      <button class="btn primary" id="siGo" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <section id="setup" class="card" hidden>
+    <h2>Setup needed</h2>
+    <p class="hint">Clipboard's database setup is missing or out of date. In Supabase, open SQL Editor &gt; New query, paste the whole of <code>supabase/clipboard-setup.sql</code> from the clipboard repository, click Run (choose "with RLS" if asked), then come back and tap Try again.</p>
+    <div class="row"><button class="btn primary" id="retry">Try again</button></div>
+  </section>
+
+  <section id="noAccess" class="card" hidden>
+    <h2>No access</h2>
+    <p class="hint">Clipboard is for AMA staff. Your login needs a permission in AMA ID Cards or a role in Black Belt Prep. Ask an admin to add one, then tap Try again.</p>
+    <div class="row"><button class="btn primary" id="retry2">Try again</button><button class="btn" id="signOut2">Sign out</button></div>
+  </section>
+
+  <section id="app" hidden style="display:flex;flex-direction:column;gap:12px">
+    <p class="banner" id="offline" hidden>No connection. Showing your saved copy; you can still copy, but changes need a connection.</p>
+    <input type="search" id="search" class="search" placeholder="Search templates" aria-label="Search templates" autocomplete="off">
+    <div class="chips" id="chips" role="group" aria-label="Category"></div>
+    <div class="bar"><span id="count"></span><select id="sort" aria-label="Order"><option value="used">Most used first</option><option value="az">A to Z</option><option value="new">Newest first</option></select></div>
+    <ul class="list" id="list"></ul>
+    <div class="foot">
+      <button class="btn sm ghost" id="exportBtn">Export</button><button class="btn sm ghost" id="importBtn">Import</button><button class="btn sm ghost" id="signOut">Sign out</button>
+    </div>
+    <p class="hint" style="text-align:center" id="who"></p>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+  </section>
+</main>
+
+<dialog id="dlg"></dialog>
+<div id="toast" role="status" popover="manual" hidden></div>
+
+<script>
+const CFG = window.CLIP_CONFIG || {};
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+const dlg = $('#dlg');
+const store = {
+  get(k, d = null) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode */ } }
+};
+const state = { email: '', items: [], cat: store.get('clipCat', ''), sort: store.get('clipSort', 'used'), offline: false };
+
+/* ---------- Toast (top layer, above any open window) ---------- */
+let toastTimer;
+function toast(msg, ms = 2500) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer);
+  try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* older browsers */ }
+  toastTimer = setTimeout(() => { t.hidden = true; try { t.hidePopover(); } catch (e) { /* ignore */ } }, ms);
+}
+function openDlg(html) {
+  dlg.innerHTML = html;
+  dlg.querySelectorAll('[data-close]').forEach(b => { b.type = 'button'; b.onclick = e => { e.preventDefault(); dlg.close(); }; });
+  if (!dlg.open) dlg.showModal();
+  const t = $('#toast'); if (!t.hidden) { try { t.hidePopover(); t.showPopover(); } catch (e) { /* ignore */ } }
+}
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+function confirmBox(text, yes) {
+  return new Promise(res => {
+    openDlg(`<div class="dlg"><h3>Are you sure?</h3><p style="margin:0">${esc(text)}</p><div class="row" style="justify-content:flex-end"><button class="btn" id="cfNo">Cancel</button><button class="btn danger" id="cfYes">${esc(yes)}</button></div></div>`);
+    $('#cfNo').onclick = () => { dlg.close(); res(false); }; $('#cfYes').onclick = () => { dlg.close(); res(true); };
+  });
+}
+function show(id) { ['#signIn', '#setup', '#noAccess', '#app'].forEach(s => $(s).hidden = s !== id); $('#newBtn').hidden = id !== '#app'; }
+
+/* ---------- Fill-in blanks ---------- */
+// {date}, {day} and {time} fill themselves in; anything else in {braces} is asked for when copying.
+const AUTO = {
+  date: () => new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }),
+  day: () => new Date().toLocaleDateString('en-AU', { weekday: 'long' }),
+  time: () => new Date().toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })
+};
+const blanks = body => [...new Set([...String(body).matchAll(/\{([^{}\n]{1,40})\}/g)].map(m => m[1].trim()).filter(n => !AUTO[n.toLowerCase()]))];
+const fill = (body, values) => String(body).replace(/\{([^{}\n]{1,40})\}/g, (m, n) => {
+  const k = n.trim(), a = AUTO[k.toLowerCase()];
+  return a ? a() : (values[k] !== undefined && values[k] !== '' ? values[k] : m);
+});
+
+/* ---------- Copying ---------- */
+async function writeClipboard(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* fall back below */ }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove(); return ok;
+}
+async function copyTemplate(t) {
+  const need = blanks(t.body);
+  if (need.length) return askBlanks(t, need);
+  await finishCopy(t, fill(t.body, {}));
+}
+async function finishCopy(t, text) {
+  const ok = await writeClipboard(text);
+  if (!ok) return showCopyFallback(t, text);
+  toast(`Copied: ${t.title}`);
+  const li = $(`#list [data-id="${t.id}"]`); if (li) { li.classList.add('flash'); setTimeout(() => li.classList.remove('flash'), 700); }
+  t.use_count = (t.use_count || 0) + 1; t.last_used_at = new Date().toISOString(); cacheItems();
+  if (!state.offline) sb.rpc('clip_used', { p_id: t.id }).then(() => {}, () => {});
+}
+function showCopyFallback(t, text) {
+  openDlg(`<div class="dlg"><div class="dlg-head"><h3>${esc(t.title)}</h3><button type="button" class="x" data-close>Close</button></div>
+    <p class="hint">Your browser blocked copying. Press and hold the text below, choose Select All, then Copy.</p>
+    <textarea id="fbText" readonly>${esc(text)}</textarea></div>`);
+  const ta = $('#fbText'); ta.focus(); ta.select();
+}
+function askBlanks(t, need) {
+  const remembered = store.get('clipBlanks', {});
+  openDlg(`<form class="dlg" id="blankForm"><div class="dlg-head"><div><h3>${esc(t.title)}</h3><p class="hint">Fill in the blanks, then copy.</p></div><button type="button" class="x" data-close>Close</button></div>
+    ${need.map((n, i) => `<div class="field"><label for="bl${i}">${esc(n)}</label><input type="text" id="bl${i}" data-blank="${esc(n)}" value="${esc(remembered[n] || '')}" autocomplete="off"></div>`).join('')}
+    <div class="label">Preview</div><div class="preview" id="blPrev"></div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="blGo">Copy</button></div></form>`);
+  const values = () => Object.fromEntries($$('#blankForm [data-blank]').map(i => [i.dataset.blank, i.value]));
+  const prev = () => { $('#blPrev').textContent = fill(t.body, values()); };
+  $$('#blankForm [data-blank]').forEach(i => i.oninput = prev); prev();
+  const fields = $$('#blankForm [data-blank]');
+  fields.forEach((inp, k) => inp.onkeydown = e => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    if (k < fields.length - 1) { e.preventDefault(); fields[k + 1].focus(); fields[k + 1].select(); }   // next blank
+    // on the last blank, Enter submits the form: copy
+  });
+  const first = $('#blankForm [data-blank]'); if (first) { first.focus(); first.select(); }
+  $('#blankForm').onsubmit = async e => {
+    e.preventDefault();
+    const v = values(); store.set('clipBlanks', { ...remembered, ...v });
+    dlg.close(); await finishCopy(t, fill(t.body, v));
+  };
+}
+
+/* ---------- Loading and showing ---------- */
+const cacheKey = () => 'clipCache:' + state.email;
+const shortName = e => { const n = String(e || '').split('@')[0].replace(/[._-]+/g, ' ').trim(); return n ? n.replace(/\b\w/g, c => c.toUpperCase()) : 'someone'; };
+const byText = t => { const me = x => x === state.email; const a = me(t.owner) ? 'you' : shortName(t.owner);
+  return t.updated_by && t.updated_by !== t.owner ? `Added by ${a}, changed by ${me(t.updated_by) ? 'you' : shortName(t.updated_by)}` : `Added by ${a}`; };
+function cacheItems() { store.set(cacheKey(), state.items); }
+async function load() {
+  const staff = await sb.rpc('clip_is_staff');
+  if (!staff.error && staff.data === false) { show('#noAccess'); return; }
+  if (staff.error && /clip_is_staff|schema cache|does not exist|function/i.test(staff.error.message || '')) { show('#setup'); return; }
+  const { data, error } = await sb.from('clip_templates').select('*');
+  if (error) {
+    if (/clip_templates|schema cache|does not exist|relation/i.test(error.message || '')) { show('#setup'); return; }
+    const cached = store.get(cacheKey(), null);
+    if (cached) { state.items = cached; state.offline = true; show('#app'); draw(); return; }
+    show('#setup'); $('#setup .hint').textContent = "Can't reach your templates: " + error.message; return;
+  }
+  state.offline = false; state.items = data || []; cacheItems(); show('#app'); draw();
+}
+function categories() { return [...new Set(state.items.map(t => (t.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
+function sorted(list) {
+  const by = { used: (a, b) => (b.use_count || 0) - (a.use_count || 0) || String(b.last_used_at || '').localeCompare(String(a.last_used_at || '')) || a.title.localeCompare(b.title),
+    az: (a, b) => a.title.localeCompare(b.title), new: (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) }[state.sort];
+  return list.slice().sort((a, b) => (b.pinned - a.pinned) || by(a, b));
+}
+function visible() {
+  const q = $('#search').value.trim().toLowerCase();
+  return sorted(state.items.filter(t => (!state.cat || (t.category || '') === state.cat) &&
+    (!q || q.split(/\s+/).every(w => (t.title + ' ' + t.body + ' ' + (t.category || '')).toLowerCase().includes(w)))));
+}
+function draw() {
+  $('#offline').hidden = !state.offline;
+  const cats = categories();
+  if (state.cat && !cats.includes(state.cat)) state.cat = '';
+  $('#chips').hidden = !cats.length;
+  $('#chips').innerHTML = [['', 'All'], ...cats.map(c => [c, c])].map(([v, t]) => `<button class="chip" data-cat="${esc(v)}" aria-pressed="${state.cat === v}">${esc(t)}</button>`).join('');
+  $$('#chips [data-cat]').forEach(b => b.onclick = () => { state.cat = b.dataset.cat; store.set('clipCat', state.cat); draw(); });
+  $('#sort').value = state.sort;
+  const list = visible();
+  $('#count').textContent = `${list.length} template${list.length === 1 ? '' : 's'}`;
+  $('#list').innerHTML = list.length ? list.map(t => `<li class="tpl" data-id="${t.id}">
+      <button class="copy" data-copy="${t.id}" aria-label="Copy ${esc(t.title)}">
+        <span class="t">${t.pinned ? '<span class="pin" aria-label="Pinned">&#9733;</span>' : ''}${esc(t.title)}</span>
+        <span class="p">${esc(t.body)}</span>
+        <span class="m">${t.category ? `<span class="tag">${esc(t.category)}</span>` : ''}${blanks(t.body).length ? `<span>Fill in: ${esc(blanks(t.body).join(', '))}</span>` : ''}<span>${esc(byText(t))}</span></span>
+      </button>
+      <div class="side"><button data-copy="${t.id}" tabindex="-1" aria-hidden="true">Copy</button><button data-edit="${t.id}">Edit</button></div></li>`).join('')
+    : `<li class="empty">${state.items.length ? 'No templates match.' : 'No templates yet. Tap New to add your first one.'}</li>`;
+  $$('#list [data-copy]').forEach(b => b.onclick = () => copyTemplate(state.items.find(t => t.id === b.dataset.copy)));
+  $$('#list [data-edit]').forEach(b => b.onclick = () => openEditor(state.items.find(t => t.id === b.dataset.edit)));
+  $('#who').textContent = state.email ? `Signed in as ${state.email}` : '';
+}
+
+/* ---------- Adding and editing ---------- */
+function openEditor(t = null, copyFrom = null) {
+  const src = t || copyFrom || { title: '', body: '', category: state.cat || '', pinned: false };
+  openDlg(`<form class="dlg" id="edForm">
+    <div class="dlg-head"><div><h3>${t ? 'Edit template' : 'New template'}</h3><p class="hint">${t ? esc(byText(t)) + '. ' : ''}Shared with all AMA staff.</p></div><button type="button" class="x" data-close>Close</button></div>
+    <div class="field"><label for="edTitle">Name</label><input type="text" id="edTitle" required maxlength="120" value="${esc(copyFrom ? src.title + ' (copy)' : src.title)}" placeholder="e.g. Grading fee reminder"></div>
+    <div class="field"><label for="edBody">Text to copy</label><textarea id="edBody" placeholder="Hi {Name}, ...">${esc(src.body)}</textarea>
+      <p class="hint">Enter starts a new line; Ctrl+Enter (or Cmd+Enter) saves. Put a blank in braces, like <code>{Name}</code> or <code>{Amount}</code>, and you'll be asked for it when copying. <code>{date}</code>, <code>{day}</code> and <code>{time}</code> fill themselves in.</p></div>
+    <div class="field"><label for="edCat">Category (optional)</label><input type="text" id="edCat" list="catList" maxlength="40" value="${esc(src.category || '')}" placeholder="e.g. Parents, Grading, Admin"><datalist id="catList">${categories().map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+    <label class="check"><input type="checkbox" id="edPin" ${src.pinned ? 'checked' : ''}> Pin to the top</label>
+    <div class="row">${t ? '<button type="button" class="btn danger" id="edDel">Delete</button><button type="button" class="btn" id="edDup">Duplicate</button>' : ''}<span class="grow"></span><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="edSave">Save</button></div>
+  </form>`);
+  $('#edTitle').focus();
+  $('#edTitle').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#edBody').focus(); } };
+  $('#edForm').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('#edForm').requestSubmit(); } });
+  $('#edForm').onsubmit = async e => {
+    e.preventDefault();
+    if (state.offline) return toast('No connection. Changes need a connection.');
+    const rec = { title: $('#edTitle').value.trim(), body: $('#edBody').value, category: $('#edCat').value.trim() || null, pinned: $('#edPin').checked };
+    if (!rec.title) return toast('Give it a name.');
+    $('#edSave').disabled = true;
+    const { error } = t ? await sb.from('clip_templates').update(rec).eq('id', t.id) : await sb.from('clip_templates').insert(rec);
+    if (error) { $('#edSave').disabled = false; return toast('Not saved: ' + error.message, 5000); }
+    dlg.close(); toast(t ? 'Saved' : 'Template added'); await load();
+  };
+  if (t) {
+    $('#edDel').onclick = async () => {
+      if (state.offline) return toast('No connection. Changes need a connection.');
+      if (!await confirmBox(`Delete "${t.title}"? It's shared, so it goes for everyone.`, 'Delete')) return openEditor(t);
+      const { error } = await sb.from('clip_templates').delete().eq('id', t.id);
+      if (error) return toast('Not deleted: ' + error.message, 5000);
+      toast('Deleted'); await load();
+    };
+    $('#edDup').onclick = () => openEditor(null, t);
+  }
+}
+
+/* ---------- Export and import (a backup you keep) ---------- */
+$('#exportBtn').onclick = () => {
+  const data = state.items.map(({ title, body, category, pinned }) => ({ title, body, category, pinned }));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ app: 'clipboard', exported: new Date().toISOString(), templates: data }, null, 2)], { type: 'application/json' }));
+  const d = new Date(); a.download = `clipboard-templates-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.json`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast(`Exported ${data.length} template${data.length === 1 ? '' : 's'}`);
+};
+$('#importBtn').onclick = () => { if (state.offline) return toast('No connection. Importing needs a connection.'); $('#importFile').click(); };
+$('#importFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  let list;
+  try { const j = JSON.parse(await f.text()); list = (Array.isArray(j) ? j : j.templates || []).filter(x => x && x.title); }
+  catch (er) { return toast("That file isn't a templates export.", 5000); }
+  const have = new Set(state.items.map(t => (t.title + '\n' + t.body).toLowerCase()));
+  const add = list.filter(x => !have.has((x.title + '\n' + (x.body || '')).toLowerCase()))
+    .map(x => ({ title: String(x.title).slice(0, 120), body: String(x.body || ''), category: x.category ? String(x.category).slice(0, 40) : null, pinned: !!x.pinned }));
+  if (!add.length) return toast('Nothing new to import.');
+  const { error } = await sb.from('clip_templates').insert(add);
+  if (error) return toast('Import stopped: ' + error.message, 5000);
+  toast(`Imported ${add.length}${list.length > add.length ? `, skipped ${list.length - add.length} already here` : ''}`, 4000); await load();
+};
+
+/* ---------- Search, keys, sign in ---------- */
+$('#search').oninput = draw;
+$('#search').onkeydown = e => {
+  if (e.key === 'Enter') { e.preventDefault(); const v = visible(); if (v.length) copyTemplate(v[0]); }   // Enter copies the top result
+  if (e.key === 'Escape') { $('#search').value = ''; draw(); }
+};
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !dlg.open && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { e.preventDefault(); $('#search').focus(); }
+});
+$('#sort').onchange = e => { state.sort = e.target.value; store.set('clipSort', state.sort); draw(); };
+$('#newBtn').onclick = () => openEditor();
+$('#retry').onclick = load;
+$('#retry2').onclick = load;
+$('#signOut2').onclick = async () => { await sb.auth.signOut(); state.items = []; state.email = ''; show('#signIn'); };
+$('#signOut').onclick = async () => { await sb.auth.signOut(); state.items = []; state.email = ''; show('#signIn'); };
+$('#signInForm').onsubmit = async e => {
+  e.preventDefault(); $('#siGo').disabled = true;
+  const { data, error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
+  $('#siGo').disabled = false;
+  if (error) return toast(/invalid/i.test(error.message) ? 'Wrong email or password.' : error.message, 5000);
+  $('#siPass').value = ''; state.email = (data.user.email || '').toLowerCase(); load();
+};
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    // Signed out, but a saved copy lets you keep copying with no connection
+    show('#signIn'); return;
+  }
+  state.email = (session.user.email || '').toLowerCase();
+  load();
+})();
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

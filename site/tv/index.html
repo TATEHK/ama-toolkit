@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#04794b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="AMA Display">
+<title>AMA TV</title>
+<link rel="apple-touch-icon" href="../icons/ama-id-cards.png">
+<link rel="icon" href="../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="../config.js"></script>
+<script src="qrcode.js"></script>
+<style>
+  /* Plays full screen on the dojang TV. Written for older smart TV browsers: no newer CSS or JS. */
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; touch-action: none; -ms-touch-action: none; }   /* no pinch zoom or double-tap zoom */
+  body { font-family: Barlow, "Segoe UI", Arial, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+  body.idle, body.idle * { cursor: none !important; }
+  .layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .9s ease; overflow: hidden; }
+  .layer.on { opacity: 1; }
+  /* Party with a QR code: the poster above, a big QR code along the bottom */
+  .pq-top { position: absolute; left: 0; right: 0; top: 0; bottom: 30%; overflow: hidden; }
+  .pqr { position: absolute; left: 0; right: 0; bottom: 0; height: 30%; background: #fff; color: #16211b; display: flex; align-items: center; justify-content: center; gap: 4vw; padding: 1.5vh 5vw; box-sizing: border-box; }
+  .pqr canvas { height: 92%; width: auto; image-rendering: pixelated; flex: none; }
+  .pqr .pqrt { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: 5.2vw; line-height: 1.15; text-transform: uppercase; max-width: 46%; }
+  .fill { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .blur { background-size: cover; background-position: center; -webkit-filter: blur(40px) brightness(.5); filter: blur(40px) brightness(.5); transform: scale(1.15); }
+  .contain { background-size: contain; background-position: center; background-repeat: no-repeat; }
+  video.fill { object-fit: contain; background: #000; }
+  .caption { position: absolute; left: 4vw; bottom: 4vh; right: 4vw; font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: 3.6vw; line-height: 1.1; text-shadow: 0 .3vw 1.2vw rgba(0,0,0,.6); }
+
+  /* Info and live slides */
+  .card { position: absolute; left: 0; top: 0; width: 100%; height: 100%; box-sizing: border-box; padding: 11vh 7vw 9vh; display: flex; flex-direction: column; justify-content: center; }
+  .t-green { background: #04794b; color: #fff; } .t-dark { background: #0e1612; color: #e6efe9; } .t-gold { background: #f2d500; color: #16211b; } .t-light { background: #f3f6f4; color: #16211b; }
+  .t-party { background: #5b2a86; background: linear-gradient(135deg, #e0218a 0%, #7b2ff7 55%, #1e90ff 100%); color: #fff; text-align: center; align-items: center; }
+  .t-bday { background: #04794b; background: radial-gradient(circle at 50% 16%, rgba(242,213,0,.42), rgba(242,213,0,0) 46%), linear-gradient(135deg, #0a5c3a 0%, #04794b 52%, #0a3d28 100%); color: #fff; }
+  .t-bday .kicker { color: #f2d500; }
+  .t-party h1 { font-size: 9vw; text-shadow: 0 .4vw 1.6vw rgba(0,0,0,.25); }
+  .t-party .body { font-size: 4vw; }
+  .t-party .belt { display: none; }
+  .confetti { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
+  .confetti i { position: absolute; top: -5vh; width: 1.2vw; height: 2vw; border-radius: .2vw; opacity: .95; -webkit-animation: fall linear infinite; animation: fall linear infinite; }
+  @-webkit-keyframes fall { from { -webkit-transform: translateY(0) rotate(0deg); } to { -webkit-transform: translateY(112vh) rotate(720deg); } }
+  @keyframes fall { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(112vh) rotate(720deg); } }
+  .card .belt { height: 1.2vh; width: 16vw; margin-bottom: 4vh; background: #141414; position: relative; }
+  .t-dark .belt, .t-green .belt { background: #f2d500; }
+  .card .kicker { font-size: 2.4vw; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; opacity: .8; margin-bottom: 1.5vh; }
+  .card h1 { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: 7vw; line-height: 1.02; margin: 0 0 3vh; letter-spacing: .005em; }
+  .card .body { font-size: 3.4vw; line-height: 1.3; white-space: pre-line; }
+  .card.bgphoto { background-size: cover; background-position: center; }
+  .card.bgphoto .shade { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: linear-gradient(90deg, rgba(0,0,0,.78), rgba(0,0,0,.35)); }
+  .card.bgphoto > *:not(.shade) { position: relative; color: #fff; }
+  .big { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: 11vw; line-height: 1; margin: 0 0 2vh; }
+  .sub { font-size: 3.4vw; opacity: .9; }
+  .count { display: flex; align-items: baseline; margin: 0 0 2vh; font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; }
+  .count .num { font-size: 20vw; line-height: .9; margin-right: 2vw; }
+  .count .unit { font-size: 6vw; }
+  .rows { margin-top: 1vh; }
+  .rows .r { display: flex; align-items: baseline; justify-content: space-between; font-size: 3.6vw; padding: 1.6vh 0; border-bottom: .25vh solid rgba(255,255,255,.25); }
+  .t-gold .rows .r, .t-light .rows .r { border-bottom-color: rgba(0,0,0,.15); }
+  .rows .r b { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-size: 4.2vw; }
+  .card h1.month { font-size: 9vw; margin: 1vh 0 0; }
+  .cal { display: flex; font-size: 2.2vw; margin-top: 1vh; }
+  .cal .mon { flex: 1; min-width: 0; }
+  .cal .mon + .mon { margin-left: 5vw; }
+  .cal h2 { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-size: 2em; line-height: 1; margin: 0; }
+  .cal .theme { font-size: .85em; opacity: .8; margin-top: .3em; }
+  .cal .e { display: flex; align-items: baseline; padding: .45em 0; border-bottom: .2vh solid rgba(255,255,255,.22); }
+  .cal .theme + .e, .cal h2 + .e { margin-top: .5em; }
+  .t-gold .cal .e, .t-light .cal .e { border-bottom-color: rgba(0,0,0,.15); }
+  .cal .e b { flex: none; width: 4.8em; font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-size: 1.1em; }
+  .cal .e span { flex: 1; min-width: 0; }
+  .cal .e small { display: block; font-size: .72em; opacity: .75; }
+  .cal .e .tag { font-size: .7em; }
+  .cal .none { opacity: .7; margin-top: .6em; }
+  .tag { display: inline-block; font-size: 2vw; font-weight: 700; padding: .4vh 1.2vw; border-radius: 99px; background: #f2d500; color: #16211b; margin-left: 1.2vw; vertical-align: middle; }
+  .names { display: flex; flex-wrap: wrap; margin: 1vh -1vw 0; }
+  .names .n { width: 50%; box-sizing: border-box; padding: 1.4vh 1vw; }
+  .names .n b { display: block; font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-size: 4vw; line-height: 1.1; }
+  .names .n span { font-size: 2.4vw; opacity: .85; }
+  .names.few { flex-direction: column; align-items: center; margin-top: 2vh; }
+  .names.few .n { width: 100%; text-align: center; padding: 1vh 1vw; }
+  .names.few .n b { font-size: 7vw; }
+  .names.many .n { width: 33.333%; padding: 1vh 1vw; }
+  .names.many .n b { font-size: 3vw; }
+  .names.lots .n { width: 25%; padding: .7vh 1vw; }
+  .names.lots .n b { font-size: 2.4vw; }
+
+  /* Corner bits */
+  video.vid { background: #000; opacity: 0; transition: opacity .4s; }
+  video.vid.on { opacity: 1; }
+  video::-webkit-media-controls, video::-webkit-media-controls-start-playback-button, video::-webkit-media-controls-overlay-play-button { display: none !important; -webkit-appearance: none; }
+  .quiet { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: #000; }
+  .quiet .qlogo { position: absolute; left: 50%; top: 50%; width: 22vh; height: 22vh; margin: -11vh 0 0 -11vh; border-radius: 3vh; background: #fff url(../icons/ama-id-cards.png) center/86% no-repeat; opacity: .55; }
+  .card.qr { flex-direction: row; align-items: center; }
+  .qr .qtext { flex: 1; min-width: 0; padding-right: 5vw; }
+  .qr .qbox { flex: none; width: 66vh; height: 66vh; max-width: 40vw; max-height: 40vw; background: #fff; border-radius: 2.4vh; padding: 1.2vh; box-sizing: border-box; }
+  .qr .qbox img { display: block; width: 100%; height: 100%; }
+  .paused { position: absolute; right: 2.2vw; bottom: 2.4vh; z-index: 6; background: rgba(0,0,0,.6); color: #fff; font-size: 1.6vw; font-weight: 700; padding: .6vh 1.2vw; border-radius: 99px; }
+  .logo { position: absolute; left: 2.2vw; top: 2.4vh; width: 5vw; height: 5vw; border-radius: 1vw; background: #fff url(../icons/ama-id-cards.png) center/86% no-repeat; z-index: 5; box-shadow: 0 .3vw 1vw rgba(0,0,0,.3); }
+  .clock { position: absolute; right: 2.4vw; top: 2.4vh; z-index: 5; font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: 3vw; padding: .6vh 1.2vw; border-radius: 1vw; background: rgba(0,0,0,.45); color: #fff; }
+  .dot { position: absolute; right: 1vw; bottom: 1.4vh; width: 1vw; height: 1vw; border-radius: 50%; background: #f2867d; z-index: 6; display: none; }
+  .offline .dot { display: block; }
+
+  /* Code entry and messages */
+  .screen { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: #04794b; display: flex; align-items: center; justify-content: center; text-align: center; z-index: 10; }
+  .screen .box { width: 60vw; }
+  .screen h1 { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-size: 5vw; margin: 0 0 2vh; }
+  .screen p { font-size: 2.2vw; margin: 0 0 3vh; opacity: .9; }
+  .screen input { font: 700 5vw "Barlow Semi Condensed", Arial, sans-serif; letter-spacing: .3em; text-transform: uppercase; text-align: center; width: 36vw; padding: 1.5vh 1vw; border: 0; border-radius: 1vw; color: #16211b; }
+  .screen button { font: 700 2.6vw "Source Sans 3", Arial, sans-serif; margin-top: 3vh; padding: 1.5vh 4vw; border: 0; border-radius: 1vw; background: #f2d500; color: #16211b; cursor: pointer; }
+  .screen .err { color: #ffd9d4; font-weight: 700; min-height: 3vh; }
+  .lowbat { position: absolute; left: 0; right: 0; top: 0; z-index: 9; background: #c62828; color: #fff; text-align: center; font-weight: 700; font-size: 2.2vw; padding: 1vh 3vw; }
+  @media (orientation: portrait) { .lowbat { font-size: 4.6vw; padding: 1.4vh 4vw; } body.haslowbat .logo, body.haslowbat .clock { top: 7.5vh; } }
+  body.haslowbat .logo, body.haslowbat .clock { top: 9vh; }
+  .signin { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border: 0; background: #fff; z-index: 8; }
+  .banner { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; text-align: center; background: #f2d500; color: #16211b; font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: 3vw; padding: 1.6vh 4vw; letter-spacing: .02em; }
+  body.hasbanner .card { padding-bottom: 14vh; }
+  body.hasbanner .caption { bottom: 12vh; }
+  body.hasbanner .paused { bottom: 11vh; }
+  body.hasbanner .hint { bottom: 12vh; }
+  .hint { position: absolute; left: 50%; bottom: 3vh; transform: translateX(-50%); z-index: 7; background: rgba(0,0,0,.6); color: #fff; font-size: 1.8vw; padding: 1vh 2vw; border-radius: 1vw; transition: opacity .6s; }
+
+  /* It's a display: no selecting text or long-press menus (a long press is how staff open the staff code) */
+  html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  input, textarea { -webkit-user-select: text; user-select: text; }
+  /* Staff: back to normal on this device (hold the top-left corner during a party or blackout) */
+  .ovr { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 20; background: rgba(4,12,8,.94); display: flex; align-items: center; justify-content: center; color: #fff; font-family: "Barlow", Arial, sans-serif; }
+  .ovr .pad { width: min(78vw, 64vh); text-align: center; }
+  .ovr h2 { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-size: min(5vw, 4.4vh); margin: 0 0 1vh; }
+  .ovr p { font-size: min(2.6vw, 2.4vh); margin: 0 0 2vh; color: #c9d6cd; }
+  .ovr .dots { font: 700 min(7vw, 6vh) "Barlow Semi Condensed", Arial, sans-serif; letter-spacing: .4em; min-height: 8vh; }
+  .ovr .err { color: #ff9c87; font-weight: 700; min-height: 3.4vh; font-size: min(2.6vw, 2.4vh); }
+  .ovr .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4vh; margin-top: 1vh; }
+  .ovr button { font: 700 min(5vw, 4.4vh) "Barlow Semi Condensed", Arial, sans-serif; padding: 1.6vh 0; border-radius: 1.4vh; border: 1px solid #31473a; background: #1b2821; color: #fff; cursor: pointer; }
+  .ovr button.go { background: #f5c518; border-color: #f5c518; color: #14130a; }
+  .ovr button.sm { font-size: min(2.8vw, 2.6vh); }
+  .ovr .cancel { margin-top: 2vh; width: 100%; background: transparent; }
+  .holdring { position: absolute; left: 1vh; top: 1vh; width: 9vh; height: 9vh; border-radius: 50%; border: .8vh solid rgba(245,197,24,.9); z-index: 19; pointer-events: none; transition: transform 3s linear, opacity .2s; transform: scale(.2); }
+
+  /* ---------- Upright screens (the tablets): everything a bit bigger, side-by-side parts stacked ---------- */
+  @media (orientation: portrait) {
+    .card { padding: 12vh 8vw 10vh; }
+    .card .belt { width: 30vw; height: .8vh; }
+    .card .kicker { font-size: 4.2vw; }
+    .card h1 { font-size: 11vw; }
+    .t-party h1 { font-size: 13vw; }
+    .card .body, .t-party .body { font-size: 5.6vw; }
+    .caption { font-size: 6vw; }
+    .big { font-size: 15vw; }
+    .sub { font-size: 5.4vw; }
+    .count { flex-direction: column; align-items: flex-start; }
+    .count .num { font-size: 34vw; }
+    .count .unit { font-size: 9vw; }
+    .card h1.month { font-size: 13vw; }
+    .cal { flex-direction: column; font-size: 4.2vw; }
+    .cal .mon + .mon { margin-left: 0; margin-top: 4vh; }
+    .cal .e b { width: 5.4em; }
+    .tag { font-size: 3.4vw; }
+    .card.qr { flex-direction: column; align-items: flex-start; justify-content: center; }
+    .qr .qtext { padding-right: 0; }
+    .qr .qbox { width: 74vw; height: 74vw; max-width: none; max-height: 44vh; margin-top: 3vh; align-self: center; }
+    .clock { font-size: 5.4vw; border-radius: 2vw; }
+    .logo { width: 11vw; height: 11vw; border-radius: 2.4vw; }
+    .paused { font-size: 3.6vw; }
+    .hint { font-size: 3.8vw; white-space: nowrap; }
+    .banner { font-size: 6.4vw; padding: 2.2vh 6vw; }
+    body.hasbanner .card { padding-bottom: 16vh; }
+    .quiet .qlogo { width: 34vw; height: 34vw; margin: -17vw 0 0 -17vw; }
+    .screen .box { width: 84vw; }
+    .screen h1 { font-size: 9vw; }
+    .screen p { font-size: 4.6vw; }
+    .screen input { font-size: 9vw; width: 70vw; }
+    .screen button { font-size: 5vw; }
+  }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div class="logo" id="logo" style="display:none"></div>
+<div class="paused" id="pausedTag" style="display:none">Paused</div>
+<div class="banner" id="banner" style="display:none"></div>
+<div class="lowbat" id="lowbat" style="display:none"></div>
+<iframe class="signin" id="signin" title="Sign in" allow="camera; microphone; clipboard-write" style="display:none"></iframe>
+<div class="clock" id="clock" style="display:none"></div>
+<div class="dot" title="No connection"></div>
+<div class="hint" id="hint" style="display:none">Press OK or click for full screen</div>
+<div class="ovr" id="ovr" style="display:none" role="dialog" aria-label="Staff: back to normal">
+  <div class="pad">
+    <h2>Back to normal on this screen</h2>
+    <p>Staff: type the staff code. Only this screen changes; the others carry on.</p>
+    <div class="dots" id="ovrDots"></div>
+    <div class="err" id="ovrErr"></div>
+    <div class="keys" id="ovrKeys"></div>
+    <button type="button" class="cancel sm" id="ovrCancel">Cancel</button>
+  </div>
+</div>
+
+<div class="screen" id="codeScreen" style="display:none">
+  <form class="box" id="codeForm" autocomplete="off">
+    <h1>AMA TV</h1>
+    <p>Enter the screen code from the TV editor (Settings).</p>
+    <input id="codeInput" maxlength="12" autocapitalize="characters" spellcheck="false" aria-label="Screen code">
+    <div class="err" id="codeErr"></div>
+    <button type="submit">Start</button>
+  </form>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var CFG = window.TOOLKIT_CONFIG || {};
+  var BASE = (CFG.SUPABASE_URL || '').replace(/\/$/, '');
+  var MEDIA = BASE + '/storage/v1/object/public/tv/';
+  var POLL_MS = 20 * 1000;
+  var $ = function (id) { return document.getElementById(id); };
+  var stage = $('stage');
+  var store = {
+    get: function (k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* ignore */ } },
+    del: function (k) { try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ } }
+  };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  var code = null, feed = null, version = null, pending = null, playlist = [], index = -1, timer = null, layerOn = null;
+  var STARTED = new Date().toISOString();
+  var PREVIEW = /[?&]preview=1/.test(location.search);   // the editor's Preview: don't count it as a TV
+  var screenId = store.get('tvScreen');
+  if (!screenId) { screenId = 'tv-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); store.set('tvScreen', screenId); }
+  // Tell the editor this TV is on and what it's showing; reload if "Refresh the TV" was pressed
+  var kioskNote = '';   // what the FreeKiosk link last did, shown in the editor's status card
+  function showingNow() { var t = showingNow0(); return kioskNote ? t + ' [FreeKiosk: ' + kioskNote + ']' : t; }
+  function showingNow0() {
+    if (feed && feed.blackout) return 'Blacked out';
+    if (signinOpen) return 'Sign-in page';
+    if (feed && feed.off) return 'Screen off (scheduled)';
+    if (feed && feed.quiet) return 'Quiet hours (' + (feed.quiet === 'black' ? 'black screen' : 'logo') + ')';
+    var s = playlist[index]; if (!s) return feed && feed.only ? 'Party mode' : 'Waiting for slides';
+    if (feed && feed.override) return (signinOpen ? 'Sign-in page' : showingName(s)) + ' (back to normal here)';
+    return (feed.only ? 'Party mode: ' : '') + showingName(s);
+  }
+  function showingName(s) {
+    var name = s.title || (s.kind === 'live' ? { next_grading: 'Next grading', events: 'Events this month', month: 'Month theme', birthdays: 'Birthdays today' }[s.live_kind] : { photo: 'Photo', video: 'Video', text: 'Info slide', countdown: 'Countdown', qr: 'QR code' }[s.kind]);
+    return name + (playlist.length > 1 ? ' (' + (index + 1) + ' of ' + playlist.length + ')' : '');
+  }
+  // Reload with a new address so the tablet's browser can't hand back its saved (old) copy of this page
+  function freshReload() {
+    var q = location.search.replace(/[?&]r=\d+/g, '').replace(/^&/, '?');
+    try { location.replace(location.pathname + (q ? q + '&' : '?') + 'r=' + Date.now()); } catch (e) { location.reload(); }
+  }
+  function checkIn() {
+    if (!code || PREVIEW) return;
+    fetch(BASE + '/rest/v1/rpc/tv_checkin', {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_KEY },
+      body: JSON.stringify({ p_code: code, p_screen: screenId, p_loc: LOC, p_showing: showingNow(), p_started: STARTED,
+        p_details: { battery: battery.level != null ? { level: battery.level, charging: battery.charging } : null, w: window.innerWidth, h: window.innerHeight, slides: playlist.length, offline: /offline/.test(document.body.className), browser: navigator.userAgent.slice(0, 160) } })
+    }).then(function (r) { return r.ok ? r.json() : null; }).then(function (r) {
+      if (r && r.reload) freshReload();
+    }).catch(function () { /* not set up yet, or no connection */ });
+  }
+
+  // ---------- Screen code ----------
+  var params = (function () { var o = {}; location.search.replace(/^\?/, '').split('&').forEach(function (p) { if (!p) return; var kv = p.split('='); o[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || ''); }); return o; })();
+  // A link with ?code=... works straight away (the tablets' link). It stays in the address, so a bookmark or
+  // home screen shortcut keeps working.
+  if (params.code) store.set('tvCode', params.code.toUpperCase());
+  if (params.loc) store.set('tvLoc', params.loc.toLowerCase());   // a location link, e.g. &loc=sydenham
+  var LOC = store.get('tvLoc') || null;
+  var KIOSK_MAIN = params.kiosk === 'main';   // FreeKiosk's main screen showing a party (see kioskSync)
+  code = store.get('tvCode');
+  function askCode(msg) {
+    clearTimeout(timer); stage.innerHTML = '';
+    $('codeScreen').style.display = ''; $('codeErr').textContent = msg || '';
+    var i = $('codeInput'); i.value = ''; setTimeout(function () { i.focus(); }, 50);
+  }
+  $('codeForm').onsubmit = function (e) {
+    e.preventDefault();
+    var c = $('codeInput').value.replace(/\s+/g, '').toUpperCase();
+    if (!c) return;
+    code = c; store.set('tvCode', c); $('codeScreen').style.display = 'none';
+    try { history.replaceState(null, '', location.pathname + '?code=' + encodeURIComponent(c) + (LOC ? '&loc=' + encodeURIComponent(LOC) : '') + (PREVIEW ? '&preview=1' : '')); } catch (er) { /* ignore */ }
+    load(true);
+  };
+
+  // ---------- Getting the slides ----------
+  function fetchFeed() {
+    return fetch(BASE + '/rest/v1/rpc/tv_feed', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_KEY },
+      body: JSON.stringify({ p_code: code, p_screen: screenId, p_loc: LOC, p_have: haveHash() })
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+  // The fingerprint of the slideshow this screen already has: Supabase only sends it again when it has changed
+  var lastHash = null;
+  // (Kept per page: FreeKiosk's two pages share the saved copy, so that copy may be newer than what this page shows.)
+  function haveHash() {
+    if (feed) return lastHash;
+    try { var c = JSON.parse(store.get('tvFeed') || 'null'); return c && c.hash || null; } catch (e) { return null; }
+  }
+  function load(first) {
+    if (!code) return askCode();
+    fetchFeed().then(function (f) {
+      document.body.className = document.body.className.replace(/\boffline\b/g, '');
+      if (f && f.error === 'wrong_code') {
+        store.del('tvCode'); code = null; store.del('tvFeed'); lastHash = null;
+        if (params.code) { params.code = null; try { history.replaceState(null, '', location.pathname); } catch (er) { /* ignore */ } }
+        return askCode(first ? 'That code is not right. Check it in the TV editor.' : 'The screen code was changed. Enter the new one, or open the new link from the TV editor.');
+      }
+      if (f && f.same) {   // nothing has changed
+        if (!feed) { try { var c = JSON.parse(store.get('tvFeed')); if (c && c.hash === f.hash) { lastHash = c.hash; apply(c, true); } } catch (e) { /* ignore */ } }
+        if (!feed) { store.del('tvFeed'); lastHash = null; return load(first); }   // the saved copy is gone: ask for the whole thing
+        setTimeout(checkIn, 1500); remoteFromFeed(feed); kioskSync(feed); return;
+      }
+      store.set('tvFeed', JSON.stringify(f)); lastHash = f.hash || null; tidyMedia(f);
+      setTimeout(checkIn, 1500);
+      apply(f, first);
+      remoteFromFeed(f); kioskSync(f);
+    }).catch(function () {
+      document.body.className += ' offline';
+      if (first || !feed) { var c = store.get('tvFeed'); if (c) { try { c = JSON.parse(c); lastHash = c.hash || null; apply(c, true); } catch (e) { /* ignore */ } } else showMessage('Connecting...', 'Check the TV is on the internet.'); }
+    });
+  }
+  function apply(f, first) {
+    if (!(f && (f.only || f.blackout))) ovrClose();   // the party or blackout is over: no need for the staff code
+    if (first || !feed) { feed = f; version = f.version; build(); setCorners(); next(); signinCheck(true, f); return; }
+    signinCheck(false, f);
+    var wasOnly = feed.only ? (feed.slides[0] || {}).id : null, isOnly = f.only ? (f.slides[0] || {}).id : null;
+    if (wasOnly !== isOnly || (feed.quiet || '') !== (f.quiet || '') || (f.only && f.version !== version)) {   // party mode started, ended or changed: switch now
+      pending = null; feed = f; version = f.version; build(); setCorners(); index = -1; next(); return;
+    }
+    if (f.version !== version || JSON.stringify(f.live) !== JSON.stringify(feed.live) || JSON.stringify(f.settings) !== JSON.stringify(feed.settings)) pending = f;   // switch over at the next slide
+  }
+
+  // ---------- Building the playlist ----------
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  function d(iso) { var p = String(iso).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function longDate(iso) { var x = d(iso); return DAYS[x.getDay()] + ' ' + x.getDate() + ' ' + MONTHS[x.getMonth()]; }
+  function shortDate(iso) { var x = d(iso); return DAYS[x.getDay()].slice(0, 3) + ' ' + x.getDate() + ' ' + MONTHS[x.getMonth()].slice(0, 3); }
+  // "Sat 24", "6-9", "28 Sep - 2 Oct" (the month is in the heading, so only shown when it differs)
+  function eventDates(e, month) {
+    var a = d(e.start), b = e.end ? d(e.end) : null, m = d(month).getMonth(), sh = function (x) { return MONTHS[x.getMonth()].slice(0, 3); };
+    if (!b || e.end === e.start) return DAYS[a.getDay()].slice(0, 3) + ' ' + a.getDate();
+    if (a.getMonth() === m && b.getMonth() === m) return a.getDate() + '\u2013' + b.getDate();
+    return a.getDate() + (a.getMonth() !== m || b.getMonth() !== m ? ' ' + sh(a) : '') + ' \u2013 ' + b.getDate() + ' ' + sh(b);
+  }
+  function daysTo(iso) { return Math.round((d(iso) - d(feed.today)) / 86400000); }
+  function untilText(iso) {
+    var days = Math.round((d(iso) - d(feed.today)) / 86400000);
+    if (days <= 0) return 'Today'; if (days === 1) return 'Tomorrow';
+    if (days < 14) return days + ' days to go';
+    var w = Math.round(days / 7); return w + ' weeks to go';
+  }
+  function build() {
+    var live = feed.live || {}, out = [];
+    (feed.slides || []).forEach(function (s) {
+      if (s.kind === 'countdown') {
+        var to = s.count_to === 'grading' ? (live.next_grading && live.next_grading.date) : s.event_on;
+        if (to && daysTo(to) >= 0) out.push(s);
+        return;
+      }
+      if (s.kind !== 'live') { out.push(s); return; }
+      if (s.live_kind === 'next_grading' && live.next_grading && live.next_grading.date) out.push(s);
+      if (s.live_kind === 'month' && live.month && live.month.theme) out.push(s);
+      if (s.live_kind === 'events' && live.events && live.events.some(function (m) { return m.events.length; })) out.push(s);
+      if (s.live_kind === 'birthdays' && live.birthdays && live.birthdays.length) out.push(s);
+    });
+    playlist = (feed.settings && feed.settings.shuffle) ? shuffled(out) : out;
+  }
+  // Shuffle: a random order, made fresh each time round (and never the same slide twice in a row)
+  function shuffled(a, avoid) {
+    a = a.slice();
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; }
+    if (avoid && a.length > 1 && a[0].id === avoid) { var t2 = a[0]; a[0] = a[1]; a[1] = t2; }
+    return a;
+  }
+
+  // ---------- Showing a slide ----------
+  function setCorners() {
+    var st = feed.settings || {};
+    $('logo').style.display = st.show_logo ? '' : 'none';
+    $('clock').style.display = st.show_clock ? '' : 'none';
+    if (typeof batteryDraw === 'function') batteryDraw();
+    var ban = feed.display === 'tv' ? '' : st.banner;   // the bottom message is for the tablets (the TV isn't touched)
+    $('banner').innerHTML = ban ? esc(ban) : '';
+    $('banner').style.display = ban ? '' : 'none';
+    document.body.className = document.body.className.replace(/\bhasbanner\b/g, '') + (ban ? ' hasbanner' : '');
+    tick();
+  }
+  function tick() {
+    var n = new Date(), h = n.getHours(), m = n.getMinutes();
+    $('clock').textContent = ((h % 12) || 12) + ':' + (m < 10 ? '0' : '') + m + (h < 12 ? ' am' : ' pm');
+  }
+  setInterval(tick, 15000);
+
+  function confetti() {
+    var cols = ['#f2d500', '#ffffff', '#3fbf7f', '#ff6fb5', '#5ad1ff', '#ff9f1a'], out = '';
+    for (var i = 0; i < 46; i++) {
+      out += '<i style="left:' + Math.round(Math.random() * 100) + '%;background:' + cols[i % cols.length] +
+        ';animation-duration:' + (4 + Math.random() * 5).toFixed(1) + 's;-webkit-animation-duration:' + (4 + Math.random() * 5).toFixed(1) + 's;animation-delay:-' + (Math.random() * 8).toFixed(1) + 's;-webkit-animation-delay:-' + (Math.random() * 8).toFixed(1) + 's"></i>';
+    }
+    return '<div class="confetti">' + out + '</div>';
+  }
+  function themeOf(s) { return 't-' + (s.theme || 'green'); }
+  function partyQr() { var st = (feed && feed.settings) || {}; return feed && feed.only && st.party_qr && window.qrcode ? st.party_qr : null; }
+  function html(s) {
+    var q = partyQr();
+    if (q) return '<div class="pq-top">' + html0(s) + '</div><div class="pqr"><canvas class="pqrc"></canvas><div class="pqrt">' + esc(feed.settings.party_qr_text || 'Scan me') + '</div></div>';
+    return html0(s);
+  }
+  // Draws the QR code to fit its box: whole pixels per square, with the white border phones need
+  function drawPartyQr(layer) {
+    var c = layer.querySelector('.pqrc'), q = partyQr(); if (!c || !q) return;
+    try {
+      var qr = window.qrcode(0, 'M'); qr.addData(q); qr.make();
+      var n = qr.getModuleCount(), total = n + 4, box = Math.max(100, Math.round(layer.clientHeight * 0.3 * 0.92 * (window.devicePixelRatio || 1)));
+      var cell = Math.max(1, Math.floor(box / total)), size = cell * total;
+      c.width = size; c.height = size;
+      var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, size, size); g.fillStyle = '#000';
+      for (var r = 0; r < n; r++) for (var k = 0; k < n; k++) if (qr.isDark(r, k)) g.fillRect((k + 2) * cell, (r + 2) * cell, cell, cell);
+    } catch (e) { /* a link too long for a QR code: leave it blank */ }
+  }
+  function html0(s) {
+    var live = feed.live || {};
+    if (s.kind === 'photo') return '<div class="fill blur" style="background-image:url(\'' + MEDIA + esc(s.media_path) + '\')"></div><div class="fill contain" style="background-image:url(\'' + MEDIA + esc(s.media_path) + '\')"></div>' + (s.title && !feed.only ? '<div class="caption">' + esc(s.title) + '</div>' : '');   // party mode: just the picture, no caption
+    if (s.kind === 'text') {
+      var bg = s.media_path ? ' bgphoto" style="background-image:url(\'' + MEDIA + esc(s.media_path) + '\')' : '';
+      return '<div class="card ' + themeOf(s) + bg + '">' + (s.media_path ? '<div class="shade"></div>' : '') + (s.theme === 'party' ? confetti() : '') + '<div class="belt"></div>' + (s.title ? '<h1>' + esc(s.title) + '</h1>' : '') + (s.body ? '<div class="body">' + esc(s.body) + '</div>' : '') + '</div>';
+    }
+    if (s.kind === 'qr') {
+      return '<div class="card qr ' + themeOf(s) + '"><div class="qtext"><div class="belt"></div>' + (s.title ? '<h1>' + esc(s.title) + '</h1>' : '') +
+        (s.body ? '<div class="body">' + esc(s.body) + '</div>' : '') + '</div>' +
+        '<div class="qbox"><img src="' + MEDIA + esc(s.media_path) + '" alt=""></div></div>';
+    }
+    if (s.kind === 'countdown') {
+      var to = s.count_to === 'grading' ? live.next_grading.date : s.event_on, n = daysTo(to);
+      var what = s.title || (s.count_to === 'grading' ? 'Black belt grading' : 'Countdown');
+      var big = n === 0 ? '<span class="num">Today</span>' : n === 1 ? '<span class="num">Tomorrow</span>'
+        : n < 21 ? '<span class="num">' + n + '</span><span class="unit">days to go</span>'
+        : '<span class="num">' + Math.round(n / 7) + '</span><span class="unit">weeks to go</span>';
+      return '<div class="card ' + themeOf(s) + '"><div class="belt"></div><div class="kicker">' + esc(what) + '</div><div class="count">' + big + '</div><div class="sub">' + esc(longDate(to)) + '</div></div>';
+    }
+    if (s.live_kind === 'next_grading') {
+      var g = live.next_grading;
+      return '<div class="card ' + themeOf(s) + '"><div class="belt"></div><div class="kicker">' + esc(s.title || 'Next black belt grading') + '</div><div class="big">' + esc(longDate(g.date)) + '</div><div class="sub">' + esc(untilText(g.date)) + '</div></div>';
+    }
+    if (s.live_kind === 'month') {
+      // "Month of Health & Nutrition" -> "This is the month of" / "Health & Nutrition"
+      var th = String(live.month.theme).trim(), m = th.match(/^(?:the\s+)?month\s+of\s+(.+)$/i);
+      return '<div class="card ' + themeOf(s) + '"><div class="belt"></div><div class="kicker">' + esc(s.title || MONTHS[d(live.month.month).getMonth()]) + '</div>' +
+        (m ? '<div class="body">This is the Month of</div><h1 class="month">' + esc(m[1]) + '</h1>' : '<h1 class="month">' + esc(th) + '</h1>') + '</div>';
+    }
+    if (s.live_kind === 'events') {
+      var ms = live.events.filter(function (m) { return m.events.length; });
+      return '<div class="card ' + themeOf(s) + '"><div class="belt"></div><div class="kicker">' + esc(s.title || "What's on at AMA") + '</div><div class="cal">' +
+        ms.map(function (m) {
+          return '<div class="mon"><h2>' + esc(MONTHS[d(m.month).getMonth()]) + '</h2>' + (m.theme ? '<div class="theme">' + esc(m.theme) + '</div>' : '') +
+            m.events.map(function (e) {
+              var on = e.end && e.end !== e.start && daysTo(e.start) <= 0, isToday = daysTo(e.start) === 0 && !on;
+              return '<div class="e"><b>' + esc(eventDates(e, m.month)) + '</b><span>' + esc(e.title) + (isToday ? '<span class="tag">Today</span>' : on ? '<span class="tag">On now</span>' : '') +
+                (e.note ? '<small>' + esc(e.note) + '</small>' : '') + '</span></div>';
+            }).join('') + '</div>';
+        }).join('') + '</div></div>';
+    }
+    if (s.live_kind === 'birthdays') {
+      var names = (live.birthdays || []);
+      var ncls = names.length <= 3 ? ' few' : names.length <= 8 ? '' : names.length <= 15 ? ' many' : ' lots';
+      return '<div class="card t-party t-bday">' + confetti() + '<div class="belt"></div><div class="kicker">' + esc(longDate(feed.today)) + '</div>' +
+        '<h1>' + esc(s.title || 'AMA members’ birthdays today') + '</h1>' +
+        '<div class="names' + ncls + '">' + names.map(function (nm) { return '<div class="n"><b>' + esc(nm) + '</b></div>'; }).join('') + '</div></div>';
+    }
+    return '';
+  }
+  // Shrink text that would overflow the screen
+  function fit(el) {
+    var card = el.querySelector('.card'); if (!card) return;
+    var parts = card.querySelectorAll('h1, .body, .big, .names, .rows, .cal'), scale = 1, n = 0;
+    while (card.scrollHeight > card.clientHeight + 2 && n < 12) {
+      scale *= 0.9; n++;
+      for (var i = 0; i < parts.length; i++) parts[i].style.fontSize = '';
+      for (var j = 0; j < parts.length; j++) { var fs = parseFloat(getComputedStyle(parts[j]).fontSize); parts[j].style.fontSize = (fs * scale) + 'px'; }
+    }
+  }
+  function showMessage(title, sub) {
+    clearTimeout(timer);
+    stage.innerHTML = '<div class="layer on"><div class="card t-green"><div class="belt"></div><h1>' + esc(title) + '</h1><div class="body">' + esc(sub || '') + '</div></div></div>';
+  }
+  function next() {
+    clearTimeout(timer);
+    if (pending) {   // take up changes, carrying on from the same slide
+      var curId = playlist[index] && playlist[index].id;
+      feed = pending; version = pending.version; pending = null; build(); setCorners(); index = -1;
+      for (var k = 0; k < playlist.length; k++) if (playlist[k].id === curId) index = k;
+    }
+    if (feed && feed.quiet) {   // quiet hours: stays like this until the feed says otherwise
+      layerOn = null; index = -1;
+      stage.innerHTML = '<div class="layer on"><div class="quiet">' + (feed.quiet === 'logo' ? '<div class="qlogo"></div>' : '') + '</div></div>';
+      return;
+    }
+    if (stage.querySelector('.quiet')) stage.innerHTML = '';   // quiet hours just ended
+    if (!playlist.length) { showMessage('AMA Marrickville', 'No slides yet. Add some in the TV editor.'); timer = setTimeout(next, 30000); return; }
+    if (index + 1 >= playlist.length && index >= 0 && feed.settings && feed.settings.shuffle) {   // round again: a new order
+      playlist = shuffled(playlist, playlist[index] && playlist[index].id); index = -1;
+    }
+    index = (index + 1) % playlist.length;
+    var s = playlist[index];
+    var layer = document.createElement('div');
+    layer.className = 'layer';
+    layer.setAttribute('data-slide', s.id);
+    layer.innerHTML = html(s);
+    stage.appendChild(layer);
+    drawPartyQr(layer);
+    var secs = (s.seconds || (feed.settings && feed.settings.seconds) || 10) * 1000;
+    var shown = false;
+    var reveal = function () {
+      if (shown) return; shown = true;
+      fit(layer);
+      // fade in, then remove the old slide
+      setTimeout(function () {
+        layer.className = 'layer on';
+        var old = layerOn; layerOn = layer;
+        if (old) setTimeout(function () { if (old.parentNode) old.parentNode.removeChild(old); }, 1000);
+      }, 30);
+    };
+    if (s.kind === 'video') {
+      var v = document.createElement('video');
+      // Kept hidden until it's actually playing, so the browser's own big "play" icon never shows
+      v.className = 'fill vid'; v.muted = true; v.controls = false; v.setAttribute('disablepictureinpicture', '');
+      v.poster = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';   // a black dot instead of the play icon
+      v.addEventListener('playing', function () { v.className = 'fill vid on'; reveal(); }); v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.autoplay = true; v.preload = 'auto';
+      v.src = MEDIA + s.media_path;
+      v.onended = function () { if (!paused) next(); };
+      v.onerror = function () { later(500); };
+      layer.appendChild(v);
+      var started = v.play && v.play(); if (started && started.catch) started.catch(function () { later(3000); });
+      if (paused && v.pause) v.pause();
+      setTimeout(function () { v.className = 'fill vid on'; reveal(); }, 4000);   // in case 'playing' never comes
+      later(s.seconds ? secs : 10 * 60 * 1000);   // a video plays to the end (or its set time)
+      return;
+    }
+    if (s.kind === 'photo' || s.media_path) {
+      var img = new Image(); img.onload = reveal; img.onerror = function () { reveal(); };
+      img.src = MEDIA + s.media_path;
+      setTimeout(reveal, 4000);
+    } else reveal();
+    // load the next photo early
+    var nx = playlist[(index + 1) % playlist.length];
+    if (nx && nx.media_path && nx.kind !== 'video') { var pre = new Image(); pre.src = MEDIA + nx.media_path; }
+    later(secs);
+  }
+  // Move on after ms, unless the remote has paused the slideshow
+  var paused = false, holdMs = 0;
+  function later(ms) { clearTimeout(timer); holdMs = ms; if (!paused) timer = setTimeout(next, ms); }
+  function back() { if (!playlist.length) return; index = (index - 2 + playlist.length * 2) % playlist.length; next(); }
+  function showSlide(id) {
+    if (pending) { feed = pending; version = pending.version; pending = null; build(); setCorners(); }
+    for (var i = 0; i < playlist.length; i++) if (playlist[i].id === id) { index = i - 1; next(); return true; }
+    return false;
+  }
+  function setPaused(p) {
+    paused = p;
+    var v = layerOn && layerOn.querySelector('video');
+    if (v) { try { if (p) v.pause(); else v.play(); } catch (e) { /* ignore */ } }
+    $('pausedTag').style.display = p ? '' : 'none';
+    if (p) clearTimeout(timer); else timer = setTimeout(next, Math.min(holdMs || 8000, 8000));   // carry on a few seconds after Play
+  }
+
+  // ---------- Phone remote: while it's open, check for button presses every 1.5 seconds ----------
+  var remoteSeq = null, remoteOn = false, remoteTimer = null, REMOTE_MS = 1500;
+  function remoteState() { var s = playlist[index]; return { showing: showingNow(), slide: s && !feed.only && !feed.quiet ? String(s.id).split(':')[0] : null, paused: paused }; }
+  function remotePoll() {
+    clearTimeout(remoteTimer);
+    if (!code || PREVIEW) return;
+    fetch(BASE + '/rest/v1/rpc/tv_remote_poll', {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_KEY },
+      body: JSON.stringify({ p_code: code, p_screen: screenId, p_after: remoteSeq, p_state: remoteState() })
+    }).then(function (r) { return r.ok ? r.json() : null; }).then(function (r) {
+      if (!r || r.error) { remoteOn = false; return; }
+      var c = r.cmd; remoteSeq = r.seq;
+      if (c && (c.cmd === 'blackout' || c.cmd === 'wake' || c.cmd === 'refresh')) { load(false); setTimeout(remotePoll, 1200); }   // black out / back on (all or one device): straight away
+      else if (c && !feed.only && !feed.quiet) {
+        if (c.cmd === 'next') next();
+        else if (c.cmd === 'back') back();
+        else if (c.cmd === 'pause') setPaused(true);
+        else if (c.cmd === 'play' || c.cmd === 'done') { if (paused) setPaused(false); }
+        else if (c.cmd === 'show' && c.slide) showSlide(c.slide);
+        if (c.cmd !== 'hello') setTimeout(remotePoll, 300);   // report the change straight back
+      }
+      remoteOn = r.on;
+      if (!remoteOn && paused) setPaused(false);   // remote closed: carry on
+      if (remoteOn) remoteTimer = setTimeout(remotePoll, REMOTE_MS);
+    }).catch(function () { if (remoteOn) remoteTimer = setTimeout(remotePoll, REMOTE_MS * 4); });
+  }
+  function remoteFromFeed(f) { if (f && f.remote && !remoteOn) { remoteOn = true; remotePoll(); } else if (f && !f.remote && remoteOn) { remoteOn = false; remotePoll(); } }
+
+  // ---------- Full screen, cursor, keeping awake ----------
+  function fullScreen() {
+    var el = document.documentElement, f = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (f && !(document.fullscreenElement || document.webkitFullscreenElement)) { try { f.call(el); } catch (e) { /* ignore */ } }
+    $('hint').style.display = 'none';
+    if (navigator.wakeLock && navigator.wakeLock.request) navigator.wakeLock.request('screen').catch(function () {});
+  }
+  document.addEventListener('keydown', function (e) {
+    if ($('codeScreen').style.display !== 'none') return;
+    if (e.key === 'Enter' || e.keyCode === 13) fullScreen();
+    if (e.key === 'ArrowRight' || e.keyCode === 39) next();                       // remote: next slide
+    if (e.key === 'ArrowLeft' || e.keyCode === 37) back();   // remote: back
+  });
+  document.addEventListener('click', function () { if ($('codeScreen').style.display === 'none') { fullScreen(); openSignin(); } });
+
+  // ---------- Photos and videos kept on the screen (see sw.js) ----------
+  if ('serviceWorker' in navigator && !PREVIEW) { try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) { /* older browsers */ } }
+  // Forget files that haven't been in the slideshow for 2 weeks
+  function tidyMedia(f) {
+    if (!window.caches || !f || !f.slides) return;
+    var seen = {}; try { seen = JSON.parse(store.get('tvMediaSeen') || '{}') || {}; } catch (e) { seen = {}; }
+    var now = Date.now();
+    f.slides.forEach(function (s) { if (s.media_path) seen[MEDIA + s.media_path] = now; });
+    caches.open('ama-tv-media-v1').then(function (c) {
+      return c.keys().then(function (keys) {
+        keys.forEach(function (k) { if (!seen[k.url]) seen[k.url] = now; else if (now - seen[k.url] > 14 * 864e5) { c['delete'](k); delete seen[k.url]; } });
+        store.set('tvMediaSeen', JSON.stringify(seen));
+      });
+    })['catch'](function () {});
+  }
+
+  // ---------- Battery: the % (the browser's own reading, or FreeKiosk's), and a red bar when it's low ----------
+  var battery = { level: null, charging: null }, batTry = 0;
+  function batteryDraw() {
+    var st = (feed && feed.settings) || {}, warn = st.battery_warn == null ? 20 : st.battery_warn, el = $('lowbat');
+    var low = feed && feed.display === 'tablet' && warn > 0 && battery.level != null && battery.level < warn && !battery.charging;   // tablets only
+    el.style.display = low ? '' : 'none';
+    document.body.className = document.body.className.replace(/\bhaslowbat\b/g, '') + (low ? ' haslowbat' : '');
+    if (low) el.innerHTML = 'Battery low (' + battery.level + '%). Please plug this tablet in.';
+  }
+  function batterySet(level, charging) {
+    var l = Math.round(level), c = !!charging;
+    var changed = l !== battery.level || c !== battery.charging;
+    battery.level = l; battery.charging = c; batteryDraw();
+    if (changed) setTimeout(checkIn, 1000);
+  }
+  if (navigator.getBattery) {
+    try {
+      navigator.getBattery().then(function (b) {
+        var up = function () { batterySet(b.level * 100, b.charging); };
+        up(); b.addEventListener('levelchange', up); b.addEventListener('chargingchange', up);
+      })['catch'](function () {});
+    } catch (e) { /* not available */ }
+  }
+  // No reading from the browser: ask FreeKiosk (if this tablet uses it), once a minute
+  setInterval(function () {
+    var st = (feed && feed.settings) || {};
+    if (battery.level != null && !batTry) return;
+    if (st.signin_open !== 'kiosk' || PREVIEW) return;
+    batTry = 1;
+    var headers = {}; if (st.kiosk_key) headers['X-Api-Key'] = st.kiosk_key;
+    fetch('http://127.0.0.1:' + (st.kiosk_port || 8080) + '/api/battery', { mode: 'cors', headers: headers }).then(function (r) { return r.json(); }).then(function (j) {
+      var d = (j && (j.data || j)) || {}; if (d.battery) d = d.battery;
+      if (d.level != null) batterySet(d.level, d.charging);
+    })['catch'](function () {});
+  }, 60000);
+
+  // ---------- FreeKiosk: keep a party on the main screen ----------
+  // Our slides are FreeKiosk's screensaver and the sign-in page is its main page. A tap closes a screensaver, so during
+  // a party (or blackout) this asks FreeKiosk's REST API (on the tablet itself) to show the party as the main page,
+  // where taps do nothing. That page (?kiosk=main) goes back to the sign-in page when the party is over.
+  var kioskDone = null, kioskTry = 0;
+  function kioskApi(st, path, body) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (st.kiosk_key) headers['X-Api-Key'] = st.kiosk_key;
+    return fetch('http://127.0.0.1:' + (st.kiosk_port || 8080) + path, { method: 'POST', mode: 'cors', headers: headers, body: JSON.stringify(body || {}) })
+      .then(function (r) { if (!r.ok) throw new Error('reply ' + r.status); return r; });
+  }
+  function kioskGet(st, path) {
+    var headers = {}; if (st.kiosk_key) headers['X-Api-Key'] = st.kiosk_key;
+    return fetch('http://127.0.0.1:' + (st.kiosk_port || 8080) + path, { method: 'GET', mode: 'cors', headers: headers }).then(function (r) { if (!r.ok) throw new Error('reply ' + r.status); return r.text(); });
+  }
+  var kioskRetries = {}, kioskStamp = null, kioskChecked = null;
+  function kioskSync(f) {
+    var st = (f && f.settings) || {};
+    var lock = !!(f && (f.only || f.blackout));
+    if (PREVIEW || (f && f.display === 'tv')) { kioskNote = ''; return; }   // FreeKiosk is only on the tablets
+    if (st.signin_open !== 'kiosk') { kioskNote = lock ? 'off (Settings: A tap is not "Handled by FreeKiosk")' : ''; return; }
+    if (!st.signin) { kioskNote = 'no sign-in link in Settings'; return; }
+    var key = lock ? (f.only ? 'party:' + ((f.slides[0] || {}).id || '') : 'blackout') : null;
+    if (KIOSK_MAIN) kioskNote = lock ? 'main screen, party locked' : '';
+    if (KIOSK_MAIN) {
+      if (!lock) { store.del('kioskLocked'); store.del('kioskShown'); try { location.href = st.signin; } catch (e) { /* ignore */ } return; }   // over: back to sign-in
+      store.set('kioskShown', key);   // the main screen has it: the screensaver page mustn't send it again
+      return;
+    }
+    if (!lock) {
+      kioskDone = null; kioskNote = 'ready (screensaver)'; store.del('kioskShown');
+      // Over: also tell FreeKiosk to put the sign-in page back, in case the party page underneath is paused
+      // (the note is shared by both of FreeKiosk's pages, so whichever is running does it)
+      if (store.get('kioskLocked')) kioskApi(st, '/api/url', { url: st.signin }).then(function () { store.del('kioskLocked'); kioskNote = 'sign-in page put back'; })['catch'](function () {});
+      return;
+    }
+    // Already on the main screen (FreeKiosk's screensaver shows this page again after a minute with no taps):
+    // sending it again would reload the main screen every minute
+    // (Unless FreeKiosk says its main screen is something else, e.g. it was restarted: then it's sent again.)
+    if (kioskDone === key || Date.now() - kioskTry < 30000) return;
+    if (store.get('kioskShown') === key && kioskChecked !== key) {
+      kioskChecked = key; kioskTry = Date.now();
+      kioskGet(st, '/api/status').then(function (t) {
+        if (t.indexOf(location.host) >= 0 && t.indexOf('kiosk=main') < 0) { store.del('kioskShown'); kioskTry = 0; kioskNote = 'main screen changed, sending again'; load(false); }
+        else { kioskDone = key; kioskNote = 'on the main screen'; }
+      })['catch'](function () { kioskDone = key; kioskNote = 'on the main screen'; });
+      return;
+    }
+    if (store.get('kioskShown') === key) return;
+    kioskTry = Date.now(); kioskNote = 'sending...';
+    // A new address each time (p=...), so FreeKiosk always loads it fresh, even if an old party page is still its main page
+    var stamp = String(Date.now()); kioskStamp = stamp;
+    var main = location.protocol + '//' + location.host + location.pathname + '?code=' + encodeURIComponent(code) + (LOC ? '&loc=' + encodeURIComponent(LOC) : '') + '&kiosk=main&p=' + stamp;
+    var t0 = new Date(), hm = t0.getHours() + ':' + (t0.getMinutes() < 10 ? '0' : '') + t0.getMinutes();
+    kioskApi(st, '/api/url', { url: main }).then(function (r) {
+      kioskDone = key; store.set('kioskLocked', '1'); kioskNote = 'sent at ' + hm + (r && r.type !== 'opaque' ? ' (reply ' + r.status + ')' : '');
+      setTimeout(checkIn, 500);
+      // Check a little later that FreeKiosk really is showing it; if not, send it again (up to 3 times)
+      setTimeout(function () {
+        if (kioskDone !== key || kioskStamp !== stamp) return;   // a newer one was sent since
+        kioskGet(st, '/api/status').then(function (t) {
+          if (kioskDone !== key || kioskStamp !== stamp || store.get('kioskShown') === key || t.indexOf(location.host) < 0 || t.indexOf('kiosk=main') >= 0) return;   // it's showing (or no address in the status)
+          kioskRetries[key] = (kioskRetries[key] || 0) + 1;
+          if (kioskRetries[key] > 3) { kioskNote = 'FreeKiosk did not switch (restart FreeKiosk)'; return; }
+          kioskDone = null; kioskTry = 0; kioskNote = 'not on the main screen yet, sending again';
+          load(false);
+        })['catch'](function () {});
+      }, 10000);
+      return kioskApi(st, '/api/wake');   // close the screensaver so the main screen (the party) shows
+    })['catch'](function (e) { kioskNote = 'could not reach it at ' + hm + ' (' + (e && e.message || e) + ')'; setTimeout(checkIn, 500); });   // the screensaver still comes back after its delay
+  }
+
+  // ---------- Sign-in mode (tablets): the sign-in page until nobody has touched it for a while, then the slides ----------
+  var signinOpen = false, signinUrl = null, signinIdle = 60, signinT = null, signinBlocked = false, signinPage = true;
+  function signinAllowed() { return !!(signinUrl && !signinBlocked); }
+  function openSignin() {
+    if (signinOpen || !signinAllowed()) return;
+    if (signinPage) { try { location.href = signinUrl; } catch (e) { /* ignore */ } return; }   // go to it (a kiosk app brings the slides back)
+    var f = $('signin');
+    if (f.getAttribute('src') !== signinUrl) f.setAttribute('src', signinUrl);
+    f.style.display = ''; signinOpen = true; signinActive();
+  }
+  function closeSignin() {
+    clearTimeout(signinT); if (!signinOpen) return;
+    var f = $('signin'); f.style.display = 'none'; signinOpen = false;
+    try { f.setAttribute('src', signinUrl || 'about:blank'); } catch (e) { /* ignore */ }   // a fresh page for the next person
+    try { window.focus(); } catch (e) { /* ignore */ }
+  }
+  function signinActive() { clearTimeout(signinT); if (signinOpen) signinT = setTimeout(closeSignin, signinIdle * 1000); }
+  // Someone is using the sign-in page: they tapped into it (this page loses focus), or it moved to another page
+  window.addEventListener('blur', function () { if (signinOpen) signinActive(); });
+  $('signin').addEventListener('load', function () { if (signinOpen) signinActive(); });
+  function signinCheck(first, f) {
+    var st = (f && f.settings) || {};
+    var url = f && f.display === 'tv' ? null : (st.signin || null);   // the TV is a normal browser: no sign-in page
+    signinBlocked = !!(f && (f.only || f.blackout));   // not during a party or a blackout
+    if (url !== signinUrl) { signinUrl = url; if (signinOpen) closeSignin(); }
+    signinIdle = st.signin_idle || 60;
+    signinPage = st.signin_open !== 'frame';
+    if (st.signin_open === 'kiosk' || (f && f.display === 'tv')) signinBlocked = true;   // FreeKiosk shows the sign-in page; taps here do nothing
+    if (!signinAllowed()) { closeSignin(); return; }
+    if (first && !signinPage) openSignin();   // shown inside: start on it
+  }
+  // No zooming in (pinch, double tap, ctrl + scroll): it's a display, and during a party nobody should be able to change it
+  function noZoom(e) { if (!e.touches || e.touches.length > 1 || e.scale && e.scale !== 1) { try { e.preventDefault(); } catch (er) { /* ignore */ } } }
+  try {
+    document.addEventListener('touchmove', noZoom, { passive: false });
+    document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });   // iPad
+    document.addEventListener('wheel', function (e) { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+    var lastTouch = 0;
+    document.addEventListener('touchend', function (e) { var n = Date.now(); if (n - lastTouch < 350 && !(e.target.closest && e.target.closest('#ovr'))) e.preventDefault(); lastTouch = n; }, { passive: false });   // double tap
+  } catch (e) { /* older browsers: the viewport setting still stops it */ }
+  var idleT;
+  function wake() { document.body.className = document.body.className.replace(/\bidle\b/g, ''); clearTimeout(idleT); idleT = setTimeout(function () { document.body.className += ' idle'; }, 3000); }
+  document.addEventListener('mousemove', wake); wake();
+  if ('ontouchstart' in window) $('hint').innerHTML = 'Tap the screen for full screen';
+  if (!(document.fullscreenElement || document.webkitFullscreenElement)) { $('hint').style.display = ''; setTimeout(function () { $('hint').style.display = 'none'; }, 12000); }
+
+  // ---------- Staff: back to normal on just this device ----------
+  // During a party or blackout, hold the top-left corner for 3 seconds, then type the staff code (set in the editor).
+  // Only this device goes back to normal (on a tablet: the sign-in page); the others carry on.
+  var holdT = null, ring = null, pin = '', ovrT = null, ovrBusy = false;
+  function takenOver() { return !!(feed && (feed.only || feed.blackout) && feed.override_ok && !PREVIEW); }
+  function holdStop() { clearTimeout(holdT); holdT = null; if (ring) { ring.parentNode && ring.parentNode.removeChild(ring); ring = null; } }
+  function holdStart(x, y) {
+    if (!takenOver() || $('ovr').style.display !== 'none') return;
+    var c = Math.max(90, Math.min(window.innerWidth, window.innerHeight) * 0.14);
+    if (x > c || y > c) return;
+    holdStop();
+    ring = document.createElement('div'); ring.className = 'holdring'; document.body.appendChild(ring);
+    setTimeout(function () { if (ring) ring.style.transform = 'scale(1)'; }, 20);
+    holdT = setTimeout(function () { holdStop(); ovrOpen(); }, 3000);
+  }
+  function pt(e) { var t = e.touches && e.touches[0] || e; return [t.clientX, t.clientY]; }
+  document.addEventListener('touchstart', function (e) {
+    var p = pt(e); holdStart(p[0], p[1]);
+    if (holdT) { try { e.preventDefault(); } catch (er) { /* ignore */ } }   // holding the corner: stop the browser selecting text or opening its menu
+  }, { passive: false });
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); });   // long press / right click: no menu
+  document.addEventListener('selectstart', function (e) { if (!(e.target.closest && e.target.closest('input, textarea'))) e.preventDefault(); });
+  document.addEventListener('mousedown', function (e) { holdStart(e.clientX, e.clientY); });
+  ['touchend', 'touchcancel', 'mouseup'].forEach(function (ev) { document.addEventListener(ev, holdStop, { passive: true }); });
+  function ovrDraw() { $('ovrDots').textContent = pin ? pin.replace(/./g, '\u2022') : '\u00a0'; }
+  function ovrIdle() { clearTimeout(ovrT); ovrT = setTimeout(ovrClose, 30000); }
+  function ovrOpen() { pin = ''; $('ovrErr').textContent = ''; ovrDraw(); $('ovr').style.display = ''; ovrIdle(); }
+  function ovrClose() { clearTimeout(ovrT); pin = ''; $('ovr').style.display = 'none'; }
+  $('ovrKeys').innerHTML = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'].map(function (k) {
+    return '<button type="button" data-k="' + k + '" class="' + (k === 'OK' ? 'go' : k === 'C' ? 'sm' : '') + '">' + (k === 'C' ? 'Clear' : k) + '</button>';
+  }).join('');
+  $('ovrKeys').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-k]') : null; if (!b || ovrBusy) return;
+    var k = b.getAttribute('data-k'); ovrIdle(); $('ovrErr').textContent = '';
+    if (k === 'C') pin = ''; else if (k === 'OK') return ovrSend(); else if (pin.length < 8) pin += k;
+    ovrDraw();
+  });
+  $('ovrCancel').onclick = ovrClose;
+  function ovrSend() {
+    if (pin.length < 4) { $('ovrErr').textContent = 'The staff code has at least 4 digits.'; return; }
+    ovrBusy = true; $('ovrErr').textContent = 'Checking...';
+    fetch(BASE + '/rest/v1/rpc/tv_override', {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_KEY },
+      body: JSON.stringify({ p_code: code, p_screen: screenId, p_pin: pin })
+    }).then(function (r) { return r.json(); }).then(function (r) {
+      ovrBusy = false; pin = ''; ovrDraw();
+      if (r && r.ok) { ovrClose(); load(false); setTimeout(checkIn, 1500); return; }
+      var e = r && r.error;
+      $('ovrErr').textContent = e === 'wrong' ? 'That code is not right.' : e === 'locked' ? 'Too many wrong tries. Try again in 15 minutes, or use the TV editor.'
+        : e === 'no_code' ? 'No staff code is set. Set one in the TV editor (Settings).' : e === 'unknown_screen' ? 'This screen has not checked in yet. Try again in a minute.' : 'Not sent. Check the internet and try again.';
+    })['catch'](function () { ovrBusy = false; $('ovrErr').textContent = 'Not sent. Check the internet and try again.'; });
+  }
+
+  // Reload once a night (picks up updates and keeps the TV browser fresh)
+  setInterval(function () { var n = new Date(); if (n.getHours() === 3 && n.getMinutes() < 2) freshReload(); }, 60000);
+  // How often to check for changes (a check with nothing new is a few bytes):
+  //   during a party or blackout every 5 seconds, so it goes back to normal quickly when it ends;
+  //   on FreeKiosk tablets every 10 seconds, so a party moves onto the main screen quickly;
+  //   otherwise every 15 seconds.
+  function pollDelay() {
+    var st = (feed && feed.settings) || {};
+    if (feed && feed.only && feed.only_until) {   // check again the moment the party is due to end
+      var left = new Date(feed.only_until).getTime() - Date.now() + 1000;
+      if (left > 1000 && left < 5000) return left;
+    }
+    if (feed && (feed.only || feed.blackout || feed.off)) return 5000;
+    if (st.signin_open === 'kiosk' && !PREVIEW) return 10000;
+    return 15000;
+  }
+  (function poll() { setTimeout(function () { if (code) load(false); poll(); }, pollDelay()); })();
+  window.__tv = { feed: function () { return feed; }, battery: function (l, c) { batterySet(l, c); }, next: next, remotePoll: remotePoll, paused: function () { return paused; }, reload: function () { load(false); }, checkIn: checkIn, started: STARTED, state: function () { return { index: index, count: playlist.length, ids: playlist.map(function (s) { return s.id; }) }; } };   // for testing
+  load(true);
+})();
+</script>
+</body>
+</html>

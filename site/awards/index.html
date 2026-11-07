@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>Long service awards</title>
+<link rel="icon" href="../icons/ama-id-cards.png">
+<link rel="apple-touch-icon" href="../icons/ama-apple-touch.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../hub-signin.js"></script>
+<script src="../idle-logout.js"></script>
+<style>
+  /* Same look as AMA Gradings: pine black, gold for the one thing to press, green for done */
+  :root {
+    --bg: #0f1713; --panel: #15201a; --raise: #1b2821; --line: #253629; --line2: #31473a;
+    --text: #edf2ee; --sub: #a3b5a9; --faint: #74897b;
+    --gold: #f5c518; --on-gold: #14130a; --green: #2f9e5b; --green-text: #7fd6a2; --red: #ef8a73;
+    --display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --body: Barlow, "Segoe UI", Arial, sans-serif;
+    --r: 12px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.45 var(--body); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  a { color: var(--gold); }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  .appbar { position: sticky; top: 0; z-index: 30; background: rgba(15,23,19,.96); border-bottom: 1px solid var(--line);
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) 16px 8px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .appbar-inner { max-width: 1040px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+  .home-btn, .iconbtn { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: var(--sub); border: 1px solid var(--line); background: none; cursor: pointer; padding: 0; }
+  .home-btn svg, .iconbtn svg { width: 19px; height: 19px; }
+  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; margin-right: auto; }
+  .brand img { width: 34px; height: 34px; object-fit: contain; flex: none; }
+  .brand h1 { font: 700 23px/1 var(--display); margin: 0; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  @media (max-width: 440px) { .brand img { display: none; } }
+  main { max-width: 760px; margin: 0 auto; padding: 18px 16px 48px; }
+  .view { display: flex; flex-direction: column; gap: 16px; }
+  h2 { font: 700 30px/1.05 var(--display); margin: 0; }
+  h3 { font: 700 20px/1.2 var(--display); margin: 0; }
+  .sub, .hint { color: var(--sub); margin: 0; font-size: 15px; }
+  .hint { font-size: 14px; color: var(--faint); }
+  .round { display: flex; align-items: center; gap: 6px; }
+  .round h2 { flex: 1; min-width: 0; }
+  .round .iconbtn { width: 36px; height: 36px; }
+
+  label, .label { font-size: 14px; font-weight: 600; color: var(--sub); }
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  input[type=text], input[type=date], input[type=search], input[type=number], input[type=email], input[type=password], textarea, select {
+    width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid var(--line2); border-radius: 10px; background: var(--panel); color: var(--text); font-size: 16px; }
+  select { appearance: none; -webkit-appearance: none; padding-right: 34px; cursor: pointer;
+    background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3b5a9' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") right 10px center / 16px no-repeat; }
+  textarea { resize: vertical; min-height: 0; line-height: 1.45; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--gold); }
+  input::placeholder, textarea::placeholder { color: var(--faint); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 16px; border-radius: 10px; border: 1px solid var(--line2);
+    background: none; color: var(--text); font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; line-height: 1.2; white-space: nowrap; }
+  .btn:hover { border-color: var(--sub); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.primary { background: var(--gold); border-color: var(--gold); color: var(--on-gold); font-weight: 700; }
+  .btn.primary:hover { background: #ffd23a; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.danger { color: var(--red); }
+  .btn.sm { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+
+  .tally { display: flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--panel); }
+  .tally button { flex: 1 1 0; min-width: 0; padding: 10px 12px; border: 0; border-left: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+  .tally button:first-child { border-left: 0; }
+  .tally b { display: block; font: 700 28px/1 var(--display); }
+  .tally span { font-size: 13px; color: var(--sub); }
+  .tally .todo b { color: var(--gold); }
+  .finder { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  @media (max-width: 600px) { .finder { grid-template-columns: 1fr 1fr; } .finder #q { grid-column: 1 / -1; } }
+
+  .group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 6px 0 -4px; }
+  .group-head .hint { text-align: right; }
+  .list { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+  .list > li + li { border-top: 1px solid var(--line); }
+  .item { display: flex; align-items: center; gap: 12px; padding: 11px 12px 11px 14px; min-height: 64px; }
+  .item .main { flex: 1 1 auto; min-width: 0; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; color: inherit; }
+  .item .name { font-weight: 600; font-size: 16.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .item .meta { font-size: 14px; color: var(--sub); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .side { flex: none; display: flex; align-items: center; gap: 10px; }
+  .years { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--gold); color: var(--gold);
+    font: 700 19px/1 var(--display); }
+  .years.done { border-color: var(--green); color: var(--green-text); }
+  .years.muted { border-color: var(--line2); color: var(--sub); }
+  .tag { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--sub); white-space: nowrap; }
+  .tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .tag.ok { color: var(--green-text); } .tag.ok::before { background: var(--green); }
+  .tag.warn { color: var(--gold); } .tag.warn::before { background: var(--gold); }
+  .tag.bad { color: var(--red); } .tag.bad::before { background: var(--red); }
+  .empty { color: var(--faint); padding: 18px 16px; text-align: center; margin: 0; }
+  .flagtxt { color: var(--red); font-weight: 600; }
+  .flagbox { border: 1px solid var(--red); border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .flagbox p { color: var(--text); font-size: 15px; }
+  @media (max-width: 480px) { .item .side .tag { display: none; } .item { gap: 10px; } }
+
+  details.fold { border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+  details.fold > summary { list-style: none; cursor: pointer; padding: 13px 16px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  details.fold > summary::-webkit-details-marker { display: none; }
+  details.fold > summary::after { content: ""; width: 9px; height: 9px; border-right: 2px solid var(--sub); border-bottom: 2px solid var(--sub); transform: rotate(45deg); margin-top: -4px; flex: none; }
+  details.fold[open] > summary::after { transform: rotate(-135deg); margin-top: 4px; }
+  details.fold > summary .hint { font-weight: 400; margin-left: auto; }
+  details.fold .list { border: 0; border-top: 1px solid var(--line); border-radius: 0 0 var(--r) var(--r); }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .auth { max-width: 380px; margin: 10vh auto 0; }
+  .kv { display: grid; grid-template-columns: minmax(104px, 36%) 1fr; gap: 9px 14px; margin: 0; font-size: 15.5px; }
+  .kv dt { color: var(--sub); }
+  .kv dd { margin: 0; overflow-wrap: anywhere; }
+  .section { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .choice { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .choice .btn { min-height: 48px; padding: 6px 4px; font-size: 14.5px; white-space: normal; }
+  .choice .btn[aria-pressed="true"] { background: var(--raise); border-color: var(--gold); color: var(--gold); }
+  .choice .btn[aria-pressed="true"][data-s="given"] { background: var(--green); border-color: var(--green); color: #fff; }
+  @media (max-width: 420px) { .choice { grid-template-columns: 1fr 1fr; } }
+  .listprev { white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 15px; max-height: 40vh; overflow: auto; margin: 0; }
+
+  dialog { border: 1px solid var(--line2); border-radius: 16px; background: var(--panel); color: var(--text); padding: 20px; width: min(560px, calc(100% - 24px)); max-width: none;
+    max-height: calc(100dvh - 24px); overflow: auto; box-shadow: 0 18px 60px rgba(0,0,0,.55); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog p { margin: 0; }
+  .dlg { display: flex; flex-direction: column; gap: 16px; }
+  .dlg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .dlg-head h3 { font-size: 24px; }
+  .x { border: 0; background: none; color: var(--sub); cursor: pointer; padding: 4px 2px; font: 600 15px var(--body); }
+  .dlg-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  @media (max-width: 640px) {
+    dialog.sheet { margin: auto 0 0; width: 100%; max-height: 92dvh; border-radius: 16px 16px 0 0; border-bottom: 0; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+    .dlg-actions .btn { flex: 1 1 auto; }
+  }
+  #toast { inset: auto; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); z-index: 60;
+    background: var(--text); color: var(--bg); font-weight: 600; padding: 11px 16px; border-radius: 10px; font-size: 15px; max-width: calc(100% - 32px); width: max-content; margin: 0; border: 0; }
+  #toast[hidden] { display: none; }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="home-btn" href="../" aria-label="Back to AMA Toolkit" title="AMA Toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></a>
+    <div class="brand"><img src="../icons/ama-logo.png" alt="AMA"><h1>Long service awards</h1></div>
+    <button class="iconbtn" id="settingsBtn" aria-label="Settings" title="Settings" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    <button class="iconbtn" id="signOut" aria-label="Sign out" title="Sign out" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5M15 12H4"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <section id="signIn" class="panel auth" hidden>
+    <h2>Sign in</h2>
+    <p class="hint">Use your AMA login, or your hub mobile and PIN.</p>
+    <form id="siForm" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="siEmail">Email</label><input type="email" id="siEmail" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input type="password" id="siPass" autocomplete="current-password" required></div>
+      <p class="sub" id="siMsg" hidden style="color:var(--red)"></p>
+      <button class="btn primary" id="siGo" type="submit">Sign in</button>
+    </form>
+  </section>
+  <section id="noAccess" class="panel" hidden><h2>No access yet</h2><p class="sub">Long service awards are for instructors, grading and payments staff. Ask an admin to tick one of those for you in Staff logins.</p></section>
+  <p id="loading" class="sub">Loading…</p>
+  <section id="app" class="view" hidden></section>
+</main>
+
+<dialog id="dlg" class="sheet"></dialog>
+<div id="toast" role="status" popover="manual" hidden></div>
+
+<script>
+// Long service awards: AMA gives an award for every 5 years someone is a member. They're ordered and handed out in December,
+// with a little leeway for people who reach their milestone in the first months of next year.
+// Enrolled dates come from EFC through the weekly check (tools/lsa-weekly.py); each person has a date range, usually a month.
+const CFG = window.TOOLKIT_CONFIG || {};
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#siForm' };
+if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
+if (window.AmaIdle) AmaIdle.watch({ sb });
+
+const SCHOOLS = ['Marrickville', 'Sydenham', 'Concord', 'West', 'Sylvania'];
+const MILESTONES = [5, 10, 15, 20, 25, 30, 35, 40];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const STATUS = { ordered: 'Ordered', given: 'Given', skip: 'Not giving one' };
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dlg = $('#dlg');
+const state = { roles: [], members: [], awards: {}, leeway: 2, lastRun: null, round: null, q: '', school: '', years: '', flagged: false };
+const has = (...r) => state.roles.includes('admin') || r.some(x => state.roles.includes(x));
+const canEdit = () => has('instructor', 'grading');
+
+let toastTimer;
+function toast(msg, ms = 3500) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer);
+  try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* older browsers */ }
+  toastTimer = setTimeout(() => { t.hidden = true; try { t.hidePopover(); } catch (e) { /* ignore */ } }, ms);
+}
+function openDlg(html) { dlg.innerHTML = html; if (!dlg.open) dlg.showModal(); dlg.querySelectorAll('[data-close]').forEach(b => b.onclick = () => dlg.close()); }
+
+// ---------- Dates (all as UTC midnight) ----------
+const D = s => { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+const iso = d => d.toISOString().slice(0, 10);
+function addMonths(d, n) {
+  const y = d.getUTCFullYear(), m = d.getUTCMonth() + n, day = d.getUTCDate();
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m, Math.min(day, last)));
+}
+const addYears = (d, n) => addMonths(d, 12 * n);
+const today = () => { const n = new Date(); return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate())); };
+const dayText = d => `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+function rangeText(a, b) {   // "Feb 2027", "Jan–Feb 2027", "Dec 2026 – Jan 2027"
+  const ya = a.getUTCFullYear(), yb = b.getUTCFullYear(), ma = a.getUTCMonth(), mb = b.getUTCMonth();
+  if (ya === yb && ma === mb) return `${MONTHS[ma]} ${ya}`;
+  if (ya === yb) return `${MONTHS[ma]}–${MONTHS[mb]} ${ya}`;
+  return `${MONTHS[ma]} ${ya} – ${MONTHS[mb]} ${yb}`;
+}
+// What to show for a date range: EFC's weeks are rounded outwards a little, so trim that slack off before naming months
+function whenText(a, b) {
+  const days = (b - a) / 864e5;
+  if (days > 30) { a = new Date(a.getTime() + 10 * 864e5); b = new Date(b.getTime() - 10 * 864e5); }
+  return rangeText(a, b);
+}
+// The last day that counts for December's awards in a given year: the end of the leeway
+const cutoff = year => new Date(Date.UTC(year + 1, state.leeway, 0));
+// Which December an anniversary belongs to: the year it falls in once the leeway months are taken off
+const roundOf = d => addMonths(d, -state.leeway).getUTCFullYear();
+const defaultRound = () => roundOf(today());
+
+// ---------- Each person's milestones ----------
+// Counting from: a start date staff set, or EFC's enrolled date range. A break is taken off by moving the start later.
+function startRange(m) {
+  let a, b;
+  if (m.start_override) a = b = D(m.start_override);
+  else if (m.enrolled_from && m.enrolled_to) { a = D(m.enrolled_from); b = D(m.enrolled_to); }
+  else return null;
+  const br = Number(m.break_months) || 0;
+  return [addMonths(a, br), addMonths(b, br)];
+}
+function milestones(m) {
+  const s = startRange(m); if (!s) return [];
+  return MILESTONES.map(y => {
+    const a = addYears(s[0], y), b = addYears(s[1], y), mid = new Date((a.getTime() + b.getTime()) / 2);
+    const aw = state.awards[m.member_key + '|' + y] || {}, natural = roundOf(mid);
+    const round = aw.round || natural, cut = cutoff(natural);   // staff can move an award to another December
+    // Not sure which December: the date range crosses the end of the leeway by more than a week either side
+    const unsure = a.getTime() + 7 * 864e5 < cut.getTime() && b.getTime() - 7 * 864e5 > cut.getTime();
+    return { m, years: y, a, b, mid, round, natural, moved: round !== natural, unsure: unsure && round === natural, leeway: mid > new Date(Date.UTC(round, 11, 31)) && mid <= cutoff(round), status: aw.status && aw.status !== 'due' ? aw.status : null };
+  });
+}
+function rows() {
+  const r = state.round, out = [];
+  const q = state.q.trim().toLowerCase();
+  for (const m of state.members) {
+    if (state.school && m.location !== state.school) continue;
+    if (q && !(`${m.full_name} ${m.efc_reference || ''}`.toLowerCase().includes(q))) continue;
+    if (state.flagged && !m.check_flag) continue;
+    for (const x of milestones(m)) {
+      if (state.years && x.years !== Number(state.years)) continue;
+      if (x.round >= r - 1 && x.round <= r + 1) out.push(x);
+    }
+  }
+  return out.sort((x, y) => x.mid - y.mid || x.m.full_name.localeCompare(y.m.full_name));
+}
+
+// ---------- Loading ----------
+async function pageAll(table, cols, order) {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb.from(table).select(cols).order(order).range(from, from + 999);
+    if (error) throw error;
+    out.push(...data); if (data.length < 1000) return out;
+  }
+}
+async function load() {
+  try {
+    const [members, awards, st, run] = await Promise.all([
+      pageAll('lsa_members', '*', 'member_key'), pageAll('lsa_awards', '*', 'member_key'),
+      sb.from('lsa_settings').select('*').eq('id', 1).maybeSingle(), sb.from('lsa_runs').select('*').order('ran_at', { ascending: false }).limit(1)]);
+    state.members = members;
+    state.awards = Object.fromEntries(awards.map(a => [a.member_key + '|' + a.years, a]));
+    if (st.data) state.leeway = st.data.leeway_months;
+    state.lastRun = run.data && run.data[0] || null;
+    if (state.round == null) state.round = defaultRound();
+    draw();
+  } catch (e) {
+    $('#app').hidden = false;
+    $('#app').innerHTML = `<div class="panel"><h3>Couldn't load the awards</h3><p class="sub">${esc(/lsa_|does not exist|schema cache/i.test(e.message || '') ? 'The long service awards tables are not set up yet. Run supabase/long-service.sql in Supabase.' : e.message)}</p></div>`;
+  }
+}
+
+// ---------- Drawing ----------
+function itemHtml(x, opts = {}) {
+  const m = x.m, done = x.status === 'given', when = x.unsure ? `${whenText(x.a, x.b)}, check date` : whenText(x.a, x.b);
+  const flag = m.check_flag && x.status !== 'given' && x.status !== 'skip';
+  const bits = [flag ? '<span class="flagtxt">Double check</span>' : '', esc(when), m.location ? esc(m.location) : ''].filter(Boolean).join(' · ');
+  let tag = '';
+  if (flag) tag = '<span class="tag bad">Double check</span>';
+  else if (x.status === 'ordered') tag = '<span class="tag warn">Ordered</span>';
+  else if (x.status === 'given') tag = '<span class="tag ok">Given</span>';
+  else if (x.status === 'skip') tag = '<span class="tag">Not giving one</span>';
+  else if (x.unsure) tag = '<span class="tag bad">Check date</span>';
+  else if (x.moved) tag = `<span class="tag">Moved from ${x.natural}</span>`;
+  else if (opts.leewayTag && x.leeway) tag = '<span class="tag">In the leeway</span>';
+  let btn = '';
+  if (canEdit() && !opts.noButton) {
+    if (!x.status) btn = `<button class="btn sm" data-set="ordered">Ordered</button>`;
+    else if (x.status === 'ordered') btn = `<button class="btn sm go" data-set="given">Given</button>`;
+  }
+  return `<li class="item" data-k="${esc(m.member_key)}" data-y="${x.years}">
+    <span class="years ${done ? 'done' : opts.muted ? 'muted' : ''}" title="${x.years} years">${x.years}</span>
+    <button class="main" data-open><span class="name">${esc(m.full_name)}</span><span class="meta">${bits}</span></button>
+    <span class="side">${tag}${btn}</span></li>`;
+}
+const listHtml = (xs, opts, empty) => xs.length ? `<ul class="list">${xs.map(x => itemHtml(x, opts)).join('')}</ul>` : `<p class="empty">${esc(empty)}</p>`;
+
+function draw() {
+  const r = state.round, xs = rows(), cut = cutoff(r);
+  const now = xs.filter(x => x.round === r);
+  const todo = now.filter(x => !x.status), ordered = now.filter(x => x.status === 'ordered'), given = now.filter(x => x.status === 'given'), skipped = now.filter(x => x.status === 'skip');
+  const missed = xs.filter(x => x.round === r - 1 && !x.status);
+  const next = xs.filter(x => x.round === r + 1 && x.mid <= addMonths(cut, 6));
+  const flaggedNow = now.filter(x => x.m.check_flag && x.status !== 'given' && x.status !== 'skip').length;
+  const last = state.lastRun ? `EFC last checked ${dayText(new Date(state.lastRun.ran_at))}.` : 'EFC has not been checked yet: the weekly check fills this in.';
+  const schoolOpts = SCHOOLS.map(s => `<option ${state.school === s ? 'selected' : ''}>${s}</option>`).join('');
+  const yearOpts = MILESTONES.map(y => `<option value="${y}" ${String(state.years) === String(y) ? 'selected' : ''}>${y} years</option>`).join('');
+  $('#app').innerHTML = `
+    <div>
+      <div class="round">
+        <button class="iconbtn" id="prevRound" aria-label="December ${r - 1}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <h2 id="roundTitle">December ${r} awards</h2>
+        <button class="iconbtn" id="nextRound" aria-label="December ${r + 1}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+      <p class="sub" id="window" style="margin-top:6px">Members reaching 5, 10, 15 years or more by ${dayText(cut)}${state.leeway ? ` (December plus ${state.leeway} month${state.leeway === 1 ? '' : 's'} leeway)` : ''}.</p>
+      <p class="hint" id="lastRun">${esc(last)}</p>
+    </div>
+    <div class="tally">
+      <button class="todo" data-jump="g-todo"><b>${todo.length}</b><span>To order</span></button>
+      <button data-jump="g-ordered"><b>${ordered.length}</b><span>Ordered</span></button>
+      <button data-jump="g-given"><b>${given.length}</b><span>Given</span></button>
+      <button data-jump="g-next"><b>${next.length}</b><span>Next year</span></button>
+    </div>
+    <div class="finder">
+      <input type="search" id="q" placeholder="Search name" value="${esc(state.q)}" aria-label="Search name">
+      <select id="fSchool" aria-label="School"><option value="">All schools</option>${schoolOpts}</select>
+      <select id="fYears" aria-label="Award"><option value="">All awards</option>${yearOpts}</select>
+    </div>
+    <div class="row">
+      ${canEdit() ? `<button class="btn primary" id="copyBtn" ${todo.length ? '' : 'disabled'}>Order list${todo.length ? ` (${todo.length})` : ''}</button>` : ''}
+      ${canEdit() ? `<button class="btn" id="memBtn">Memories texts</button>` : ''}
+      <button class="btn" id="printBtn" ${now.length - skipped.length ? '' : 'disabled'}>Print</button>
+      ${canEdit() ? '<button class="btn" id="addBtn">Add someone</button>' : ''}
+    </div>
+    ${flaggedNow || state.flagged ? `<div class="flagbox"><p>${state.flagged ? `Showing only people to double check (${flaggedNow}).` : `<span class="flagtxt">${flaggedNow} to double check</span> before ordering, e.g. not enrolled in EFC.`}</p><button class="btn sm" id="flagBtn">${state.flagged ? 'Show everyone' : 'Show only these'}</button></div>` : ''}
+
+    <div class="group-head" id="g-todo"><h3>To order</h3><span class="hint">Oldest first</span></div>
+    ${listHtml(todo, { leewayTag: true }, `No one to order${state.q || state.school || state.years ? ' for this search' : ''}.`)}
+    <div class="group-head" id="g-ordered"><h3>Ordered</h3><span class="hint">Tap Given when it's handed over</span></div>
+    ${listHtml(ordered, {}, 'Nothing ordered yet.')}
+    <details class="fold" id="g-given" ${given.length && !todo.length && !ordered.length ? 'open' : ''}><summary>Given<span class="hint">${given.length}</span></summary>${given.length ? listHtml(given, { noButton: true }) : '<p class="empty">None given yet.</p>'}</details>
+    ${missed.length ? `<details class="fold" id="g-missed"><summary>Not given last year<span class="hint">${missed.length}</span></summary><p class="hint" style="padding:0 16px 12px">Reached their milestone in time for December ${r - 1}, but there's no record of an award. Order one now or mark them.</p>${listHtml(missed, {})}</details>` : ''}
+    <details class="fold" id="g-next"><summary>Next year<span class="hint">${next.length}</span></summary><p class="hint" style="padding:0 16px 12px">Just after the leeway, so they're in December ${r + 1}'s order. Order early by tapping Ordered.</p>${next.length ? listHtml(next, { muted: true }) : '<p class="empty">No one in the first months after the leeway.</p>'}</details>
+    ${skipped.length ? `<details class="fold" id="g-skip"><summary>Not giving one<span class="hint">${skipped.length}</span></summary>${listHtml(skipped, { noButton: true })}</details>` : ''}`;
+  $('#app').hidden = false;
+
+  $('#prevRound').onclick = () => { state.round--; draw(); };
+  $('#nextRound').onclick = () => { state.round++; draw(); };
+  $('#q').oninput = e => { state.q = e.target.value; const pos = e.target.selectionStart; draw(); const q = $('#q'); q.focus(); try { q.setSelectionRange(pos, pos); } catch (er) { /* ignore */ } };
+  $('#fSchool').onchange = e => { state.school = e.target.value; draw(); };
+  $('#fYears').onchange = e => { state.years = e.target.value; draw(); };
+  $$('[data-jump]').forEach(b => b.onclick = () => { const el = document.getElementById(b.dataset.jump); if (el.tagName === 'DETAILS') el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  if ($('#copyBtn')) $('#copyBtn').onclick = () => orderList(todo);
+  if ($('#memBtn')) $('#memBtn').onclick = () => sendMemoriesDlg(state.round);
+  $('#printBtn').onclick = () => printList(now.filter(x => x.status !== 'skip'));
+  if ($('#addBtn')) $('#addBtn').onclick = addSomeone;
+  if ($('#flagBtn')) $('#flagBtn').onclick = () => { state.flagged = !state.flagged; draw(); };
+  $$('#app [data-open]').forEach(b => b.onclick = () => { const li = b.closest('li'); openPerson(li.dataset.k, Number(li.dataset.y)); });
+  $$('#app [data-set]').forEach(b => b.onclick = () => { const li = b.closest('li'); setStatus(li.dataset.k, Number(li.dataset.y), b.dataset.set); });
+}
+
+// ---------- Changing things ----------
+async function setStatus(key, years, status, quiet) {
+  const k = key + '|' + years, before = state.awards[k];
+  if (!status && before && before.round) status = 'due';   // moved to another December: keep that, just not ordered
+  if (status) state.awards[k] = { ...(before || {}), member_key: key, years, status };
+  else delete state.awards[k];
+  if (!quiet) draw();
+  const { error } = status
+    ? await sb.from('lsa_awards').upsert({ member_key: key, years, status }, { onConflict: 'member_key,years' })
+    : await sb.from('lsa_awards').delete().eq('member_key', key).eq('years', years);
+  if (status === 'due') status = null;
+  if (error) { if (before) state.awards[k] = before; else delete state.awards[k]; draw(); toast('Not saved: ' + error.message, 6000); return false; }
+  if (!quiet) { const m = state.members.find(x => x.member_key === key); toast(status ? `${m ? m.full_name : 'Award'}: ${STATUS[status].toLowerCase()}` : 'Back to To order'); }
+  return true;
+}
+// Which December an award counts for (null = from its date)
+async function setRound(key, years, round) {
+  const k = key + '|' + years, before = state.awards[k], st = before && before.status || 'due';
+  const { error } = !round && st === 'due'
+    ? await sb.from('lsa_awards').delete().eq('member_key', key).eq('years', years)
+    : await sb.from('lsa_awards').upsert({ member_key: key, years, status: st, round: round || null }, { onConflict: 'member_key,years' });
+  if (error) { toast('Not saved: ' + error.message, 6000); return false; }
+  if (!round && st === 'due') delete state.awards[k]; else state.awards[k] = { ...(before || {}), member_key: key, years, status: st, round: round || null };
+  return true;
+}
+function byAward(xs) {
+  const g = {};
+  for (const x of xs) (g[x.years] = g[x.years] || []).push(x);
+  return Object.keys(g).map(Number).sort((a, b) => a - b).map(y => [y, g[y].sort((a, b) => a.m.full_name.localeCompare(b.m.full_name))]);
+}
+function orderList(all) {
+  // People flagged to double check are listed separately and aren't marked as ordered with the rest
+  const todo = all.filter(x => !x.m.check_flag), held = all.filter(x => x.m.check_flag);
+  const r = state.round, groups = byAward(todo);
+  const line = x => `${x.m.full_name}${x.m.location ? ` (${x.m.location})` : ''}`;
+  const text = [`AMA long service awards, December ${r}`, ''].concat(...groups.map(([y, xs]) => [`${y} years (${xs.length})`, ...xs.map(line), '']),
+    held.length ? [`Double check first (${held.length})`, ...held.sort((a, b) => a.years - b.years || a.m.full_name.localeCompare(b.m.full_name)).map(x => `${line(x)}, ${x.years} years`)] : []).join('\n').trim();
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><div><h3>Order list</h3><p class="sub">${todo.length} award${todo.length === 1 ? '' : 's'} to order${groups.length ? ': ' + groups.map(([y, xs]) => `${xs.length} × ${y} years`).join(', ') : ''}${held.length ? `. ${held.length} to double check first, not included.` : ''}</p></div><button class="x" data-close>Close</button></div>
+    <pre class="listprev" id="olText">${esc(text)}</pre>
+    <div class="dlg-actions"><button class="btn" id="olCopy">Copy</button><button class="btn primary" id="olMark" ${todo.length ? '' : 'disabled'}>Mark all ${todo.length} as ordered</button></div></div>`);
+  $('#olCopy').onclick = async () => { try { await navigator.clipboard.writeText(text); toast('Copied'); } catch (e) { toast('Select the text and copy it'); } };
+  $('#olMark').onclick = async () => {
+    $('#olMark').disabled = true;
+    const recs = todo.map(x => ({ member_key: x.m.member_key, years: x.years, status: 'ordered' }));
+    const { error } = await sb.from('lsa_awards').upsert(recs, { onConflict: 'member_key,years' });
+    if (error) { $('#olMark').disabled = false; return toast('Not saved: ' + error.message, 6000); }
+    for (const r2 of recs) state.awards[r2.member_key + '|' + r2.years] = { ...(state.awards[r2.member_key + '|' + r2.years] || {}), ...r2 };
+    const links = await mintLinks(todo).catch(e => { toast('Ordered, but upload links failed: ' + e.message, 6000); return null; });
+    draw();
+    toast(`${recs.length} marked as ordered`);
+    if (links != null) sendMemoriesDlg(state.round); else dlg.close();
+  };
+}
+
+// When awards are ordered, make a personal "share your memories" upload link for each person
+// (reuse any they already have for this round). Returns how many links now exist for this group.
+async function mintLinks(xs) {
+  const round = state.round, keys = [...new Set(xs.map(x => x.m.member_key))];
+  if (!keys.length) return 0;
+  const { data: existing, error: e1 } = await sb.from('lsa_memory_tokens').select('member_key, years').in('member_key', keys).eq('round', round);
+  if (e1) throw e1;
+  const have = new Set((existing || []).map(r => r.member_key + '|' + r.years));
+  const add = [];
+  for (const x of xs) {
+    const k = x.m.member_key + '|' + x.years;
+    if (have.has(k)) continue; have.add(k);
+    add.push({ token: crypto.randomUUID().replace(/-/g, ''), member_key: x.m.member_key, person_name: x.m.full_name, years: x.years, round });
+  }
+  if (add.length) { const { error } = await sb.from('lsa_memory_tokens').insert(add); if (error) throw error; }
+  return xs.length;
+}
+
+// Send the "share your memories" SMS (via GoHighLevel) to everyone ordered this round.
+function sendMemoriesDlg(round) {
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><div><h3>Memories texts</h3><p class="sub">Text each ordered person their upload link for December ${round}. Only people who haven't been texted yet are sent.</p></div><button class="x" data-close>Close</button></div>
+    <div class="section">
+      <label for="smPhone">Test it first — send one to your phone</label>
+      <div style="display:flex;gap:8px"><input id="smPhone" type="tel" placeholder="04xx xxx xxx" autocomplete="off" style="flex:1"><button class="btn" id="smTest">Send test</button></div>
+      <p class="hint">Sends a sample text to this number without marking anyone as done.</p>
+    </div>
+    <pre class="listprev" id="smOut" hidden></pre>
+    <div class="dlg-actions"><button class="btn" data-close>Later</button><button class="btn primary" id="smAll">Send all texts</button></div></div>`);
+  const out = $('#smOut');
+  const show = o => { out.hidden = false; out.textContent = `Sent ${o.sent}.` + (o.skipped && o.skipped.length ? `\n\nSkipped ${o.skipped.length} (text them by hand):\n` + o.skipped.map(s => `  ${s.name} — ${s.why}`).join('\n') : ''); };
+  $('#smTest').onclick = async () => {
+    const phone = $('#smPhone').value.trim(); if (!phone) return toast('Enter a phone number');
+    $('#smTest').disabled = true;
+    const { data: t } = await sb.from('lsa_memory_tokens').select('token').eq('round', round).limit(1).maybeSingle();
+    if (!t) { $('#smTest').disabled = false; return toast('No links in this round yet'); }
+    const { data: res, error } = await sb.functions.invoke('send-memories', { body: { token: t.token, phone } });
+    $('#smTest').disabled = false;
+    if (error) return toast('Failed: ' + (error.message || error), 6000);
+    show(res); toast(res.sent ? 'Test sent' : 'Not sent — see details');
+  };
+  $('#smAll').onclick = async () => {
+    if (!confirm(`Send the upload-link text to everyone ordered in December ${round} who hasn't had it yet?`)) return;
+    $('#smAll').disabled = true;
+    const { data: res, error } = await sb.functions.invoke('send-memories', { body: { round } });
+    $('#smAll').disabled = false;
+    if (error) return toast('Failed: ' + (error.message || error), 6000);
+    show(res); toast(`Sent ${res.sent}` + (res.skipped && res.skipped.length ? `, ${res.skipped.length} skipped` : ''));
+  };
+}
+function printList(xs) {
+  const r = state.round, w = window.open('', '_blank');
+  if (!w) return toast('Allow pop-ups to print');
+  const rowsHtml = byAward(xs).map(([y, list]) => `<h2>${y} years <small>(${list.length})</small></h2><table><tr><th>Name</th><th>School</th><th>Reached</th><th>Status</th><th style="width:22%">Given</th></tr>${list.map(x =>
+    `<tr><td>${esc(x.m.full_name)}${x.m.check_flag && x.status !== 'given' ? ' <b>(double check)</b>' : ''}</td><td>${esc(x.m.location || '')}</td><td>${esc(whenText(x.a, x.b))}</td><td>${esc(x.status ? STATUS[x.status] : 'To order')}</td><td></td></tr>`).join('')}</table>`).join('');
+  w.document.write(`<!doctype html><title>Long service awards December ${r}</title><style>body{font:13px Arial,sans-serif;margin:18px;color:#000}h1{font-size:19px;margin:0 0 2px}p{margin:0 0 12px;color:#444}h2{font-size:15px;margin:16px 0 6px}small{font-weight:400;color:#555}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}</style>
+    <h1>AMA long service awards, December ${r}</h1><p>Members reaching their milestone by ${dayText(cutoff(r))}. Printed ${dayText(today())}.</p>${rowsHtml}`);
+  w.document.close(); w.focus(); setTimeout(() => w.print(), 200);
+}
+
+function openPerson(key, years) {
+  const m = state.members.find(x => x.member_key === key); if (!m) return;
+  const x = milestones(m).find(z => z.years === years);
+  const s = startRange(m), manual = key.startsWith('manual:');
+  const efc = m.enrolled_from ? (m.enrolled_from === m.enrolled_to ? dayText(D(m.enrolled_from)) : `between ${dayText(D(m.enrolled_from))} and ${dayText(D(m.enrolled_to))}`) : 'not known';
+  const choice = [['', 'To order'], ['ordered', 'Ordered'], ['given', 'Given'], ['skip', 'Not giving one']];
+  const others = milestones(m).filter(z => z.status).map(z => `${z.years} years: ${STATUS[state.awards[key + '|' + z.years].status].toLowerCase()}`);
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><div><h3>${esc(m.full_name)}</h3><p class="sub">${esc([m.location, m.efc_reference].filter(Boolean).join(' · '))}</p></div><button class="x" data-close>Close</button></div>
+    ${m.check_flag ? `<div class="flagbox"><p><span class="flagtxt">Double check:</span> ${esc(m.check_flag)}</p>${canEdit() ? '<button class="btn sm" id="pClear">Checked, clear</button>' : ''}</div>` : ''}
+    <dl class="kv">
+      <dt>Award</dt><dd>${years} years</dd>
+      <dt>Reaches it</dt><dd>${x ? esc(x.a.getTime() === x.b.getTime() ? dayText(x.a) : `between ${dayText(x.a)} and ${dayText(x.b)}`) : '–'}${x && x.unsure ? ' <span class="tag bad">Check date</span>' : ''}</dd>
+      <dt>For</dt><dd>${x ? (canEdit() ? `<select id="pRound" aria-label="Which December">${[x.natural - 1, x.natural, x.natural + 1].map(v => `<option value="${v}" ${v === x.round ? 'selected' : ''}>December ${v}${v === x.natural ? ' (from the date)' : ''}</option>`).join('')}</select>${x.moved ? ` <span class="hint">moved from December ${x.natural}</span>` : ''}` : `December ${x.round}${x.leeway ? ' (in the leeway)' : ''}`) : '–'}</dd>
+      ${manual ? '' : `<dt>EFC enrolled</dt><dd>${esc(efc)}</dd>`}
+      ${m.break_months ? `<dt>Break</dt><dd>${m.break_months} month${m.break_months === 1 ? '' : 's'} taken off</dd>` : ''}
+      ${m.start_override ? `<dt>Counting from</dt><dd>${esc(dayText(D(m.start_override)))}</dd>` : ''}
+      ${others.length ? `<dt>Awards</dt><dd>${esc(others.join(', '))}</dd>` : ''}
+    </dl>
+    ${canEdit() ? `<div class="choice" id="pChoice">${choice.map(([v, l]) => `<button class="btn" data-s="${v}" aria-pressed="${(x && x.status || '') === v}">${l}</button>`).join('')}</div>
+    <div class="section">
+      <h3>Membership time</h3>
+      <p class="hint">${manual ? 'Added by hand.' : "EFC's enrolled date can be when they re-joined or when they were moved into EFC."} Change it if it's wrong, or take off time they were away.</p>
+      <div class="grid2">
+        <div class="field"><label for="pStart">Started at AMA</label><input type="date" id="pStart" value="${esc(m.start_override || '')}"><span class="hint">Leave blank to use ${manual ? 'nothing' : 'EFC'}.</span></div>
+        <div class="field"><label for="pBreak">Time away (months)</label><input type="number" id="pBreak" min="0" max="600" step="1" value="${Number(m.break_months) || 0}"></div>
+      </div>
+      <div class="field"><label for="pFlag">Double check</label><input type="text" id="pFlag" value="${esc(m.check_flag || '')}" placeholder="Why it needs checking, e.g. not enrolled in EFC" autocomplete="off"><span class="hint">Leave blank once it's been checked.</span></div>
+      <div class="field"><label for="pNote">Note</label><textarea id="pNote" rows="2" placeholder="e.g. away 2019 to 2020">${esc(m.note || '')}</textarea></div>
+      <div class="dlg-actions">${manual ? '<button class="btn danger" id="pRemove">Remove</button>' : ''}<button class="btn primary" id="pSave">Save</button></div>
+    </div>
+    <div class="section" id="pMemSec">
+      <h3>Their text &amp; profile</h3>
+      <div id="pMemBody"><p class="hint">Checking their upload link…</p></div>
+      <div class="field" style="margin-top:4px"><label for="pGhlNote">Leave a note on their profile</label><textarea id="pGhlNote" rows="2" placeholder="Saved to their GoHighLevel contact"></textarea></div>
+      <div class="dlg-actions"><button class="btn" id="pNoteSend">Save note to profile</button></div>
+    </div>` : ''}
+    ${s ? '' : '<p class="sub">No start date yet: add one above.</p>'}</div>`);
+  if (canEdit()) loadPersonMem(key, years, m);
+  if ($('#pNoteSend')) $('#pNoteSend').onclick = async () => {
+    const body = $('#pGhlNote').value.trim(); if (!body) return toast('Type a note first');
+    $('#pNoteSend').disabled = true;
+    try {
+      const { data: res, error } = await sb.functions.invoke('send-memories', { body: { note: body, name: m.full_name } });
+      if (error) throw new Error(error.message || error);
+      if (res && res.ok) { $('#pGhlNote').value = ''; toast('Note saved to their profile'); }
+      else toast(res && res.why ? res.why : 'Couldn\'t save the note', 6000);
+    } catch (e) { toast('Failed: ' + (e.message || e), 6000); }
+    $('#pNoteSend').disabled = false;
+  };
+  if ($('#pRound')) $('#pRound').onchange = async e => {
+    const v = Number(e.target.value);
+    if (await setRound(key, years, v === x.natural ? null : v)) { draw(); dlg.close(); toast(`${m.full_name}: December ${v}`); }
+  };
+  $$('#pChoice [data-s]').forEach(b => b.onclick = async () => {
+    const v = b.dataset.s || null;
+    if (await setStatus(key, years, v, true)) { draw(); dlg.close(); toast(v ? `${m.full_name}: ${STATUS[v].toLowerCase()}` : `${m.full_name}: back to To order`); }
+  });
+  if ($('#pSave')) $('#pSave').onclick = async () => {
+    const br = Math.max(0, Math.min(600, parseInt($('#pBreak').value, 10) || 0));
+    const rec = { start_override: $('#pStart').value || null, break_months: br, note: $('#pNote').value.trim() || null, check_flag: $('#pFlag').value.trim() || null };
+    if (manual && !rec.start_override) return toast('Someone added by hand needs a start date');
+    $('#pSave').disabled = true;
+    const { error } = await sb.from('lsa_members').update(rec).eq('member_key', key);
+    if (error) { $('#pSave').disabled = false; return toast('Not saved: ' + error.message, 6000); }
+    Object.assign(m, rec); dlg.close(); draw(); toast('Saved');
+  };
+  if ($('#pClear')) $('#pClear').onclick = async () => {
+    $('#pClear').disabled = true;
+    const { error } = await sb.from('lsa_members').update({ check_flag: null }).eq('member_key', key);
+    if (error) { $('#pClear').disabled = false; return toast('Not saved: ' + error.message, 6000); }
+    m.check_flag = null; dlg.close(); draw(); toast(`${m.full_name}: checked`);
+  };
+  if ($('#pRemove')) $('#pRemove').onclick = async () => {
+    if (!confirm(`Remove ${m.full_name} from long service awards?`)) return;
+    const { error } = await sb.from('lsa_members').delete().eq('member_key', key);
+    if (error) return toast('Not removed: ' + error.message, 6000);
+    state.members = state.members.filter(z => z.member_key !== key); dlg.close(); draw(); toast('Removed');
+  };
+}
+
+// The person's "share your memories" upload link, newest round first: show the current one with a Send/Resend
+// button and when it last went. The link is only made once they're ordered, so until then there's nothing to text.
+async function loadPersonMem(key, years, m) {
+  if (!$('#pMemBody')) return;
+  const { data: toks, error } = await sb.from('lsa_memory_tokens').select('token, years, round, sms_sent_at').eq('member_key', key).order('round', { ascending: false });
+  const body = $('#pMemBody'); if (!body) return;   // dialog closed while loading
+  if (error) { body.innerHTML = '<p class="hint">Couldn\'t load their upload link.</p>'; return; }
+  const list = toks || [], xm = milestones(m).find(z => z.years === years), round = xm ? xm.round : state.round;
+  const tok = list.find(t => t.years === years && t.round === round) || list.find(t => t.round === round) || list[0];
+  if (!tok) { body.innerHTML = '<p class="hint">No upload link yet. Mark them <b>Ordered</b> (or use the Order list) to make one, then you can text it from here.</p>'; return; }
+  const link = 'https://app.train-ama.com/memories/#' + tok.token;
+  const sentLine = tok.sms_sent_at ? `Texted ${dayText(new Date(tok.sms_sent_at))}.` : 'Not texted yet.';
+  body.innerHTML = `<p class="hint" style="margin-bottom:8px">${esc(sentLine)} ${tok.years} years, December ${tok.round}.</p>
+    <div class="row"><button class="btn primary" id="pSendTxt">${tok.sms_sent_at ? 'Resend text' : 'Send text'}</button><button class="btn" id="pCopyLink">Copy link</button></div>`;
+  $('#pSendTxt').onclick = async () => {
+    if (tok.sms_sent_at && !confirm(`${m.full_name} was already texted. Send it again?`)) return;
+    $('#pSendTxt').disabled = true;
+    try {
+      const { data: res, error: er } = await sb.functions.invoke('send-memories', { body: { token: tok.token } });
+      if (er) throw new Error(er.message || er);
+      if (res && res.sent) { toast('Text sent'); loadPersonMem(key, years, m); }
+      else toast(res && res.skipped && res.skipped[0] ? res.skipped[0].why : 'Not sent', 6000);
+    } catch (e) { toast('Failed: ' + (e.message || e), 6000); if ($('#pSendTxt')) $('#pSendTxt').disabled = false; }
+  };
+  $('#pCopyLink').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Link copied'); } catch (e) { toast('Copy failed'); } };
+}
+
+function addSomeone() {
+  openDlg(`<form class="dlg" id="addForm">
+    <div class="dlg-head"><div><h3>Add someone</h3><p class="sub">For a member EFC doesn't have the right date for, like someone who started before EFC.</p></div><button class="x" type="button" data-close>Close</button></div>
+    <div class="field"><label for="aName">Name</label><input type="text" id="aName" required autocomplete="off"></div>
+    <div class="grid2">
+      <div class="field"><label for="aSchool">School</label><select id="aSchool">${SCHOOLS.map(s => `<option>${s}</option>`).join('')}</select></div>
+      <div class="field"><label for="aStart">Started at AMA</label><input type="date" id="aStart" required></div>
+    </div>
+    <div class="field"><label for="aBreak">Time away (months)</label><input type="number" id="aBreak" min="0" max="600" value="0"></div>
+    <div class="field"><label for="aNote">Note</label><input type="text" id="aNote" placeholder="Optional"></div>
+    <div class="dlg-actions"><button class="btn primary" id="aSave" type="submit">Add</button></div></form>`);
+  $('#addForm').onsubmit = async e => {
+    e.preventDefault();
+    const name = $('#aName').value.trim(), start = $('#aStart').value;
+    if (!name || !start) return toast('Add a name and start date');
+    const rec = { member_key: 'manual:' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)), full_name: name, location: $('#aSchool').value,
+      start_override: start, break_months: Math.max(0, parseInt($('#aBreak').value, 10) || 0), note: $('#aNote').value.trim() || null };
+    $('#aSave').disabled = true;
+    const { error } = await sb.from('lsa_members').insert(rec);
+    if (error) { $('#aSave').disabled = false; return toast('Not added: ' + error.message, 6000); }
+    state.members.push(rec); dlg.close(); draw(); toast(`Added ${name}`);
+  };
+}
+
+function openSettings() {
+  openDlg(`<div class="dlg">
+    <div class="dlg-head"><h3>Settings</h3><button class="x" data-close>Close</button></div>
+    <div class="field"><label for="sLeeway">Leeway after December</label>
+      <select id="sLeeway">${[0, 1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === state.leeway ? 'selected' : ''}>${n ? `${n} month${n === 1 ? '' : 's'} (up to the end of ${LONG_MONTHS[n - 1]})` : 'None (December only)'}</option>`).join('')}</select>
+      <span class="hint">Members who reach their milestone in these months are included in December's order.</span></div>
+    <div class="dlg-actions"><button class="btn primary" id="sSave">Save</button></div></div>`);
+  $('#sSave').onclick = async () => {
+    const v = Number($('#sLeeway').value);
+    const { error } = await sb.from('lsa_settings').update({ leeway_months: v }).eq('id', 1);
+    if (error) return toast('Not saved: ' + error.message, 6000);
+    state.leeway = v; state.round = defaultRound(); dlg.close(); draw(); toast('Saved');
+  };
+}
+
+// ---------- Sign in ----------
+async function start() {
+  const { data: { session } } = await sb.auth.getSession();
+  $('#loading').hidden = true;
+  if (!session) { $('#signIn').hidden = false; $('#app').hidden = $('#noAccess').hidden = true; $('#signOut').hidden = $('#settingsBtn').hidden = true; return; }
+  $('#signIn').hidden = true; $('#signOut').hidden = false;
+  const { data } = await sb.rpc('prep_my_roles');
+  state.roles = data || [];
+  if (!has('instructor', 'grading', 'payments')) { $('#noAccess').hidden = false; return; }
+  $('#settingsBtn').hidden = !state.roles.includes('admin');
+  await load();
+}
+$('#siForm').onsubmit = async e => {
+  e.preventDefault(); $('#siGo').disabled = true; $('#siMsg').hidden = true;
+  const { error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
+  $('#siGo').disabled = false;
+  if (error) { $('#siMsg').textContent = /invalid/i.test(error.message) ? 'Wrong email or password.' : error.message; $('#siMsg').hidden = false; return; }
+  start();
+};
+$('#signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('#settingsBtn').onclick = openSettings;
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !dlg.open && state.round != null) load(); });
+window.__lsa = { state, milestones, roundOf, cutoff };   // for testing
+start();
+</script>
+</body>
+</html>

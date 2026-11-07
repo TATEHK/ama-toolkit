@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0f1713">
+<title>Signing you in…</title>
+<link rel="icon" href="../icons/ama-id-cards.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<style>
+  :root { --bg:#0f1713; --surface:#15201a; --fg:#edf2ee; --muted:#a3b5a9; --line:#253629; --accent:#f5c518; --on-accent:#14130a; --danger:#ef8a73; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--fg); font-family: Barlow, "Segoe UI", Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 28px 24px; max-width: 420px; width: 100%; text-align: center; }
+  img.logo { width: 54px; height: 54px; border-radius: 12px; margin-bottom: 14px; }
+  h1 { font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: 22px; margin: 0 0 8px; }
+  p { color: var(--muted); font-size: 15px; margin: 6px 0 0; }
+  .spin { width: 34px; height: 34px; margin: 16px auto 4px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: s 1s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .err { color: var(--danger); font-weight: 600; }
+  a.btn { display: inline-block; margin-top: 16px; font-weight: 600; text-decoration: none; padding: 10px 16px; border-radius: 10px; background: var(--accent); color: var(--on-accent); }
+</style>
+</head>
+<body>
+<div class="card">
+  <img class="logo" src="../icons/ama-id-cards.png" alt="">
+  <div id="body">
+    <div class="spin"></div>
+    <h1>Signing you in…</h1>
+    <p>One moment while we open your AMA account.</p>
+  </div>
+</div>
+<script>
+  (function () {
+    var cfg = window.TOOLKIT_CONFIG || {};
+    var sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+    var bodyEl = document.getElementById('body');
+    function show(title, msg, isErr, link) {
+      bodyEl.innerHTML = '<h1>' + title + '</h1><p class="' + (isErr ? 'err' : '') + '">' + msg + '</p>' +
+        (link ? '<a class="btn" href="' + link + '">' + (isErr ? 'Go to sign in' : 'Continue') + '</a>' : '');
+    }
+    // Token comes in the URL fragment (never sent to a server in a GET), then we clear it from the address bar.
+    function frag() {
+      var h = location.hash.replace(/^#/, ''); var o = {}, parts = h.split('&'), i, kv;
+      for (i = 0; i < parts.length; i++) { kv = parts[i].split('='); if (kv[0]) o[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || ''); }
+      return o;
+    }
+    var f = frag();
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    var token = f.token;
+    if (!token) { show('This link won’t open', 'Open the sign-in link your AMA account was sent. If it’s old, ask for a new one.', true, '../'); return; }
+
+    fetch(String(cfg.SUPABASE_URL).replace(/\/$/, '') + '/functions/v1/sso', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: cfg.SUPABASE_KEY }, body: JSON.stringify({ token: token })
+    }).then(function (r) {
+      return r.json().catch(function () { return { ok: false, error: 'Sign-in did not answer properly. Try the link again.' }; });
+    }).then(function (r) {
+      if (!r || !r.ok) throw new Error((r && r.error) || 'This sign-in link could not be used.');
+      return sb.auth.setSession(r.session).then(function (s) {
+        if (s && s.error) throw s.error;
+        var next = r.next && /^\/[A-Za-z0-9_\-./]*$/.test(r.next) ? r.next : '/';
+        // Land them where the link asked (same-site only), default the apps home.
+        location.replace(next);
+      });
+    }).catch(function (e) {
+      show('Couldn’t sign you in', (e && e.message) || 'Please try the link again.', true, '../');
+    });
+  })();
+</script>
+</body>
+</html>
