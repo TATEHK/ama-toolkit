@@ -263,6 +263,45 @@
   #toast[hidden] { display: none; }
   @media (min-width: 860px) { #toast { bottom: 24px; } }
   .auth { max-width: 380px; margin: 10vh auto 0; }
+
+  /* =====================================================================
+     Redesign (Nov 2026), same as Black Belt Gradings: sidebar on desktop, count strips, progress tiles
+     ===================================================================== */
+  @media (min-width: 900px) {
+    .tabbar { position: fixed; top: 55px; left: 0; bottom: 0; width: 232px; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch;
+      gap: 2px; padding: 18px 12px 24px; border: 0; border-right: 1px solid var(--line); background: var(--bg); overflow-y: auto; }
+    .tab { flex-direction: row; justify-content: flex-start; height: auto; min-height: 40px; padding: 8px 12px; gap: 10px; font-size: 15px; border-radius: 8px; border-bottom: 0 !important; color: var(--sub); }
+    .tab:hover { background: var(--panel); color: var(--text); }
+    .tab[aria-selected="true"] { background: var(--raise); color: var(--gold); box-shadow: inset 2px 0 0 var(--gold); }
+    .tab svg { width: 18px; height: 18px; }
+    .tabcount { margin-left: auto; }
+    .appbar-inner { max-width: none; }
+    main { margin-left: 232px; max-width: 1100px; padding: 26px 36px 64px; }
+    #toast { left: calc(50% + 116px); }
+  }
+  /* Count strip: tap a number to show those students */
+  .pipeline { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); overflow: hidden; }
+  .pipeline button { border: 0; border-left: 1px solid var(--line); background: none; padding: 11px 12px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--text); }
+  .pipeline button:first-child { border-left: 0; }
+  .pipeline button:hover { background: var(--raise); }
+  .pipeline .n { font: 700 28px/1 var(--display); }
+  .pipeline .l { font-size: 13px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pipeline button[aria-pressed="true"] { box-shadow: inset 0 -3px 0 var(--gold); }
+  .pipeline button[aria-pressed="true"] .n { color: var(--gold); }
+  .pipeline .alert .n { color: var(--red); }
+  @media (max-width: 420px) { .pipeline .n { font-size: 23px; } .pipeline button { padding: 9px 8px; } .pipeline .l { font-size: 12px; white-space: normal; line-height: 1.2; } }
+  /* Grading day: progress tiles */
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .kpi b { font: 700 26px/1 var(--display); }
+  .kpi span { font-size: 13px; color: var(--sub); }
+  .kpi i { display: block; height: 3px; border-radius: 2px; background: var(--line2); overflow: hidden; }
+  .kpi i > em { display: block; height: 100%; background: var(--green); }
+  @media (max-width: 560px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+  .day-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; border-top: 3px solid var(--gold); }
+  /* Phones: Before / On the day / After stays in reach while scrolling the students */
+  @media (max-width: 899px) { .stage .stages { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 56px); z-index: 12; box-shadow: 0 6px 14px rgba(0,0,0,.35); } }
+  .item .progress { margin-top: 7px; max-width: 260px; }
   @media (prefers-reduced-motion: no-preference) { .btn, .item, .res button, .stages button { transition: background-color .12s, border-color .12s, color .12s; } }
 </style>
 </head>
@@ -573,6 +612,7 @@ function renderReady() {
   if (!v.dataset.built) {
     v.dataset.built = '1';
     v.innerHTML = `<div class="view-head"><div><h2>Who's ready</h2><p class="sub" id="efcFresh"></p></div></div>
+      <div class="pipeline" id="readyPipe" role="group" aria-label="Students at a glance"></div>
       <div class="finder">
         <input type="search" id="fQ" placeholder="Find a student" aria-label="Find a student">
         <select id="fShow" aria-label="Show"><option value="eligible">Enough classes</option><option value="ready">Marked ready</option><option value="not_yet">Marked not yet</option><option value="undecided">Enough classes, not decided</option><option value="overdue">Overdue</option><option value="all">Everyone</option></select>
@@ -598,6 +638,14 @@ function renderReady() {
 }
 function drawReady() {
   const show = filt.show;
+  // The count strip: the same school, belt, Black Belt Club and search filters, before the "show" choice
+  const base = state.students.filter(s => (!filt.school || s.location === filt.school) && (!filt.belt || s.belt === filt.belt) && (!filt.q || s.full_name.toLowerCase().includes(filt.q)) &&
+    (!filt.bbc || (filt.bbc === 'invited' ? !s.black_belt_club && !!s.bbc_invited_at : (filt.bbc === 'yes') === !!s.black_belt_club)));
+  const pipe = [['eligible', 'Enough classes', base.filter(eligible).length], ['undecided', 'Not decided', base.filter(s => eligible(s) && !s.approval).length],
+    ['ready', 'Marked ready', base.filter(s => s.approval === 'ready').length], ['overdue', 'Overdue', base.filter(overdue).length, 'alert']];
+  const pb = $('#readyPipe');
+  if (pb) { pb.innerHTML = pipe.map(([k, t, n, c]) => `<button type="button" data-pipe="${k}" class="${n && c ? c : ''}" aria-pressed="${show === k}"><span class="n">${n}</span><span class="l">${t}</span></button>`).join('');
+    $$('#readyPipe [data-pipe]').forEach(b => b.onclick = () => { $('#fShow').value = b.dataset.pipe; $('#fShow').dispatchEvent(new Event('input')); }); }
   const list = sortStudents(state.students.filter(s => (!filt.school || s.location === filt.school) && (!filt.belt || s.belt === filt.belt) && (!filt.q || s.full_name.toLowerCase().includes(filt.q)) &&
     (!filt.bbc || (filt.bbc === 'invited' ? !s.black_belt_club && !!s.bbc_invited_at : (filt.bbc === 'yes') === !!s.black_belt_club)) &&
     (show === 'all' || (show === 'eligible' && eligible(s)) || (show === 'ready' && s.approval === 'ready') || (show === 'not_yet' && s.approval === 'not_yet') ||
@@ -757,7 +805,8 @@ function renderDays() {
   const row = d => { const es = entriesOf(d.day_id), n = k => es.filter(k).length;
     const status = d.closed ? '<span class="tag plain">Finished</span>' : n(e => e.result) ? `<span class="tag ok">${n(e => e.result)} results</span>` : es.length ? `<span class="tag ${n(e => e.booked_at) === es.length ? 'ok' : 'info'}">${n(e => e.booked_at)} booked</span>` : '';
     return `<li><button class="item" data-day="${d.day_id}"><div class="main"><div class="name">${isAll() ? esc(progLabel(d.programme || 'Taekwondo')) + ': ' : ''}${esc(fmtDate(d.grading_date))}${d.start_time ? ', ' + fmtTime(d.start_time) : ''}</div>
-      <div class="meta">${esc(d.location)}, ${esc(beltsText(d))}${d.move_up ? ', moving up to Taekwondo' : ''}</div>${fromText(d) ? `<div class="meta">${esc(fromText(d))}</div>` : ''}</div>
+      <div class="meta">${esc(d.location)}, ${esc(beltsText(d))}${d.move_up ? ', moving up to Taekwondo' : ''}</div>${fromText(d) ? `<div class="meta">${esc(fromText(d))}</div>` : ''}
+      ${es.length && !d.closed && !n(e => e.result) ? `<div class="progress" title="${n(e => e.booked_at)} of ${es.length} booked"><i style="width:${Math.round(100 * n(e => e.booked_at) / es.length)}%"></i></div>` : ''}</div>
       <div class="side"><span class="classes">${es.length} student${es.length === 1 ? '' : 's'}</span>${status}</div></button></li>`; };
   v.innerHTML = `<div class="view-head"><h2>Grading days</h2>${canGrade() && !isAll() ? '<button class="btn primary" id="newDay">New grading day</button>' : ''}</div>
     ${isAll() && canGrade() ? '<p class="hint">Every program\'s grading days. To add one, choose its program at the top.</p>' : ''}
@@ -907,11 +956,12 @@ function renderDay() {
   const fromCap = fromText(d) ? fromText(d)[0].toUpperCase() + fromText(d).slice(1) : '';
   const facts = [d.start_time ? fmtTime(d.start_time) : '', beltsText(d), fromCap, d.move_up ? 'Moving up to Taekwondo' : '',
     d.book_by ? (bookingShut(d) ? 'Bookings closed' : 'Bookings close ' + whenText(d.book_by)) : '', d.efc_session ? 'EFC: ' + d.efc_session : 'No EFC session named'].filter(Boolean);
-  v.innerHTML = `<div><button class="back" id="backDays">‹ Grading days</button>
+  v.innerHTML = `<div><button class="back" id="backDays">‹ Grading days</button></div>
+    <div class="day-card">
       <div class="view-head"><div><p class="sub">${esc(d.location)}${isAll() || state.programmes.length > 1 ? ', ' + esc(progLabel(d.programme || state.programme)) : ''}</p><h2 class="day-date">${esc(fmtDate(d.grading_date))}</h2></div>${canGrade() ? '<button class="btn sm" id="editDay">Edit</button>' : ''}</div>
-      <ul class="facts">${facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul>${d.notes ? `<p class="hint" style="margin-top:6px">${esc(d.notes)}</p>` : ''}</div>
-    <div class="tally"><div><b>${es.length}</b><span>students</span></div><div><b>${n(e => e.invited_at)}</b><span>invited</span></div><div><b>${n(e => e.booked_at)}</b><span>booked</span></div>
-      <div><b>${n(e => e.paid)}</b><span>paid</span></div><div><b>${n(e => e.checked_in_at)}</b><span>here</span></div><div><b>${passed.length}</b><span>passed</span></div></div>
+      <ul class="facts">${facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul>${d.notes ? `<p class="hint">${esc(d.notes)}</p>` : ''}</div>
+    <div class="kpis">${[['students', es.length, null], ['invited', n(e => e.invited_at)], ['booked', n(e => e.booked_at)], ['paid', n(e => e.paid)], ['here', n(e => e.checked_in_at)], ['passed', passed.length]]
+      .map(([l, v, bar]) => `<div class="kpi"><b>${v}</b><span>${l}</span>${bar === null ? '' : `<i><em style="width:${es.length ? Math.round(100 * v / es.length) : 0}%"></em></i>`}</div>`).join('')}</div>
     ${stages.length ? `<div class="stage">${stages.length > 1 ? `<div class="stages" role="group" aria-label="Stage">${stages.map(([k, t]) => `<button type="button" data-stage="${k}" aria-pressed="${k === stage}">${t}</button>`).join('')}</div>` : ''}
       ${stages.map(([k, , html]) => `<div class="actions" data-panel="${k}"${k === stage ? '' : ' hidden'}>${html}</div>`).join('')}</div>` : ''}
     <div class="section-title"><h3>Students</h3>${es.length ? `<div class="list-tools">
