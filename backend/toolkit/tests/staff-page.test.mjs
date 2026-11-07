@@ -9,7 +9,7 @@ import { makeDb } from './mock-db.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/npm-tools/node_modules/playwright/index.mjs');
-const UMD = readFileSync(process.env.SUPABASE_UMD || '/home/claude/black-belt-prep-system/tests/node_modules/@supabase/supabase-js/dist/umd/supabase.js', 'utf8');
+const UMD = readFileSync(process.env.SUPABASE_UMD || join(here, '../../black-belt-gradings/tests/node_modules/@supabase/supabase-js/dist/umd/supabase.js'), 'utf8');
 const tmp = join(mkdtempSync(join(tmpdir(), 'staff-')), 'staff.mjs');
 writeFileSync(tmp, readFileSync(join(here, '../supabase/functions/staff/index.ts'), 'utf8'));
 const { handle } = await import(pathToFileURL(tmp).href);

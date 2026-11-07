@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/npm-tools/node_modules/playwright/index.mjs');
-const UMD = readFileSync(process.env.SUPABASE_UMD || '/home/claude/black-belt-prep-system/tests/node_modules/@supabase/supabase-js/dist/umd/supabase.js', 'utf8');
+const UMD = readFileSync(process.env.SUPABASE_UMD || join(here, '../../black-belt-gradings/tests/node_modules/@supabase/supabase-js/dist/umd/supabase.js'), 'utf8');
 
 let passed = 0, failed = 0;
 const ok = (c, m) => { if (c) { passed++; console.log('  pass  ' + m); } else { failed++; console.log('  FAIL  ' + m); } };

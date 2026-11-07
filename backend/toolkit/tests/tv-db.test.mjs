@@ -6,9 +6,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const PREP_TESTS = process.env.PREP_TESTS || '/home/claude/black-belt-prep-system/tests';
+const PREP_TESTS = process.env.PREP_TESTS || join(here, '../../black-belt-gradings/tests');
 const PREP = join(PREP_TESTS, '..');
-const CARD = process.env.CARD_REPO || '/home/claude/theggatonklenner/ama-id-cards';
+const CARD = process.env.CARD_REPO || join(here, '../../id-cards');
 const { PGlite } = await import(join(PREP_TESTS, 'node_modules/@electric-sql/pglite/dist/index.js'));
 const read = p => readFileSync(p, 'utf8');
 let passed = 0, failed = 0;

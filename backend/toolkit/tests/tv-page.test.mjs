@@ -8,9 +8,9 @@ import { tmpdir } from 'node:os';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, '..');
-const PREP_TESTS = process.env.PREP_TESTS || '/home/claude/black-belt-prep-system/tests';
+const PREP_TESTS = process.env.PREP_TESTS || join(here, '../../black-belt-gradings/tests');
 const PREP = join(PREP_TESTS, '..');
-const CARD = process.env.CARD_REPO || '/home/claude/theggatonklenner/ama-id-cards';
+const CARD = process.env.CARD_REPO || join(here, '../../id-cards');
 const { PGlite } = await import(join(PREP_TESTS, 'node_modules/@electric-sql/pglite/dist/index.js'));
 const { startServer } = await import(pathToFileURL(join(PREP_TESTS, 'fake-supabase.mjs')).href);
 const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/npm-tools/node_modules/playwright/index.mjs');
@@ -53,7 +53,7 @@ const CODE = (await db.query(`select screen_code from tv_settings where id = 1`)
 
 const users = { 'tate@ama.test': { id: '00000000-0000-0000-0000-000000000001', password: 'pw' }, 'jo@ama.test': { id: '00000000-0000-0000-0000-000000000002', password: 'pw' } };
 let BASE;
-const server = await startServer({ db, appDir: ROOT, users, config: '' });
+const server = await startServer({ db, appDir: join(here, '../../../site'), users, config: '' });
 BASE = `http://localhost:${server.address().port}`;
 const configJs = `window.TOOLKIT_CONFIG = { SUPABASE_URL: '${BASE}', SUPABASE_KEY: 'test' };`;
 const files = new Map();   // the "tv" storage bucket
@@ -120,7 +120,7 @@ try {
   ok((await slides())[0].title === 'No classes on Monday', 'info slide added');
 
   // Photos (two at once)
-  await page.setInputFiles('#pickPhotos', [join(ROOT, 'icons/ama-id-cards.png'), join(ROOT, 'icons/clipboard.png')]);
+  await page.setInputFiles('#pickPhotos', [join(here, '../../../site/icons/ama-id-cards.png'), join(here, '../../../site/icons/clipboard.png')]);
   await page.waitForFunction(() => document.querySelectorAll('#list .slide').length === 3, null, { timeout: 15000 });
   const ph = (await slides()).filter(s => s.kind === 'photo');
   ok(ph.length === 2 && ph.every(p => files.has(p.media_path) && files.get(p.media_path).type === 'image/jpeg'), 'two photos added at once, resized to JPEG and uploaded');
@@ -262,7 +262,7 @@ try {
   // Image, and reusing a saved one
   await page.click('#partyStart'); await page.waitForSelector('#pForm');
   await page.click('#pForm [data-m="image"]');
-  await page.click('#pPick'); await page.setInputFiles('#pickParty', join(ROOT, 'icons/ama-id-cards.png'));
+  await page.click('#pPick'); await page.setInputFiles('#pickParty', join(here, '../../../site/icons/ama-id-cards.png'));
   await page.waitForSelector('#pForm .preview-img');
   await page.fill('#pCap', 'Happy Birthday Sam!'); await page.click('#pGo'); await page.waitForSelector('#partyStop');
   const img = (await db.query(`select s.kind, s.media_path from party_now t join tv_slides s on s.id = t.only_slide where t.id = 1`)).rows[0];
@@ -330,7 +330,7 @@ try {
   await page.waitForSelector('#partyStart');
   let tplFile = process.env.TEMPLATES_JSON;
   if (!tplFile) {
-    const img = 'data:image/png;base64,' + readFileSync(join(ROOT, 'icons/ama-id-cards.png')).toString('base64');
+    const img = 'data:image/png;base64,' + readFileSync(join(here, '../../../site/icons/ama-id-cards.png')).toString('base64');
     tplFile = join(tmpdir(), 'tv-test-templates.json');
     (await import('node:fs')).writeFileSync(tplFile, JSON.stringify({ app: 'ama-tv-templates', templates: [
       { title: 'Classic', image: img, settings: { size: 200, box: { cx: 960, base: 560, maxW: 1240 }, font: 'Montserrat', weight: 800, fill: '#ffffff', stroke: '', strokeWidth: 0, spacing: 0.04, uppercase: true } },
@@ -358,7 +358,7 @@ try {
   // Add a template: choose a design, drag where the name goes, pick the lettering
   await page.click('#partyStart'); await page.waitForSelector('#pManage'); await page.click('#pManage');
   await page.waitForSelector('#tAdd'); await page.click('#tAdd');
-  await page.click('#tPick'); await page.setInputFiles('#pickTpl', join(ROOT, 'icons/clipboard.png'));
+  await page.click('#tPick'); await page.setInputFiles('#pickTpl', join(here, '../../../site/icons/clipboard.png'));
   await page.waitForSelector('#tCanvas');
   const box = await page.$eval('#tCanvas', c => { const r = c.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
   await page.mouse.move(box.x + box.w * 0.2, box.y + box.h * 0.4); await page.mouse.down();
@@ -779,7 +779,7 @@ try {
 
   // Tablet versions for templates named differently: matched by other names, or picked by hand
   {
-    const img = 'data:image/png;base64,' + readFileSync(join(ROOT, 'icons/clipboard.png')).toString('base64');
+    const img = 'data:image/png;base64,' + readFileSync(join(here, '../../../site/icons/clipboard.png')).toString('base64');
     const st = { size: 150, box: { cx: 620, base: 800, maxW: 900 }, font: 'Knewave', fill: '#ffffff', stroke: '#000000', strokeWidth: 0.09, uppercase: true, w: 1240, h: 1754 };
     await db.query(`insert into tv_poster_templates (title, image_path, settings, position) select 'Sonic party', image_path, settings, 50 from tv_poster_templates limit 1`);
     await db.query(`insert into tv_poster_templates (title, image_path, settings, position) select 'Mystery', image_path, settings, 51 from tv_poster_templates limit 1`);

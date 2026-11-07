@@ -7,9 +7,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, '..');
-const PREP_TESTS = process.env.PREP_TESTS || '/home/claude/black-belt-prep-system/tests';
+const PREP_TESTS = process.env.PREP_TESTS || join(here, '../../black-belt-gradings/tests');
 const PREP = join(PREP_TESTS, '..');
-const CARD = process.env.CARD_REPO || '/home/claude/theggatonklenner/ama-id-cards';
+const CARD = process.env.CARD_REPO || join(here, '../../id-cards');
 const { PGlite } = await import(join(PREP_TESTS, 'node_modules/@electric-sql/pglite/dist/index.js'));
 const { startServer } = await import(pathToFileURL(join(PREP_TESTS, 'fake-supabase.mjs')).href);
 const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/npm-tools/node_modules/playwright/index.mjs');
@@ -76,7 +76,7 @@ const users = { 'tate@ama.test': { id: '00000000-0000-0000-0000-000000000001', p
 await db.exec(`insert into efc_members (member_key, kind, full_name, location, programme, belt, promoted_on, attended_since_promoted)
   select 'efc:f' || i, 'member', 'Aaa Filler ' || lpad(i::text, 4, '0'), 'Sylvania', 'BJJ', 'White Belt', current_date - 50, 3 from generate_series(1, 1100) i;
   insert into efc_grades (member_key, programme, belt, promoted_on, attended_since_promoted) select 'efc:f' || i, 'BJJ', 'White Belt', current_date - 50, 3 from generate_series(1, 1100) i on conflict do nothing`);
-const server = await startServer({ db, appDir: ROOT, users, config: '', maxRows: 1000 });
+const server = await startServer({ db, appDir: join(here, '../../../site'), users, config: '', maxRows: 1000 });
 const BASE = `http://localhost:${server.address().port}`;
 const q = server.q;
 const configJs = `window.TOOLKIT_CONFIG = { SUPABASE_URL: '${BASE}', SUPABASE_KEY: 'test' };`;
@@ -117,7 +117,7 @@ async function open(email, path = '/grading/coloured-belts/index.html') {
     r.fulfill({ status: 404, body: '' });
   });
   // Like GitHub Pages: an address that isn't a file gets the site's 404.html
-  await ctx.route(/\/grading\/coloured-belts\/(ready|grading-days|update-efc|dashboard|settings)(\/|$)/, r => r.fulfill({ status: 404, contentType: 'text/html', body: read(join(ROOT, '404.html')) }));
+  await ctx.route(/\/grading\/coloured-belts\/(ready|grading-days|update-efc|dashboard|settings)(\/|$)/, r => r.fulfill({ status: 404, contentType: 'text/html', body: read(join(here, '../../../site/404.html')) }));
   const page = await ctx.newPage();
   page.on('pageerror', e => console.log('  page error: ' + e.message));
   page.on('dialog', d => d.accept());

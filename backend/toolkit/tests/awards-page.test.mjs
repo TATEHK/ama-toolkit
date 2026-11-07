@@ -6,9 +6,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, '..');
-const PREP_TESTS = process.env.PREP_TESTS || '/home/claude/black-belt-prep-system/tests';
+const PREP_TESTS = process.env.PREP_TESTS || join(here, '../../black-belt-gradings/tests');
 const PREP = join(PREP_TESTS, '..');
-const CARD = process.env.CARD_REPO || '/home/claude/theggatonklenner/ama-id-cards';
+const CARD = process.env.CARD_REPO || join(here, '../../id-cards');
 const { PGlite } = await import(join(PREP_TESTS, 'node_modules/@electric-sql/pglite/dist/index.js'));
 const { startServer } = await import(pathToFileURL(join(PREP_TESTS, 'fake-supabase.mjs')).href);
 const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/npm-tools/node_modules/playwright/index.mjs');
@@ -43,7 +43,7 @@ ok(loaded.found === 7 && loaded.added === 7, 'the weekly check loads people and 
 ok((await q(`select lsa_load($1::jsonb) r`, [JSON.stringify(people.slice(0, 1))]))[0].r.added === 0, 'loading the same person again adds no one');
 
 const users = { 'tate@ama.test': { id: '00000000-0000-0000-0000-000000000001', password: 'pw' }, 'coach@ama.test': { id: '00000000-0000-0000-0000-000000000002', password: 'pw' }, 'desk@ama.test': { id: '00000000-0000-0000-0000-000000000003', password: 'pw' } };
-const server = await startServer({ db, appDir: ROOT, users, config: '', maxRows: 1000 });
+const server = await startServer({ db, appDir: join(here, '../../../site'), users, config: '', maxRows: 1000 });
 const BASE = `http://localhost:${server.address().port}`;
 const configJs = `window.TOOLKIT_CONFIG = { SUPABASE_URL: '${BASE}', SUPABASE_KEY: 'test' };`;
 const browser = await chromium.launch();
