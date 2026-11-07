@@ -93,6 +93,23 @@ const ws = await handle(new Request('https://x.test/', { method: 'POST', body: J
 const wsb = await ws.json();
 ok(ws.status === 502 && wsb.ok === false && wsb.error, 'check: a hub problem (wrong secret, hub down) is an error, so nobody is signed out');
 
+console.log('\nGrading card in the hub family view');
+const rpcCalls = [];
+const realRpc = db.rpc;
+db.rpc = async (name, args) => { if (name === 'hub_family_grading') { rpcCalls.push(args); return { data: [{ name: 'Sam Smith', target: 'Orange Belt' }], error: null }; } return realRpc(name, args); };
+hubCalls.length = 0;
+r = await call({ token: hubToken, grading: { names: ['Sam Smith', ''], mobile: '0412 345 678', email: 'jane@example.com' } });
+ok(r.status === 200 && r.body.ok && r.body.students[0].target === 'Orange Belt', 'a good hub token gets the family\'s grading details');
+ok(rpcCalls[0].p_mobile === '0412 345 678' && rpcCalls[0].p_email === 'jane@example.com' && rpcCalls[0].p_names.join() === 'Sam Smith', '...looked up by the family\'s mobile, email and student names');
+ok(hubCalls.join() === 'whoami', '...after the hub confirms the token');
+await call({ token: hubToken, grading: { mobile: '0412345678' } });
+ok(hubCalls.join() === 'whoami', 'the next family straight after needs no second trip to the hub');
+r = await call({ token: 'forged.bad', grading: { mobile: '0412345678' } });
+ok(r.status === 401 && !r.body.ok && !r.body.students && rpcCalls.length === 2, 'a forged token gets nothing and nothing is looked up');
+r = await call({ grading: { mobile: '0412345678' } });
+ok(r.status === 401 && !r.body.students, 'no token gets nothing');
+db.rpc = realRpc;
+
 console.log('\nOther');
 r = await call({}, 'OPTIONS');
 ok(r.status === 200, 'browser pre-check (CORS) is answered');

@@ -16,6 +16,8 @@
 //   { mobile, pin }  sign in: returns { ok, session: { access_token, refresh_token }, hub_token, name, role }
 //   { token }        sign in again with a hub token from earlier (same reply)
 //   { check: token } is this hub token still good (unexpired, person still Active)? returns { ok }
+//   { token, grading: { names, mobile, email } }  the grading card in the hub's family view (needs
+//                    prep-update-24.sql): returns { ok, students: [...] } for a good hub token, else 401
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -41,12 +43,37 @@ export function tokenMobile(token) {
 export const hubEmail = m => `hub-${m}@staff.amatoolkit.local`;
 const randomPassword = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
 
+// A hub token the hub said was good is trusted for 10 minutes, so opening family after family stays quick
+const goodTokens = new Map();
+export async function hubTokenOk(token, deps, now = Date.now()) {
+  const until = goodTokens.get(token);
+  if (until && until > now) return true;
+  const who = await deps.hub({ kind: 'whoami', token });
+  if (!who || !who.ok) { goodTokens.delete(token); return false; }
+  if (goodTokens.size > 500) goodTokens.clear();
+  goodTokens.set(token, now + 10 * 60 * 1000);
+  return true;
+}
+
 // deps: { db (service role client), anon (publishable/anon client), hub(body) -> hub reply, findUser(email) }
 export async function handle(req, deps) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ ok: false, error: 'Use POST.' }, 405);
   try {
     const body = await req.json().catch(() => ({}));
+
+    // The grading card in the hub's family view: the hub page sends its own hub token and the family's details
+    if (body.grading) {
+      const token = String(body.token || '');
+      if (!token || !(await hubTokenOk(token, deps))) return json({ ok: false, error: 'signin' }, 401);
+      const g = body.grading || {};
+      const names = (Array.isArray(g.names) ? g.names : []).map(n => String(n || '').slice(0, 120)).filter(Boolean).slice(0, 20);
+      const { data, error } = await deps.db.rpc('hub_family_grading', {
+        p_names: names, p_mobile: String(g.mobile || '').slice(0, 40), p_email: String(g.email || '').slice(0, 200)
+      });
+      if (error) throw error;
+      return json({ ok: true, students: data || [] });
+    }
 
     if (body.check) {
       const who = await deps.hub({ kind: 'whoami', token: body.check });
