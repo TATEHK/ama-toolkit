@@ -73,8 +73,15 @@
     if (s.result) chips.push(chip(/pass|distinction/i.test(s.result) ? true : null, 'Result: ' + (RESULT[String(s.result).toLowerCase()] || s.result)));
     chips.push(chip(!!inv.sent, inv.sent ? 'Invite sent' + (inv.at ? ' ' + day(inv.at) : '') : 'Not invited yet'));
     if (inv.sent) chips.push(chip(!!inv.booked, inv.booked ? (inv.paid ? 'Booked and paid' : 'Booked, not paid') : 'Not booked yet'));
-    chips.push(chip(need ? done >= need : null, 'Classes ' + done + (need ? ' of ' + need : ''),
-      need ? ' <span class="g-bar' + (done >= need ? ' full' : '') + '"><span style="width:' + pct + '%"></span></span>' : ''));
+    var bar = need ? ' <span class="g-bar' + (done >= need ? ' full' : '') + '"><span style="width:' + pct + '%"></span></span>' : '';
+    if (s.track === 'coloured' && need) {
+      // Coloured belts: say plainly whether they have done enough classes, and how many are left
+      chips.push(done >= need
+        ? chip(true, 'Enough classes: ' + done + ' of ' + need, bar)
+        : chip(false, 'Not enough classes: ' + done + ' of ' + need + ', ' + (need - done) + ' to go', bar));
+    } else {
+      chips.push(chip(need ? done >= need : null, 'Classes ' + done + (need ? ' of ' + need : ''), bar));
+    }
     if (es.needed) chips.push(chip(es.status === 'submitted', es.status === 'submitted' ? 'Essay in' + (es.at ? ' ' + day(es.at) : '') : 'Essay not in yet'));
     if (id.needed) chips.push(chip(!!id.printed, CARD[id.status] || (id.printed ? 'ID card printed' : 'ID card not printed')));
     return '<div class="g-row"><div class="g-top"><span class="g-name">' + esc(s.name) + '</span>' +
