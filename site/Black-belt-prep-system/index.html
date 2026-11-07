@@ -4264,7 +4264,7 @@ const PO_STATUS = { invited: ['Link made', ''], pending: ['Not paid yet', 'warn'
 const PO_FILTERS = { topay: ['To pay', o => ['invited', 'pending'].includes(o.status)], paid: ['Paid, to order', o => o.status === 'paid'], ordered: ['Ordered', o => o.status === 'ordered'],
   delivered: ['Handed out', o => o.status === 'delivered'], cancelled: ['Cancelled', o => o.status === 'cancelled'] };
 const PAID_HOW = { stripe: 'Card (Stripe)', cash: 'Cash', eftpos: 'EFTPOS', transfer: 'Bank transfer', efc: 'Through EFC', other: 'Other' };
-const poloUrl = token => location.origin + location.pathname.replace(/index\.html$/, '').replace(/\/?$/, '/') + 'polo/#t=' + token;
+const poloUrl = token => location.origin + '/polo#' + token;   // short family link: app.train-ama.com/polo#<code>
 const poloOpen = (sid, year = state.po.year) => state.polos.find(o => o.student_id === sid && o.year === year && o.status !== 'cancelled') || null;
 // Graded that year, with no polo order for that year yet
 const poloEligible = year => poloGraded(year).filter(x => !poloOpen(x.s.student_id, year));

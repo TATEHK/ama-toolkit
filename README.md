@@ -11,14 +11,14 @@ Every AMA web app, published at **https://app.train-ama.com** by Cloudflare.
   - `/tv/` TV display, `/awards/`, `/memories/`, `/welcome/`, `/sso/`, `/halloween/`
   - `/b` grading enrolment and payment links, `/p` grading photos, `/e/` essays
 - `backend/<app>/` holds each app's Supabase SQL, Edge Functions, tests and tools. Nothing here is published.
-- `wrangler.jsonc` tells Cloudflare to publish `site/` as the Worker `ama-site`.
+- `wrangler.jsonc` tells Cloudflare Pages (project `ama-grading`) to publish `site/`.
 
 ## Publishing
 
-Cloudflare (Workers & Pages > ama-site > Settings > Build) is connected to this repo:
-every push to `main` publishes `site/`. No build command is needed.
+Cloudflare Pages (Workers & Pages > ama-grading) is connected to this repo:
+every push to `main` publishes `site/`. No build command is needed; the output folder comes from `wrangler.jsonc`.
 
-To publish by hand instead, zip the contents of `site/` and upload it as a new deployment of `ama-site`.
+
 
 ## Rules for the site folder
 

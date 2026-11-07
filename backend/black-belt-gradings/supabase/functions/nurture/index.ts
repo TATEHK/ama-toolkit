@@ -47,14 +47,50 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&am
 const autolink = s => s.replace(/(https?:\/\/[^\s<]+)/g, u => `<a href="${u}" style="color:#0B6A35;">${u}</a>`);
 const LOGO = 'https://www.australianmartialarts.com.au/wp-content/uploads/2019/12/logo1.png';
 const HERO = 'https://www.australianmartialarts.com.au/wp-content/uploads/2026/09/Marrickville-Martial-Arts-Students-breaking-a-board-with-instructor.png';
+// ---- Links as buttons (shared by every branded email) ----
+const URL_RE = /(https?:\/\/[^\s<]+)/g;
+const linkKind = u => /\/e\/#/.test(u) ? 'essay' : /\/b#/.test(u) ? 'primary' : 'secondary';
+const linkLabel = (u, lead) => /\/e\/#/.test(u) ? 'Write the essay' : /\/b#/.test(u) ? (/enrol/i.test(lead) ? 'Enrol now' : 'View booking & time') : /instagram\.com/.test(u) ? 'Watch the highlights' : 'Open link';
+const BTN_STYLE = { primary: ['#0E0E0E', '#FFD200', '#0E0E0E'], essay: ['#0B6A35', '#FFFFFF', '#0B6A35'], secondary: ['#FFFFFF', '#0E0E0E', '#0E0E0E'] };
+export function emailButton(href, label, kind = 'primary') {
+  const [bg, fg, bd] = BTN_STYLE[kind] || BTN_STYLE.primary;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 24px;"><tr><td align="center" bgcolor="${bg}" style="background:${bg};border:2px solid ${bd};border-radius:6px;mso-padding-alt:14px 28px;">`
+    + `<a href="${esc(href)}" target="_blank" style="display:inline-block;padding:14px 28px;font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:17px;font-weight:700;letter-spacing:1px;text-transform:uppercase;line-height:1;color:${fg};text-decoration:none;border-radius:6px;">${esc(label)}</a></td></tr></table>`;
+}
+const P_STYLE = 'margin:0 0 16px;font-size:16px;line-height:1.65;color:#2B2B2B;font-family:Arial,Helvetica,sans-serif;';
+const para = t => t ? `<p style="${P_STYLE}">${esc(t).replace(/\n/g, '<br>')}</p>` : '';
+const CTA = /^(enrol|book|pay|watch|view|submit|write|see|open)\b/i;
+// One paragraph: plain text, or text followed by a button for its link. "Enrol Sam now: <link>" becomes just the button.
+function blockHtml(block) {
+  const urls = block.match(URL_RE);
+  if (!urls) return para(block);
+  const url = urls[urls.length - 1], kind = linkKind(url);
+  let text = block.replace(URL_RE, '').replace(/[\s:—–-]+$/, '').trim();
+  // The words right before the link ("Enrol Sam now", "Watch last grading's highlights") become the button label when they're a short call to action.
+  const m = text.match(/(?:^|[.!?]\s+)([^.!?\n]+)$/), lead = m ? m[1].trim() : '';
+  let label = linkLabel(url, text);
+  if (kind !== 'essay' && lead && CTA.test(lead) && lead.split(/\s+/).length <= 6) { label = lead; text = text.slice(0, text.length - lead.length).trim(); }
+  else if (text && !/[.!?]$/.test(text)) text = text.replace(/\s+(it\s+)?here$/i, ' $1below').replace(/\s+/g, ' ').replace(/\s*$/, '.');
+  if (kind === 'essay') {
+    text = text.replace(/\s*Submit it (below|here)\.?$/i, '').trim(); label = 'Write the essay';
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 24px;"><tr><td bgcolor="#F4F1E8" style="background:#F4F1E8;border-left:4px solid #FFD200;padding:20px 22px 2px;">`
+      + `<div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;color:#0B6A35;padding-bottom:8px;">BLACK BELT ESSAY</div>${para(text)}${emailButton(url, label, 'essay')}</td></tr></table>`;
+  }
+  return para(text) + emailButton(url, label, kind);
+}
+// A bullet with a link keeps its text and gets a short bold link instead of the raw address.
+const bulletLink = l => esc(l).replace(/[\s:—–-]*(https?:\/\/[^\s<]+)/g, (m, u) => {
+  const t = /\/e\/#/.test(u) ? 'Write the essay' : /\/b#/.test(u) ? 'View booking & time' : 'Open';
+  return ` <a href="${u}" target="_blank" style="color:#0B6A35;font-weight:bold;text-decoration:none;white-space:nowrap;">${t}&nbsp;&rsaquo;</a>`;
+});
 // A branded AMA email: black header with the logo, the hero image, the message body, and the schools footer.
 export function emailHtml(subject, body) {
   const blocks = String(body || '').split(/\n{2,}/).map(block => {
     const lines = block.split('\n');
     if (lines.length && lines.every(l => /^\s*-\s+/.test(l))) {
-      return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;">' + lines.map(l => `<tr><td valign="top" style="color:#0B6A35;font-weight:bold;padding:2px 10px 2px 0;font-family:Arial,Helvetica,sans-serif;">&#8226;</td><td style="font-size:16px;line-height:1.55;color:#2B2B2B;padding:2px 0;font-family:Arial,Helvetica,sans-serif;">${autolink(esc(l.replace(/^\s*-\s+/, '')))}</td></tr>`).join('') + '</table>';
+      return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;">' + lines.map(l => `<tr><td valign="top" style="color:#0B6A35;font-weight:bold;padding:2px 10px 2px 0;font-family:Arial,Helvetica,sans-serif;">&#8226;</td><td style="font-size:16px;line-height:1.55;color:#2B2B2B;padding:2px 0;font-family:Arial,Helvetica,sans-serif;">${bulletLink(l.replace(/^\s*-\s+/, ''))}</td></tr>`).join('') + '</table>';
     }
-    return `<p style="margin:0 0 16px;font-size:16px;line-height:1.65;color:#2B2B2B;font-family:Arial,Helvetica,sans-serif;">${autolink(esc(block)).replace(/\n/g, '<br>')}</p>`;
+    return blockHtml(block);
   }).join('');
   const pre = String(body || '').replace(/\s+/g, ' ').trim().slice(0, 120);
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>${esc(subject)}</title>

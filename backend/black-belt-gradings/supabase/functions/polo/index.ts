@@ -8,7 +8,7 @@
 // Secrets (Edge Functions > Secrets):
 //   STRIPE_SECRET_KEY      Stripe > Developers > API keys > Secret key (sk_live_... or sk_test_... to try it out)
 //   STRIPE_WEBHOOK_SECRET  Stripe > Developers > Webhooks > your endpoint > Signing secret (whsec_...)
-//   POLO_SITE              optional: the family page address, if not https://theggatonklenner.github.io/Black-belt-prep-system/polo/
+//   POLO_SITE              optional: the family page address, if not https://app.train-ama.com/polo/
 // Stripe webhook endpoint: https://<project>.supabase.co/functions/v1/polo, event checkout.session.completed
 // (and checkout.session.async_payment_succeeded). Without the webhook, a payment is still picked up when the
 // family comes back to the page; the webhook catches anyone who closes the page straight after paying.
@@ -19,7 +19,7 @@
 //   Stripe's webhook (has a Stripe-Signature header)
 
 const STRIPE = 'https://api.stripe.com/v1';
-const SITE = 'https://theggatonklenner.github.io/Black-belt-prep-system/polo/';
+const SITE = 'https://app.train-ama.com/polo/';
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -27,7 +27,7 @@ const cors = {
 };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 const fail = (msg, status = 400) => json({ ok: false, error: msg }, status);
-const tokenOk = t => /^[a-f0-9]{48,72}$/.test(String(t || ''));
+const tokenOk = t => /^[A-Za-z0-9]{10,16}$|^[a-f0-9]{48,72}$/.test(String(t || ''));   // short codes (/polo#<code>) and the old long tokens
 const OPEN = ['invited', 'pending'];
 
 // Stripe's form encoding, with nested keys: { a: { b: 1 } } -> a[b]=1
