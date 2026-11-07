@@ -32,4 +32,4 @@ revoke all on function public.prep_polo_links(text[], int) from public, anon;
 grant execute on function public.prep_polo_links(text[], int) to authenticated;
 
 -- Orders not yet paid get a short code too (no polo links had been sent when this ran).
-update public.prep_polo_orders set token = public.prep_short_code(10) where status = 'pending' and length(token) > 16;
+update public.prep_polo_orders set token = public.prep_short_code(10) where status in ('invited', 'pending') and length(token) > 16;
