@@ -45,6 +45,7 @@ await db.exec(read(join(ROOT, 'supabase/coloured-belts-19.sql')));
 await db.exec(read(join(ROOT, 'supabase/coloured-belts-20.sql')));
 await db.exec(read(join(ROOT, 'supabase/coloured-belts-21.sql')));
 await db.exec(read(join(ROOT, 'supabase/coloured-belts-22.sql')));
+await db.exec(read(join(ROOT, 'supabase/coloured-belts-23.sql'))); await db.exec(read(join(ROOT, 'supabase/coloured-belts-23.sql')));
 await db.exec(`insert into prep_roles (email, role) values ('tate@ama.test', 'admin') on conflict do nothing; delete from prep_roles where email <> 'tate@ama.test'; insert into prep_roles (email, role) values ('coach@ama.test', 'instructor'), ('desk@ama.test', 'attendance');`);
 // EFC students (made up): Sam and Kim have enough classes; Alex is overdue; Jo is at another school
 await db.exec(`insert into efc_members (member_key, kind, full_name, guardian_name, phone, location, programme, belt, promoted_on, attended_since_promoted, efc_reference) values
@@ -91,6 +92,8 @@ async function open(email, path = '/grading/coloured-belts/index.html') {
   // The "cb" function (tested on its own in cb-function.test.mjs): texts are recorded here
   await ctx.route('**/functions/v1/cb', async r => {
     const b = JSON.parse(r.request().postData() || '{}'); fnCalls.push(b);
+    if (b.action === 'seq_test') return r.fulfill((/invite_email|ready_d4/.test(b.code) ? b.email : b.phone) ? { contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'test' }) } : { status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'Enter your mobile to get the test text.' }) });
+    if (b.action === 'seq_run') return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, sent: 2, calls: 0, skipped: 1 }) });
     if (b.action === 'check') return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ready: true, testing: true }) });
     if (b.action === 'send') {
       for (const it of b.items) if (b.kind === 'invite' && it.entry_id) await q(`update cb_entries set invited_at = now() where entry_id = '${it.entry_id}'`);
@@ -454,6 +457,73 @@ try {
   ok(new URL(page.url()).pathname === '/grading/coloured-belts/grading-days/' + dayId + '/results' && (await page.textContent('#view-day')).includes('Results'), 'opening a saved address (via 404.html) goes straight to that screen');
   await page.goto(BASE + '/grading/coloured-belts/update-efc'); await page.waitForSelector('#view-efc:not([hidden])');
   ok((await page.textContent('#view-efc')).includes('Update EFC') && (await page.title()).startsWith('Update EFC'), '...for every screen, with a matching page title');
+
+
+  console.log('\nBooking sequence (coloured-belts-23.sql)');
+  ok((await q(`select count(*)::int n from cb_seq_steps`))[0].n === 15 && (await q(`select seq_on from cb_settings`))[0].seq_on === false, 'coloured-belts-23.sql runs twice; 15 steps, and the sequence starts switched off');
+  await page.goto(BASE + '/grading/coloured-belts/settings'); await page.waitForSelector('#seqPanel');
+  let sp = await page.textContent('#seqPanel');
+  ok(sp.includes('Off') && sp.includes('Day 0: invitation text') && sp.includes('G-5: staff call on My Day') && sp.includes('2 days before the grading at 10:00am') && sp.includes('Uses the "Grading day reminder" wording'), 'Settings shows the sequence: off, every step, when it goes, and which ones use the existing wording');
+  ok((await page.inputValue('#seqPanel [data-code="nudge_d2"] [data-tpl]')).startsWith('Hi {parent}, just checking you saw'), "the steps hold Mark's wording");
+  await page.click('#seqPanel [data-code="nudge_d2"] [data-test]'); const tt = await toastSays(page, 'mobile');
+  ok(/mobile/.test(tt), 'Send test to me asks for your mobile first');
+  await page.fill('#seqTP', '0412 999 888'); await page.click('#seqPanel [data-code="nudge_d2"] [data-test]'); await toastSays(page, 'Logged');
+  ok(fnCalls.some(c => c.action === 'seq_test' && c.code === 'nudge_d2' && c.phone === '0412 999 888'), '...then sends the test to you');
+  await page.fill('#seqPanel [data-code="nudge_d2"] [data-tpl]', 'Hi {parent}, a gentle nudge to book {first}: {link} AMA {school}'); await page.click('#seqPanel [data-code="nudge_d2"] [data-save]'); await toastSays(page, 'Saved');
+  ok((await q(`select template from cb_seq_steps where code = 'nudge_d2'`))[0].template.startsWith('Hi {parent}, a gentle nudge'), 'admins can change the wording');
+  await shots(page, 'cb-sequence-settings');
+  await page.click('#seqSwitch'); await toastSays(page, 'is on'); await page.waitForSelector('#seqRun');
+  const son = (await q(`select seq_on, seq_on_by from cb_settings`))[0];
+  ok(son.seq_on === true && son.seq_on_by === 'tate@ama.test' && (await page.textContent('#seqPanel .seq-switch')).includes('On'), 'an admin switches it on (after a confirm), and it records who');
+  await page.click('#seqRun'); await toastSays(page, 'Done');
+  ok((await page.textContent('#toast')).includes('2 sent'), 'Run now runs it straight away');
+  await page.goto(BASE + '/grading/coloured-belts/grading-days/' + dayId); await page.waitForSelector('#view-day .day-card');
+  ok(!(await page.$('#sendInv')) && await page.$('#seqBtn'), 'with the sequence on, the manual Invite button is replaced by Booking sequence (invitations go automatically)');
+  const ents = await q(`select entry_id, full_name from cb_entries where day_id = $1 order by full_name`, [dayId]);
+  await q(`insert into cb_seq_log (entry_id, step_code, status, why) values ($1, 'invite_sms', 'sent', null), ($1, 'nudge_d2', 'skipped', 'Booked'), ($1, 'close_g8', 'missed', 'Before they were invited')`, [ents[0].entry_id]);
+  await q(`insert into cb_calls (entry_id, reason, callback_on) values ($1, 'not_booked', current_date)`, [ents[ents.length - 1].entry_id]);
+  // A coming grading day for the hub checks (the day above has finished)
+  const hubDay = (await q(`insert into cb_days (location, grading_date, programme) values ('Concord', current_date + 10, 'Taekwondo') returning day_id`))[0].day_id;
+  const hubEnt = (await q(`insert into cb_entries (day_id, member_key, full_name, belt_from, belt_to, invited_at) values ($1, 'efc:m4', 'Jo Bloggs', 'Red Three Belt', 'Cho Dan Bo', now() - interval '3 days') returning entry_id`, [hubDay]))[0].entry_id;
+  await q(`insert into cb_calls (entry_id, reason, callback_on) values ($1, 'not_booked', current_date)`, [hubEnt]);
+  await pclick(page, '#seqBtn'); await page.waitForSelector('#dlg .seq-grid');
+  const grid = await page.textContent('#dlg .seq-grid');
+  ok(grid.includes(ents[0].full_name) && grid.includes('Invited') && grid.includes('G−8') && grid.includes('To call'), 'the progress grid shows each student, step ticks, booked, paid and the call');
+  ok((await page.getAttribute(`#dlg tr[data-e="${ents[0].entry_id}"] td:nth-of-type(2)`, 'title')).startsWith('Skipped: Booked'), '...each mark says what happened');
+  await shots(page, 'cb-sequence-grid');
+  await page.click(`#dlg tr[data-e="${ents[0].entry_id}"] [data-seq="pause"]`); await toastSays(page, 'Paused');
+  ok((await q(`select seq_paused_until > now() + interval '47 hours' p from cb_entries where entry_id = $1`, [ents[0].entry_id]))[0].p === true, 'Pause stops it for 2 days');
+  await page.waitForSelector(`#dlg tr[data-e="${ents[0].entry_id}"] [data-seq="resume"]`);
+  await page.click(`#dlg tr[data-e="${ents[1].entry_id}"] [data-seq="skip"]`); await toastSays(page, 'Skipped');
+  ok((await q(`select seq_stopped_why from cb_entries where entry_id = $1`, [ents[1].entry_id]))[0].seq_stopped_why === 'Skipped by staff', 'Skip stops it for that student');
+  await page.click(`#dlg tr[data-e="${ents[1].entry_id}"] [data-seq="resume"]`); await toastSays(page, 'Resumed');
+  ok((await q(`select seq_stopped_at from cb_entries where entry_id = $1`, [ents[1].entry_id]))[0].seq_stopped_at === null, 'Resume starts it again');
+  await noDialog(page);
+
+  console.log('\nThe hub: prep session bookings and calls on My Day');
+  const skey = (await q(`select skip_key from cb_settings`))[0].skip_key;
+  let bad = false; try { await q(`select cb_prep_sync('wrong', '[]'::jsonb)`); } catch (e) { bad = /Wrong key/.test(e.message); }
+  ok(bad, 'cb_prep_sync needs the key');
+  await q(`select cb_prep_sync($1, $2::jsonb)`, [skey, JSON.stringify([{ efc_id: 'm1', name: 'Sam Lee', time: '9:00am' }])]);
+  ok((await q(`select session_time from cb_prep_bookings where member_key = 'efc:m1'`))[0].session_time === '9:00am', 'the hub pushes who booked the prep session, with their session time');
+  const due = await q(`select * from cb_calls_due($1)`, [skey]);
+  ok(due.length === 1 && due[0].student === 'Jo Bloggs' && due[0].school === 'Concord' && due[0].parent === 'Mo Bloggs' && due[0].mobile === '0412 000 222' && due[0].reason === 'not_booked', 'cb_calls_due lists who to call (finished days left out), with parent, mobile and school, for the hub');
+  ok((await q(`select count(*)::int n from cb_calls_due('wrong')`))[0].n === 0, '...and nothing without the key');
+  await q(`select cb_call_outcome($1, $2, 'will_book')`, [skey, due[0].entry_id]);
+  ok((await q(`select count(*)::int n from cb_calls_due($1)`, [skey]))[0].n === 0 && (await q(`select callback_on - current_date d from cb_calls where entry_id = $1`, [due[0].entry_id]))[0].d === 2, '"Will book": off the list, back in 2 days');
+  await q(`update cb_calls set callback_on = current_date where entry_id = $1`, [due[0].entry_id]);
+  await q(`select cb_call_outcome($1, $2, 'no_answer')`, [skey, due[0].entry_id]);
+  ok((await q(`select kind from cb_outbox where entry_id = $1`, [due[0].entry_id])).map(x => x.kind).join() === 'no_answer', '"No answer" queues the we-tried-calling text');
+  await q(`update cb_calls set callback_on = current_date where entry_id = $1`, [due[0].entry_id]);
+  await q(`select cb_call_outcome($1, $2, 'no_answer')`, [skey, due[0].entry_id]);
+  ok((await q(`select done from cb_calls where entry_id = $1`, [due[0].entry_id]))[0].done === true, '...up to 2 tries, then the call is finished');
+  await q(`insert into cb_calls (entry_id, reason, callback_on) values ($1, 'concern', current_date)`, [due[0].entry_id]);
+  const paidNot = (await q(`select paid, booked_at from cb_entries where entry_id = $1`, [due[0].entry_id]))[0];
+  await q(`select cb_call_outcome($1, $2, 'not_grading')`, [skey, due[0].entry_id]);
+  const gone = await q(`select seq_stopped_why from cb_entries where entry_id = $1`, [due[0].entry_id]);
+  ok(paidNot.paid || paidNot.booked_at ? gone[0].seq_stopped_why === 'Not grading' : gone.length === 0, '"Not grading" removes them from the grading day (or stops the sequence if already booked)');
+  await q(`select cb_seq_switch(false)`).catch(() => {});
+  await q(`update cb_settings set seq_on = false`);
 
   console.log('\nOther programs');
   // Kim also does Kung Fu; Lily and Max are Little Dragons

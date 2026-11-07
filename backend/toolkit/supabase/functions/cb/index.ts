@@ -25,6 +25,10 @@
 //   { action: 'photo', code | token }       a family's grading photo link (short code from /p#<code>): a short-lived address for the photo (no sign-in)
 //   { action: 'cleanup' } + x-cb-cron header  the nightly job: delete grading photos older than 30 days (secret in Supabase Vault)
 //   { action: 'reply', key, phone, message }  GoHighLevel workflow: a family replied; a YES marks them and texts the booking link
+//   { action: 'sequence' } + x-cb-cron header  every 15 minutes: the automated booking sequence (coloured-belts-23.sql).
+//        Sends nothing while Settings > Booking sequence is off, except texts a staff call outcome asked for.
+//   { action: 'seq_test', code, phone?, email?, entry_id? }  grading staff: send one sequence message to themselves
+//   { action: 'seq_run' }                   admins: run the sequence now
 //   { action: 'check' }                     staff: is texting set up?
 //   { action: 'send', kind, items: [{ entry_id?, member_key, body }] }   staff: text families
 //        kind: invite, not_booked, reminder, unpaid, congrats, retest, photo (grading staff); not_ready, bbc_followup (instructors or grading staff)
@@ -234,6 +238,140 @@ export function buildGradingInvite(v) {
   return { subject, html, text };
 }
 
+// ======================= The automated booking sequence (coloured-belts-23.sql) =======================
+// Sydney time helpers. sydParts(ms) -> { ymd, hm, dow }; sydMs('2026-11-24', '10:00') -> the UTC time of that Sydney moment.
+const SYD = 'Australia/Sydney';
+export function sydParts(ms) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: SYD, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short' })
+    .formatToParts(new Date(ms)).map(x => [x.type, x.value]));
+  return { ymd: `${p.year}-${p.month}-${p.day}`, hm: `${p.hour}:${p.minute}`, dow: p.weekday };
+}
+export function sydMs(ymd, hm = '00:00') {
+  const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number), [h, mi] = String(hm).split(':').map(Number);
+  const want = Date.UTC(y, m - 1, d, h, mi || 0);
+  let guess = want - 11 * 3600e3;
+  for (let i = 0; i < 3; i++) { const q = sydParts(guess); const [qy, qm, qd] = q.ymd.split('-').map(Number), [qh, qmi] = q.hm.split(':').map(Number); guess += want - Date.UTC(qy, qm - 1, qd, qh, qmi); }
+  return guess;
+}
+const addDaysYmd = (ymd, n) => { const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+const dowOf = ymd => new Date(String(ymd).slice(0, 10) + 'T00:00:00Z').getUTCDay();   // 0 = Sunday
+export const SEQ_HOURS = { from: '08:00', to: '19:30' };   // nothing is sent outside these Sydney hours
+export const SEQ_STALE_MS = 12 * 3600e3;                     // a step more than 12 hours late is never sent ("missed")
+
+// When a step is due for one student, as a UTC time (or null if it can't be worked out)
+export function stepDue(step, e, d) {
+  const at = step.send_at ? String(step.send_at).slice(0, 5) : null;
+  if (step.anchor === 'invite') {
+    if (!e.invited_at) return null;
+    const inv = Date.parse(e.invited_at);
+    return at ? sydMs(addDaysYmd(sydParts(inv).ymd, step.offset_days || 0), at) : inv + (step.offset_days || 0) * 864e5;
+  }
+  if (step.anchor === 'grading') {
+    let day = addDaysYmd(d.grading_date, step.offset_days || 0);
+    if (step.channel === 'call' && dowOf(day) === 0) day = addDaysYmd(day, -1);   // no calls on a Sunday: the Saturday before
+    return sydMs(day, at || '09:00');
+  }
+  if (step.anchor === 'date') return step.send_date ? sydMs(step.send_date, at || '10:00') : null;
+  if (step.anchor === 'paid') return e.paid ? (e.paid_at ? Date.parse(e.paid_at) : null) : null;
+  return null;
+}
+
+// What to do now, for every student on a coming coloured belt day. Pure: no sending, no database.
+// x = { now, steps, days, entries, logs: Set('entry|code'), skipped: Set(member_key), prepBooked: Set(member_key) }
+// Returns [{ entry_id, code, act }] where act is 'send' | 'call' | 'skip' | 'missed' | 'invite_by_hand', with a why for skip/missed.
+export function planSequence(x) {
+  const out = [], now = x.now, nowP = sydParts(now);
+  const inHours = nowP.hm >= SEQ_HOURS.from && nowP.hm <= SEQ_HOURS.to;
+  const steps = (x.steps || []).filter(s => s.active && !String(s.code).startsWith('out_')).sort((a, b) => (a.sort || 0) - (b.sort || 0));
+  const dayBy = Object.fromEntries((x.days || []).map(d => [d.day_id, d]));
+  for (const e of x.entries || []) {
+    const d = dayBy[e.day_id];
+    if (!d || d.bb || d.closed || e.result || e.seq_stopped_at) continue;
+    if (String(d.grading_date) < nowP.ymd) continue;                 // that grading is over
+    if (x.skipped && x.skipped.has(e.member_key)) continue;          // cancelled or on hold: nothing at all
+    const has = c => x.logs.has(e.entry_id + '|' + c);
+    const paused = e.seq_paused_until && Date.parse(e.seq_paused_until) > now;
+    const prepBooked = !!(x.prepBooked && x.prepBooked.has(e.member_key));
+    for (const s of steps) {
+      if (has(s.code)) continue;
+      // The invitation: sent as soon as they're on the day (in sending hours). Invited by hand already: never again.
+      if (s.anchor === 'invite' && s.offset_days === 0 && !s.send_at) {
+        if (e.invited_at && !has('invite_sms')) { out.push({ entry_id: e.entry_id, code: s.code, act: 'invite_by_hand' }); continue; }
+        if (e.invited_at) continue;
+        if (e.paid) { out.push({ entry_id: e.entry_id, code: s.code, act: 'skip', why: 'Already paid' }); continue; }
+        if (!inHours || paused) continue;
+        out.push({ entry_id: e.entry_id, code: s.code, act: 'send' });
+        continue;
+      }
+      if (!e.invited_at) continue;                                   // nothing else before the invitation has gone
+      const due = stepDue(s, e, d);
+      if (due == null || due > now) continue;
+      // A student added late starts at the invitation, then the next step still ahead: never the ones before they started
+      if (s.anchor !== 'paid' && s.anchor !== 'invite' && due < Date.parse(e.invited_at)) { out.push({ entry_id: e.entry_id, code: s.code, act: 'missed', why: 'Before they were invited' }); continue; }
+      if (now - due > SEQ_STALE_MS) { out.push({ entry_id: e.entry_id, code: s.code, act: 'missed', why: 'Too late to send' }); continue; }
+      // Each step is skipped if the family has already done what it asks
+      const aud = s.audience;
+      if (aud === 'not_paid' && e.paid) { out.push({ entry_id: e.entry_id, code: s.code, act: 'skip', why: 'Booked and paid' }); continue; }
+      if (aud === 'not_booked' && (e.booked_at || e.paid)) { out.push({ entry_id: e.entry_id, code: s.code, act: 'skip', why: 'Booked' }); continue; }
+      if (aud === 'paid' && !e.paid) { out.push({ entry_id: e.entry_id, code: s.code, act: 'skip', why: 'Not booked and paid' }); continue; }
+      if (aud === 'prep_not_booked' && prepBooked) { out.push({ entry_id: e.entry_id, code: s.code, act: 'skip', why: 'Booked into the prep session' }); continue; }
+      if (aud === 'prep_booked' && !prepBooked) { out.push({ entry_id: e.entry_id, code: s.code, act: 'skip', why: 'Not booked into the prep session' }); continue; }
+      if (s.channel === 'call') { out.push({ entry_id: e.entry_id, code: s.code, act: 'call' }); continue; }
+      if (paused && s.track === 'booking') continue;                 // they replied: the booking messages wait 2 days
+      if (!inHours) continue;
+      out.push({ entry_id: e.entry_id, code: s.code, act: 'send' });
+    }
+  }
+  return out;
+}
+
+// The fields every sequence message can use
+export function seqVars(e, d, m, o = {}) {
+  const et = entryTime(d, e), t = et ? clock(et) : '';
+  const age = (m && typeof m.date_of_birth === 'string' && /^\d{4}-\d{2}-\d{2}/.test(m.date_of_birth)) ? Math.floor(((o.now || Date.now()) - Date.parse(m.date_of_birth.slice(0, 10))) / 31557600000) : null;
+  const prepUrl = (o.prepUrl || PREP.url) + (age == null ? '' : age >= 13 ? '?s=teens' : '?s=kids');
+  const prepOpen = sydParts(o.now || Date.now()).ymd <= (o.prepCloses || PREP.closes);
+  const video = videoForBelt(d.programme, e.belt_from);
+  const dl = addDaysYmd(d.grading_date, -(o.deadlineDays ?? 7));
+  const deadline = new Date(dl + 'T00:00:00Z').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '');
+  return { parent: firstWord(m && m.guardian_name) || 'there', first: firstWord((m && m.full_name) || e.full_name), next: e.belt_to, school: d.location,
+    date: longDay(d.grading_date), time: t ? ' at ' + t : '', time_only: t || 'to be confirmed', link: SITE + 'b#' + e.token,
+    video: video ? 'Grading video: ' + video : '', video_link: video || 'ask your instructor',
+    prep: prepOpen ? (o.channel === 'email' ? PREP.text + ' Book a place: ' + prepUrl : 'Optional extra: our Colour Belt Prep Session is a 2-hour workshop with Mr Mark and Master Hakan covering only grading material, on Sunday 22 November at AMA Marrickville. Students from every AMA school are welcome. Book a place: ' + prepUrl) : '',
+    prep_link: prepUrl, prep_time: o.prepTime ? ', ' + o.prepTime : '', deadline,
+    fee: o.fee != null ? '$' + Number(o.fee).toFixed(0) : 'shown when you book', bring: (o.bring || ['Full long-sleeve uniform', 'Belt', 'Drink bottle']).join(', ').toLowerCase().replace(/^./, c => c.toUpperCase()),
+    phone: o.phone || '(02) 9569 1943' };
+}
+
+// A sequence email: the wording from Settings in AMA's email style. "## Heading", "• point", "[Button](link)", other lines are paragraphs.
+export function buildSeqEmail(subject, body) {
+  const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const linkify = s => esc(s).replace(/(https?:\/\/[^\s<]+[^\s<.,!?)])/g, '<a href="$1" style="color:#0B6A35;">$1</a>');
+  const lines = String(body || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const parts = []; let list = [];
+  const flush = () => { if (list.length) { parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 2px;">${list.map(b => `<tr><td valign="top" style="color:#0B6A35;font-weight:bold;padding:3px 10px 3px 0;">&#10003;</td><td style="font-size:15px;line-height:1.5;color:#333;padding:3px 0;">${linkify(b)}</td></tr>`).join('')}</table>`); list = []; } };
+  for (const l of lines) {
+    const btn = l.match(/^\[(.+?)\]\((https?:\/\/[^)\s]+)\)$/);
+    if (/^[•\-*]\s+/.test(l)) { if (!/:\s*$/.test(l)) list.push(l.replace(/^[•\-*]\s+/, '')); continue; }   // a point left empty (e.g. the prep session once bookings close) is dropped
+    flush();
+    if (/^##\s+/.test(l)) parts.push(`<div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:17px;font-weight:600;text-transform:uppercase;color:#14321f;margin:22px 0 4px;">${esc(l.replace(/^##\s+/, ''))}</div>`);
+    else if (btn) parts.push(`<p style="margin:16px 0;"><a href="${esc(btn[2])}" style="display:inline-block;background:#0B6A35;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 22px;border-radius:8px;">${esc(btn[1])}</a></p>`);
+    else parts.push(`<p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#333;">${linkify(l)}</p>`);
+  }
+  flush();
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(subject)}</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap');body{margin:0;padding:0;background:#E9E6DE;}@media (max-width:620px){.wrap{width:100%!important;}.pad{padding-left:22px!important;padding-right:22px!important;}}</style></head>
+<body style="margin:0;padding:0;background:#E9E6DE;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E9E6DE;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:4px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#1c1c1c;">
+  <tr><td style="background:#0E0E0E;padding:26px 40px 22px;" align="center"><img src="${LOGO2}" width="72" alt="Australian Martial Arts Academy" style="display:block;width:72px;height:auto;border:0;margin:0 auto;">
+    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:4px;color:#FFFFFF;padding-top:12px;text-transform:uppercase;">Australian Martial Arts Academy</div></td></tr>
+  <tr><td class="pad" style="padding:26px 32px 30px;">${parts.join('\n')}</td></tr>
+  <tr><td style="background:#0E0E0E;padding:18px 32px;" align="center"><div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;color:#ffffff;font-size:13px;letter-spacing:2px;text-transform:uppercase;">Australian Martial Arts Academy</div></td></tr>
+</table></td></tr></table></body></html>`;
+  const text = lines.filter(l => !(/^[•\-*]\s+/.test(l) && /:\s*$/.test(l))).map(l => l.replace(/^##\s+/, '').replace(/^\[(.+?)\]\((.+)\)$/, '$1: $2')).join('\n');
+  return { subject, html, text };
+}
+
 async function entryByToken(db, token) {
   if (!tokenOk(token)) return null;
   const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until').eq('token', token).maybeSingle();
@@ -372,6 +510,111 @@ export async function handle(req, db, env = {}, http = fetch) {
     return true;
   };
 
+  // ---------- The booking sequence: sending ----------
+  const seqTemplate = (step, st) => String(step.template || '').startsWith('settings:') ? (st[String(step.template).slice(9)] || '') : (step.template || '');
+  const emailOf = m => [m && m.guardian_email, m && m.email].find(v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) || null;
+  // One message to one family (or a test to a staff member). Returns { status: sent|test|failed|skipped, why }
+  const seqSend = async ({ step, e, d, m, st, fee = null, prepTime = null, to = null }) => {
+    const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';
+    const v = seqVars(e, d, m, { channel: step.channel, fee, prepTime, phone: st.contact_phone, deadlineDays: st.deadline_days ?? 7, prepUrl: st.prep_url, prepCloses: st.prep_closes,
+      bring: String(st.email_bring || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean) });
+    const text = fillText(seqTemplate(step, st), v), subject = fillText(step.subject || '', v);
+    const phone = to ? phoneE164(to.phone) : phoneE164(m.phone || m.guardian_phone);
+    const email = to ? (to.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to.email) ? to.email : null) : emailOf(m);
+    const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: to ? null : e.entry_id, member_key: e.member_key, kind: to ? 'seq_test' : 'seq',
+      phone: step.channel === 'sms' ? phone : null, email: step.channel === 'email' ? email : null, body: (subject ? subject + '\n\n' : '') + text,
+      status, sent_by: to ? 'test to ' + to.by : 'automatic: ' + step.code, ...extra });
+    if (!text) return { status: 'skipped', why: 'No wording for this step' };
+    if (step.channel === 'sms' && !phone) { await log('failed', { error: 'No mobile number' }); return { status: 'failed', why: 'No mobile number' }; }
+    if (step.channel === 'email' && !email) return { status: 'skipped', why: 'No email address' };
+    if (testing && !ready) { await log('test'); return { status: 'test' }; }
+    if (!ready) return { status: 'failed', why: 'Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID)' };
+    try {
+      const cid = to ? await contactFor({ guardian_name: to.name || to.by, email }, phone) : await contactFor({ ...m, email }, phone);
+      if (!cid) throw new Error('Could not find or add the contact');
+      if (!to) {
+        // Opted out in GoHighLevel (STOP, or DND set on the contact): never send
+        const c = await ghl('/contacts/' + cid, { method: 'GET' }); const ct = (c && c.contact) || {}, k = step.channel === 'sms' ? 'SMS' : 'Email';
+        if (ct.dnd === true || (ct.dndSettings && ct.dndSettings[k] && ct.dndSettings[k].status === 'active')) { await log('failed', { error: 'DND in GoHighLevel' }); return { status: 'skipped', why: 'DND in GoHighLevel' }; }
+      }
+      if (step.channel === 'sms') await ghl('/conversations/messages', { method: 'POST', body: JSON.stringify({ type: 'SMS', contactId: cid, message: text }) }, '2021-04-15');
+      else { const mail = buildSeqEmail(subject, text); await sendEmailTo(cid, mail); }
+      await log('sent'); return { status: 'sent' };
+    } catch (er) { const why = String(er.message || er).slice(0, 500); await log('failed', { error: why }); return { status: 'failed', why }; }
+  };
+  const membersFor = async keys => {
+    if (!keys.length) return {};
+    const { data } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').in('member_key', [...new Set(keys)]);
+    return Object.fromEntries((data || []).map(m => [m.member_key, m]));
+  };
+  const DAY_COLS = 'day_id, location, grading_date, start_time, belt_times, closed, programme, bb, book_by';
+  const ENT_COLS = 'entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, paid, paid_at, result, seq_paused_until, seq_stopped_at';
+  // Texts a staff call outcome asked for ("Send link", "No answer"): sent on the next run, whether or not the sequence is on
+  const runOutbox = async (st, steps, res) => {
+    const { data: rows } = await db.from('cb_outbox').select('out_id, entry_id, kind, sent_at').is('sent_at', null);
+    for (const o of rows || []) {
+      const step = steps.find(s => s.code === (o.kind === 'send_link' ? 'out_send_link' : 'out_no_answer'));
+      const { data: e } = await db.from('cb_entries').select(ENT_COLS).eq('entry_id', o.entry_id).maybeSingle();
+      const { data: d } = e ? await db.from('cb_days').select(DAY_COLS).eq('day_id', e.day_id).maybeSingle() : { data: null };
+      const m = e ? (await membersFor([e.member_key]))[e.member_key] : null;
+      let r = { status: 'skipped', why: 'Student or day not found' };
+      if (step && e && d && m && !e.paid) r = await seqSend({ step, e, d, m, st });
+      else if (e && e.paid) r = { status: 'skipped', why: 'Booked and paid' };
+      await db.from('cb_outbox').update({ sent_at: new Date().toISOString(), status: r.status, error: r.why || null }).eq('out_id', o.out_id);
+      res.outbox++;
+    }
+  };
+  const runSequence = async (nowMs = Date.now()) => {
+    const { data: st0 } = await db.from('cb_settings').select('*').eq('id', 1).maybeSingle();
+    const st = st0 || {};
+    const { data: steps0 } = await db.from('cb_seq_steps').select('*');
+    const steps = steps0 || [];
+    const res = { ok: true, on: !!st.seq_on, sent: 0, test: 0, calls: 0, skipped: 0, missed: 0, failed: 0, outbox: 0 };
+    await runOutbox(st, steps, res);
+    if (!st.seq_on) return res;
+    const today = sydParts(nowMs).ymd;
+    const { data: days } = await db.from('cb_days').select(DAY_COLS).gte('grading_date', today);
+    const coloured = (days || []).filter(d => !d.bb && !d.closed);
+    if (!coloured.length) return res;
+    const { data: ents } = await db.from('cb_entries').select(ENT_COLS).in('day_id', coloured.map(d => d.day_id));
+    const ids = (ents || []).map(e => e.entry_id);
+    if (!ids.length) return res;
+    const { data: logs } = await db.from('cb_seq_log').select('entry_id, step_code').in('entry_id', ids);
+    let skips = []; try { ({ data: skips } = await db.from('cb_skip').select('member_key, until')); } catch (_) { /* no skip list */ }
+    const { data: prep } = await db.from('cb_prep_bookings').select('member_key, session_time');
+    const prepBy = Object.fromEntries((prep || []).map(p => [p.member_key, p.session_time]));
+    const plan = planSequence({ now: nowMs, steps, days: coloured, entries: ents || [], logs: new Set((logs || []).map(l => l.entry_id + '|' + l.step_code)),
+      skipped: new Set((skips || []).filter(s => !s.until || String(s.until) >= today).map(s => s.member_key)), prepBooked: new Set(Object.keys(prepBy)) });
+    const entBy = Object.fromEntries((ents || []).map(e => [e.entry_id, e])), dayBy = Object.fromEntries(coloured.map(d => [d.day_id, d]));
+    const memBy = await membersFor(plan.map(p => entBy[p.entry_id].member_key));
+    const fees = {};
+    for (const p of plan) {
+      const e = entBy[p.entry_id], d = dayBy[e.day_id], step = steps.find(s => s.code === p.code);
+      // Claim the step first (one row per student per step), so two runs at once never send it twice
+      const { error: claimErr } = await db.from('cb_seq_log').insert({ entry_id: e.entry_id, step_code: p.code, status: 'sending' });
+      if (claimErr) continue;
+      const fin = (status, why) => db.from('cb_seq_log').update({ status, why: why || null, at: new Date().toISOString() }).eq('entry_id', e.entry_id).eq('step_code', p.code);
+      if (p.act === 'missed') { await fin('missed', p.why); res.missed++; continue; }
+      if (p.act === 'skip') { await fin('skipped', p.why); res.skipped++; continue; }
+      if (p.act === 'invite_by_hand') { await fin('skipped', 'Invited by hand before the sequence'); res.skipped++; continue; }
+      if (p.act === 'call') {
+        const { data: open } = await db.from('cb_calls').select('call_id').eq('entry_id', e.entry_id).eq('done', false);
+        if (!(open || []).length) await db.from('cb_calls').insert({ entry_id: e.entry_id, reason: 'not_booked', callback_on: today });
+        await fin('sent', 'On My Day'); res.calls++; continue;
+      }
+      const m = memBy[e.member_key];
+      if (!m) { await fin('failed', 'Student not found in EFC'); res.failed++; continue; }
+      const fk = d.programme + '|' + e.belt_from;
+      if (!(fk in fees)) fees[fk] = await feeFor(e, d);
+      const r = await seqSend({ step, e, d, m, st, fee: fees[fk], prepTime: prepBy[e.member_key] || null });
+      await fin(r.status, r.why);
+      res[r.status] = (res[r.status] || 0) + 1;
+      // The invitation starts the clock for everything after it
+      if (p.code === 'invite_sms') { const at = new Date(nowMs).toISOString(); await db.from('cb_entries').update({ invited_at: at }).eq('entry_id', e.entry_id); e.invited_at = at; }
+    }
+    return res;
+  };
+
   try {
     const raw = await req.text();
     // ---- Stripe's webhook: a grading fee was paid ----
@@ -482,6 +725,13 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, removed, cleared });
     }
 
+    // ---- The booking sequence, every 15 minutes (pg_cron, coloured-belts-23.sql) ----
+    if (body.action === 'sequence') {
+      const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
+      if (okCron !== true) return fail('Not allowed.', 403);
+      return json(await runSequence());
+    }
+
     // ---- A family replied to the grading text (GoHighLevel "Customer replied" workflow, coloured-belts-16.sql) ----
     // { action: 'reply', key, phone, message }: if it's a YES, every student from that family who was invited (and hasn't
     // booked) for a coming grading day is marked "Said YES", and is texted the booking link (the "Reminder to book" wording,
@@ -503,6 +753,20 @@ export async function handle(req, db, env = {}, http = fetch) {
       const last9 = x => String(x || '').replace(/\D/g, '').slice(-9);
       const mine = waiting.filter(e => { const m = byKey[e.member_key]; return m && (last9(m.phone) === p9 || last9(m.guardian_phone) === p9); });
       if (!mine.length) return json({ ok: true, matched: 0 });
+      // The booking sequence (coloured-belts-23.sql): STOP ends it for good; any other reply pauses it for 2 days, and
+      // anything that isn't a YES puts a "concern" call on My Day so an instructor rings them back.
+      if (st.seq_on || /^\s*(stop|stopall|unsubscribe|end|quit)\b/i.test(msg)) {
+        const nowIso = new Date().toISOString();
+        if (/^\s*(stop|stopall|unsubscribe|end|quit)\b/i.test(msg)) {
+          for (const e of mine) await db.from('cb_entries').update({ seq_stopped_at: nowIso, seq_stopped_why: 'Replied STOP', reply_text: msg.slice(0, 300), reply_at: nowIso }).eq('entry_id', e.entry_id);
+          return json({ ok: true, matched: mine.length, stopped: true });
+        }
+        for (const e of mine) await db.from('cb_entries').update({ seq_paused_until: new Date(Date.now() + 2 * 864e5).toISOString() }).eq('entry_id', e.entry_id);
+        if (!yes) for (const e of mine) {
+          const { data: open } = await db.from('cb_calls').select('call_id').eq('entry_id', e.entry_id).eq('done', false);
+          if (!(open || []).length) await db.from('cb_calls').insert({ entry_id: e.entry_id, reason: 'concern', note: msg.slice(0, 300), callback_on: today });
+        }
+      }
       if (!yes) { for (const e of mine) await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: new Date().toISOString() }).eq('entry_id', e.entry_id); return json({ ok: true, matched: mine.length, yes: false }); }
       const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';
       const out = [];
@@ -552,6 +816,34 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (d && !e.booked_at) b = await bookEntry(e, d);
       if (d) await confirmEmail(e, d, 'email_paid', { amount: await feeFor(e, d) });
       return json({ ok: true, booked: !!b.ok, byHand: !!b.byHand, booking_error: b.ok ? null : (b.why || null) });
+    }
+    // The booking sequence: "Send test to me" for any step (grading staff), with a real student's details or a sample
+    if (body.action === 'seq_test') {
+      if (!roles.some(r => ['admin', 'grading'].includes(r))) return fail('Only grading staff can send tests.', 403);
+      const { data: step } = await db.from('cb_seq_steps').select('*').eq('code', String(body.code || '')).maybeSingle();
+      if (!step || step.channel === 'call') return fail('Choose a message to test.');
+      const toPhone = String(body.phone || '').trim(), toEmail = String(body.email || '').trim();
+      if (step.channel === 'sms' && !phoneE164(toPhone)) return fail('Enter your mobile to get the test text.');
+      if (step.channel === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(toEmail)) return fail('Enter your email to get the test email.');
+      const { data: st } = await db.from('cb_settings').select('*').eq('id', 1).maybeSingle();
+      let e = null, d = null, m = null;
+      if (body.entry_id) {
+        ({ data: e } = await db.from('cb_entries').select(ENT_COLS).eq('entry_id', String(body.entry_id)).maybeSingle());
+        if (e) { ({ data: d } = await db.from('cb_days').select(DAY_COLS).eq('day_id', e.day_id).maybeSingle()); m = (await membersFor([e.member_key]))[e.member_key]; }
+      }
+      if (!e || !d || !m) {   // a sample family
+        e = { entry_id: null, member_key: 'sample', full_name: 'Sam Sample', belt_from: 'Yellow Belt', belt_to: 'Orange Belt', token: 'SAMPLE-LINK' };
+        d = { location: 'Concord', grading_date: '2026-12-01', start_time: '16:00', programme: 'Taekwondo', belt_times: {} };
+        m = { full_name: 'Sam Sample', guardian_name: 'Alex Sample', date_of_birth: '2016-05-01' };
+      }
+      const fee = e.member_key === 'sample' ? 55 : await feeFor(e, d);
+      const r = await seqSend({ step, e, d, m, st: st || {}, fee, prepTime: '9:00am', to: { phone: toPhone, email: toEmail, by: me, name: 'AMA test' } });
+      return json({ ok: r.status === 'sent' || r.status === 'test', ...r });
+    }
+    // Run the sequence now (admins), instead of waiting for the next 15-minute run
+    if (body.action === 'seq_run') {
+      if (!roles.includes('admin')) return fail('Only an admin can run the sequence by hand.', 403);
+      return json(await runSequence());
     }
     const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';
     if (body.action === 'check') return json({ ready: ready || testing, testing });

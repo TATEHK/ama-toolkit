@@ -303,6 +303,27 @@
   @media (max-width: 899px) { .stage .stages { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 56px); z-index: 12; box-shadow: 0 6px 14px rgba(0,0,0,.35); } }
   .item .progress { margin-top: 7px; max-width: 260px; }
   @media (prefers-reduced-motion: no-preference) { .btn, .item, .res button, .stages button { transition: background-color .12s, border-color .12s, color .12s; } }
+  /* Booking sequence */
+  .seq-grid th, .seq-grid td { text-align: center; white-space: nowrap; }
+  .seq-grid th[scope=row] { text-align: left; white-space: normal; min-width: 130px; }
+  .seq-grid small { color: var(--sub); font-weight: 400; }
+  .seq-m { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--raise, rgba(255,255,255,.06)); font-weight: 700; }
+  .seq-m.ok { background: rgba(47,158,91,.22); color: var(--green-text, #7fd6a2); }
+  .seq-m.bad { background: rgba(239,138,115,.18); color: var(--red, #ef8a73); }
+  .seq-acts { display: flex; gap: 6px; }
+  dialog.seq-wide { width: min(1100px, calc(100% - 24px)); }
+  .seq-grid { min-width: 860px; }
+  .seq-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px; border: 1px solid var(--line2, #31473a); border-radius: 12px; margin: 10px 0 14px; }
+  .seq-switch b { font: 700 22px/1 var(--display); }
+  .seq-switch.on { border-color: var(--green, #2f9e5b); }
+  .seq-switch.on b { color: var(--green-text, #7fd6a2); }
+  .seq-switch span { flex: 1 1 220px; color: var(--sub); font-size: 14px; }
+  .seq-test { gap: 12px; } .seq-test .field { flex: 1 1 220px; margin: 0; }
+  .seq-track { margin: 22px 0 8px; font: 700 16px/1.2 var(--display); color: var(--sub); text-transform: uppercase; letter-spacing: .04em; }
+  .seq-step { border: 1px solid var(--line, #253629); border-radius: 12px; padding: 12px; margin: 8px 0; display: grid; gap: 8px; }
+  .seq-step-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+  .seq-step-h .sub { font-size: 13px; color: var(--sub); }
+  .seq-step textarea, .seq-step input[type=text] { width: 100%; }
 </style>
 </head>
 <body>
@@ -379,6 +400,7 @@ function toast(msg, ms = 4000) {
   toastTimer = setTimeout(() => { t.hidden = true; try { t.hidePopover(); } catch (e) { /* ignore */ } }, ms);
 }
 function openDlg(html) {
+  dlg.classList.toggle('seq-wide', /class="dlg-body seq-dlg"/.test(html));   // the booking sequence grid needs the room
   dlg.innerHTML = html;
   dlg.querySelectorAll('[data-close]').forEach(b => { b.type = 'button'; b.onclick = e => { e.preventDefault(); dlg.close(); }; });
   if (!dlg.open) dlg.showModal();
@@ -528,6 +550,9 @@ async function loadAll() {
   state.all = { students: st.data || [], belts: be.data || [], days: da.data || [], entries: en.data || [] };
   state.programmes = pr.error || !(pr.data || []).length ? [{ programme: 'Taekwondo', label: 'Taekwondo', active: true }] : pr.data.filter(x => x.active !== false);
   state.settings = (se.data || [])[0] || {}; state.messages = me.data || [];
+  // The automated booking sequence (coloured-belts-23.sql): its steps, if the update has been run
+  const sq = await sb.from('cb_seq_steps').select('*').order('sort');
+  state.seqReady = !sq.error; state.seqSteps = sq.data || [];
   if (!isAll() && !state.programmes.some(x => x.programme === state.programme)) state.programme = state.programmes[0].programme;
   if (isAll() && state.programmes.length < 2) state.programme = state.programmes[0].programme;
   applyProgramme();
@@ -939,7 +964,8 @@ function renderDay() {
   const stages = [];
   if (canGrade() && !d.closed) stages.push(['before', 'Before', `
       <button class="btn primary wide" id="addReady">Add everyone marked ready</button><button class="btn" id="addOne">Add a student</button>
-      <button class="btn${notInvited.length ? ' primary' : ''}" id="sendInv" ${notInvited.length ? '' : 'disabled'}>${cnt('Invite', notInvited)}</button>
+      ${seqOnFor(d) ? `<button class="btn" id="seqBtn">Booking sequence${notInvited.length ? ` (${notInvited.length} to invite)` : ''}</button>`
+        : `<button class="btn${notInvited.length ? ' primary' : ''}" id="sendInv" ${notInvited.length ? '' : 'disabled'}>${cnt('Invite', notInvited)}</button>${state.seqReady && !d.bb ? '<button class="btn" id="seqBtn">Booking sequence</button>' : ''}`}
       <button class="btn" id="sendNotBooked" ${notBooked.length ? '' : 'disabled'}>${cnt('Remind to book', notBooked)}</button>
       <button class="btn" id="sendReminder" ${booked.length ? '' : 'disabled'}>${cnt('Grading day reminder', booked)}</button>
       <button class="btn" id="sendUnpaid" ${unpaid.length ? '' : 'disabled'}>${cnt('Fee reminder', unpaid)}</button>`]);
@@ -986,6 +1012,7 @@ function renderDay() {
   on('#addReady', () => addStudents(d, state.students.filter(s => forDay(d, s) && s.approval === 'ready')));
   on('#addOne', () => pickStudent(d));
   on('#sendInv', () => composeTexts('invite', people(notInvited)));
+  on('#seqBtn', () => openSequence(d));
   on('#sendNotBooked', () => composeTexts('not_booked', people(notBooked)));
   on('#sendReminder', () => composeTexts('reminder', people(booked)));
   on('#sendUnpaid', () => composeTexts('unpaid', people(unpaid)));
@@ -1512,6 +1539,100 @@ function renderDash() {
 }
 
 /* ---------------- Settings (admins) ---------------- */
+
+/* ---------------- The automated booking sequence (coloured-belts-23.sql) ---------------- */
+// On for this day: the update is in, it's switched on, and it's a coloured belt day (black belt days have their own sequence)
+const seqOnFor = d => !!(state.seqReady && state.settings.seq_on && d && !d.bb);
+const SEQ_GRID = [['invite_sms', 'Invited'], ['nudge_d2', 'Day 2'], ['ready_d4', 'Day 4'], ['checkin_d6', 'Day 6'], ['close_g8', 'G−8'], ['call_g5', 'Call'], ['booked_sms', 'Booked text'], ['reminder_g2', 'G−2'], ['morning_g', 'Morning']];
+const SEQ_MARK = { sent: ['✓', 'ok', 'Sent'], test: ['✓', 'ok', 'Sent (test mode)'], sending: ['…', '', 'Sending'], failed: ['!', 'bad', 'Failed'], skipped: ['–', '', 'Skipped'], missed: ['·', '', 'Not sent (too late)'] };
+const CALL_OUT = { send_link: 'Link sent', will_book: 'Will book', call_back: 'Call back', not_grading: 'Not grading', no_answer: 'No answer', wrong_number: 'Wrong number' };
+function seqWhen(s) {
+  const t = s.send_at ? ' at ' + fmtTime(s.send_at) : '';
+  if (s.anchor === 'invite') return s.offset_days ? `Day ${s.offset_days} after the invitation${t}` : 'As soon as they are added to the day';
+  if (s.anchor === 'grading') return s.offset_days ? `${Math.abs(s.offset_days)} days before the grading${t}` : `Grading day${t}`;
+  if (s.anchor === 'date') return s.send_date ? fmtDate(s.send_date) + t : 'When a staff call outcome asks for it';
+  return 'As soon as they are booked and paid';
+}
+async function openSequence(d) {
+  openDlg(`<div class="dlg-body seq-dlg"><div class="row" style="justify-content:space-between"><h3>Booking sequence</h3><button class="btn ghost" data-close>Close</button></div><p class="hint">Loading…</p></div>`);
+  const es = entriesOf(d.day_id), ids = es.map(e => e.entry_id);
+  const [lg, ca] = await Promise.all([ids.length ? sb.from('cb_seq_log').select('*').in('entry_id', ids) : { data: [] }, ids.length ? sb.from('cb_calls').select('*').in('entry_id', ids).order('created_at') : { data: [] }]);
+  if (lg.error) return openDlg(`<div class="dlg-body"><h3>Booking sequence</h3><p class="hint">${esc(errMsg(lg.error))}</p><button class="btn" data-close>Close</button></div>`);
+  const logOf = (id, c) => (lg.data || []).find(l => l.entry_id === id && l.step_code === c);
+  const callOf = id => (ca.data || []).filter(c => c.entry_id === id).pop();
+  const on = !!state.settings.seq_on;
+  const rows = sortEntries(es, dayFilt.sort).map(e => {
+    const c = callOf(e.entry_id);
+    const state2 = e.seq_stopped_at ? `<span class="tag bad">${esc(e.seq_stopped_why || 'Stopped')}</span>` : e.seq_paused_until && new Date(e.seq_paused_until) > new Date() ? '<span class="tag warn">Paused</span>' : '';
+    return `<tr data-e="${e.entry_id}"><th scope="row">${esc(e.full_name)}<br><small>${esc(short(e.belt_from))}</small> ${state2}</th>
+      ${SEQ_GRID.map(([code]) => { const l = logOf(e.entry_id, code); const m = l ? SEQ_MARK[l.status] || ['?', '', l.status] : null;
+        const tip = code === 'invite_sms' && !l && e.invited_at ? 'Invited by hand' : m ? `${m[2]}${l.why ? ': ' + l.why : ''}, ${whenText(l.at)}` : 'Not yet';
+        return `<td title="${esc(tip)}">${m ? `<span class="seq-m ${m[1]}">${m[0]}</span>` : code === 'invite_sms' && e.invited_at ? '<span class="seq-m ok">✓</span>' : ''}</td>`; }).join('')}
+      <td>${e.booked_at ? '<span class="seq-m ok">✓</span>' : ''}</td><td>${e.paid ? '<span class="seq-m ok">✓</span>' : ''}</td>
+      <td>${c ? esc(c.outcome ? CALL_OUT[c.outcome] || c.outcome : c.reason === 'concern' ? 'Concern: to call' : 'To call') : ''}</td>
+      ${canGrade() ? `<td class="seq-acts">${e.seq_stopped_at || (e.seq_paused_until && new Date(e.seq_paused_until) > new Date()) ? `<button class="btn sm" data-seq="resume">Resume</button>` : `<button class="btn sm" data-seq="pause">Pause</button><button class="btn sm" data-seq="skip">Skip</button>`}</td>` : ''}</tr>`;
+  }).join('');
+  openDlg(`<div class="dlg-body seq-dlg"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>Booking sequence</h3><p class="sub">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</p></div><button class="btn ghost" data-close>Close</button></div>
+    <p class="hint">${on ? 'On: invitations and follow-ups go automatically. Pause stops it for 2 days; Skip stops it for this student.' : 'Off: nothing goes automatically yet. Switch it on in Settings once Mark has approved the wording.'}</p>
+    ${es.length ? `<div class="scroll"><table class="grid seq-grid"><thead><tr><th>Student</th>${SEQ_GRID.map(([, t]) => `<th>${t}</th>`).join('')}<th>Booked</th><th>Paid</th><th>Call</th>${canGrade() ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="hint">✓ sent · – skipped (already done) · · too late, not sent · ! failed. Hover or long-press a mark for details.</p>` : '<p class="hint">No students on this day yet. Adding them starts the sequence.</p>'}</div>`);
+  dlg.querySelectorAll('[data-seq]').forEach(b => b.onclick = async () => {
+    const id = b.closest('tr').dataset.e;
+    try { await run(sb.rpc('cb_seq_set', { p_entry: id, p_what: b.dataset.seq })); await loadAll(); openSequence(d); toast(b.dataset.seq === 'pause' ? 'Paused for 2 days' : b.dataset.seq === 'skip' ? 'Skipped: no more automatic messages' : 'Resumed'); }
+    catch (er) { toast(errMsg(er), 6000); }
+  });
+}
+function seqSettingsHtml() {
+  if (!state.seqReady) return '';
+  const st = state.settings, admin = isAdmin(), tp = pref('seq_test_phone', ''), te = pref('seq_test_email', /@/.test(state.me || '') && !/@staff\.amatoolkit\.local$/.test(state.me) ? state.me : '');
+  const tracks = { booking: 'Booking (stops when booked and paid)', prep: 'Prep session (Sun 22 Nov)', booked: 'Booked in' };
+  return `<div class="panel" id="seqPanel"><h3>Booking sequence</h3>
+    <p class="hint">Starts when a student is added to a coloured belt grading day and runs until they're booked and paid. Texts at 10am and emails at 7pm Sydney time, never outside 8am to 7:30pm. Never sent to the skip list, anyone who replied STOP, or anyone marked not grading.</p>
+    <div class="seq-switch ${st.seq_on ? 'on' : ''}"><b>${st.seq_on ? 'On' : 'Off'}</b><span>${st.seq_on ? `Switched on ${st.seq_on_at ? whenText(st.seq_on_at) : ''}${st.seq_on_by ? ' by ' + esc(st.seq_on_by) : ''}` : 'Nothing goes automatically. Send Mark every message with Send test to me, then switch on.'}</span>
+      ${admin ? `<button class="btn ${st.seq_on ? '' : 'primary'}" type="button" id="seqSwitch">${st.seq_on ? 'Switch off' : 'Switch on'}</button>${st.seq_on ? '<button class="btn" type="button" id="seqRun">Run now</button>' : ''}` : ''}</div>
+    <div class="row seq-test"><div class="field"><label for="seqTP">Your mobile, for test texts</label><input type="tel" id="seqTP" value="${esc(tp)}" placeholder="04xx xxx xxx"></div>
+      <div class="field"><label for="seqTE">Your email, for test emails</label><input type="email" id="seqTE" value="${esc(te)}"></div></div>
+    <p class="hint">Fields: {parent} {first} {next} {school} {date} {time} {link} {video} {prep} {deadline} {fee} {bring} {phone} {prep_link} {prep_time}, and in emails {time_only} and {video_link}. In emails: "## " starts a heading, "• " a bullet point, and [Words](link) makes a button.</p>
+    ${Object.entries(tracks).map(([k, t]) => `<h4 class="seq-track">${esc(t)}</h4>${state.seqSteps.filter(s => s.track === k && (k !== 'booking' || !s.code.startsWith('out_'))).map(stepHtml).join('')}`).join('')}
+    <h4 class="seq-track">Staff call outcomes</h4>${state.seqSteps.filter(s => s.code.startsWith('out_')).map(stepHtml).join('')}
+  </div>`;
+  function stepHtml(s) {
+    const fromSettings = String(s.template || '').startsWith('settings:');
+    const icon = s.channel === 'sms' ? 'Text' : s.channel === 'email' ? 'Email' : 'Call';
+    return `<div class="seq-step" data-code="${esc(s.code)}"><div class="seq-step-h"><span class="tag">${icon}</span><b>${esc(s.label)}</b><span class="sub">${esc(seqWhen(s))}</span></div>
+      ${s.channel === 'call' ? '<p class="hint">Shows under Coloured belt grading calls on My Day in the hub, for staff rostered at the student\'s school and Mark.</p>'
+        : fromSettings ? `<p class="hint">Uses the "${esc(String(s.template).slice(9) === 'reminder_text' ? 'Grading day reminder' : 'Reminder to book (official invitation)')}" wording in Texts and emails above.</p>`
+        : `${s.channel === 'email' ? `<input type="text" data-subj value="${esc(s.subject || '')}" aria-label="Email subject" ${admin ? '' : 'readonly'}>` : ''}<textarea data-tpl rows="${s.channel === 'email' ? 8 : 3}" aria-label="${esc(s.label)} wording" ${admin ? '' : 'readonly'}>${esc(s.template || '')}</textarea>`}
+      <div class="row">${admin && !fromSettings && s.channel !== 'call' ? '<button class="btn sm" type="button" data-save>Save</button>' : ''}${s.channel !== 'call' && canGrade() ? '<button class="btn sm" type="button" data-test>Send test to me</button>' : ''}</div></div>`;
+  }
+}
+function wireSeqSettings() {
+  const P = $('#seqPanel'); if (!P) return;
+  const sw = $('#seqSwitch');
+  if (sw) sw.onclick = async () => {
+    const on = !state.settings.seq_on;
+    if (on && !confirm('Switch the booking sequence on? Invitations go to every student on a coloured belt grading day who has not been invited yet, then the follow-ups run automatically.')) return;
+    try { await run(sb.rpc('cb_seq_switch', { p_on: on }), on ? 'Booking sequence is on' : 'Booking sequence is off'); await loadAll(); renderSettings(); } catch (er) { toast(errMsg(er), 6000); }
+  };
+  const rn = $('#seqRun'); if (rn) rn.onclick = async () => { rn.disabled = true; try { const r = await fnCall({ action: 'seq_run' }); toast(`Done: ${r.sent || 0} sent, ${r.calls || 0} calls, ${r.skipped || 0} skipped`); } catch (er) { toast(errMsg(er), 6000); } rn.disabled = false; };
+  $('#seqTP').onchange = e => savePref('seq_test_phone', e.target.value.trim());
+  $('#seqTE').onchange = e => savePref('seq_test_email', e.target.value.trim());
+  P.querySelectorAll('.seq-step').forEach(box => {
+    const code = box.dataset.code, sv = box.querySelector('[data-save]'), te = box.querySelector('[data-test]');
+    if (sv) sv.onclick = async () => {
+      const f = { template: box.querySelector('[data-tpl]').value.trim(), updated_at: new Date().toISOString() };
+      const sj = box.querySelector('[data-subj]'); if (sj) f.subject = sj.value.trim();
+      if (!f.template) return toast('The wording can\'t be empty.');
+      try { await run(sb.from('cb_seq_steps').update(f).eq('code', code), 'Saved'); Object.assign(state.seqSteps.find(s => s.code === code), f); } catch (er) { toast(errMsg(er), 6000); }
+    };
+    if (te) te.onclick = async () => {
+      te.disabled = true;
+      try { const r = await fnCall({ action: 'seq_test', code, phone: $('#seqTP').value.trim(), email: $('#seqTE').value.trim() }); toast(r.status === 'test' ? 'Logged (texting is in test mode)' : 'Test sent'); }
+      catch (er) { toast(errMsg(er), 6000); }
+      te.disabled = false;
+    };
+  });
+}
 function renderSettings() {
   const v = $('#view-settings'), st = state.settings;
   v.innerHTML = `<div class="view-head"><h2>Settings</h2></div>
@@ -1535,7 +1656,9 @@ function renderSettings() {
       <div class="field"><label for="sHook">Booking sheet address</label><input type="url" id="sHook" value="${esc(st.booking_webhook || '')}" placeholder="https://script.google.com/macros/s/.../exec">
         <p class="hint">Bookings are added to your Google Sheet, and the Zap books the EFC session. Set it up with <a href="https://github.com/theggatonklenner/theggatonklenner.github.io/blob/main/tools/booking-sheet.gs" target="_blank" rel="noopener">the booking sheet script</a>. A Zapier Catch Hook address also works.</p>
         <div class="row"><span class="hint">Key for the script:</span><code id="sKey" style="user-select:all;overflow-wrap:anywhere">${esc(st.booking_key || 'run coloured-belts-7.sql')}</code><button type="button" class="btn sm" id="copyKey">Copy key</button></div></div>
-      <div class="row"><button class="btn primary" type="submit" id="saveMsgs">Save</button><button class="btn" type="button" id="checkTexts">Check texting</button></div></form>`;
+      <div class="row"><button class="btn primary" type="submit" id="saveMsgs">Save</button><button class="btn" type="button" id="checkTexts">Check texting</button></div></form>
+    ${seqSettingsHtml()}`;
+  wireSeqSettings();
   $('#beltForm').onsubmit = async e => {
     e.preventDefault(); $('#saveBelts').disabled = true;
     try {
