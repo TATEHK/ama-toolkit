@@ -259,7 +259,7 @@
     fetch(BASE + '/rest/v1/rpc/tv_checkin', {
       method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_KEY },
       body: JSON.stringify({ p_code: code, p_screen: screenId, p_loc: LOC, p_showing: showingNow(), p_started: STARTED,
-        p_details: { battery: battery.level != null ? { level: battery.level, charging: battery.charging } : null, w: window.innerWidth, h: window.innerHeight, slides: playlist.length, offline: /offline/.test(document.body.className), browser: navigator.userAgent.slice(0, 160) } })
+        p_details: { battery: battery.level != null ? { level: battery.level, charging: battery.charging } : null, w: window.innerWidth, h: window.innerHeight, slides: playlist.length, offline: /offline/.test(document.body.className), browser: navigator.userAgent.slice(0, 160), slide: playlist[index] && feed && !feed.only && !feed.quiet && !feed.off && !feed.blackout ? String(playlist[index].id).split(':')[0] : null } })
     }).then(function (r) { return r.ok ? r.json() : null; }).then(function (r) {
       if (r && r.reload) freshReload();
     }).catch(function () { /* not set up yet, or no connection */ });

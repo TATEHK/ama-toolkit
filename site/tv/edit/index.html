@@ -199,6 +199,81 @@
   .shufrow .hint { flex: 1; min-width: 0; }
   #shuffleBtn { flex: none; }
   #shuffleBtn[aria-pressed="true"] { color: var(--gold); border-color: var(--gold); }
+
+  /* =====================================================================
+     Redesign (Nov 2026): Now showing bar, four tabs (a sidebar on a computer), slides as picture cards
+     ===================================================================== */
+  #app { display: flex; flex-direction: column; gap: 14px; }
+  #app[hidden] { display: none !important; }
+  .panel { display: flex; flex-direction: column; gap: 14px; }
+  .toprow { display: flex; gap: 8px; align-items: stretch; }
+  .toprow .seg { flex: 1; }
+  .toprow #remoteBtn { flex: none; }
+  #app[data-panel] .panel { display: none; }
+  #app[data-panel="slides"] .panel[data-p="slides"], #app[data-panel="party"] .panel[data-p="party"],
+  #app[data-panel="schedule"] .panel[data-p="schedule"], #app[data-panel="setup"] .panel[data-p="setup"] { display: flex; }
+  /* Tabs: a bar under the header on a phone */
+  .ptabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line2); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 57px); z-index: 15; background: var(--bg); margin: 0 -16px; padding: 0 12px; overflow-x: auto; scrollbar-width: none; }
+  .ptabs::-webkit-scrollbar { display: none; }
+  .ptabs button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: none; color: var(--muted); font-weight: 600; font-size: 15px;
+    padding: 12px 10px; min-height: 48px; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
+  .ptabs button svg { width: 18px; height: 18px; flex: none; }
+  .ptabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--gold); }
+  .pcount { font-size: 12px; font-weight: 700; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--raise); color: var(--muted); text-align: center; }
+  .pcount.hot { background: var(--gold); color: var(--on-gold); }
+  @media (max-width: 420px) { .ptabs button svg { display: none; } .ptabs button { padding: 12px 6px; font-size: 14px; } }
+  /* A computer: the tabs become a sidebar, the page gets wider */
+  @media (min-width: 900px) {
+    .appbar-inner, main { max-width: 1140px; }
+    #app { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px 28px; align-items: start; }
+    #app > * { grid-column: 2; }
+    #app > .ptabs { grid-column: 1; grid-row: 1 / 99; flex-direction: column; position: sticky; top: 80px; margin: 0; padding: 0; border: 0; overflow: visible; background: none; }
+    .ptabs button { justify-content: flex-start; flex: none; min-height: 42px; padding: 9px 12px; border: 0; border-radius: 8px; margin: 0; }
+    .ptabs button:hover { background: var(--surface); color: var(--fg); }
+    .ptabs button[aria-selected="true"] { background: var(--raise); color: var(--gold); box-shadow: inset 2px 0 0 var(--gold); }
+    .ptabs .pcount { margin-left: auto; }
+    body.partyonly #app { display: flex; }
+  }
+  /* Now showing: a picture of what each screen has on it */
+  .now { gap: 10px; }
+  .now h3 { font-size: 20px; }
+  #status .screens li { align-items: center; }
+  .nowthumb { flex: none; width: 128px; }
+  .nowthumb .thumb { width: 128px; height: 72px; font-size: 14px; }
+  .nowthumb .thumb.t-black { background: #000; color: #8a8a8a; border: 1px solid var(--line2); }
+  @media (max-width: 520px) { .nowthumb, .nowthumb .thumb { width: 96px; } .nowthumb .thumb { height: 54px; font-size: 12px; } #status .screens li > .grow { flex: 1 1 150px; } }
+  /* Slides: picture cards (a grid on a computer, a list on a phone) */
+  .slides { background: none; box-shadow: none; overflow: visible; display: flex; flex-direction: column; gap: 8px; }
+  .slides li + li { border-top: 0; }
+  .slide { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; gap: 12px; position: relative; }
+  .slide .thumb { width: 120px; height: 68px; cursor: pointer; }
+  .slide.dragging { opacity: .6; border-color: var(--gold); box-shadow: 0 8px 24px rgba(0,0,0,.45); z-index: 2; }
+  .slide .meta .tag { font-size: 11.5px; }
+  .grip { flex: none; width: 36px; height: 44px; border: 0; border-radius: 8px; background: none; color: var(--faint); cursor: grab; touch-action: none; display: inline-flex; align-items: center; justify-content: center; }
+  .grip:hover, .grip:focus-visible { color: var(--gold); background: var(--raise); }
+  .grip:active { cursor: grabbing; }
+  .grip svg { width: 20px; height: 20px; }
+  .switch { position: relative; flex: none; width: 46px; height: 28px; cursor: pointer; }
+  .switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+  .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--line2); transition: background .15s; }
+  .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #cfd8d2; transition: transform .15s; }
+  .switch input:checked + span { background: var(--green, #1fa85c); }
+  .switch input:checked + span::after { transform: translateX(18px); background: #fff; }
+  .switch input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
+  @media (min-width: 900px) {
+    .slides { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+    .slide { flex-wrap: wrap; align-items: flex-start; padding: 0 0 10px; overflow: hidden; gap: 8px 10px; }
+    .slide .thumb { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 0; font-size: 18px; padding: 10px; }
+    .slide .main { flex: 1 1 0; padding-left: 12px; }
+    .slide .switch { margin-top: 2px; }
+    .slide .grip { position: absolute; top: 6px; right: 6px; width: 34px; height: 34px; background: rgba(0,0,0,.55); color: #fff; }
+    .slide > .switch { margin-right: 12px; }
+    .slides > li:not(.slide) { grid-column: 1 / -1; background: var(--surface); border-radius: 12px; }
+  }
+  /* Short hints with the long explanation behind a ? */
+  .qmark { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line2); background: none; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; padding: 0; vertical-align: 1px; margin-left: 4px; }
+  .qmark:hover { color: var(--gold); border-color: var(--gold); }
+  #schedCard h3 { margin-bottom: -2px; }
 </style>
 </head>
 <body>
@@ -223,19 +298,48 @@
 
   <section id="problem" class="card" hidden></section>
 
-  <section id="app" hidden style="display:flex;flex-direction:column;gap:14px">
-    <div class="seg disp" id="dispSeg" role="group" aria-label="Which screen"><button type="button" data-disp="tv">TV</button><button type="button" data-disp="tablet">Tablets</button></div>
+  <section id="app" hidden>
+    <div class="toprow"><div class="seg disp" id="dispSeg" role="group" aria-label="Which screen"><button type="button" data-disp="tv">TV</button><button type="button" data-disp="tablet">Tablets</button></div><a class="btn" id="remoteBtn" href="../remote/">Remote</a></div>
     <div class="card" id="partyOnly" hidden></div>
-    <div class="card full onlyscreens" id="status" hidden></div>
-    <div class="card" id="party"></div>
-    <div class="view-head full"><h2 class="onlyslides">Slides</h2><div class="row"><a class="btn sm" id="previewBtn" target="_blank" rel="noopener">Preview</a><a class="btn sm" id="remoteBtn" href="../remote/">Remote</a><button class="btn primary sm onlyslides" id="addBtn">Add</button></div></div>
-    <div class="shufrow full onlyslides"><p class="hint" id="slidesHint">The TV shows these in order, on a loop, and picks up changes within 20 seconds.</p><button class="btn sm" id="shuffleBtn" type="button" aria-pressed="false" title="Play the slides in a random order"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg><span id="shuffleTxt">Shuffle</span></button></div>
-    <ul class="slides full onlyslides" id="list"></ul>
+    <div class="card full onlyscreens now" id="status" hidden></div>
+    <nav class="ptabs full" id="ptabs" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" data-panel="slides" class="onlyslides"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Slides<span class="pcount" id="pcSlides"></span></button>
+      <button type="button" role="tab" data-panel="party"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21 9 8l7 7-12 6Z"/><path d="M14 4v2M19 9h2M17.5 5.5 16 7M20 13l-1.5-.5"/></svg>Party<span class="pcount hot" id="pcParty" hidden>On</span></button>
+      <button type="button" role="tab" data-panel="schedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/></svg>Schedule</button>
+      <button type="button" role="tab" data-panel="setup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Setup</button>
+    </nav>
 
-    <div class="card full onlyslides" id="eventsCard" hidden></div>
-    <div class="card full onlyslides" id="locCard" hidden></div>
+    <div class="panel" data-p="slides">
+      <div class="view-head full onlyslides"><h2>Slides</h2><div class="row"><a class="btn sm" id="previewBtn" target="_blank" rel="noopener">Preview</a><button class="btn primary sm" id="addBtn">Add</button></div></div>
+      <div class="shufrow full onlyslides"><p class="hint" id="slidesHint">The TV shows these in order, on a loop, and picks up changes within 20 seconds.</p><button class="btn sm" id="shuffleBtn" type="button" aria-pressed="false" title="Play the slides in a random order"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg><span id="shuffleTxt">Shuffle</span></button></div>
+      <ul class="slides full onlyslides" id="list"></ul>
+    </div>
 
-    <h2 class="full onlyscreens" style="margin-top:8px">Settings</h2>
+    <div class="panel" data-p="party">
+      <div class="card" id="party"></div>
+    </div>
+
+    <div class="panel" data-p="schedule">
+      <div class="card full onlyslides" id="eventsCard" hidden></div>
+      <div class="card full onlyscreens" id="schedCard">
+        <h3>Slideshow hours and screen-off times</h3>
+      <div class="field" id="quietBox" hidden><span class="label">Slideshow hours</span>
+        <label class="check"><input type="checkbox" id="setQuiet"> Only play the slideshow at set times</label>
+        <div id="quietRow" style="display:flex;flex-direction:column;gap:10px">
+          <table class="days"><tbody id="qDays"></tbody></table>
+          <div class="row"><button type="button" class="btn sm" id="qCopy">Copy Monday to Tuesday to Friday</button></div>
+          <div class="field"><label for="setQStyle">At other times the TV shows</label><select id="setQStyle"><option value="logo">Just the AMA logo (dimmed, on black)</option><option value="black">A black screen</option></select></div>
+          <p class="hint" style="margin:0">A party still shows at any time. <button type="button" class="qmark" data-tip="A location can have its own hours instead (Setup, Locations, Edit, Settings). Many TVs also have their own off timer in their settings, which saves power." aria-label="More about slideshow hours">?</button></p>
+        </div></div>
+      <div class="field" id="offBox" hidden><span class="label">Scheduled screen-off times</span>
+        <p class="hint" style="margin:0">The screen goes off for a few minutes at set times, e.g. Saturday 10:00 for 5 minutes.</p>
+        <ul class="offs" id="offRows"></ul>
+        <div class="row"><button type="button" class="btn sm" id="offAdd">Add a time</button></div></div>
+        <div class="row"><button class="btn primary" type="submit" form="setForm" id="schedSave">Save schedule</button></div>
+      </div>
+    </div>
+
+    <div class="panel" data-p="setup">
     <form class="card full onlyscreens" id="setForm">
       <div class="row" style="justify-content:space-between;align-items:flex-end">
         <div><div class="label">Screen code</div><div class="code" id="code"></div></div>
@@ -245,7 +349,7 @@
         <div class="row" id="linkLocRow" hidden><label for="linkLoc" class="label" style="margin:0">For a device at</label><select id="linkLoc" style="width:auto;flex:1"></select></div>
         <div class="row"><code id="screenLink" class="grow" style="word-break:break-all;font-size:14px"></code><button type="button" class="btn sm" id="copyLink">Copy</button><button type="button" class="btn sm" id="qrLink">QR code</button></div></div>
       <p class="hint" id="linkHint"></p>
-      <p class="hint">A new code stops any screen using the old code or link until it gets the new one.</p>
+      <p class="hint">A new code stops any screen using the old code until it gets the new one.</p>
       <div class="grid2">
         <div class="field"><label for="setSecs">Seconds per slide</label><input type="number" id="setSecs" min="3" max="600" step="1"></div>
         <div class="field"><span class="label">On screen</span><label class="check"><input type="checkbox" id="setClock"> Clock</label><label class="check" style="min-height:28px"><input type="checkbox" id="setLogo"> AMA logo</label></div>
@@ -264,23 +368,13 @@
           <div class="field"><label for="setKioskKey">API key (optional)</label><input type="text" id="setKioskKey" maxlength="80" autocomplete="off" placeholder="Leave empty"></div></div>
         <div class="row" id="signinIdleRow"><label for="setSigninIdle" class="label" style="margin:0">Back to the slides after</label><select id="setSigninIdle" style="width:auto"><option value="30">30 seconds</option><option value="45">45 seconds</option><option value="60">1 minute</option><option value="90">1.5 minutes</option><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option></select><span class="hint">with no taps</span></div>
         <p class="hint" id="signinHint"></p></div>
-      <div class="field" id="quietBox" hidden><span class="label">Slideshow hours</span>
-        <label class="check"><input type="checkbox" id="setQuiet"> Only play the slideshow at set times</label>
-        <div id="quietRow" style="display:flex;flex-direction:column;gap:10px">
-          <table class="days"><tbody id="qDays"></tbody></table>
-          <div class="row"><button type="button" class="btn sm" id="qCopy">Copy Monday to Tuesday to Friday</button></div>
-          <div class="field"><label for="setQStyle">At other times the TV shows</label><select id="setQStyle"><option value="logo">Just the AMA logo (dimmed, on black)</option><option value="black">A black screen</option></select></div>
-          <p class="hint" style="margin:0">A party still shows at any time. A location can have its own hours instead (Locations, Edit, Settings). Many TVs also have their own off timer in their settings, which saves power.</p>
-        </div></div>
-      <div class="field" id="offBox" hidden><span class="label">Scheduled screen-off times</span>
-        <p class="hint" style="margin:0">On top of the slideshow hours: the screen goes off at these times for the minutes set, e.g. Saturday 10:00 for 5 minutes. A party still shows.</p>
-        <ul class="offs" id="offRows"></ul>
-        <div class="row"><button type="button" class="btn sm" id="offAdd">Add a time</button></div></div>
       <div class="field" id="pinBox" hidden><span class="label">Staff code</span>
         <p class="hint" style="margin:0" id="pinHint"></p>
         <div class="row"><input type="password" id="setPin" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="4 to 8 digits" aria-label="New staff code" style="width:150px"><button type="button" class="btn sm" id="pinSave">Set code</button><button type="button" class="btn sm danger" id="pinClear" hidden>Remove</button></div></div>
       <div class="row"><button class="btn primary" type="submit" id="setSave">Save settings</button></div>
     </form>
+      <div class="card full onlyslides" id="locCard" hidden></div>
+    </div>
   </section>
 </main>
 
@@ -520,26 +614,79 @@ function draw() {
     if (!out && s.kind === 'countdown') { const to = countTo(s); if (s.count_to === 'date' && to < t) out = `Passed ${fmtDate(to)}`; else if (!to) out = 'No grading date set'; }
     const what = s.kind === 'countdown' ? (s.count_to === 'grading' ? 'Countdown to the next grading' : `Countdown to ${fmtDate(s.event_on)}`) : s.kind === 'live' ? 'Live' : KIND[s.kind];
     return `<li class="slide${!s.enabled || out ? ' off' : ''}" data-id="${s.id}">
-      ${thumb(s)}
+      <div data-pic="${s.id}" style="display:contents">${thumb(s)}</div>
       <div class="main" data-open="${s.id}"><div class="name">${esc(slideName(s))}</div>
         <div class="meta"><span>${esc(what)}</span><span>· ${s.kind === 'video' && !s.seconds ? 'plays to the end' : (s.seconds || S.seconds) + ' s'}</span>
           ${s.locations && s.locations.length ? `<span class="tag">${esc(locName(s.locations))}</span>` : ''}${!s.enabled ? '<span class="tag muted">Off</span>' : ''}${out ? `<span class="tag warn">${out}</span>` : (s.ends_on ? `<span class="tag muted">Until ${fmtDate(s.ends_on)}</span>` : '')}${timesText(s) ? `<span class="tag${onNow(s) ? '' : ' muted'}" title="${onNow(s) ? 'On now' : 'Not on right now'}">${esc(timesText(s))}</span>` : ''}</div></div>
-      <label class="check" style="min-height:0" title="Show on the TV"><input type="checkbox" data-on="${s.id}" ${s.enabled ? 'checked' : ''} aria-label="Show ${esc(slideName(s))} on the TV"></label>
-      <div class="moves"><button data-up="${s.id}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button><button data-down="${s.id}" ${i === list.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button></div></li>`;
+      <label class="switch" title="${s.enabled ? 'On' : 'Off'}: tap to ${s.enabled ? 'hide it' : 'show it'}"><input type="checkbox" role="switch" data-on="${s.id}" ${s.enabled ? 'checked' : ''} aria-label="Show ${esc(slideName(s))} on ${here()}"><span></span></label>
+      ${list.length > 1 ? `<button type="button" class="grip" data-grip="${s.id}" aria-label="Move ${esc(slideName(s))}: drag, or use the arrow keys" title="Drag to change the order"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>` : ''}</li>`;
   }).join('') : '<li style="padding:28px 16px;text-align:center;color:var(--muted)">No slides yet. Tap Add to put photos, videos or info on the TV.</li>';
-  $$('#list [data-open]').forEach(b => b.onclick = () => openSlide(state.slides.find(s => s.id === b.dataset.open)));
+  $$('#list [data-open], #list [data-pic]').forEach(b => b.onclick = () => openSlide(state.slides.find(s => s.id === (b.dataset.open || b.dataset.pic))));
   $$('#list [data-on]').forEach(c => c.onchange = async () => {
     const { error } = await sb.from('tv_slides').update({ enabled: c.checked }).eq('id', c.dataset.on);
     if (error) { c.checked = !c.checked; return toast('Not saved: ' + error.message, 5000); }
     toast(c.checked ? 'On the TV' : 'Hidden from the TV'); load();
   });
-  $$('#list [data-up], #list [data-down]').forEach(b => b.onclick = () => move(b.dataset.up || b.dataset.down, b.dataset.up ? -1 : 1));
+  wireDrag();
+  const pc = $('#pcSlides'); if (pc) pc.textContent = list.length ? list.filter(x => x.enabled).length : '';
+  setPanel($('#app').dataset.panel || panelPick || 'slides', false);
 }
+// Change the order: drag a card by its handle (mouse or finger), or focus the handle and use the arrow keys
+function wireDrag() {
+  const box = $('#list');
+  $$('#list [data-grip]').forEach(g => {
+    g.onkeydown = e => {
+      const d = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key];
+      if (d) { e.preventDefault(); move(g.dataset.grip, d).then(() => { const n = $(`#list [data-grip="${g.dataset.grip}"]`); if (n) n.focus(); }); }
+    };
+    g.onpointerdown = e => {
+      if (e.button) return;
+      e.preventDefault();
+      const li = g.closest('li'), grid = getComputedStyle(box).display === 'grid';
+      li.classList.add('dragging');
+      try { g.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+      const onMove = ev => {
+        const over = document.elementFromPoint(ev.clientX, ev.clientY), t = over && over.closest('#list li[data-id]');
+        if (!t || t === li) return;
+        const r = t.getBoundingClientRect(), after = grid ? ev.clientX > r.left + r.width / 2 : ev.clientY > r.top + r.height / 2;
+        box.insertBefore(li, after ? t.nextSibling : t);
+      };
+      const onUp = () => {
+        g.removeEventListener('pointermove', onMove); g.removeEventListener('pointerup', onUp); g.removeEventListener('pointercancel', onUp);
+        li.classList.remove('dragging');
+        const ids = $$('#list li[data-id]').map(x => x.dataset.id);
+        if (ids.join() !== state.slides.map(x => x.id).join()) reorder(ids);
+      };
+      g.addEventListener('pointermove', onMove); g.addEventListener('pointerup', onUp); g.addEventListener('pointercancel', onUp);
+    };
+  });
+}
+// Which part of the page is open: Slides, Party, Schedule or Setup (remembered on this device)
+let panelPick = null; try { panelPick = localStorage.getItem('tvEditPanel'); } catch (e) { /* ignore */ }
+function setPanel(p, save = true) {
+  const ok = x => state.partyOnly ? x === 'party' : x === 'slides' ? state.canSlides !== false : ['party', 'schedule', 'setup'].includes(x);
+  if (!ok(p)) p = state.partyOnly || state.canSlides === false ? 'party' : 'slides';
+  $('#app').dataset.panel = p;
+  $$('#ptabs [data-panel]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.panel === p)));
+  if (save) { panelPick = p; try { localStorage.setItem('tvEditPanel', p); } catch (e) { /* ignore */ } }
+}
+window.tvPanel = p => setPanel(p);
+$$('#ptabs [data-panel]').forEach(b => b.onclick = () => { setPanel(b.dataset.panel); if (window.scrollY > 200) window.scrollTo({ top: 0 }); });
+// A "?" next to a short hint opens the longer explanation
+document.addEventListener('click', e => {
+  const q = e.target.closest('.qmark'); if (!q) return;
+  e.preventDefault();
+  openDlg(`<div class="dlg"><div class="dlg-head"><h3>More about this</h3><button class="x" data-close>Close</button></div><p style="margin:0">${esc(q.dataset.tip)}</p></div>`);
+});
 async function move(id, dir) {
   const list = state.slides, i = list.findIndex(s => s.id === id), j = i + dir;
   if (j < 0 || j >= list.length) return;
-  // Renumber in the new order so positions are always distinct
   const order = list.slice(); [order[i], order[j]] = [order[j], order[i]];
+  return reorder(order.map(x => x.id));
+}
+async function reorder(ids) {
+  // Renumber in the new order so positions are always distinct
+  const order = ids.map(id => state.slides.find(x => x.id === id)).filter(Boolean);
   state.slides = order; draw();
   for (let k = 0; k < order.length; k++) {
     if (order[k].position !== k + 1) {
@@ -961,6 +1108,7 @@ const partyOn = () => { const S = state.settings; return !!(S && S.only_slide &&
 const timeText = iso => new Date(iso).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
 function drawParty() {
   const box = $('#party'), S = state.settings;
+  const pb = $('#pcParty'); if (pb) pb.hidden = !(('only_slide' in S) && (partyOn() || activeBookings().length));
   if (!('only_slide' in S)) { box.hidden = true; return; }   // database not updated yet
   box.hidden = false;
   if (partyOn()) {
@@ -986,7 +1134,7 @@ function drawParty() {
     if ($('#partyBook')) $('#partyBook').onclick = () => openParty({ book: true });
   } else {
     box.className = 'card';
-    box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="grow"><h3>Party mode</h3><p class="hint">Show just one thing on ${here()}, like a birthday poster, for a set time. Then it goes back to the slideshow by itself.</p></div>
+    box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="grow"><h3>Party mode</h3><p class="hint">One thing on ${here()}, like a birthday poster, for a set time.</p></div>
       <div class="row">${state.bookings ? '<button class="btn" id="partyBook">Book for later</button>' : ''}<button class="btn primary" id="partyStart">Start now</button></div></div>${bookedList()}`;
     $('#partyStart').onclick = () => openParty();
     if ($('#partyBook')) $('#partyBook').onclick = () => openParty({ book: true });
@@ -1111,7 +1259,7 @@ function drawStatus() {
   const N = noun(), Ns = N === 'TV' ? 'TVs' : 'tablets';
   const head = !list.length ? `No ${N} has checked in yet` : on.length ? (list.length > 1 ? `${on.length} of ${list.length} ${Ns} online` : `The ${N} is online`) : (list.length > 1 ? `The ${Ns} are offline` : `The ${N} is offline`);
   box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="grow"><h3><span class="dot${on.length ? ' on' : ''}"></span>${esc(head)}</h3>
-      ${!list.length ? `<p class="hint">Open the link under Settings on the ${N}. It shows up here within 20 seconds.</p>` : ''}</div>
+      ${!list.length ? `<p class="hint">Open the link from Setup on the ${N}. It shows up here within 20 seconds.</p>` : ''}</div>
       <button class="btn" id="tvReload"${list.length ? '' : ' disabled'}>Refresh the ${N === 'TV' ? 'TV' : 'tablets'}</button></div>
     ${list.length ? `<ul class="screens">${list.map((x, i) => {
       const live = Date.now() - new Date(x.last_seen) < ONLINE_MS;
@@ -1123,13 +1271,13 @@ function drawStatus() {
       const darkTag = x.blackout ? ' <span class="tag warn">Blacked out</span>' : '';
       const taken = live && /^(Party mode|Blacked out)/.test(x.showing || ''), freed = live && /\(back to normal here\)/.test(x.showing || '');
       const normBtn = state.normal ? (taken ? `<button class="btn sm" data-normal-tv="${esc(x.screen_id)}" data-on="1">Back to normal</button>` : freed ? `<button class="btn sm" data-normal-tv="${esc(x.screen_id)}" data-on="">Show the party again</button>` : '') : '';
-      return `<li><div class="grow"><b>${label ? label + ': ' : ''}${live ? 'Showing: ' + what : 'Offline'}</b>${where}${batt}${darkTag}
+      return `<li><div class="nowthumb">${nowThumb(x, live)}</div><div class="grow"><b>${label ? label + ': ' : ''}${live ? 'Showing: ' + what : 'Offline'}</b>${where}${batt}${darkTag}
         <div>${live ? `Checked in ${esc(ago(x.last_seen))}` : `Last seen ${esc(ago(x.last_seen))}${x.showing ? `, showing ${what}` : ''}`}${x.started_at ? ` · page loaded ${esc(ago(x.started_at))}` : ''}</div></div>
         <div class="row" style="flex-wrap:wrap;justify-content:flex-end">${normBtn}${'blackout' in x ? `<button class="btn sm" data-dark-tv="${esc(x.screen_id)}" data-on="${x.blackout ? '' : '1'}" style="${x.blackout ? 'background:var(--gold);border-color:var(--gold);color:var(--on-gold)' : 'background:#111;border-color:#111;color:#fff'}">${x.blackout ? 'Back on' : 'Black out'}</button>` : ''}<button class="btn sm" data-name-tv="${esc(x.screen_id)}">${state.locations ? 'Edit' : x.name ? 'Rename' : 'Name'}</button>${!live ? `<button class="btn sm" data-forget-tv="${esc(x.screen_id)}">Remove</button>` : ''}</div></li>`;
     }).join('')}</ul>` : ''}
     ${'blackout' in state.settings ? (state.settings.blackout
       ? `<div class="row" style="background:#111;color:#fff;border-radius:10px;padding:10px 12px"><span class="grow"><b>${N === 'TV' ? 'The screen is' : 'The tablets are'} blacked out</b> until you turn ${N === 'TV' ? 'it' : 'them'} back on.</span><button class="btn sm" id="tvDark" style="background:var(--gold);border-color:var(--gold);color:var(--on-gold)">Turn ${N === 'TV' ? 'the screen' : 'them'} back on</button></div>`
-      : `<div class="row"><button class="btn" id="tvDark" style="background:#111;border-color:#111;color:#fff">Black out ${N === 'TV' ? 'every TV' : 'all tablets'}</button><span class="hint grow">Black until you turn ${N === 'TV' ? 'them' : 'them'} back on, even during a party. For just one, use its own button above.</span></div>`) : ''}`;
+      : `<div class="row"><button class="btn sm" id="tvDark" style="background:#111;border-color:#111;color:#fff">Black out ${N === 'TV' ? 'every TV' : 'all tablets'}</button><button type="button" class="qmark" data-tip="Black until you turn ${N === 'TV' ? 'them' : 'them'} back on, even during a party. For just one, use its own Black out button." aria-label="More about black out">?</button></div>`) : ''}`;
   if ($('#tvDark')) $('#tvDark').onclick = async () => {
     const on = !state.settings.blackout; $('#tvDark').disabled = true;
     const { error } = await sb.rpc('tv_remote_send', { p_cmd: on ? 'blackout' : 'wake', p_slide: null, p_display: state.display });
@@ -1176,6 +1324,21 @@ function drawStatus() {
     if (error) return toast('Not removed: ' + error.message, 5000);
     pollStatus();
   });
+}
+// A picture of what a screen has on it now: the slide it reported, the party, or a black box
+function nowThumb(x, live) {
+  const box = t => `<div class="thumb t-black">${esc(t)}</div>`;
+  if (!live) return box('Offline');
+  const sh = x.showing || '';
+  if (x.blackout || /^Blacked out/.test(sh)) return box('Blacked out');
+  if (/^(Screen off|Quiet hours)/.test(sh)) return box(sh.startsWith('Quiet') ? 'Quiet hours' : 'Screen off');
+  if (/^Sign-in page/.test(sh)) return box('Sign-in page');
+  if (/^Party mode/.test(sh)) {
+    const id = (state.settings && state.settings.only_slide) || ((activeBookings()[0] || {}).slide_id);
+    const p = id && findSlide(id); return p && p.kind ? thumb(p) : box('Party');
+  }
+  const id = x.details && x.details.slide, sl = id && state.slides.find(y => y.id === id);
+  return sl ? thumb(sl) : box(sh ? sh.replace(/ \(\d+ of \d+\)$/, '') : 'Starting');
 }
 async function pollStatus() {
   if ($('#app').hidden || state.screens === null) return;
@@ -1853,7 +2016,7 @@ function drawShuffle() {
   $('#shuffleBtn').hidden = !('shuffle' in S);
   $('#shuffleBtn').setAttribute('aria-pressed', String(on));
   $('#shuffleTxt').textContent = on ? 'Shuffle on' : 'Shuffle';
-  $('#slidesHint').textContent = `${who} these ${on ? 'in a random order (shuffled each time round)' : 'in order'}, on a loop, and ${state.display === 'tv' ? 'picks' : 'pick'} up changes within 20 seconds.`;
+  $('#slidesHint').textContent = `${who} these ${on ? 'in a random order' : 'in order'}, on a loop. Drag to change the order.`;
 }
 $('#shuffleBtn').onclick = async () => {
   const S = state.settings, on = !S.shuffle;

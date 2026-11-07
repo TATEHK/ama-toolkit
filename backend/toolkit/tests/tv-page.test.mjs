@@ -96,6 +96,17 @@ async function context(size, offline = false) {
   });
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(e.message));
+  // The editor has tabs (Slides, Party, Schedule, Setup): before pressing something, open the tab it's on, as a person would
+  const reveal = sel => typeof sel !== 'string' ? null : page.evaluate(q => { try { const el = document.querySelector(q), p = el && el.closest('[data-p]'); if (p && window.tvPanel) window.tvPanel(p.dataset.p); } catch (e) { /* not a CSS selector */ } }, sel).catch(() => {});
+  for (const fn of ['click', 'fill', 'check', 'uncheck', 'selectOption', 'setInputFiles', 'isVisible', 'waitForSelector', 'focus', 'press', 'type', 'dispatchEvent']) {
+    const orig = page[fn].bind(page);
+    page[fn] = async (sel, ...rest) => {
+      // Wait for it to exist first (it may still be loading), unless only checking or waiting for it to go
+      const o = rest[0] && typeof rest[0] === 'object' ? rest[0] : {};
+      if (typeof sel === 'string' && fn !== 'isVisible' && !(fn === 'waitForSelector' && o.state && o.state !== 'visible')) await page.locator(sel).first().waitFor({ state: 'attached', timeout: o.timeout || 30000 }).catch(() => {});
+      await reveal(sel); return orig(sel, ...rest);
+    };
+  }
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|favicon|net::ERR/i.test(m.text())) errors.push(m.text()); });
   return { ctx, page };
 }
@@ -133,7 +144,7 @@ try {
 
   // Reorder: move the month theme up one
   const monthId = (await db.query(`select id from tv_slides where live_kind = 'month'`)).rows[0].id;
-  await page.click(`[data-up="${monthId}"]`); await page.waitForTimeout(600);
+  await page.focus(`[data-grip="${monthId}"]`); await page.keyboard.press('ArrowUp'); await page.waitForTimeout(600);
   ok((await slides()).map(s => s.live_kind || s.kind).join() === 'text,photo,photo,month,next_grading', 'slides can be moved up and down');
 
   // Turn one off, schedule one
