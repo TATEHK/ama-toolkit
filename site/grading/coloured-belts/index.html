@@ -503,6 +503,8 @@ const eligible = s => s.enough_classes;
 const openDayFor = key => state.entries.find(e => e.member_key === key && !e.result && dayOf(e.day_id) && !dayOf(e.day_id).closed);
 function readyTags(s) {
   const t = [];
+  // Not enough classes yet for the next belt, and how many are left
+  if (!s.enough_classes && s.classes_needed) t.push(`<span class="tag warn">Not enough classes: ${Math.max(0, s.classes_needed - s.classes)} to go</span>`);
   if (s.approval === 'ready') t.push('<span class="tag ok">Ready</span>');
   else if (s.approval === 'not_yet') t.push('<span class="tag bad">Not yet</span>');
   const od = openDayFor(s.member_key);
@@ -679,7 +681,7 @@ function openStudent(key, prog) {
     </form>` : `<p class="sub">${s.approval ? 'Marked ' + (s.approval === 'ready' ? 'ready' : 'not yet') : 'Not decided yet'}</p>`}
     ${bbcBlock}
     <dl class="kv">
-      <dt>Classes</dt><dd><b>${s.classes}</b> of ${s.classes_needed} since their last grading ${s.enough_classes ? '<span class="tag ok">Enough</span>' : `<span class="tag warn">${s.classes_needed - s.classes} to go</span>`}</dd>
+      <dt>Classes</dt><dd><b>${s.classes}</b> of ${s.classes_needed} since their last grading ${s.enough_classes ? '<span class="tag ok">Enough classes</span>' : `<span class="tag warn">Not enough classes: ${Math.max(0, s.classes_needed - s.classes)} to go</span>`}</dd>
       <dt>Last grading</dt><dd>${s.promoted_on ? `${esc(fmtDate(s.promoted_on))}, ${s.weeks_at_belt} weeks ago` : 'Not in EFC'}${overdue(s) ? ' <span class="tag bad">Overdue</span>' : ''}</dd>
       <dt>Age</dt><dd>${esc(ageText(s))}</dd>
       <dt>School</dt><dd>${esc(s.location)}${isAll() ? ', ' + esc(progLabel(P)) : ''}${s.efc_reference ? ` <span class="hint">${esc(s.efc_reference)}</span>` : ''}</dd>

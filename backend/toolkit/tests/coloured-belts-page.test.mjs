@@ -165,6 +165,9 @@ try {
   await page.selectOption('#fBelt', '');
   await page.selectOption('#fShow', 'overdue');
   ok((await page.textContent('#readyList')).includes('Alex Kim') && (await page.textContent('#readyList')).includes('Overdue'), 'Overdue shows students on their belt for twice the usual time');
+  await page.selectOption('#fShow', 'all');
+  { const t = await page.textContent('#readyList'); ok(/Not enough classes: \d+ to go/.test(t), 'students short on classes say "Not enough classes" and how many to go'); }
+  await shots(page, 'cb-not-enough');
   await page.selectOption('#fShow', 'eligible'); await page.selectOption('#fSchool', 'Marrickville');
   ok(!(await page.textContent('#readyList')).includes('Jo Bloggs'), 'filter by school');
   // Black Belt Club (from the nightly EFC update)
