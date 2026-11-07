@@ -23,7 +23,7 @@ export function startServer({ db, port = 0, appDir, users, config, maxRows = 0 }
   const sessionFor = email => ({
     access_token: token(email), token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600,
     refresh_token: 'refresh-' + Buffer.from(email).toString('base64url'),
-    user: { id: users[email].id, aud: 'authenticated', role: 'authenticated', email, app_metadata: { provider: 'email' }, user_metadata: {}, created_at: new Date().toISOString() }
+    user: { id: users[email].id, aud: 'authenticated', role: 'authenticated', email, app_metadata: { provider: 'email' }, user_metadata: users[email].user_metadata || {}, created_at: new Date().toISOString() }
   });
   const claimsOf = req => {
     const h = req.headers.authorization || '';

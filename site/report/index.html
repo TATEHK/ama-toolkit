@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0f1713">
+<title>Grading Report Card</title>
+<link rel="icon" href="/Black-belt-prep-system/icon-192.png">
+<link rel="apple-touch-icon" href="/Black-belt-prep-system/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="/Black-belt-prep-system/config.js"></script>
+<style>
+  /* Same look as the polo and essay pages: pine black, gold for the belt, green for done. Prints on white. */
+  :root {
+    --bg: #0f1713; --panel: #15201a; --raise: #1b2821; --line: #253629; --line2: #31473a;
+    --text: #edf2ee; --sub: #a3b5a9; --gold: #f5c518; --on-gold: #14130a; --green: #2f9e5b; --green-text: #7fd6a2; --orange: #f0a35a;
+    --display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; --body: Barlow, "Segoe UI", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.5 var(--body); -webkit-font-smoothing: antialiased; }
+  [hidden] { display: none !important; }
+  .top { padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px 0; }
+  .top-in { max-width: 680px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .top img { width: 44px; height: 44px; object-fit: contain; flex: none; }
+  .top b { display: block; font: 700 19px/1.1 var(--display); }
+  .top span { font-size: 14px; color: var(--sub); }
+  .top .print { margin-left: auto; }
+  main { max-width: 680px; margin: 0 auto; padding: 18px 16px 48px; display: grid; gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .hero { position: relative; overflow: hidden; display: grid; gap: 10px; }
+  .hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: var(--gold); }
+  .eyebrow { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--sub); margin: 0; }
+  h1 { font: 700 38px/1.02 var(--display); margin: 0; }
+  .belts { font-size: 18px; color: var(--sub); margin: 0; }
+  .belts b { color: var(--gold); }
+  .when { font-size: 15px; color: var(--sub); margin: 0; }
+  .outcome { display: inline-flex; align-items: center; gap: 10px; justify-self: start; margin-top: 4px; padding: 8px 16px; border-radius: 999px; font: 700 22px/1 var(--display); }
+  .outcome.pass, .outcome.distinction { background: var(--gold); color: var(--on-gold); }
+  .outcome.retest, .outcome.not_yet { background: var(--raise); color: var(--text); border: 1px solid var(--line2); }
+  .summary { margin: 0; font-size: 18px; }
+  h2 { font: 700 22px/1.1 var(--display); margin: 0 0 12px; }
+  .cat { padding: 14px 0; border-top: 1px solid var(--line); }
+  .cat:first-of-type { border-top: 0; padding-top: 0; }
+  .cat-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .cat-h b { font: 700 19px/1.2 var(--display); }
+  .cat-h span { font: 700 24px/1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; }
+  .cat-h span small { font-size: 14px; color: var(--sub); font-weight: 600; }
+  .bar { height: 8px; border-radius: 4px; background: var(--raise); overflow: hidden; margin: 8px 0 6px; }
+  .bar i { display: block; height: 100%; background: var(--gold); border-radius: 4px; }
+  .note { margin: 6px 0 0; font-size: 15px; color: var(--text); }
+  details { margin-top: 4px; }
+  summary { cursor: pointer; color: var(--sub); font-size: 14px; }
+  details ol { margin: 6px 0 0; padding-left: 20px; color: var(--sub); font-size: 14px; }
+  .checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .checks li { display: flex; gap: 10px; align-items: center; }
+  .checks i { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 14px; }
+  .checks .y i { background: var(--green); color: #fff; }
+  .checks .n i { background: var(--raise); color: var(--sub); border: 1px solid var(--line2); }
+  .comment { padding: 12px 0; border-top: 1px solid var(--line); }
+  .comment:first-of-type { border-top: 0; padding-top: 0; }
+  .comment p { margin: 4px 0 0; }
+  .comment .by { font-weight: 700; }
+  .lab { color: var(--sub); font-size: 14px; display: block; margin-top: 6px; }
+  .btn { font: 600 15px var(--body); color: var(--text); background: var(--raise); border: 1px solid var(--line2); border-radius: 10px; padding: 9px 14px; cursor: pointer; }
+  .msg { text-align: center; color: var(--sub); padding: 40px 20px; }
+  .foot { text-align: center; color: var(--sub); font-size: 13px; }
+  @media print {
+    :root { --bg: #fff; --panel: #fff; --raise: #eee; --line: #ddd; --line2: #ccc; --text: #111; --sub: #555; --on-gold: #111; color-scheme: light; }
+    body { font-size: 13px; }
+    .print, details summary { display: none; }
+    details > ol { display: block; }
+    .card { border: 0; padding: 8px 0; break-inside: avoid; }
+    .hero::after { height: 4px; }
+    h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in"><img src="/Black-belt-prep-system/ama-logo.png" alt=""><div><b>Australian Martial Arts</b><span>Grading report card</span></div><button class="btn print" id="print" hidden>Print or save</button></div></header>
+<main id="app"><div class="msg">Loading the report card…</div></main>
+<script>
+'use strict';
+(function () {
+  const CFG = window.PREP_CONFIG || {};
+  const app = document.getElementById('app');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const OUT = { pass: 'Passed', distinction: 'Passed with distinction', retest: 'Retest', not_yet: 'Not yet' };
+  const num = n => n == null ? '–' : (Number.isInteger(+n) ? String(+n) : (+n).toFixed(1));
+  const day = d => { if (!d) return ''; const x = new Date(String(d).length <= 10 ? d + 'T00:00:00' : d); return isNaN(x) ? '' : x.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
+  const token = (location.hash.replace(/^#/, '').match(/^[A-Za-z0-9]{12,40}/) || [''])[0];
+  const fail = msg => { app.innerHTML = `<div class="card msg">${esc(msg)}</div>`; };
+  if (!token) return fail('This link is not complete. Please use the full link from your email or text.');
+
+  fetch(String(CFG.SUPABASE_URL || '').replace(/\/$/, '') + '/rest/v1/rpc/prep_report_card', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_ANON_KEY }, body: JSON.stringify({ p_token: token })
+  }).then(r => r.ok ? r.text() : Promise.reject(r.status)).then(t => (t && t.trim() ? JSON.parse(t) : null)).then(card => {
+    if (!card) return fail('This report card is not available. It may not have been released yet; please check with the AMA team.');
+    document.title = `${card.name}: ${card.target} report card`;
+    const cats = card.categories || [], checks = card.checks || [], comments = card.comments || [];
+    app.innerHTML = `
+      <section class="card hero">
+        <p class="eyebrow">${esc(card.grading || 'Black belt grading')}</p>
+        <h1>${esc(card.name)}</h1>
+        <p class="belts">${card.from ? esc(card.from) + ' &rarr; ' : ''}<b>${esc(card.target)}</b></p>
+        ${card.date ? `<p class="when">Graded ${esc(day(card.date))}</p>` : ''}
+        <span class="outcome ${esc(card.outcome)}">${esc(OUT[card.outcome] || card.outcome)}</span>
+        ${card.summary ? `<p class="summary">${esc(card.summary)}</p>` : ''}
+      </section>
+      ${cats.length ? `<section class="card"><h2>Scores</h2>${cats.map(c => `<div class="cat">
+          <div class="cat-h"><b>${esc(c.label)}</b><span>${num(c.score)}<small> / 10</small></span></div>
+          <div class="bar"><i style="width:${c.score == null ? 0 : Math.max(0, Math.min(100, c.score * 10))}%"></i></div>
+          ${(c.notes || []).map(n => `<p class="note">${esc(n)}</p>`).join('')}
+          ${(c.items || []).length ? `<details><summary>What was assessed</summary><ol>${c.items.map(i => `<li>${esc(i)}</li>`).join('')}</ol></details>` : ''}
+        </div>`).join('')}</section>` : ''}
+      ${checks.length ? `<section class="card"><h2>Requirements</h2><ul class="checks">${checks.map(c => `<li class="${c.done ? 'y' : 'n'}"><i>${c.done ? '&#10003;' : '&ndash;'}</i>${esc(c.label)}</li>`).join('')}</ul></section>` : ''}
+      ${comments.length ? `<section class="card"><h2>From the examiners</h2>${comments.map(c => `<div class="comment"><span class="by">${esc(c.by)}</span>
+          ${c.strengths ? `<span class="lab">Strengths</span><p>${esc(c.strengths)}</p>` : ''}
+          ${c.work_on ? `<span class="lab">To work on next</span><p>${esc(c.work_on)}</p>` : ''}</div>`).join('')}</section>` : ''}
+      <p class="foot">Australian Martial Arts · Questions? Reply to the email or text this link came with.</p>`;
+    const p = document.getElementById('print'); p.hidden = false; p.onclick = () => window.print();
+  }).catch(() => fail('The report card could not be loaded just now. Please try again in a minute.'));
+})();
+</script>
+</body>
+</html>

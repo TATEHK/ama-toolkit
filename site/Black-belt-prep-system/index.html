@@ -481,6 +481,64 @@
     .pipeline button { padding: 12px 10px; }
   }
   @media (min-width: 900px) { dialog.wide { width: min(760px, calc(100% - 48px)); } }
+
+  /* Examiner scoring (tablet first) */
+  .sc-list .sc-prog { display: inline-flex; align-items: center; gap: 6px; }
+  .sc-dots { display: inline-flex; gap: 3px; }
+  .sc-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line2); }
+  .sc-dots i.on { background: var(--gold); }
+  .sc-dlg { width: 100%; max-width: 100%; height: 100%; max-height: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: var(--bg); color: var(--fg); }
+  .sc-dlg::backdrop { background: rgba(0,0,0,.6); }
+  .sc-top { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .sc-top h3 { font: 700 22px/1.1 var(--font-display); margin: 0; }
+  .sc-top .sub { color: var(--muted); font-size: 14px; }
+  .sc-top .grow { flex: 1; min-width: 0; }
+  .sc-top .sc-avg { text-align: right; }
+  .sc-top .sc-avg b { display: block; font: 700 28px/1 var(--font-display); color: var(--gold); font-variant-numeric: tabular-nums; }
+  .sc-top .sc-avg span { font-size: 12px; color: var(--muted); }
+  .sc-nav { display: flex; gap: 6px; overflow-x: auto; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: var(--sc-top, 64px); z-index: 2; scrollbar-width: none; }
+  .sc-nav a { flex: 0 0 auto; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line2); color: var(--fg); text-decoration: none; font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .sc-nav a.done { border-color: var(--gold); }
+  .sc-nav a.done::after { content: " " attr(data-score); color: var(--gold); }
+  .sc-body { max-width: 980px; margin: 0 auto; padding: 14px 16px calc(env(safe-area-inset-bottom, 0px) + 90px); display: grid; gap: 12px; }
+  .sc-cat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; scroll-margin-top: 130px; }
+  .sc-cat.done { border-color: color-mix(in srgb, var(--gold) 55%, var(--line)); }
+  .sc-cat h4 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 0 4px; font: 700 20px/1.2 var(--font-display); }
+  .sc-cat h4 b { font-size: 26px; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .sc-cat details { margin: 2px 0 10px; }
+  .sc-cat summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 4px 0; }
+  .sc-cat ol { margin: 6px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+  .sc-scale { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 6px; }
+  .sc-scale button { min-height: 54px; border-radius: 10px; border: 1px solid var(--line2); background: var(--surface2); color: var(--fg); font: 700 20px/1 var(--font-display); cursor: pointer; font-variant-numeric: tabular-nums; touch-action: manipulation; }
+  .sc-scale button:hover { border-color: var(--gold); }
+  .sc-scale button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+  .sc-scale-l { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .sc-half { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); margin-top: 8px; }
+  .sc-note { margin-top: 10px; }
+  .sc-note input { width: 100%; }
+  .sc-others { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .sc-checks { display: grid; gap: 8px; }
+  .sc-check { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 10px 12px; border: 1px solid var(--line2); border-radius: 10px; background: var(--surface2); cursor: pointer; font-weight: 600; }
+  .sc-check input { width: 24px; height: 24px; accent-color: var(--gold); }
+  .sc-comments { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+  .sc-comments textarea { width: 100%; min-height: 96px; }
+  .sc-saved { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); z-index: 4; padding: 8px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line2); font-size: 14px; color: var(--muted); }
+  .sc-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; gap: 10px; justify-content: space-between; align-items: center; padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px); background: var(--surface); border-top: 1px solid var(--line); }
+  .sc-foot .btn { min-height: 50px; min-width: 120px; }
+  @media (max-width: 640px) {
+    .sc-scale { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .sc-comments { grid-template-columns: 1fr; }
+  }
+  .sc-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .sc-table th, .sc-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: center; font-variant-numeric: tabular-nums; }
+  .sc-table th:first-child, .sc-table td:first-child { text-align: left; }
+  .sc-table td.low { color: var(--danger); font-weight: 700; }
+  .sc-table tfoot td { font-weight: 700; border-bottom: 0; }
+  .sc-outcomes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .sc-outcomes button { min-height: 52px; border-radius: 10px; border: 1px solid var(--line2); background: var(--surface2); color: var(--fg); font-weight: 700; cursor: pointer; }
+  .sc-outcomes button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+  .sc-outcomes button .s { display: block; font-size: 11px; font-weight: 600; opacity: .75; }
+  @media (max-width: 520px) { .sc-outcomes { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
 <body>
@@ -661,6 +719,7 @@
 </dialog>
 
 <dialog id="sheet" class="sheet"></dialog>
+<dialog id="scoreDlg" class="sc-dlg" aria-label="Score sheet"></dialog>
 
 <div id="toast" role="status" popover="manual" hidden></div>
 
@@ -918,6 +977,9 @@ async function loadAll() {
   // Grading enrolment nurture sequence (supabase/prep-update-19.sql)
   const [nsq, tgq] = await Promise.all([sb.from('prep_nurture_steps').select('*').order('sort'), sb.from('prep_time_groups').select('*').order('sort')]);
   state.nurtureReady = !nsq.error; state.nurtureSteps = nsq.data || []; state.timeGroups = tgq.data || [];
+  // Examiner scoring and report cards (supabase/prep-update-25.sql)
+  const ssq = await sb.from('prep_score_sheets').select('*');
+  state.scoringReady = !ssq.error; state.scoreSheets = ssq.data || [];
   // Polo shirt orders (supabase/prep-update-15.sql): grading and payments staff
   if (has('grading', 'payments')) {
     const [ps, po] = await Promise.all([sb.from('prep_polo_settings').select('*'), sb.from('prep_polo_orders').select('*').order('created_at')]);
@@ -3456,7 +3518,7 @@ function renderGrading() {
   if (!state.gradingReady) { v.innerHTML = `<div class="view-head"><h2>Grading</h2></div><div class="card">Run supabase/prep-update-04.sql in Supabase to use grading.</div>`; return; }
   const c = cycle(G.cycle), rows = grRows(), count = k => rows.filter(x => GR_FILTERS[k][1](x)).length;
   const staff = canGradeRole();
-  const panels = [['candidates', 'Candidates', rows.length], staff && ['day', 'Grading day', null], staff && state.nurtureReady && ['sequence', 'Sequence', null]].filter(Boolean);
+  const panels = [['candidates', 'Candidates', rows.length], staff && ['day', 'Grading day', null], staff && state.nurtureReady && ['sequence', 'Sequence', null], state.scoringReady && ['scoring', 'Scoring', null]].filter(Boolean);
   if (!panels.some(p => p[0] === G.panel)) G.panel = 'candidates';
   const keepFocus = document.activeElement && document.activeElement.id === 'grSearch';
   const pipe = [['decide', 'To decide', count('decide')], ['nominated', 'Put forward', count('nominated')], ['ready', 'Ready', count('ready')], ['results', 'Results', count('results')]];
@@ -3492,6 +3554,9 @@ function renderGrading() {
   } else if (G.panel === 'day') {
     box.outerHTML = '<div class="card" id="grBooking"><div class="panel-empty">Loading the grading day…</div></div>';
     renderBbBooking(c);
+  } else if (G.panel === 'scoring') {
+    box.outerHTML = '<div id="grScoring"><div class="card panel-empty">Loading scores…</div></div>';
+    renderScoring(c);
   } else {
     box.outerHTML = '<div class="card" id="grNurture"><div class="panel-empty">Loading the sequence…</div></div>';
     renderNurture(c);
@@ -3544,6 +3609,247 @@ function renderGrList() {
 function startGrSelect() { grSel.on = true; grSel.ids.clear(); document.body.classList.add('selecting'); $('#grSelbar').hidden = false; }
 function stopGrSelect() { grSel.on = false; grSel.ids.clear(); const b = $('#grSelbar'); if (b) b.hidden = true; if (!state.att.selecting && !stuSel.on && !rdSel.on) document.body.classList.remove('selecting'); }
 function updateGrSelbar() { $('#grSelCount').textContent = `${grSel.ids.size} selected`; $$('#grSelbar [data-gbulk]').forEach(b => b.disabled = !grSel.ids.size); }
+
+/* ---------- Examiner scoring and report cards (supabase/prep-update-25.sql) ----------
+   Each examiner scores each section out of 10 on a tablet. Grading staff see the averages, a suggested outcome
+   (every section at least the pass mark and the average at least the pass average; distinction above that), confirm
+   the outcome and release a report card the family opens from a private link. */
+const canScore = () => has('grading', 'instructor');
+const scoreSheet = rank => (state.scoreSheets || []).find(s => s.target_rank === rank) || null;
+const OUTCOMES = { pass: ['Pass', 'ok'], distinction: ['Distinction', 'gold'], retest: ['Retest', 'warn'], not_yet: ['Not yet', 'bad'] };
+const reportLink = tok => location.origin + '/report#' + tok;
+const scData = {};
+const r1 = n => Math.round(n * 10) / 10;
+// The examiner's name for score sheets and report cards: never an email address (families see it)
+const scName = () => { const n = String(state.myName || ''); if (n && !n.includes('@')) return n; const l = String(state.email || '').split('@')[0]; return /^hub-\d+$/.test(l) ? 'Examiner' : l.replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Examiner'; };
+const fmtScore = n => n == null ? '–' : (Number.isInteger(+n) ? String(+n) : (+n).toFixed(1));
+async function loadScores(cid) {
+  const [sc, nt, rc] = await Promise.all([
+    sb.from('prep_scores').select('*').eq('cycle_id', cid),
+    sb.from('prep_score_notes').select('*').eq('cycle_id', cid),
+    sb.from('prep_report_cards').select('*').eq('cycle_id', cid)]);
+  const bad = [sc, nt, rc].find(r => r.error); if (bad) throw bad.error;
+  return (scData[cid] = { scores: sc.data || [], notes: nt.data || [], cards: rc.data || [] });
+}
+function scSummary(cid, sid, target) {
+  const d = scData[cid] || { scores: [], notes: [], cards: [] }, sh = scoreSheet(target), cats = sh ? sh.categories : [];
+  const all = d.scores.filter(x => x.student_id === sid);
+  const per = cats.map(c => {
+    const xs = all.filter(x => x.category === c.key).map(x => +x.score);
+    const mine = all.find(x => x.category === c.key && x.examiner === state.email);
+    return { ...c, avg: xs.length ? r1(xs.reduce((a, b) => a + b, 0) / xs.length) : null, n: xs.length, mine: mine ? +mine.score : null };
+  });
+  const scored = per.filter(c => c.avg != null);
+  const overall = scored.length ? r1(scored.reduce((a, c) => a + c.avg, 0) / scored.length) : null;
+  const st = state.settings, passMin = +(st.score_pass_min ?? 5), passAvg = +(st.score_pass_avg ?? 6), dist = +(st.score_distinction_avg ?? 8.5);
+  let suggest = null;
+  if (cats.length && scored.length === cats.length) suggest = scored.some(c => c.avg < passMin) ? 'retest' : overall >= dist ? 'distinction' : overall >= passAvg ? 'pass' : 'retest';
+  const examiners = [...new Set(all.filter(x => cats.some(c => c.key === x.category)).map(x => x.examiner))];
+  return { sh, per, overall, examiners, mineCount: per.filter(c => c.mine != null).length, total: cats.length, suggest,
+    card: d.cards.find(x => x.student_id === sid) || null, passMin, passAvg, dist };
+}
+function scCandidates() {
+  const rows = grRows(), put = rows.filter(x => x.e && x.e.is_grading);
+  return put.length ? put : rows.filter(x => x.st === 'eligible');
+}
+
+async function renderScoring(c) {
+  const box = $('#grScoring'); if (!box) return;
+  try { await loadScores(c.cycle_id); } catch (e) { box.innerHTML = `<div class="card">${esc(errMsg(e))}</div>`; return; }
+  if (state.view !== 'grading' || state.gr.panel !== 'scoring' || state.gr.cycle !== c.cycle_id || !$('#grScoring')) return;
+  const list = scCandidates(), staff = canGradeRole();
+  box.innerHTML = `<div class="card"><h3 style="margin:0">Score sheets</h3>
+      <p class="hint" style="margin:4px 0 0">${canScore()
+        ? `Tap a candidate to score each section out of 10. Each examiner keeps their own scores; the averages decide the suggestion. Pass: every section ${fmtScore(state.settings.score_pass_min ?? 5)}+ and an average of ${fmtScore(state.settings.score_pass_avg ?? 6)}+. Distinction: ${fmtScore(state.settings.score_distinction_avg ?? 8.5)}+.`
+        : 'Scores from the examiners. You can view them but not score.'}</p></div>
+    <ul class="list sc-list" id="scList">${list.length ? list.map(x => {
+      const m = scSummary(c.cycle_id, x.s.student_id, x.target);
+      const facts = !m.sh ? [`<span class="fact bad">No score sheet for ${esc(x.target || '?')}</span>`] : [
+        canScore() ? `<span class="fact ${m.mineCount === m.total ? 'ok' : m.mineCount ? 'warn' : ''}"><span class="sc-prog">You ${m.mineCount}/${m.total} <span class="sc-dots">${m.per.map(p => `<i class="${p.mine != null ? 'on' : ''}"></i>`).join('')}</span></span></span>` : '',
+        `<span class="fact">${m.examiners.length} ${m.examiners.length === 1 ? 'examiner' : 'examiners'}</span>`,
+        m.overall != null && staff ? `<span class="fact">Average ${fmtScore(m.overall)}</span>` : '',
+        m.card ? `<span class="fact ${OUTCOMES[m.card.outcome][1] === 'gold' ? 'ok' : OUTCOMES[m.card.outcome][1]}">${OUTCOMES[m.card.outcome][0]}${m.card.released_at ? ' · report sent' : ' · report not released'}</span>`
+          : m.suggest && staff ? `<span class="fact">Suggests ${OUTCOMES[m.suggest][0].toLowerCase()}</span>` : ''].filter(Boolean);
+      return `<li style="display:flex;gap:8px;align-items:stretch"><button class="item" style="flex:1" data-sc="${esc(x.s.student_id)}" ${m.sh ? '' : 'disabled'}>
+        <div class="main"><div class="name-row"><span class="name">${esc(x.s.full_name)}</span></div>
+        <div class="meta">${esc(`${x.s.belt_rank || 'No belt'} → ${x.target || '?'}`)}</div><div class="facts">${facts.join('')}</div></div></button>
+        ${staff && m.sh ? `<button class="btn" data-scres="${esc(x.s.student_id)}" style="align-self:center">Results</button>` : ''}</li>`;
+    }).join('') : '<li><div class="empty">No one is put forward for grading in this cycle yet.</div></li>'}</ul>`;
+  $$('#scList [data-sc]').forEach(b => b.onclick = () => canScore() ? openScore(c.cycle_id, b.dataset.sc) : openResults(c.cycle_id, b.dataset.sc));
+  $$('#scList [data-scres]').forEach(b => b.onclick = () => openResults(c.cycle_id, b.dataset.scres));
+}
+
+function openScore(cid, sid) {
+  const f = grFacts(cid, sid), sh = scoreSheet(f.target);
+  if (!sh) return toast(`There is no score sheet for ${f.target || 'this belt'} yet.`);
+  const d = scData[cid] || (scData[cid] = { scores: [], notes: [], cards: [] }), dlg = $('#scoreDlg');
+  const order = scCandidates().map(x => x.s.student_id), at = order.indexOf(sid);
+  const mine = k => d.scores.find(x => x.student_id === sid && x.examiner === state.email && x.category === k) || null;
+  const myNote = () => d.notes.find(x => x.student_id === sid && x.examiner === state.email) || null;
+  const others = k => d.scores.filter(x => x.student_id === sid && x.examiner !== state.email && x.category === k);
+  const staff = canGradeRole();
+  let peek = false;
+  const myAvg = () => { const xs = sh.categories.map(c => mine(c.key)).filter(Boolean).map(x => +x.score); return xs.length ? r1(xs.reduce((a, b) => a + b, 0) / xs.length) : null; };
+  const catHtml = c => {
+    const m = mine(c.key), v = m ? +m.score : null, o = others(c.key);
+    return `<section class="sc-cat ${v != null ? 'done' : ''}" id="sc-${c.key}" data-cat="${c.key}">
+      <h4><span>${esc(c.label)}</span><b data-val>${fmtScore(v)}</b></h4>
+      <details><summary>What's being scored (${c.items.length})</summary><ol>${c.items.map(i => `<li>${esc(i)}</li>`).join('')}</ol></details>
+      <div class="sc-scale" role="group" aria-label="${esc(c.label)} score out of 10">${Array.from({ length: 11 }, (_, n) => `<button type="button" data-n="${n}" aria-pressed="${v != null && Math.floor(v) === n}">${n}</button>`).join('')}</div>
+      <div class="row" style="justify-content:space-between;align-items:center"><label class="sc-half"><input type="checkbox" data-half ${v != null && v % 1 ? 'checked' : ''} ${v == null || v >= 10 ? 'disabled' : ''}> and a half</label><span class="sc-scale-l" style="flex:1;margin-left:16px"><span>Not shown</span><span>Excellent</span></span></div>
+      <div class="sc-note"><input type="text" data-note placeholder="Note for this section (optional, shows on the report card)" aria-label="Note for ${esc(c.label)}" value="${esc(m && m.note || '')}"></div>
+      ${staff && peek ? `<div class="sc-others">${o.length ? o.map(x => `${esc(x.examiner_name || x.examiner)}: <b>${fmtScore(x.score)}</b>${x.note ? ` · ${esc(x.note)}` : ''}`).join('<br>') : 'No other examiner has scored this yet.'}</div>` : ''}
+    </section>`;
+  };
+  const draw = () => {
+    const n = myNote() || {}, ck = n.checks || {};
+    dlg.innerHTML = `<div class="sc-top"><button class="btn ghost" data-scclose>Close</button>
+        <div class="grow"><h3>${esc(f.s.full_name)}</h3><div class="sub">${esc(f.s.belt_rank || '')} → <b>${esc(f.target)}</b> · scoring as ${esc(scName())}</div></div>
+        <div class="sc-avg"><b id="scMyAvg">${fmtScore(myAvg())}</b><span>your average</span></div></div>
+      <nav class="sc-nav" aria-label="Sections">${sh.categories.map(c => { const m = mine(c.key); return `<a href="#sc-${c.key}" data-go="${c.key}" class="${m ? 'done' : ''}" data-score="${m ? fmtScore(m.score) : ''}">${esc(c.label)}</a>`; }).join('')}${(sh.checks || []).length ? '<a href="#sc-checks" data-go="checks">Checks</a>' : ''}<a href="#sc-comments" data-go="comments">Comments</a></nav>
+      <div class="sc-body">
+        ${staff ? `<label class="sc-half" style="justify-self:end"><input type="checkbox" id="scPeek" ${peek ? 'checked' : ''}> Show other examiners' scores</label>` : ''}
+        ${sh.categories.map(catHtml).join('')}
+        ${(sh.checks || []).length ? `<section class="sc-cat" id="sc-checks"><h4><span>Checks</span></h4><div class="sc-checks">${sh.checks.map((t, i) => `<label class="sc-check"><input type="checkbox" data-check="${i}" ${ck[t] ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</div></section>` : ''}
+        <section class="sc-cat" id="sc-comments"><h4><span>Comments for the report card</span></h4>
+          <div class="sc-comments"><div class="field" style="margin:0"><label for="scStr">Strengths</label><textarea id="scStr" placeholder="What they did really well">${esc(n.strengths || '')}</textarea></div>
+          <div class="field" style="margin:0"><label for="scWork">To work on</label><textarea id="scWork" placeholder="What to focus on next">${esc(n.work_on || '')}</textarea></div></div></section>
+      </div>
+      <div class="sc-foot"><button class="btn" data-scmove="-1" ${at > 0 ? '' : 'disabled'}>Previous</button><span class="sub" id="scLeft"></span><button class="btn primary" data-scmove="1">${at >= 0 && at < order.length - 1 ? 'Next candidate' : 'Done'}</button></div>
+      <div class="sc-saved" id="scSaved" hidden>Saved</div>`;
+    const top = dlg.querySelector('.sc-top'); dlg.style.setProperty('--sc-top', top.offsetHeight + 'px');
+    left();
+    dlg.querySelector('[data-scclose]').onclick = () => dlg.close();
+    dlg.querySelectorAll('[data-go]').forEach(a => a.onclick = e => { e.preventDefault(); const t = dlg.querySelector('#sc-' + a.dataset.go); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    const pk = dlg.querySelector('#scPeek'); if (pk) pk.onchange = () => { peek = pk.checked; const y = dlg.scrollTop; draw(); dlg.scrollTop = y; };
+    dlg.querySelectorAll('[data-cat]').forEach(sec => {
+      const k = sec.dataset.cat;
+      sec.querySelectorAll('[data-n]').forEach(b => b.onclick = () => {
+        const cur = mine(k), n = +b.dataset.n, half = sec.querySelector('[data-half]').checked && n < 10;
+        if (cur && Math.floor(+cur.score) === n) return setScore(k, null);
+        setScore(k, half ? n + 0.5 : n);
+      });
+      sec.querySelector('[data-half]').onchange = e => { const cur = mine(k); if (cur) setScore(k, Math.floor(+cur.score) + (e.target.checked ? 0.5 : 0)); };
+      const note = sec.querySelector('[data-note]');
+      note.onchange = () => { const cur = mine(k); if (cur) setScore(k, +cur.score, note.value); else toast('Choose a score first, then add a note.'); };
+    });
+    dlg.querySelectorAll('[data-check]').forEach(i => i.onchange = () => saveNote());
+    ['#scStr', '#scWork'].forEach(id => { const t = dlg.querySelector(id); t.onchange = () => saveNote(); });
+    dlg.querySelectorAll('[data-scmove]').forEach(b => b.onclick = async () => {
+      await flush();
+      const nx = order[at + +b.dataset.scmove];
+      if (nx) openScore(cid, nx); else dlg.close();
+    });
+  };
+  const left = () => { const n = sh.categories.filter(c => !mine(c.key)).length, el = dlg.querySelector('#scLeft'); if (el) el.textContent = n ? `${n} ${n === 1 ? 'section' : 'sections'} to score` : 'All sections scored'; };
+  const saved = (msg = 'Saved') => { const el = dlg.querySelector('#scSaved'); if (!el) return; el.textContent = msg; el.hidden = false; clearTimeout(saved.t); saved.t = setTimeout(() => el.hidden = true, 1400); };
+  const refresh = k => {
+    const sec = dlg.querySelector(`[data-cat="${k}"]`), m = mine(k), v = m ? +m.score : null;
+    sec.classList.toggle('done', v != null);
+    sec.querySelector('[data-val]').textContent = fmtScore(v);
+    sec.querySelectorAll('[data-n]').forEach(b => b.setAttribute('aria-pressed', String(v != null && Math.floor(v) === +b.dataset.n)));
+    const h = sec.querySelector('[data-half]'); h.disabled = v == null || v >= 10; h.checked = v != null && v % 1 !== 0;
+    const a = dlg.querySelector(`[data-go="${k}"]`); a.classList.toggle('done', v != null); a.dataset.score = v != null ? fmtScore(v) : '';
+    dlg.querySelector('#scMyAvg').textContent = fmtScore(myAvg());
+    left();
+  };
+  let pending = Promise.resolve();
+  const flush = () => pending;
+  const setScore = (k, v, noteText) => {
+    const cur = mine(k), sec = dlg.querySelector(`[data-cat="${k}"]`);
+    const note = noteText !== undefined ? noteText : (sec.querySelector('[data-note]').value || '');
+    const before = cur ? { ...cur } : null;
+    if (v == null) d.scores = d.scores.filter(x => x !== cur);
+    else if (cur) { cur.score = v; cur.note = note || null; }
+    else d.scores.push({ cycle_id: cid, student_id: sid, examiner: state.email, examiner_name: scName(), category: k, score: v, note: note || null });
+    refresh(k);
+    pending = pending.then(async () => {
+      try {
+        if (v == null) await run(sb.from('prep_scores').delete().match({ cycle_id: cid, student_id: sid, examiner: state.email, category: k }));
+        else await run(sb.from('prep_scores').upsert({ cycle_id: cid, student_id: sid, examiner: state.email, examiner_name: scName(), category: k, score: v, note: note || null }, { onConflict: 'cycle_id,student_id,examiner,category' }));
+        saved(v == null ? 'Cleared' : 'Saved');
+      } catch (e) {
+        // put it back the way it was, so the screen never shows a score that was not saved
+        d.scores = d.scores.filter(x => !(x.student_id === sid && x.examiner === state.email && x.category === k));
+        if (before) d.scores.push(before);
+        refresh(k); toast('Not saved: ' + errMsg(e), 6000);
+      }
+    });
+  };
+  const saveNote = () => {
+    const checks = {}; dlg.querySelectorAll('[data-check]').forEach(i => { if (i.checked) checks[sh.checks[+i.dataset.check]] = true; });
+    const row = { cycle_id: cid, student_id: sid, examiner: state.email, examiner_name: scName(),
+      strengths: dlg.querySelector('#scStr').value.trim() || null, work_on: dlg.querySelector('#scWork').value.trim() || null, checks };
+    const cur = myNote(); if (cur) Object.assign(cur, row); else d.notes.push(row);
+    pending = pending.then(async () => {
+      try { await run(sb.from('prep_score_notes').upsert(row, { onConflict: 'cycle_id,student_id,examiner' })); saved(); }
+      catch (e) { toast('Not saved: ' + errMsg(e), 6000); }
+    });
+  };
+  dlg.onclose = () => { const t = document.activeElement; if (t && t.blur) t.blur(); flush().then(() => { if (state.view === 'grading' && state.gr.panel === 'scoring') renderScoring(cycle(cid)); }); };
+  draw();
+  if (!dlg.open) { dlg.showModal(); raiseToast(); }
+  dlg.scrollTop = 0;
+}
+
+function openResults(cid, sid) {
+  const f = grFacts(cid, sid), m = scSummary(cid, sid, f.target), d = scData[cid] || { scores: [], notes: [], cards: [] };
+  if (!m.sh) return toast(`There is no score sheet for ${f.target || 'this belt'} yet.`);
+  const staff = canGradeRole();
+  const exs = m.examiners.map(e => { const x = d.scores.find(y => y.examiner === e && y.student_id === sid); return { e, name: (x && x.examiner_name) || e.split('@')[0] }; });
+  const cell = (e, k) => { const x = d.scores.find(y => y.student_id === sid && y.examiner === e && y.category === k); return x ? fmtScore(x.score) : '–'; };
+  const notes = d.notes.filter(n => n.student_id === sid);
+  const ticked = t => notes.some(n => n.checks && n.checks[t]);
+  let pick = (m.card && m.card.outcome) || m.suggest || null;
+  const why = !m.suggest ? `${m.per.filter(p => p.avg == null).length} of ${m.total} sections not scored yet, so there is no suggestion.`
+    : m.suggest === 'retest' && m.per.some(p => p.avg != null && p.avg < m.passMin) ? `Suggests a retest: ${m.per.filter(p => p.avg < m.passMin).map(p => p.label).join(', ')} under ${fmtScore(m.passMin)}.`
+    : `Suggests ${OUTCOMES[m.suggest][0].toLowerCase()}: average ${fmtScore(m.overall)} (pass ${fmtScore(m.passAvg)}+, distinction ${fmtScore(m.dist)}+).`;
+  const recordable = f.e && f.e.is_grading && f.g;
+  openSheet(`<div class="body">
+    ${sheetHead(f.s.full_name, `${esc(f.s.belt_rank || '')} → <b>${esc(f.target)}</b>`)}
+    <div style="overflow-x:auto"><table class="sc-table"><thead><tr><th>Section</th>${exs.map(x => `<th>${esc(x.name)}</th>`).join('')}<th>Average</th></tr></thead>
+      <tbody>${m.per.map(p => `<tr><td>${esc(p.label)}</td>${exs.map(x => `<td>${cell(x.e, p.key)}</td>`).join('')}<td class="${p.avg != null && p.avg < m.passMin ? 'low' : ''}"><b>${fmtScore(p.avg)}</b></td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>Overall</td>${exs.map(() => '<td></td>').join('')}<td>${fmtScore(m.overall)}</td></tr></tfoot></table></div>
+    ${(m.sh.checks || []).length ? `<p class="hint">${m.sh.checks.map(t => `${ticked(t) ? '✓' : '✗'} ${esc(t)}`).join(' · ')}</p>` : ''}
+    ${notes.some(n => n.strengths || n.work_on) ? `<div class="section"><h3>Examiner comments</h3>${notes.filter(n => n.strengths || n.work_on).map(n => `<p><b>${esc(n.examiner_name || n.examiner)}</b>${n.strengths ? `<br>Strengths: ${esc(n.strengths)}` : ''}${n.work_on ? `<br>To work on: ${esc(n.work_on)}` : ''}</p>`).join('')}</div>` : ''}
+    <p class="hint">${esc(why)} Nobody is passed automatically: choose the outcome below.</p>
+    ${staff ? `<div class="section"><h3>Outcome</h3>
+      <div class="sc-outcomes" role="group" aria-label="Outcome">${Object.entries(OUTCOMES).map(([k, [t]]) => `<button type="button" data-oc="${k}" aria-pressed="${pick === k}">${t}${m.suggest === k ? '<span class="s">suggested</span>' : ''}</button>`).join('')}</div>
+      <div class="field" style="margin-top:10px"><label for="scSum">Summary for the family (optional)</label><textarea id="scSum" rows="3" placeholder="A few words from the grading panel">${esc(m.card && m.card.summary || '')}</textarea></div>
+      ${recordable ? `<label class="sc-half" style="margin:0 0 10px"><input type="checkbox" id="scRec" ${f.g.result ? '' : 'checked'}> Also record the grading result (${f.g.result ? 'now ' + esc(label(f.g.result)).toLowerCase() : 'passed or unsuccessful'})</label>` : ''}
+      <div class="row" style="flex-wrap:wrap;gap:8px"><button class="btn primary" id="scConfirm">${m.card ? 'Save outcome' : 'Confirm outcome'}</button>
+        ${m.card ? `<button class="btn" id="scRelease">${m.card.released_at ? 'Copy report card link' : 'Release report card'}</button><a class="btn ghost" href="${esc(reportLink(m.card.token))}" target="_blank" rel="noopener">${m.card.released_at ? 'Open report card' : 'Preview'}</a>` : ''}
+        ${m.card && m.card.released_at ? '<button class="btn ghost" id="scUnrelease">Take the report card back</button>' : ''}</div>
+      ${m.card ? `<p class="hint">${m.card.released_at ? `Released ${fmtTime(m.card.released_at)} by ${esc(m.card.released_by || '')}. Anyone with the link can open it.` : 'Not released: the family link shows nothing until you release it.'}</p>` : ''}
+    </div>` : ''}
+  </div>`);
+  sheet.classList.add('wide');
+  $$('#sheet [data-oc]').forEach(b => b.onclick = () => { pick = b.dataset.oc; $$('#sheet [data-oc]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); });
+  const again = async msg => { await loadScores(cid); if (msg) toast(msg); openResults(cid, sid); if ($('#grScoring')) renderScoring(cycle(cid)); };
+  const cf = $('#scConfirm'); if (cf) cf.onclick = async () => {
+    if (!pick) return toast('Choose an outcome first.');
+    cf.disabled = true;
+    try {
+      await run(sb.from('prep_report_cards').upsert({ cycle_id: cid, student_id: sid, target_rank: f.target, outcome: pick, summary: $('#scSum').value.trim() || null,
+        confirmed_by: state.email, confirmed_at: new Date().toISOString() }, { onConflict: 'cycle_id,student_id' }));
+      const rec = $('#scRec');
+      if (rec && rec.checked) { await recordResult(cid, sid, ['pass', 'distinction'].includes(pick) ? 'passed' : 'unsuccessful'); f.g.result = ['pass', 'distinction'].includes(pick) ? 'passed' : 'unsuccessful'; }
+      await again('Outcome saved');
+    } catch (e) { cf.disabled = false; toast(errMsg(e), 6000); }
+  };
+  const rl = $('#scRelease'); if (rl) rl.onclick = async () => {
+    const link = reportLink(m.card.token);
+    try {
+      if (!m.card.released_at) await run(sb.from('prep_report_cards').update({ released_at: new Date().toISOString(), released_by: state.email }).match({ cycle_id: cid, student_id: sid }));
+      try { await navigator.clipboard.writeText(link); } catch (e) { /* shown below instead */ }
+      await again(m.card.released_at ? 'Link copied' : 'Released. Link copied: ' + link);
+    } catch (e) { toast(errMsg(e), 6000); }
+  };
+  const ur = $('#scUnrelease'); if (ur) ur.onclick = async () => {
+    if (!await ask('The family link will stop working until you release it again.', 'Take it back')) return;
+    try { await run(sb.from('prep_report_cards').update({ released_at: null, released_by: null }).match({ cycle_id: cid, student_id: sid })); await again('Report card taken back'); } catch (e) { toast(errMsg(e), 6000); }
+  };
+}
 
 async function saveDecision(cid, sid, decision, reason, notes) {
   const c = cycle(cid), s = student(sid), g = gradingFor(cid, sid);
