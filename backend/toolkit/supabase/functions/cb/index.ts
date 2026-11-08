@@ -574,10 +574,20 @@ export async function handle(req, db, env = {}, http = fetch) {
       await log('sent'); return { status: 'sent' };
     } catch (er) { const why = String(er.message || er).slice(0, 500); await log('failed', { error: why }); return { status: 'failed', why }; }
   };
+  // Long "in (...)" lists go in batches: hundreds of ids in one request is too long an address and the lookup fails
+  const selectIn = async (table, cols, col, values, size = 100) => {
+    const vals = [...new Set(values)], rows = [];
+    for (let i = 0; i < vals.length; i += size) {
+      const { data, error } = await db.from(table).select(cols).in(col, vals.slice(i, i + size));
+      if (error) throw new Error(`${table}: ${error.message || error}`);
+      rows.push(...(data || []));
+    }
+    return rows;
+  };
   const membersFor = async keys => {
     if (!keys.length) return {};
-    const { data } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').in('member_key', [...new Set(keys)]);
-    return Object.fromEntries((data || []).map(m => [m.member_key, m]));
+    const data = await selectIn('efc_members', 'member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth', 'member_key', keys);
+    return Object.fromEntries(data.map(m => [m.member_key, m]));
   };
   const DAY_COLS = 'day_id, location, grading_date, start_time, belt_times, closed, programme, bb, book_by';
   const ENT_COLS = 'entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, paid, paid_at, result, seq_paused_until, seq_stopped_at';
@@ -611,7 +621,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const { data: ents } = await db.from('cb_entries').select(ENT_COLS).in('day_id', coloured.map(d => d.day_id));
     const ids = (ents || []).map(e => e.entry_id);
     if (!ids.length) return res;
-    const { data: logs } = await db.from('cb_seq_log').select('entry_id, step_code').in('entry_id', ids);
+    const logs = await selectIn('cb_seq_log', 'entry_id, step_code', 'entry_id', ids);
     let skips = []; try { ({ data: skips } = await db.from('cb_skip').select('member_key, until')); } catch (_) { /* no skip list */ }
     const { data: prep } = await db.from('cb_prep_bookings').select('member_key, session_time');
     const prepBy = Object.fromEntries((prep || []).map(p => [p.member_key, p.session_time]));
@@ -780,7 +790,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: ents } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school').in('day_id', open.map(d => d.day_id));
       const waiting = (ents || []).filter(e => e.invited_at && !e.booked_at && !e.result);
       if (!waiting.length) return json({ ok: true, matched: 0 });
-      const { data: mems } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email').in('member_key', [...new Set(waiting.map(e => e.member_key))]);
+      const mems = await selectIn('efc_members', 'member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email', 'member_key', waiting.map(e => e.member_key));
       const byKey = Object.fromEntries((mems || []).map(m => [m.member_key, m]));
       const last9 = x => String(x || '').replace(/\D/g, '').slice(-9);
       const mine = waiting.filter(e => { const m = byKey[e.member_key]; return m && (last9(m.phone) === p9 || last9(m.guardian_phone) === p9); });
@@ -920,10 +930,10 @@ export async function handle(req, db, env = {}, http = fetch) {
       try {
         const ids = results.filter(r => r.ok && r.entry_id).map(r => r.entry_id);
         if (ids.length) {
-          const { data: ents } = await db.from('cb_entries').select('entry_id, member_key, full_name, belt_from, belt_to, token, day_id, school').in('entry_id', ids);
+          const ents = await selectIn('cb_entries', 'entry_id, member_key, full_name, belt_from, belt_to, token, day_id, school', 'entry_id', ids);
           const { data: ds } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, programme, bb').in('day_id', [...new Set((ents || []).map(e => e.day_id))]);
           const dayBy = Object.fromEntries((ds || []).map(d => [d.day_id, d]));
-          const { data: ms } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').in('member_key', [...new Set((ents || []).map(e => e.member_key))]);
+          const ms = await selectIn('efc_members', 'member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth', 'member_key', (ents || []).map(e => e.member_key));
           const memBy = Object.fromEntries((ms || []).map(m => [m.member_key, m]));
           const { data: cs } = await db.from('cb_settings').select('contact_phone, email_bring').eq('id', 1).maybeSingle();
           const bring = String((cs && cs.email_bring) || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);

@@ -140,9 +140,9 @@ function makeDb(tables) {
     auth: { getUser: async tok => ({ data: { user: tok === 'grader' ? { email: 'grader@ama.test' } : tok === 'boss' ? { email: 'boss@ama.test' } : null } }) },
     from(table) {
       const T = tables[table] = tables[table] || [];
-      let f = [], op = 'select', payload = null, single = false;
+      let f = [], op = 'select', payload = null, single = false, tooLong = false;   // like the real API: a very long in(...) list fails
       const q = {
-        select() { return q; }, eq(c, v) { f.push(r => r[c] === v); return q; }, in(c, vs) { f.push(r => vs.includes(r[c])); return q; },
+        select() { return q; }, eq(c, v) { f.push(r => r[c] === v); return q; }, in(c, vs) { if (vs.length > 150) tooLong = true; f.push(r => vs.includes(r[c])); return q; },
         gte(c, v) { f.push(r => String(r[c]) >= String(v)); return q; }, is(c, v) { f.push(r => (r[c] ?? null) === v); return q; }, match(o) { Object.entries(o).forEach(([c, v]) => f.push(r => r[c] === v)); return q; },
         maybeSingle() { single = true; return q; }, order() { return q; },
         update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; }, delete() { op = 'delete'; return q; },
@@ -155,6 +155,7 @@ function makeDb(tables) {
               }
               return { data: null, error: null };
             }
+            if (tooLong) return { data: null, error: { message: 'URI too long' } };
             const rows = T.filter(r => f.every(fn => fn(r)));
             if (op === 'update') { rows.forEach(r => Object.assign(r, payload)); return { data: null, error: null }; }
             if (op === 'delete') { tables[table] = T.filter(r => !rows.includes(r)); return { data: null, error: null }; }
@@ -257,6 +258,18 @@ res = await call(db, { action: 'seq_test', code: 'nudge_d2', phone: '' }, { auth
 ok(res.status === 400 && /mobile/.test(res.body.error), 'a test text needs your mobile');
 res = await call(db, { action: 'seq_run' }, { authorization: 'Bearer grader' });
 ok(res.status === 403, 'only an admin can run the sequence by hand');
+
+console.log('\nA big day: 300 students invited in one run');
+db = makeDb(tables());
+db.t.cb_settings[0].seq_on = true;
+for (let i = 0; i < 300; i++) {
+  db.t.cb_entries.push({ ...base, entry_id: 'big' + i, member_key: 'efc:big' + i, full_name: 'Big ' + i, token: 'TOKBIG' + i });
+  db.t.efc_members.push({ member_key: 'efc:big' + i, full_name: 'Big ' + i, guardian_name: 'Parent ' + i, phone: '0412 000 ' + String(i).padStart(3, '0') });
+}
+Date.now = () => at('2026-11-09', '14:00');
+const before300 = ghlCalls.filter(c => c.body && c.body.type === 'SMS').length;
+await cron(db);
+ok(ghlCalls.filter(c => c.body && c.body.type === 'SMS').length - before300 === 302 && !db.t.cb_seq_log.some(l => l.why === 'Student not found in EFC'), 'every family is found and texted (lookups go in batches)');
 Date.now = realNow;
 
 console.log(`\n${passed} passed, ${failed} failed`);
