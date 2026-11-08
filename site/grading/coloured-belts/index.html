@@ -494,6 +494,8 @@ const beltsText = d => dayBelts(d) ? dayBelts(d).slice().sort((a, b) => (beltOf(
 // Booking cut-off: a datetime-local value from an ISO time, and whether bookings have closed for a day
 const localInput = iso => { const t = new Date(iso); return new Date(t.getTime() - t.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
 const whenText = iso => new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+// How many EFC sessions a day books into (per belt, per school and belt, per school, or one for the day)
+const efcLinked = d => { const n = o => o && typeof o === 'object' ? Object.keys(o).length : 0; return n(d.efc_belt_sessions) + Object.values(d.efc_school_belt_sessions || {}).reduce((t, o) => t + n(o), 0) + n(d.efc_sessions) + (d.efc_session_id ? 1 : 0); };
 const bookingShut = d => !!(d && d.book_by && new Date(d.book_by) <= new Date());
 const bookingLink = e => location.origin + '/b#' + e.token;
 // A family's grading photo: a short link so the text fits in one SMS (opens photo/ with the code)
@@ -1020,7 +1022,7 @@ function renderDay() {
   const stage = (stages.find(x => x[0] === dayFilt.stage) || stages.find(x => x[0] === auto) || stages[0] || [])[0];
   const fromCap = fromText(d) ? fromText(d)[0].toUpperCase() + fromText(d).slice(1) : '';
   const facts = [d.start_time ? fmtTime(d.start_time) : '', beltsText(d), fromCap, d.move_up ? 'Moving up to Taekwondo' : '',
-    d.book_by ? (bookingShut(d) ? 'Bookings closed' : 'Bookings close ' + whenText(d.book_by)) : '', d.efc_session ? 'EFC: ' + d.efc_session : 'No EFC session named'].filter(Boolean);
+    d.book_by ? (bookingShut(d) ? 'Bookings closed' : 'Bookings close ' + whenText(d.book_by)) : '', d.efc_session ? 'EFC: ' + d.efc_session : efcLinked(d) ? 'EFC sessions linked (' + efcLinked(d) + ')' : 'No EFC session linked'].filter(Boolean);
   v.innerHTML = `<div><button class="back" id="backDays">‹ Grading days</button></div>
     <div class="day-card">
       <div class="view-head"><div><p class="sub">${esc(d.location)}${isAll() || state.programmes.length > 1 ? ', ' + esc(progLabel(d.programme || state.programme)) : ''}</p><h2 class="day-date">${esc(fmtDate(d.grading_date))}</h2></div>${canGrade() ? '<button class="btn sm" id="editDay">Edit</button>' : ''}</div>

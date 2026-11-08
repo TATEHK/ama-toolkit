@@ -440,6 +440,52 @@ export async function handle(req, db, env = {}, http = fetch) {
   const sendEmailTo = (contactId, m) => ghl('/conversations/messages', { method: 'POST', body: JSON.stringify({ type: 'Email', contactId, subject: m.subject, html: m.html, message: m.text }) }, '2021-04-15');
   // Leave a note on the family's GoHighLevel contact (member notes live on their GHL profile).
   const addNote = (contactId, body) => ghl('/contacts/' + contactId + '/notes', { method: 'POST', body: JSON.stringify({ body: String(body).slice(0, 5000) }) }, '2021-07-28');
+  // Send a text; returns GoHighLevel's message id. GoHighLevel can accept a text and fail it afterwards (its daily SMS limit),
+  // so each text's real status is checked on a later run (verifySms) and an email goes instead if it failed.
+  const sendSms = async (contactId, message) => { const r = await ghl('/conversations/messages', { method: 'POST', body: JSON.stringify({ type: 'SMS', contactId, message }) }, '2021-04-15'); return (r && (r.messageId || r.id)) || null; };
+  // GoHighLevel's daily SMS limit: "...You can start sending message after 2026-11-09 16:41 Australia/Sydney."
+  const limitUntil = err => { const t = String(err || ''); if (!/sms sending limit|reached its/i.test(t)) return null; const x = t.match(/(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/); return new Date(x ? sydMs(x[1], x[2]) + 60e3 : Date.now() + 24 * 3600e3).toISOString(); };
+  const smsBlocked = st => !!(st && st.sms_blocked_until && Date.parse(st.sms_blocked_until) > Date.now());
+  const goodEmail = m => [m && m.guardian_email, m && m.email].find(v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) || null;
+  // The email backup for a text that can't go (or failed): the same words, as an AMA email with the links as buttons
+  const emailBackup = async ({ m, entry_id, subject, text, why }) => {
+    const email = goodEmail(m);
+    if (!email) return { ok: false, why: 'No email address for the backup' };
+    const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: entry_id || null, member_key: m.member_key, kind: 'sms_backup', email, body: subject + '\n\n' + text, status, sent_by: 'automatic: email backup (' + why + ')', ...extra });
+    try {
+      const cid = await contactFor({ ...m, email }, phoneE164(m.phone || m.guardian_phone));
+      if (!cid) throw new Error('Could not find or add the contact');
+      await sendEmailTo(cid, buildSeqEmail(subject, text)); await log('sent'); return { ok: true };
+    } catch (er) { const w = String(er.message || er).slice(0, 500); await log('failed', { error: w }); return { ok: false, why: w }; }
+  };
+  // Check texts sent in the last 6 hours: mark the ones GoHighLevel failed, stop texting until a daily limit resets, and email instead
+  const verifySms = async (st, budgetMs = 40e3) => {
+    const t0 = Date.now(), res = { checked: 0, failed: 0, backups: 0 };
+    const { data: rows } = await db.from('cb_messages').select('message_id, entry_id, member_key, body, sent_by, ghl_id, sent_at').eq('status', 'sent').not('ghl_id', 'is', null).is('verified_at', null)
+      .gte('sent_at', new Date(Date.now() - 6 * 3600e3).toISOString()).lte('sent_at', new Date(Date.now() - 60e3).toISOString()).order('sent_at').limit(60);
+    for (const r of rows || []) {
+      if (Date.now() - t0 > budgetMs) break;
+      let msg; try { msg = await ghl('/conversations/messages/' + encodeURIComponent(r.ghl_id), { method: 'GET' }, '2021-04-15'); } catch (_) { continue; }
+      const mm = (msg && (msg.message || msg)) || {}, status = String(mm.status || '');
+      res.checked++;
+      if (!status || status === 'pending' || status === 'scheduled') continue;
+      if (status !== 'failed' && status !== 'undelivered') { await db.from('cb_messages').update({ verified_at: new Date().toISOString() }).eq('message_id', r.message_id); continue; }
+      const err = String((mm.meta && mm.meta.error) || mm.error || (mm.meta && JSON.stringify(mm.meta)) || 'Failed in GoHighLevel').slice(0, 500);
+      await db.from('cb_messages').update({ status: 'failed', error: err, verified_at: new Date().toISOString() }).eq('message_id', r.message_id);
+      res.failed++;
+      const until = limitUntil(err);
+      if (until && !smsBlocked(st)) { st.sms_blocked_until = until; await db.from('cb_settings').update({ sms_blocked_until: until }).eq('id', 1); }
+      // An invitation text that failed is sent again once texting works (its invitation email has already gone); anything else is emailed now
+      if (r.entry_id && r.sent_by === 'automatic: invite_sms') {
+        await db.from('cb_seq_log').delete().eq('entry_id', r.entry_id).eq('step_code', 'invite_sms');
+        await db.from('cb_entries').update({ invited_at: null }).eq('entry_id', r.entry_id);
+        continue;
+      }
+      const { data: m } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email').eq('member_key', r.member_key).maybeSingle();
+      if (m) { const b = await emailBackup({ m, entry_id: r.entry_id, subject: `${firstWord(m.full_name)}'s grading at AMA`, text: r.body, why: 'text failed' }); if (b.ok) res.backups++; }
+    }
+    return res;
+  };
   // The grading fee: for a black belt (Dan) session it comes from the prep grading rates by the rank they're grading to; otherwise from cb_belts by the belt they're on.
   const feeFor = async (e, d) => {
     if (d && d.bb) { const { data: r } = await db.from('prep_grading_fee_rates').select('fee').eq('target_rank', e.belt_to).maybeSingle(); return r && r.fee != null ? Number(r.fee) : null; }
@@ -563,6 +609,11 @@ export async function handle(req, db, env = {}, http = fetch) {
     if (step.channel === 'email' && !email) return { status: 'skipped', why: 'No email address' };
     if (testing && !ready) { await log('test'); return { status: 'test' }; }
     if (!ready) return { status: 'failed', why: 'Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID)' };
+    // Texting is stopped (GoHighLevel's daily limit): email the same message instead, or hold it until texting works again
+    if (step.channel === 'sms' && !to && smsBlocked(st)) {
+      const b = await emailBackup({ m, entry_id: e.entry_id, subject: `${v.first}'s grading at AMA`, text, why: 'texting paused' });
+      return b.ok ? { status: 'sent', why: 'Emailed instead (texting paused until ' + st.sms_blocked_until + ')' } : { status: 'held', why: b.why };
+    }
     try {
       const cid = to ? await contactFor({ guardian_name: to.name || to.by, email }, phone) : await contactFor({ ...m, email }, phone);
       if (!cid) throw new Error('Could not find or add the contact');
@@ -571,9 +622,10 @@ export async function handle(req, db, env = {}, http = fetch) {
         const c = await ghl('/contacts/' + cid, { method: 'GET' }); const ct = (c && c.contact) || {}, k = step.channel === 'sms' ? 'SMS' : 'Email';
         if (ct.dnd === true || (ct.dndSettings && ct.dndSettings[k] && ct.dndSettings[k].status === 'active')) { await log('failed', { error: 'DND in GoHighLevel' }); return { status: 'skipped', why: 'DND in GoHighLevel' }; }
       }
-      if (step.channel === 'sms') await ghl('/conversations/messages', { method: 'POST', body: JSON.stringify({ type: 'SMS', contactId: cid, message: text }) }, '2021-04-15');
+      let gid = null;
+      if (step.channel === 'sms') gid = await sendSms(cid, text);
       else { const mail = buildSeqEmail(subject, text); await sendEmailTo(cid, mail); }
-      await log('sent'); return { status: 'sent' };
+      await log('sent', gid ? { ghl_id: gid } : {}); return { status: 'sent' };
     } catch (er) { const why = String(er.message || er).slice(0, 500); await log('failed', { error: why }); return { status: 'failed', why }; }
   };
   // Long "in (...)" lists go in batches: hundreds of ids in one request is too long an address and the lookup fails
@@ -604,6 +656,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       let r = { status: 'skipped', why: 'Student or day not found' };
       if (step && e && d && m && !e.paid) r = await seqSend({ step, e, d, m, st });
       else if (e && e.paid) r = { status: 'skipped', why: 'Booked and paid' };
+      if (r.status === 'held') { await db.from('cb_outbox').update({ status: 'held', error: r.why || null }).eq('out_id', o.out_id); continue; }   // tried again on the next run
       await db.from('cb_outbox').update({ sent_at: new Date().toISOString(), status: r.status, error: r.why || null }).eq('out_id', o.out_id);
       res.outbox++;
     }
@@ -614,6 +667,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const { data: steps0 } = await db.from('cb_seq_steps').select('*');
     const steps = steps0 || [];
     const res = { ok: true, on: !!st.seq_on, sent: 0, test: 0, calls: 0, skipped: 0, missed: 0, failed: 0, outbox: 0 };
+    if (env.GHL_TOKEN && env.GHL_LOCATION_ID) { try { res.verify = await verifySms(st); } catch (er) { console.error('verify', er); } }
     await runOutbox(st, steps, res);
     if (!st.seq_on) return res;
     const today = sydParts(nowMs).ymd;
@@ -640,11 +694,16 @@ export async function handle(req, db, env = {}, http = fetch) {
     const entBy = Object.fromEntries((ents || []).map(e => [e.entry_id, e])), dayBy = Object.fromEntries(coloured.map(d => [d.day_id, d]));
     const memBy = await membersFor(plan.map(p => entBy[p.entry_id].member_key));
     const fees = {};
+    // Invitation texts go in smaller lots: at most sms_daily_cap texts a day from here (GoHighLevel stops all of AMA's texts at 750,
+    // which the hub needs too), and none while texting is stopped. The rest wait for the next runs.
+    const { count: sms24 } = await db.from('cb_messages').select('message_id', { count: 'exact', head: true }).not('phone', 'is', null).eq('status', 'sent').gte('sent_at', new Date(nowMs - 864e5).toISOString());
+    let smsLeft = Math.max(0, (st.sms_daily_cap ?? 450) - (sms24 || 0));
     // A run has limited time and memory: send at most SEQ_MAX_SENDS messages, and leave the rest for the next run (every few minutes)
     let sends = 0;
     for (const p of plan) {
       if ((p.act === 'send') && sends >= SEQ_MAX_SENDS) { res.more = true; continue; }
       const e = entBy[p.entry_id], d = dayBy[e.day_id], step = steps.find(s => s.code === p.code);
+      if (p.act === 'send' && p.code === 'invite_sms') { if (smsBlocked(st) || smsLeft <= 0) { res.waiting = (res.waiting || 0) + 1; continue; } smsLeft--; }
       // Claim the step first (one row per student per step), so two runs at once never send it twice
       const { error: claimErr } = await db.from('cb_seq_log').insert({ entry_id: e.entry_id, step_code: p.code, status: 'sending' });
       if (claimErr) continue;
@@ -663,6 +722,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!(fk in fees)) fees[fk] = await feeFor(e, d);
       sends++;
       const r = await seqSend({ step, e, d, m, st, fee: fees[fk], prepTime: prepBy[e.member_key] || null });
+      if (r.status === 'held') { await db.from('cb_seq_log').delete().eq('entry_id', e.entry_id).eq('step_code', p.code); res.held = (res.held || 0) + 1; continue; }   // tried again on a later run
       await fin(r.status, r.why);
       res[r.status] = (res[r.status] || 0) + 1;
       // The invitation starts the clock for everything after it
@@ -839,10 +899,15 @@ export async function handle(req, db, env = {}, http = fetch) {
         const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind: 'not_booked', phone, body: text, status, sent_by: 'automatic: replied YES', ...extra });
         if (testing && !ready) { await log('test'); out.push({ entry_id: e.entry_id, ok: true, test: true }); continue; }
         if (!ready) { out.push({ entry_id: e.entry_id, error: 'texting not set up' }); continue; }
+        if (smsBlocked(st)) {   // texting is stopped (GoHighLevel's daily limit): email the booking link instead, or queue the text
+          const b = await emailBackup({ m, entry_id: e.entry_id, subject: `${firstWord(m.full_name || e.full_name)}'s grading booking link`, text, why: 'texting paused' });
+          if (!b.ok) await db.from('cb_outbox').insert({ entry_id: e.entry_id, kind: 'send_link' });
+          out.push({ entry_id: e.entry_id, ok: b.ok, emailed: b.ok, queued: !b.ok }); continue;
+        }
         try {
           const cid = await contactFor({ ...m, email: m.email || m.guardian_email }, phone);
-          await ghl('/conversations/messages', { method: 'POST', body: JSON.stringify({ type: 'SMS', contactId: cid, message: text }) }, '2021-04-15');
-          await log('sent'); out.push({ entry_id: e.entry_id, ok: true });
+          const gid = await sendSms(cid, text);
+          await log('sent', gid ? { ghl_id: gid } : {}); out.push({ entry_id: e.entry_id, ok: true });
         } catch (er) { const msg2 = String(er.message || er).slice(0, 500); await log('failed', { error: msg2 }); out.push({ entry_id: e.entry_id, error: msg2 }); }
       }
       return json({ ok: true, matched: mine.length, yes: true, results: out });

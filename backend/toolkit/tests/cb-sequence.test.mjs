@@ -140,9 +140,9 @@ function makeDb(tables) {
     auth: { getUser: async tok => ({ data: { user: tok === 'grader' ? { email: 'grader@ama.test' } : tok === 'boss' ? { email: 'boss@ama.test' } : null } }) },
     from(table) {
       const T = tables[table] = tables[table] || [];
-      let f = [], op = 'select', payload = null, single = false, tooLong = false;   // like the real API: a very long in(...) list fails
+      let f = [], op = 'select', payload = null, single = false, tooLong = false, countOnly = false;   // like the real API: a very long in(...) list fails
       const q = {
-        select() { return q; }, eq(c, v) { f.push(r => r[c] === v); return q; }, in(c, vs) { if (vs.length > 150) tooLong = true; f.push(r => vs.includes(r[c])); return q; },
+        select(c, o) { if (o && o.count) countOnly = true; return q; }, not(c, op, v) { f.push(r => (r[c] ?? null) !== v); return q; }, lte(c, v) { f.push(r => String(r[c]) <= String(v)); return q; }, eq(c, v) { f.push(r => r[c] === v); return q; }, in(c, vs) { if (vs.length > 150) tooLong = true; f.push(r => vs.includes(r[c])); return q; },
         gte(c, v) { f.push(r => String(r[c]) >= String(v)); return q; }, is(c, v) { f.push(r => (r[c] ?? null) === v); return q; }, match(o) { Object.entries(o).forEach(([c, v]) => f.push(r => r[c] === v)); return q; },
         maybeSingle() { single = true; return q; }, order() { return q; }, limit() { return q; }, lt(c, v) { f.push(r => String(r[c]) < String(v)); return q; },
         update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; }, delete() { op = 'delete'; return q; },
@@ -159,6 +159,7 @@ function makeDb(tables) {
             const rows = T.filter(r => f.every(fn => fn(r)));
             if (op === 'update') { rows.forEach(r => Object.assign(r, payload)); return { data: null, error: null }; }
             if (op === 'delete') { tables[table] = T.filter(r => !rows.includes(r)); return { data: null, error: null }; }
+            if (countOnly) return { data: null, count: rows.length, error: null };
             return { data: single ? (rows[0] || null) : rows, error: null };
           }).then(res, rej);
         }
@@ -285,6 +286,47 @@ const smsBefore = ghlCalls.length;
 await cron(db);
 ok(db.t.cb_seq_log.find(l => l.entry_id === sid && l.step_code === 'invite_sms').status === 'sent' && ghlCalls.slice(smsBefore).filter(c => c.body && c.body.type === 'SMS').length === 1, 'a claim stuck sending with no message logged is sent again');
 ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run', 'a claim stuck sending whose message went is marked sent');
+// GoHighLevel's daily SMS limit: a text it accepted and then failed is found on the next run, texting stops until the limit
+// resets, the invitation text waits (its email has gone), and other texts go by email instead
+{
+  const lim = makeDb(tables()); lim.t.cb_settings[0].seq_on = true; dnd = false; Date.now = () => at('2026-11-09', '14:00');
+  let failIds = new Set();
+  const http2 = async (url, opts = {}) => {
+    const m = url.match(/\/conversations\/messages\/(m\d+)$/);
+    if (m) { const j = { message: { id: m[1], status: failIds.has(m[1]) ? 'failed' : 'delivered', meta: failIds.has(m[1]) ? { error: 'You have reached your SMS sending limit of 750 for the day. You can start sending message after 2026-11-10 16:41 Australia/Sydney.' } : {} } }; return { ok: true, status: 200, text: async () => JSON.stringify(j), json: async () => j }; }
+    return http(url, opts);
+  };
+  const cron2 = () => handle(new Request('https://x.test/functions/v1/cb', { method: 'POST', headers: { 'content-type': 'application/json', 'x-cb-cron': 'cron-secret' }, body: JSON.stringify({ action: 'sequence' }) }), lim, env, http2).then(r => r.json());
+  await cron2();
+  const sent = lim.t.cb_messages.filter(x => x.sent_by === 'automatic: invite_sms' && x.status === 'sent');
+  ok(sent.length === 2 && sent.every(x => x.ghl_id), 'each text keeps GoHighLevel\'s message id');
+  sent.forEach(x => { failIds.add(x.ghl_id); x.sent_at = new Date(Date.now() - 5 * 60e3).toISOString(); });
+  Date.now = () => at('2026-11-09', '14:10');
+  const before = ghlCalls.filter(c => c.body && c.body.type === 'SMS').length;
+  const r2 = await cron2();
+  ok(r2.verify && r2.verify.failed === 2 && sent.every(x => x.status === 'failed'), 'texts GoHighLevel failed are marked failed');
+  ok(String(lim.t.cb_settings[0].sms_blocked_until).startsWith('2026-11-10T05:42'), 'texting stops until the limit resets');
+  ok(lim.t.cb_entries.filter(e => e.entry_id !== 'bbe').every(e => !e.invited_at) && ghlCalls.filter(c => c.body && c.body.type === 'SMS').length === before && r2.waiting === 2, 'the invitation texts wait (no texts while stopped)');
+  // A family replies YES while texting is stopped: the booking link goes by email
+  const before2 = ghlCalls.length;
+  lim.t.cb_entries[0].invited_at = new Date().toISOString();
+  const rr = await handle(new Request('https://x.test/functions/v1/cb', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'reply', key: 'rk', phone: '0412345678', message: 'Yes' }) }), lim, env, http2).then(r => r.json());
+  const mails = ghlCalls.slice(before2).filter(c => c.body && c.body.type === 'Email'), texts = ghlCalls.slice(before2).filter(c => c.body && c.body.type === 'SMS');
+  ok(rr.results[0].emailed && mails.length === 1 && texts.length === 0 && mails[0].body.html.includes('Book the grading'), 'a YES while texting is stopped gets the booking link by email');
+  // After the reset the invitations are texted again
+  Date.now = () => at('2026-11-10', '16:45');
+  lim.t.cb_entries[0].invited_at = null; lim.t.cb_entries[0].seq_paused_until = null;
+  const before3 = ghlCalls.filter(c => c.body && c.body.type === 'SMS').length;
+  await cron2();
+  ok(ghlCalls.filter(c => c.body && c.body.type === 'SMS').length - before3 === 2, 'once the limit resets, the invitation texts go again');
+}
+// The daily cap: invitation texts beyond sms_daily_cap wait for the next day
+{
+  const cap = makeDb(tables()); cap.t.cb_settings[0].seq_on = true; cap.t.cb_settings[0].sms_daily_cap = 1; Date.now = () => at('2026-11-09', '14:00');
+  const before = ghlCalls.filter(c => c.body && c.body.type === 'SMS').length;
+  const r = await handle(new Request('https://x.test/functions/v1/cb', { method: 'POST', headers: { 'content-type': 'application/json', 'x-cb-cron': 'cron-secret' }, body: JSON.stringify({ action: 'sequence' }) }), cap, env, http).then(r => r.json());
+  ok(ghlCalls.filter(c => c.body && c.body.type === 'SMS').length - before === 1 && r.waiting === 1, 'invitation texts stop at the daily cap; the rest wait');
+}
 Date.now = realNow;
 
 console.log(`\n${passed} passed, ${failed} failed`);

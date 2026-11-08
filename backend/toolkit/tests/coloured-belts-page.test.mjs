@@ -463,7 +463,7 @@ try {
   ok((await q(`select count(*)::int n from cb_seq_steps`))[0].n === 15 && (await q(`select seq_on from cb_settings`))[0].seq_on === false, 'coloured-belts-23.sql runs twice; 15 steps, and the sequence starts switched off');
   await page.goto(BASE + '/grading/coloured-belts/settings'); await page.waitForSelector('#seqPanel');
   let sp = await page.textContent('#seqPanel');
-  ok(sp.includes('Off') && sp.includes('10 texts, 2 emails and 1 call') && sp.includes('Invitation text') && sp.includes('Day 2') && sp.includes('G−8') && sp.includes('Staff call on My Day') && sp.includes('Sam is preparing for their Orange Belt grading'), 'Settings shows the sequence compactly: off, a count, and the booking steps as a timeline');
+  ok(sp.includes('Off') && sp.includes('10 texts, 2 emails and 1 call') && sp.includes('Invitation text') && sp.includes('Day 2') && sp.includes('G−8') && sp.includes('Staff call on My Day') && sp.includes('Sam is invited to grade for Orange Belt'), 'Settings shows the sequence compactly: off, a count, and the booking steps as a timeline');
   ok((await page.$$('#seqPanel textarea')).length === 0, '...with no editors open (each message is one line with a preview)');
   await page.click('#seqPanel [data-tab="booked"]');
   ok((await page.textContent('#seqPanel .sq-list')).includes('Uses the "Grading day reminder" wording') && (await page.$$('#seqPanel .sq-item')).length === 3, 'tabs show one track at a time (Booked in: 3 steps, one using the existing reminder wording)');
