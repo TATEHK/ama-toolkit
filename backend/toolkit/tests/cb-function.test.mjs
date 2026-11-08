@@ -395,7 +395,7 @@ const hbbs = hooks[hooks.length - 1];
 ok(r.body.booked && hbbs.session_id === 'syd-1dan' && hbbs.location_id === '5af07764-95bc-4caf-b889-ba846e409dc5' && hbbs.location === 'Sydenham', 'a Sydenham black belt candidate books the Sydenham session for their rank');
 t.cb_entries.find(x => x.entry_id === 'ebbs').school = 'Sydenham';
 r = await call({ action: 'info', token: 'R'.repeat(48) + 'r'.repeat(16) });
-ok(r.body.school === 'Marrickville', 'a Sydenham student is told they grade at AMA Marrickville (still booked into EFC under Sydenham, above)');
+ok(r.body.school === 'Marrickville', 'a Sydenham black belt is told the day\'s venue (still booked into EFC under Sydenham, above)');
 
 console.log('\nBlack belt: their own school even when EFC has no school for them (coloured-belts-25.sql)');
 const dbbv = t.cb_days.find(x => x.day_id === 'dbbv');
@@ -405,7 +405,7 @@ t.efc_members.push({ member_key: 'efc:bbc', efc_reference: 'AU-258-0099', full_n
 t.cb_entries.push({ entry_id: 'ebbc', day_id: 'dbbv', member_key: 'efc:bbc', full_name: 'Cara BB', belt_from: 'Probationary Black Belt', belt_to: '1st Dan Black Belt', token: 'bbSchoolCc'.repeat(6), booked_at: null, booking_error: null, result: null, paid: false, paid_how: null, school: 'Concord' },
                    { entry_id: 'ebbx', day_id: 'dbbv', member_key: 'efc:bbx', full_name: 'Xan BB', belt_from: 'Probationary Black Belt', belt_to: '1st Dan Black Belt', token: 'bbSchoolNo'.repeat(6), booked_at: null, booking_error: null, result: null, paid: false, paid_how: null, school: null });
 r = await call({ action: 'info', token: 'bbSchoolCc'.repeat(6) });
-ok(r.body.school === 'Concord', 'the booking page shows their own school, not the day\'s');
+ok(r.body.school === 'Marrickville', 'the booking page shows the black belt grading venue (the day\'s), while the booking goes to their own school');
 let nh = hooks.length;
 r = await call({ action: 'book', token: 'bbSchoolCc'.repeat(6) });
 ok(r.body.booked && hooks.length === nh + 1 && hooks[hooks.length - 1].session_id === 'cc-1dan' && hooks[hooks.length - 1].location === 'Concord', 'a Concord candidate with no school in EFC books the Concord session (from the entry)');
