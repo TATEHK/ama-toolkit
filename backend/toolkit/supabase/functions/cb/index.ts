@@ -77,9 +77,13 @@ const first = n => String(n || '').trim().split(/\s+/)[0] || '';
 // A student's home school: from EFC, or from the EFC reference (AU-023 Marrickville, 256 Sydenham, 257 West, 258 Concord, 3096 Sylvania)
 const REF_SCHOOL = { '023': 'Marrickville', '256': 'Sydenham', '257': 'West', '258': 'Concord', '3096': 'Sylvania' };
 export const refSchool = ref => REF_SCHOOL[String(ref || '').split('-')[1]] || null;
-// Where a student grades: a black belt day has a session at every school, so it's their own school (cb_entries.school,
+// Where a school's students grade, when it isn't their own school. Sydenham students grade at AMA Marrickville, but are
+// still booked into EFC under Sydenham (their own school's session and EFC location); this only changes what families are told.
+export const GRADING_VENUE = { Sydenham: 'Marrickville' };
+export const venueOf = school => GRADING_VENUE[school] || school || '';
+// Where a student grades: a black belt day has a session at every school, so it's their own school's venue (cb_entries.school,
 // coloured-belts-25.sql); a coloured belt day is at the day's school.
-export const whereOf = (e, d) => (d && d.bb && e && e.school) || (d && d.location) || '';
+export const whereOf = (e, d) => venueOf((d && d.bb && e && e.school) || (d && d.location) || '');
 const tokenOk = t => /^[A-Za-z0-9_-]{8,72}$/.test(String(t || ''));   // short url-safe tokens, and the old 64-hex ones
 const STRIPE = 'https://api.stripe.com/v1';
 const BOOK_PAGE = 'https://app.train-ama.com/grading/coloured-belts/book/';

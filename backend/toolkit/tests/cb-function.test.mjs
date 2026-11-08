@@ -393,6 +393,9 @@ ok(r.body.booked && hbbm2.session_id === 'mv-2dan', 'a different rank on the sam
 r = await call({ action: 'book', token: 'R'.repeat(48) + 'r'.repeat(16) });
 const hbbs = hooks[hooks.length - 1];
 ok(r.body.booked && hbbs.session_id === 'syd-1dan' && hbbs.location_id === '5af07764-95bc-4caf-b889-ba846e409dc5' && hbbs.location === 'Sydenham', 'a Sydenham black belt candidate books the Sydenham session for their rank');
+t.cb_entries.find(x => x.entry_id === 'ebbs').school = 'Sydenham';
+r = await call({ action: 'info', token: 'R'.repeat(48) + 'r'.repeat(16) });
+ok(r.body.school === 'Marrickville', 'a Sydenham student is told they grade at AMA Marrickville (still booked into EFC under Sydenham, above)');
 
 console.log('\nBlack belt: their own school even when EFC has no school for them (coloured-belts-25.sql)');
 const dbbv = t.cb_days.find(x => x.day_id === 'dbbv');
