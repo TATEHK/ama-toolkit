@@ -117,7 +117,7 @@ ok(v.fee === '$55' && v.prep_time === ', 9:00am' && v.prep_link.endsWith('?s=kid
 ok(seqVars(base, day, {}, { now: at('2026-11-20', '10:00') }).prep === '', '{prep} is blank once prep bookings close (19 Nov)');
 const day0 = (SQL.match(/\('invite_sms'[\s\S]*?E'([\s\S]*?)', 10\)/) || [])[1].replace(/''/g, "'").replace(/\\n/g, '\n');
 const sms = fillText(day0, v);
-ok(sms.startsWith('Hi Pat, Sam is preparing for their Orange Belt grading at AMA Concord on Tuesday 1 December at 4:00pm. Please reply YES') && sms.includes('youtu.be') && sms.endsWith('AMA Concord'), 'Day 0 text matches the approved wording');
+ok(sms === "Hi Pat, Sam is invited to grade for Orange Belt, Tuesday 1 December at 4:00pm, AMA Concord. Reply YES and we'll send the booking link." && sms.length <= 160, 'Day 0 text matches the approved wording, in one SMS');
 const mail = buildSeqEmail('Sam\'s Orange Belt grading invitation', "Hi Pat,\n## Grading details\n• Date: Tuesday 1 December\n[Book Sam's grading](https://app.train-ama.com/b#abc)\nAMA Concord");
 ok(mail.html.includes('GRADING DETAILS'.toLowerCase().replace(/^./, c => c)) || mail.html.includes('Grading details'), 'emails: ## lines become headings');
 ok(mail.html.includes('&#10003;') && mail.html.includes('href="https://app.train-ama.com/b#abc"') && mail.text.includes("Book Sam's grading: https://app.train-ama.com/b#abc"), 'emails: bullet points, and [Button](link) becomes a button');
