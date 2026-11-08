@@ -74,6 +74,12 @@ export function phoneE164(p) {
   return null;
 }
 const first = n => String(n || '').trim().split(/\s+/)[0] || '';
+// A student's home school: from EFC, or from the EFC reference (AU-023 Marrickville, 256 Sydenham, 257 West, 258 Concord, 3096 Sylvania)
+const REF_SCHOOL = { '023': 'Marrickville', '256': 'Sydenham', '257': 'West', '258': 'Concord', '3096': 'Sylvania' };
+export const refSchool = ref => REF_SCHOOL[String(ref || '').split('-')[1]] || null;
+// Where a student grades: a black belt day has a session at every school, so it's their own school (cb_entries.school,
+// coloured-belts-25.sql); a coloured belt day is at the day's school.
+export const whereOf = (e, d) => (d && d.bb && e && e.school) || (d && d.location) || '';
 const tokenOk = t => /^[A-Za-z0-9_-]{8,72}$/.test(String(t || ''));   // short url-safe tokens, and the old 64-hex ones
 const STRIPE = 'https://api.stripe.com/v1';
 const BOOK_PAGE = 'https://app.train-ama.com/grading/coloured-belts/book/';
@@ -392,7 +398,7 @@ export function buildSeqEmail(subject, body) {
 
 async function entryByToken(db, token) {
   if (!tokenOk(token)) return null;
-  const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until').eq('token', token).maybeSingle();
+  const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school').eq('token', token).maybeSingle();
   if (!e) return null;
   const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb').eq('day_id', e.day_id).maybeSingle();
   return d ? { e, d } : null;
@@ -447,7 +453,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const when = new Date(d.grading_date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       const et = entryTime(d, e); const t = et ? String(et).slice(0, 5).split(':').map(Number) : null;
       const HOW = { card: 'card', cash: 'cash', eftpos: 'EFTPOS', transfer: 'bank transfer', other: '' };
-      const { subject, html, text } = buildEmail(kind, { parent: first(m.guardian_name) || 'there', kid: first(e.full_name), student: e.full_name, belt: e.belt_to, school: d.location,
+      const { subject, html, text } = buildEmail(kind, { parent: first(m.guardian_name) || 'there', kid: first(e.full_name), student: e.full_name, belt: e.belt_to, school: whereOf(e, d),
         when, time: t ? `${((t[0] + 11) % 12) + 1}:${String(t[1]).padStart(2, '0')}${t[0] < 12 ? 'am' : 'pm'}` : '', amount: extra.amount, how: HOW[e.paid_how] || '',
         receipt: extra.receipt || null, phone: (cs && cs.contact_phone) || '(02) 9569 1943', bring: cs && cs.email_bring });
       const log = (status, more = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind, email, body: subject + '\n\n' + text, status, sent_by: 'automatic', ...more });
@@ -466,7 +472,8 @@ export async function handle(req, db, env = {}, http = fetch) {
     const sheet = !!hook && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(hook);
     if (!hook || !(sheet || /^https:\/\/hooks\.zapier\.com\//.test(hook))) return { ok: false, notSetUp: true, why: 'Online booking is not set up (no booking sheet in Settings)' };
     const { data: m } = await db.from('efc_members').select('efc_reference, location').eq('member_key', e.member_key).maybeSingle();
-    const mloc = (m && m.location) || d.location;
+    // A black belt student books their own school's session: never the day's school just because EFC has no school for them
+    const mloc = d.bb ? (e.school || (m && m.location) || refSchool(m && m.efc_reference) || null) : ((m && m.location) || d.location);
     const schoolMap = (d.efc_sessions && typeof d.efc_sessions === 'object') ? d.efc_sessions : {};
     const beltMap = (d.efc_belt_sessions && typeof d.efc_belt_sessions === 'object') ? d.efc_belt_sessions : {};
     const sbMap = (d.efc_school_belt_sessions && typeof d.efc_school_belt_sessions === 'object') ? d.efc_school_belt_sessions : {};
@@ -519,7 +526,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     else await db.from('cb_payments').insert({ entry_id: entryId, stripe_session: s.id, status: 'paid', paid_at: now, amount: (s.amount_total || 0) / 100, stripe_payment: payment, receipt_url: receipt });
     if (!entryId) return true;
     await db.from('cb_entries').update({ paid: true, paid_at: now, paid_how: 'card' }).eq('entry_id', entryId);
-    const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until').eq('entry_id', entryId).maybeSingle();
+    const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school').eq('entry_id', entryId).maybeSingle();
     if (e) {
       const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb').eq('day_id', e.day_id).maybeSingle();
       if (d && !e.booked_at) await bookEntry(e, d);
@@ -670,7 +677,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (e.paid && e.paid_how === 'card') { const { data: rp } = await db.from('cb_payments').select('receipt_url').eq('entry_id', e.entry_id).eq('status', 'paid').maybeSingle(); receipt = (rp && rp.receipt_url) || null; }
       const etm = entryTime(d, e);
       const info = { ok: true, first: first(e.full_name), belt_to: e.belt_to, date: d.grading_date, time: etm ? String(etm).slice(0, 5) : null,
-        school: d.location, fee, booked: !!e.booked_at, paid: !!e.paid, paid_how: e.paid ? (e.paid_how || 'desk') : null, closed: d.closed || !!e.result,
+        school: whereOf(e, d), fee, booked: !!e.booked_at, paid: !!e.paid, paid_how: e.paid ? (e.paid_how || 'desk') : null, closed: d.closed || !!e.result,
         card: !!(env.STRIPE_SECRET_KEY && fee > 0), booking_failed: !!(e.paid && !e.booked_at && e.booking_error),
         book_by: late ? e.late_ok_until : (d.book_by || null), booking_closed: shut, phone, receipt, bring };
       const shutMsg = `Bookings for this grading have closed. Please call us on ${phone}.`;
@@ -698,9 +705,9 @@ export async function handle(req, db, env = {}, http = fetch) {
       const email = [who && who.email, who && who.guardian_email].find(v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) || null;
       const sess = await stripe('/checkout/sessions', { method: 'POST', body: form({
         mode: 'payment', client_reference_id: e.entry_id, metadata: { kind: 'grading', entry_id: e.entry_id, day_id: e.day_id },
-        payment_intent_data: { metadata: { kind: 'grading', entry_id: e.entry_id }, description: `AMA ${d.location} grading ${d.grading_date}: ${e.full_name} for ${e.belt_to}`, ...(email ? { receipt_email: email } : {}) },
+        payment_intent_data: { metadata: { kind: 'grading', entry_id: e.entry_id }, description: `AMA ${whereOf(e, d)} grading ${d.grading_date}: ${e.full_name} for ${e.belt_to}`, ...(email ? { receipt_email: email } : {}) },
         ...(email ? { customer_email: email } : {}),
-        line_items: { 0: { quantity: 1, price_data: { currency: 'aud', unit_amount: Math.round(fee * 100), product_data: { name: `AMA grading: ${e.belt_to}`, description: `${first(e.full_name)}, ${d.location}, ${d.grading_date}` } } } },
+        line_items: { 0: { quantity: 1, price_data: { currency: 'aud', unit_amount: Math.round(fee * 100), product_data: { name: `AMA grading: ${e.belt_to}`, description: `${first(e.full_name)}, ${whereOf(e, d)}, ${d.grading_date}` } } } },
         success_url: `${site}?paid=1#t=${e.token}`, cancel_url: `${site}#t=${e.token}` }) });
       const { data: had } = await db.from('cb_payments').select('payment_id').eq('entry_id', e.entry_id).eq('status', 'pending').maybeSingle();
       if (had) await db.from('cb_payments').update({ stripe_session: sess.id, amount: fee, created_at: new Date().toISOString() }).eq('payment_id', had.payment_id);
@@ -763,7 +770,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
       const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb').gte('grading_date', today);
       const open = (days || []).filter(d => !d.closed); if (!open.length) return json({ ok: true, matched: 0, why: 'no grading days coming up' });
-      const { data: ents } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at').in('day_id', open.map(d => d.day_id));
+      const { data: ents } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school').in('day_id', open.map(d => d.day_id));
       const waiting = (ents || []).filter(e => e.invited_at && !e.booked_at && !e.result);
       if (!waiting.length) return json({ ok: true, matched: 0 });
       const { data: mems } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email').in('member_key', [...new Set(waiting.map(e => e.member_key))]);
@@ -796,7 +803,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (skip && (!skip.until || String(skip.until) >= today)) { out.push({ entry_id: e.entry_id, skipped: true }); continue; }
         const m = byKey[e.member_key], d = open.find(x => x.day_id === e.day_id);
         const text = fillText(st.not_booked_text, { parent: firstWord(m.guardian_name) || 'there', first: firstWord(m.full_name || e.full_name), next: e.belt_to,
-          school: d.location, date: longDay(d.grading_date), time: (et => et ? ' at ' + clock(et) : '')(entryTime(d, e)), link: SITE + 'b#' + e.token });
+          school: whereOf(e, d), date: longDay(d.grading_date), time: (et => et ? ' at ' + clock(et) : '')(entryTime(d, e)), link: SITE + 'b#' + e.token });
         const phone = phoneE164(m.phone || m.guardian_phone);
         const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind: 'not_booked', phone, body: text, status, sent_by: 'automatic: replied YES', ...extra });
         if (testing && !ready) { await log('test'); out.push({ entry_id: e.entry_id, ok: true, test: true }); continue; }
@@ -824,7 +831,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!roles.some(r => ['admin', 'grading', 'payments'].includes(r))) return fail('Your login cannot record payments.', 403);
       const how = String(body.how || '');
       if (!['cash', 'eftpos', 'transfer', 'other'].includes(how)) return fail('Choose how they paid.');
-      const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until').eq('entry_id', String(body.entry_id || '')).maybeSingle();
+      const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school').eq('entry_id', String(body.entry_id || '')).maybeSingle();
       if (!e) return fail('Student not found on this grading day.', 404);
       if (e.paid) return json({ ok: true, already: true, booked: !!e.booked_at });
       e.paid = true; e.paid_how = how;
@@ -906,7 +913,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       try {
         const ids = results.filter(r => r.ok && r.entry_id).map(r => r.entry_id);
         if (ids.length) {
-          const { data: ents } = await db.from('cb_entries').select('entry_id, member_key, full_name, belt_from, belt_to, token, day_id').in('entry_id', ids);
+          const { data: ents } = await db.from('cb_entries').select('entry_id, member_key, full_name, belt_from, belt_to, token, day_id, school').in('entry_id', ids);
           const { data: ds } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, programme, bb').in('day_id', [...new Set((ents || []).map(e => e.day_id))]);
           const dayBy = Object.fromEntries((ds || []).map(d => [d.day_id, d]));
           const { data: ms } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').in('member_key', [...new Set((ents || []).map(e => e.member_key))]);
@@ -923,10 +930,10 @@ export async function handle(req, db, env = {}, http = fetch) {
           for (const members of Object.values(families)) {
             const m0 = members[0].m, d0 = members[0].d, to = members.map(x => emailOf(x.m)).find(Boolean);
             const children = members.map(({ e, d }) => ({ first: firstWord(e.full_name), beltTo: e.belt_to, beltFrom: e.belt_from,
-              when: longDay(d.grading_date) + (et => et ? ' at ' + clock(et) : '')(entryTime(d, e)), where: d.location,
+              when: longDay(d.grading_date) + (et => et ? ' at ' + clock(et) : '')(entryTime(d, e)), where: whereOf(e, d),
               bookUrl: SITE + 'b#' + e.token, videoUrl: videoForBelt(d.programme, e.belt_from) }));
             const names = children.map(c => c.first).join(' & ');
-            const mail = buildGradingInvite({ parent: firstWord(m0.guardian_name) || 'there', school: d0.location, phone: (cs && cs.contact_phone) || '(02) 9569 1943', bring, prepOpen, prepUrl: prepUrlFor(ageOf(m0)), children });
+            const mail = buildGradingInvite({ parent: firstWord(m0.guardian_name) || 'there', school: whereOf(members[0].e, d0), phone: (cs && cs.contact_phone) || '(02) 9569 1943', bring, prepOpen: prepOpen && !members.some(x => x.d.bb), prepUrl: prepUrlFor(ageOf(m0)), children });   // the Colour Belt Prep Session is for coloured belts only
             const note = `Invited to the Dec 2026 grading — SMS sent; invitation email ${to && ready ? 'sent to ' + to : to ? 'queued to ' + to : 'not sent (no email on file)'} (${names}).`;
             try {
               const cid = await contactFor({ ...m0, email: to || emailOf(m0) }, phoneE164(m0.phone || m0.guardian_phone));

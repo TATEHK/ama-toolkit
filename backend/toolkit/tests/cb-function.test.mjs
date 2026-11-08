@@ -385,6 +385,26 @@ r = await call({ action: 'book', token: 'R'.repeat(48) + 'r'.repeat(16) });
 const hbbs = hooks[hooks.length - 1];
 ok(r.body.booked && hbbs.session_id === 'syd-1dan' && hbbs.location_id === '5af07764-95bc-4caf-b889-ba846e409dc5' && hbbs.location === 'Sydenham', 'a Sydenham black belt candidate books the Sydenham session for their rank');
 
+console.log('\nBlack belt: their own school even when EFC has no school for them (coloured-belts-25.sql)');
+const dbbv = t.cb_days.find(x => x.day_id === 'dbbv');
+dbbv.efc_school_belt_sessions.Concord = { '1st Dan Black Belt': 'cc-1dan' };
+t.efc_members.push({ member_key: 'efc:bbc', efc_reference: 'AU-258-0099', full_name: 'Cara BB', location: null, phone: null },
+                    { member_key: 'efc:bbx', efc_reference: null, full_name: 'Xan BB', location: null, phone: null });
+t.cb_entries.push({ entry_id: 'ebbc', day_id: 'dbbv', member_key: 'efc:bbc', full_name: 'Cara BB', belt_from: 'Probationary Black Belt', belt_to: '1st Dan Black Belt', token: 'bbSchoolCc'.repeat(6), booked_at: null, booking_error: null, result: null, paid: false, paid_how: null, school: 'Concord' },
+                   { entry_id: 'ebbx', day_id: 'dbbv', member_key: 'efc:bbx', full_name: 'Xan BB', belt_from: 'Probationary Black Belt', belt_to: '1st Dan Black Belt', token: 'bbSchoolNo'.repeat(6), booked_at: null, booking_error: null, result: null, paid: false, paid_how: null, school: null });
+r = await call({ action: 'info', token: 'bbSchoolCc'.repeat(6) });
+ok(r.body.school === 'Concord', 'the booking page shows their own school, not the day\'s');
+let nh = hooks.length;
+r = await call({ action: 'book', token: 'bbSchoolCc'.repeat(6) });
+ok(r.body.booked && hooks.length === nh + 1 && hooks[hooks.length - 1].session_id === 'cc-1dan' && hooks[hooks.length - 1].location === 'Concord', 'a Concord candidate with no school in EFC books the Concord session (from the entry)');
+t.cb_entries.find(x => x.entry_id === 'ebbc').school = null; t.cb_entries.find(x => x.entry_id === 'ebbc').booked_at = null;
+nh = hooks.length;
+r = await call({ action: 'book', token: 'bbSchoolCc'.repeat(6) });
+ok(r.body.booked && hooks[hooks.length - 1].location === 'Concord', '... or from their EFC reference (AU-258 is Concord)');
+nh = hooks.length;
+r = await call({ action: 'book', token: 'bbSchoolNo'.repeat(6) });
+ok(r.body.booked && hooks.length === nh && t.cb_entries.find(x => x.entry_id === 'ebbx').efc_by_hand === true, 'no school at all: flagged to book by hand, never sent to the day\'s school');
+
 console.log('\nBlack belt: the time shown depends on the rank (belt_times, coloured-belts-22.sql)');
 const dbt = t.cb_days.find(x => x.day_id === 'dbbv');
 dbt.start_time = '08:00:00'; dbt.belt_times = { '1st Dan Black Belt': '08:00', '2nd Dan': '15:30' };

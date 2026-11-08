@@ -529,7 +529,9 @@ function prepFor(s) {
 }
 function vars(e, s, d, extra = {}) {
   return { parent: firstName(s && s.guardian_name) || 'there', first: firstName((s && s.full_name) || (e && e.full_name)), next: e ? toText(e) : s ? sNext(s) : '',
-    school: (d && d.location) || (s && s.location) || '', date: d ? longDate(d.grading_date) : '', time: d && d.start_time ? ' at ' + fmtTime(d.start_time) : '',
+    // A black belt day has a session at every school: the student's own school (cb_entries.school, coloured-belts-25.sql) and their rank's time
+    school: (d && d.bb && e && e.school) || (d && d.location) || (s && s.location) || '', date: d ? longDate(d.grading_date) : '',
+    time: (t => t ? ' at ' + fmtTime(t) : '')(d ? ((d.belt_times || {})[d.bb ? (e && e.belt_to) : (e ? e.belt_from : s && s.belt)] || d.start_time) : null),
     link: e ? bookingLink(e) : '', photo: e ? photoLink(e) : '', distinction: e && e.result === 'distinction' ? ' with distinction' : '', note: (s && s.approval_note) || '',
     video: videoFor(s, e) ? 'Grading video: ' + videoFor(s, e) : '', prep: prepFor(s), ...extra };
 }
