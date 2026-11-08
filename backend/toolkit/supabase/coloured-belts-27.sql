@@ -1,4 +1,4 @@
--- AMA Toolkit: coloured belts update 27. A student's Taekwondo grade on efc_members is never replaced by another programme's.
+-- AMA Toolkit: coloured belts update 27 (applied 8 Nov 2026). A student's Taekwondo grade on efc_members is never replaced by another programme's.
 --
 -- efc_members.belt / promoted_on / attended_since_promoted hold the Taekwondo grade (Black Belt Gradings, the hub's grading
 -- card and the black belt booking use it). The EFC Assessment update sends one row per programme, and on 8 Nov 2026 the last
