@@ -254,7 +254,8 @@ begin
     perform cron.schedule('cb-sequence', '*/15 * * * *', $job$
       select net.http_post(url := 'https://ptdrcxngaptcgswfbjhg.supabase.co/functions/v1/cb',
         headers := jsonb_build_object('Content-Type', 'application/json', 'x-cb-cron', (select decrypted_secret from vault.decrypted_secrets where name = 'cb_cron_secret')),
-        body := '{"action":"sequence"}'::jsonb)
+        body := '{"action":"sequence"}'::jsonb,
+        timeout_milliseconds := 150000)   -- a busy run takes longer than the 5-second default
     $job$);
   end if;
 end $$;
