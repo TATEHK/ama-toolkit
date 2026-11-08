@@ -252,12 +252,19 @@ export function buildGradingInvite(v) {
 // ======================= The automated booking sequence (coloured-belts-23.sql) =======================
 // Sydney time helpers. sydParts(ms) -> { ymd, hm, dow }; sydMs('2026-11-24', '10:00') -> the UTC time of that Sydney moment.
 const SYD = 'Australia/Sydney';
+// One formatter, made once: building an Intl.DateTimeFormat per call costs enough CPU that planning ~800 students ran out of time
+const SYD_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: SYD, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short' });
 export function sydParts(ms) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: SYD, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short' })
-    .formatToParts(new Date(ms)).map(x => [x.type, x.value]));
+  const p = Object.fromEntries(SYD_FMT.formatToParts(new Date(ms)).map(x => [x.type, x.value]));
   return { ymd: `${p.year}-${p.month}-${p.day}`, hm: `${p.hour}:${p.minute}`, dow: p.weekday };
 }
+const SYD_MS = new Map();   // the same few dates and times come up for every student
 export function sydMs(ymd, hm = '00:00') {
+  const key = String(ymd).slice(0, 10) + ' ' + hm;
+  if (SYD_MS.has(key)) return SYD_MS.get(key);
+  const v = sydMs0(ymd, hm); if (SYD_MS.size < 5000) SYD_MS.set(key, v); return v;
+}
+function sydMs0(ymd, hm) {
   const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number), [h, mi] = String(hm).split(':').map(Number);
   const want = Date.UTC(y, m - 1, d, h, mi || 0);
   let guess = want - 11 * 3600e3;
