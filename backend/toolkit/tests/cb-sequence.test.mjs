@@ -122,6 +122,11 @@ const mail = buildSeqEmail('Sam\'s Orange Belt grading invitation', "Hi Pat,\n##
 ok(mail.html.includes('GRADING DETAILS'.toLowerCase().replace(/^./, c => c)) || mail.html.includes('Grading details'), 'emails: ## lines become headings');
 ok(mail.html.includes('&#10003;') && mail.html.includes('href="https://app.train-ama.com/b#abc"') && mail.text.includes("Book Sam's grading: https://app.train-ama.com/b#abc"), 'emails: bullet points, and [Button](link) becomes a button');
 
+const links = buildSeqEmail('S', 'Hi\n• Practise with the grading video: https://youtu.be/abc\n• Colour Belt Prep Session: A 2-hour workshop. Book a place: https://train.australianmartialarts.com.au/colour-belt-prep?s=kids\nBook here: https://app.train-ama.com/b#xyz');
+ok(/href="https:\/\/youtu\.be\/abc"[^>]*background:#0B6A35[^>]*>Watch the grading video</.test(links.html) && links.html.includes('>Book the Prep Session<') && links.html.includes('>Book the grading<'), 'emails: every link is a button named for where it goes');
+ok(!/>https?:\/\//.test(links.html) && !links.html.includes('Book a place') && links.html.includes('Practise with the grading video<') && links.html.includes('A 2-hour workshop.<'), 'emails: no bare addresses shown, and the words around a link stay');
+ok(links.text.includes('https://youtu.be/abc'), 'emails: the plain-text version keeps the addresses');
+
 // ---- The function, end to end, with an in-memory database and GoHighLevel ----
 const empty = buildSeqEmail('S', 'Hi\n• Colour Belt Prep Session:\n• Date: Tuesday');
 ok(!empty.html.includes('Prep Session') && !empty.text.includes('Prep Session') && empty.text.includes('Date: Tuesday'), 'emails: a point left empty (prep session after bookings close) is dropped');

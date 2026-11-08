@@ -193,7 +193,7 @@ export function buildGradingInvite(v) {
         <tr><td style="font-size:13px;color:#666;padding:2px 0;width:70px;">When</td><td style="font-size:14px;color:#1c1c1c;font-weight:bold;padding:2px 0;">${esc(c.when)}</td></tr>
         <tr><td style="font-size:13px;color:#666;padding:2px 0;">Where</td><td style="font-size:14px;color:#1c1c1c;font-weight:bold;padding:2px 0;">AMA ${esc(c.where)}</td></tr></table>
       <a href="${esc(c.bookUrl)}" style="display:inline-block;margin-top:14px;background:#0B6A35;color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:14px;padding:11px 22px;border-radius:8px;">Book ${esc(c.first)}'s spot</a>
-      ${c.videoUrl ? `<div style="margin-top:10px;font-family:Arial,Helvetica,sans-serif;font-size:13px;"><a href="${esc(c.videoUrl)}" style="color:#0B6A35;">Watch the ${esc(c.beltFrom || 'grading')} video &rarr;</a></div>` : ''}
+      ${c.videoUrl ? `<a href="${esc(c.videoUrl)}" style="display:inline-block;margin-top:14px;margin-left:6px;background:#ffffff;color:#0B6A35;border:2px solid #0B6A35;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:14px;padding:9px 18px;border-radius:8px;">Watch the grading video</a>` : ''}
     </td></tr></table></td></tr>`;
   const prepBlock = v.prepOpen ? `<tr><td class="pad" style="padding:26px 32px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#14321f;border-radius:10px;"><tr><td style="padding:20px 22px;">
@@ -343,20 +343,38 @@ export function seqVars(e, d, m, o = {}) {
     phone: o.phone || '(02) 9569 1943' };
 }
 
+// The button wording for a web address in a sequence email
+export function linkLabel(u) {
+  const s = String(u);
+  if (/youtu\.?be/i.test(s)) return 'Watch the grading video';
+  if (/colour-belt-prep/i.test(s)) return 'Book the Prep Session';
+  if (/train-ama\.com\/b#|\/book\//i.test(s)) return 'Book the grading';
+  if (/receipt/i.test(s)) return 'View your receipt';
+  return 'Open link';
+}
+
 // A sequence email: the wording from Settings in AMA's email style. "## Heading", "• point", "[Button](link)", other lines are paragraphs.
 export function buildSeqEmail(subject, body) {
   const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const linkify = s => esc(s).replace(/(https?:\/\/[^\s<]+[^\s<.,!?)])/g, '<a href="$1" style="color:#0B6A35;">$1</a>');
+  // Every web address in the wording becomes a button, named for where it goes; the words around it stay as text.
+  const button = (href, label, small) => `<a href="${esc(href)}" style="display:inline-block;background:#0B6A35;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:${small ? '9px 18px' : '11px 22px'};border-radius:8px;">${esc(label)}</a>`;
+  const linkify = (s, small) => {
+    const urls = [];
+    const words = String(s).replace(/(https?:\/\/[^\s<]+[^\s<.,!?)])/g, u => { urls.push(u); return ' '; })
+      .replace(/\s*(Book a place|Book here|Book their spot here)?\s*:?\s*$/i, '').replace(/\s{2,}/g, ' ').trim();
+    if (!urls.length) return esc(s);
+    return (words ? esc(words) : '') + urls.map(u => `<div style="margin-top:10px;">${button(u, linkLabel(u), small)}</div>`).join('');
+  };
   const lines = String(body || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const parts = []; let list = [];
-  const flush = () => { if (list.length) { parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 2px;">${list.map(b => `<tr><td valign="top" style="color:#0B6A35;font-weight:bold;padding:3px 10px 3px 0;">&#10003;</td><td style="font-size:15px;line-height:1.5;color:#333;padding:3px 0;">${linkify(b)}</td></tr>`).join('')}</table>`); list = []; } };
+  const flush = () => { if (list.length) { parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 2px;">${list.map(b => `<tr><td valign="top" style="color:#0B6A35;font-weight:bold;padding:3px 10px 3px 0;">&#10003;</td><td style="font-size:15px;line-height:1.5;color:#333;padding:3px 0 6px;">${linkify(b, true)}</td></tr>`).join('')}</table>`); list = []; } };
   for (const l of lines) {
     const btn = l.match(/^\[(.+?)\]\((https?:\/\/[^)\s]+)\)$/);
     if (/^[•\-*]\s+/.test(l)) { if (!/:\s*$/.test(l)) list.push(l.replace(/^[•\-*]\s+/, '')); continue; }   // a point left empty (e.g. the prep session once bookings close) is dropped
     flush();
     if (/^##\s+/.test(l)) parts.push(`<div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:17px;font-weight:600;text-transform:uppercase;color:#14321f;margin:22px 0 4px;">${esc(l.replace(/^##\s+/, ''))}</div>`);
-    else if (btn) parts.push(`<p style="margin:16px 0;"><a href="${esc(btn[2])}" style="display:inline-block;background:#0B6A35;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 22px;border-radius:8px;">${esc(btn[1])}</a></p>`);
-    else parts.push(`<p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#333;">${linkify(l)}</p>`);
+    else if (btn) parts.push(`<p style="margin:16px 0;">${button(btn[2], btn[1])}</p>`);
+    else parts.push(`<div style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#333;">${linkify(l)}</div>`);
   }
   flush();
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(subject)}</title>
