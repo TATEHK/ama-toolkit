@@ -144,7 +144,7 @@ function makeDb(tables) {
       const q = {
         select() { return q; }, eq(c, v) { f.push(r => r[c] === v); return q; }, in(c, vs) { if (vs.length > 150) tooLong = true; f.push(r => vs.includes(r[c])); return q; },
         gte(c, v) { f.push(r => String(r[c]) >= String(v)); return q; }, is(c, v) { f.push(r => (r[c] ?? null) === v); return q; }, match(o) { Object.entries(o).forEach(([c, v]) => f.push(r => r[c] === v)); return q; },
-        maybeSingle() { single = true; return q; }, order() { return q; },
+        maybeSingle() { single = true; return q; }, order() { return q; }, limit() { return q; }, lt(c, v) { f.push(r => String(r[c]) < String(v)); return q; },
         update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; }, delete() { op = 'delete'; return q; },
         then(res, rej) {
           return Promise.resolve().then(() => {
@@ -269,7 +269,22 @@ for (let i = 0; i < 300; i++) {
 Date.now = () => at('2026-11-09', '14:00');
 const before300 = ghlCalls.filter(c => c.body && c.body.type === 'SMS').length;
 await cron(db);
+const firstRun = ghlCalls.filter(c => c.body && c.body.type === 'SMS').length - before300;
+for (let i = 0; i < 30; i++) await cron(db);   // each run sends a capped number; the next runs pick up the rest
+ok(firstRun <= 40, 'one run sends at most 40 messages, so it stays inside the time limit');
 ok(ghlCalls.filter(c => c.body && c.body.type === 'SMS').length - before300 === 302 && !db.t.cb_seq_log.some(l => l.why === 'Student not found in EFC'), 'every family is found and texted (lookups go in batches)');
+// A run cut off mid-send: its 'sending' claim is let go after 15 minutes (or marked sent if the message went)
+const sid = db.t.cb_seq_log.find(l => l.step_code === 'invite_sms').entry_id;
+const sentRow = db.t.cb_seq_log.find(l => l.step_code === 'invite_email' && l.status === 'sent');
+db.t.cb_seq_log.find(l => l.entry_id === sid && l.step_code === 'invite_sms').status = 'sending';
+db.t.cb_seq_log.find(l => l.entry_id === sid && l.step_code === 'invite_sms').at = new Date(Date.now() - 20 * 60e3).toISOString();
+db.t.cb_messages = db.t.cb_messages.filter(x => !(x.entry_id === sid && x.sent_by === 'automatic: invite_sms'));
+db.t.cb_entries.find(e => e.entry_id === sid).invited_at = null;   // the cut-off run never got as far as sending
+sentRow.status = 'sending'; sentRow.at = new Date(Date.now() - 20 * 60e3).toISOString();
+const smsBefore = ghlCalls.length;
+await cron(db);
+ok(db.t.cb_seq_log.find(l => l.entry_id === sid && l.step_code === 'invite_sms').status === 'sent' && ghlCalls.slice(smsBefore).filter(c => c.body && c.body.type === 'SMS').length === 1, 'a claim stuck sending with no message logged is sent again');
+ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run', 'a claim stuck sending whose message went is marked sent');
 Date.now = realNow;
 
 console.log(`\n${passed} passed, ${failed} failed`);

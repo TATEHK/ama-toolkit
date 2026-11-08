@@ -268,6 +268,7 @@ const addDaysYmd = (ymd, n) => { const [y, m, d] = String(ymd).slice(0, 10).spli
 const dowOf = ymd => new Date(String(ymd).slice(0, 10) + 'T00:00:00Z').getUTCDay();   // 0 = Sunday
 export const SEQ_HOURS = { from: '08:00', to: '19:30' };   // nothing is sent outside these Sydney hours
 export const SEQ_STALE_MS = 12 * 3600e3;                     // a step more than 12 hours late is never sent ("missed")
+export const SEQ_MAX_SENDS = 40;                              // messages per run (the rest go on the next run)
 
 // When a step is due for one student, as a UTC time (or null if it can't be worked out)
 export function stepDue(step, e, d) {
@@ -622,6 +623,14 @@ export async function handle(req, db, env = {}, http = fetch) {
     const { data: ents } = await db.from('cb_entries').select(ENT_COLS).in('day_id', coloured.map(d => d.day_id));
     const ids = (ents || []).map(e => e.entry_id);
     if (!ids.length) return res;
+    // A run that was cut off mid-send leaves its claim 'sending'. After 15 minutes: if the message was logged as sent it was, otherwise let it go again.
+    const staleAt = new Date(nowMs - 15 * 60e3).toISOString();
+    const { data: stale } = await db.from('cb_seq_log').select('entry_id, step_code').eq('status', 'sending').lt('at', staleAt);
+    for (const l of stale || []) {
+      const { data: msg } = await db.from('cb_messages').select('status').eq('entry_id', l.entry_id).eq('sent_by', 'automatic: ' + l.step_code).eq('status', 'sent').limit(1);
+      if ((msg || []).length) await db.from('cb_seq_log').update({ status: 'sent', why: 'Recovered after a cut-off run' }).eq('entry_id', l.entry_id).eq('step_code', l.step_code);
+      else await db.from('cb_seq_log').delete().eq('entry_id', l.entry_id).eq('step_code', l.step_code).eq('status', 'sending');
+    }
     const logs = await selectIn('cb_seq_log', 'entry_id, step_code', 'entry_id', ids);
     let skips = []; try { ({ data: skips } = await db.from('cb_skip').select('member_key, until')); } catch (_) { /* no skip list */ }
     const { data: prep } = await db.from('cb_prep_bookings').select('member_key, session_time');
@@ -631,7 +640,10 @@ export async function handle(req, db, env = {}, http = fetch) {
     const entBy = Object.fromEntries((ents || []).map(e => [e.entry_id, e])), dayBy = Object.fromEntries(coloured.map(d => [d.day_id, d]));
     const memBy = await membersFor(plan.map(p => entBy[p.entry_id].member_key));
     const fees = {};
+    // A run has limited time and memory: send at most SEQ_MAX_SENDS messages, and leave the rest for the next run (every few minutes)
+    let sends = 0;
     for (const p of plan) {
+      if ((p.act === 'send') && sends >= SEQ_MAX_SENDS) { res.more = true; continue; }
       const e = entBy[p.entry_id], d = dayBy[e.day_id], step = steps.find(s => s.code === p.code);
       // Claim the step first (one row per student per step), so two runs at once never send it twice
       const { error: claimErr } = await db.from('cb_seq_log').insert({ entry_id: e.entry_id, step_code: p.code, status: 'sending' });
@@ -649,6 +661,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!m) { await fin('failed', 'Student not found in EFC'); res.failed++; continue; }
       const fk = d.programme + '|' + e.belt_from;
       if (!(fk in fees)) fees[fk] = await feeFor(e, d);
+      sends++;
       const r = await seqSend({ step, e, d, m, st, fee: fees[fk], prepTime: prepBy[e.member_key] || null });
       await fin(r.status, r.why);
       res[r.status] = (res[r.status] || 0) + 1;
