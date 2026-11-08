@@ -472,8 +472,11 @@ export async function handle(req, db, env = {}, http = fetch) {
     const sheet = !!hook && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(hook);
     if (!hook || !(sheet || /^https:\/\/hooks\.zapier\.com\//.test(hook))) return { ok: false, notSetUp: true, why: 'Online booking is not set up (no booking sheet in Settings)' };
     const { data: m } = await db.from('efc_members').select('efc_reference, location').eq('member_key', e.member_key).maybeSingle();
-    // A black belt student books their own school's session: never the day's school just because EFC has no school for them
-    const mloc = d.bb ? (e.school || (m && m.location) || refSchool(m && m.efc_reference) || null) : ((m && m.location) || d.location);
+    // The student's own school decides the session: the entry's school (coloured-belts-25.sql), then EFC's, then their EFC reference.
+    // A black belt student is never sent to the day's school just because EFC has no school for them (booked by hand instead);
+    // a coloured belt student with no school at all is at the day's school, the day they were put on.
+    const own = e.school || (m && m.location) || refSchool(m && m.efc_reference) || null;
+    const mloc = d.bb ? own : (own || d.location);
     const schoolMap = (d.efc_sessions && typeof d.efc_sessions === 'object') ? d.efc_sessions : {};
     const beltMap = (d.efc_belt_sessions && typeof d.efc_belt_sessions === 'object') ? d.efc_belt_sessions : {};
     const sbMap = (d.efc_school_belt_sessions && typeof d.efc_school_belt_sessions === 'object') ? d.efc_school_belt_sessions : {};

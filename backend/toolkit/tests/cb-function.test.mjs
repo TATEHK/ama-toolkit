@@ -366,6 +366,15 @@ ok(r.body.booked && hSyd.session_id === 'syd-white' && hSyd.location_id === '5af
 r = await call({ action: 'book', token: 'M'.repeat(48) + 'm'.repeat(16) });
 const hMv = hooks[hooks.length - 1];
 ok(r.body.booked && hMv.session_id === 'mv-white' && hMv.location === 'Marrickville', 'a Marrickville student on the same shared day still books the venue\'s own White Belt session');
+// EFC sent no school for them (as on 8 Nov 2026): they still book their own school's session, not the day's
+t.efc_members.push({ member_key: 'efc:syd2', efc_reference: 'AU-256-0042', full_name: 'Sol Syd', location: null, phone: null },
+                   { member_key: 'efc:syd3', efc_reference: null, full_name: 'Sia Syd', location: null, phone: null });
+t.cb_entries.push({ entry_id: 'esyd2', day_id: 'dshare', member_key: 'efc:syd2', full_name: 'Sol Syd', belt_from: 'Yellow Belt', belt_to: 'Orange Belt', token: 'cbNoSchoolRef'.repeat(4), booked_at: null, booking_error: null, result: null, paid: false, paid_how: null },
+                   { entry_id: 'esyd3', day_id: 'dshare', member_key: 'efc:syd3', full_name: 'Sia Syd', belt_from: 'White Belt', belt_to: 'Yellow Belt', token: 'cbNoSchoolEnt'.repeat(4), booked_at: null, booking_error: null, result: null, paid: false, paid_how: null, school: 'Sydenham' });
+r = await call({ action: 'book', token: 'cbNoSchoolRef'.repeat(4) });
+ok(r.body.booked && hooks[hooks.length - 1].session_id === 'syd-yellow' && hooks[hooks.length - 1].location === 'Sydenham', 'coloured belt, no school in EFC: their EFC reference (AU-256) books the Sydenham session');
+r = await call({ action: 'book', token: 'cbNoSchoolEnt'.repeat(4) });
+ok(r.body.booked && hooks[hooks.length - 1].session_id === 'syd-white', 'coloured belt, no school in EFC: the school saved on their entry books the Sydenham session');
 
 console.log('\nBlack belt: an EFC session per rank at each venue (coloured-belts-21.sql), keyed by the rank they grade to');
 t.prep_grading_fee_rates = [{ target_rank: '1st Dan Black Belt', fee: 0 }, { target_rank: '2nd Dan', fee: 0 }];
