@@ -380,7 +380,17 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   w = mk(); r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Sorry he's a White Belt" });
   ok(w.t.cb_entries[0].belt_from === 'White Belt' && w.t.cb_entries[0].belt_to === 'Yellow Belt' && w.t.cb_entries[0].day_id === 'lo', '"he\'s a White Belt" means the belt they are on; the same day still suits');
   w = mk(); n0 = ghlCalls.length; r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Wrong belt, she is going for purple' });
-  ok(w.t.cb_entries[0].belt_to === 'Orange Belt' && w.t.cb_calls.some(c => c.reason === 'concern' && /Purple/.test(c.note)) && !ghlCalls.slice(n0).some(c => c.body && c.body.type === 'SMS'), 'no grading for that belt at their school: nothing changes, an instructor gets a call');
+  ok(w.t.cb_entries[0].belt_to === 'Orange Belt' && (w.t.cb_admin_q || []).some(q => q.kind === 'no_grading') && !ghlCalls.slice(n0).some(c => c.body && c.body.type === 'SMS'), 'no grading for that belt at their school: nothing changes, the admin gets a belt check');
+  w = mk(); n0 = ghlCalls.length; r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Sam completed her yellow belt grading on September 22.' });
+  ok(w.t.cb_entries[0].belt_from === 'Yellow Belt' && w.t.cb_entries[0].belt_to === 'Orange Belt' && !r.body.belt, '"completed her yellow belt grading" when we already have Yellow to Orange changes nothing');
+  w = mk(); w.t.cb_entries[0].belt_from = 'White Belt'; w.t.cb_entries[0].belt_to = 'Yellow Belt'; r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Sam completed her orange belt grading on September 22.' });
+  ok(w.t.cb_entries[0].belt_from === 'Orange Belt' && w.t.cb_entries[0].belt_to === 'Green Belt' && w.t.cb_entries[0].day_id === 'hi', '"completed her orange belt grading" means she is on Orange: Orange to Green, moved to that grading');
+  for (const t of ['Passed his green belt last term', 'She already achieved her green belt']) { w = mk(); await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: t });
+    ok(w.t.cb_entries[0].belt_from === 'Green Belt' && w.t.cb_entries[0].belt_to === 'Blue Belt', `"${t}" is read as the belt they are on`); }
+  w = mk(); n0 = ghlCalls.length; r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Can you check the green belt grading date for her please' });
+  ok(r.body.belt === 'asked admin (unclear)' && (w.t.cb_admin_q || []).some(q => q.kind === 'unclear' && q.entry_id === w.t.cb_entries[0].entry_id) && w.t.cb_entries[0].belt_to === 'Orange Belt', 'a reply about a belt that isn\'t a clear correction goes to the admin as a belt check');
+  w = mk(); r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Liked \u201cHi Alex, here is Sam\'s official invitation to grade for their Orange Belt at AMA Marrickville\u201d' });
+  ok(r.body.belt !== 'asked admin (unclear)' && !(w.t.cb_admin_q || []).length, 'a reaction quoting our own text is not a belt check');
   w = mk(); r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Yes see you there' });
   ok(!r.body.belt && w.t.cb_entries[0].belt_to === 'Orange Belt', 'a plain YES is not a belt change');
 }

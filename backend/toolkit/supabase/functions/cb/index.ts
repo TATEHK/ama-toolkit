@@ -60,7 +60,7 @@ export function isNotGrading(t) {
 // belts ({ belt, next_belt }). Returns { belt, as: 'target' | 'current' } for the last belt named, or null if it isn't a belt correction.
 export function beltClaim(t, ladder) {
   const s = ' ' + String(t || '').toLowerCase().replace(/[‘’]/g, "'").replace(/\b(red)\s*(2|ii)\b|\b2nd red\b/g, 'red two').replace(/\b(red)\s*(3|iii)\b|\b3rd red\b/g, 'red three').replace(/\s+/g, ' ') + ' ';
-  if (!/\b(wrong|mistake|incorrect|actually|should (be|say)|not (a|an|on|the|for)\b|going (for|to)|grading (for|to)|trying (for|to)|up for|go for|currently|already|holding|having|wearing|is (a|an|on|now)|'s (a|an|on|now)|'re (a|an|on|now)|has (his|her|their|a)|got (his|her|their))\b/.test(s)) return null;
+  if (!/\b(wrong|mistake|incorrect|actually|should (be|say)|not (a|an|on|the|for)\b|going (for|to)|grading (for|to)|trying (for|to)|up for|go for|currently|already|holding|having|wearing|completed|passed|finished|achieved|earned|graded|is (a|an|on|now)|'s (a|an|on|now)|'re (a|an|on|now)|has (his|her|their|a)|got (his|her|their))\b/.test(s)) return null;
   const names = (ladder || []).map(b => ({ belt: b.belt, key: String(b.belt).toLowerCase().replace(/ belt$/, '') })).sort((a, b) => b.key.length - a.key.length);
   const hits = [];
   for (const n of names) {
@@ -73,8 +73,15 @@ export function beltClaim(t, ladder) {
   if (!kept.length) return null;
   const last = kept[kept.length - 1], before = s.slice(Math.max(0, last.start - 40), last.start), after = s.slice(last.end, last.end + 12);
   if (/\b(going|grading|trying|test(ing)?|up|go)\s+(for|to)\s+(the |a |an |his |her |their |)$|\bshould (be|say) (the |a |an |)$|\b(it's|it is|its) (the |a |an |)$|\bfor (his|her|their) $/.test(before)) return { belt: last.belt, as: 'target' };
-  if (/(\bis|'s|\bare|'re|\bcurrently|\balready|\bnow|\bon|\bhas|\bgot|\bhaving|\bholding|\bwearing|\bwas|\bat)\s+(a |an |on |on a |at |his |her |their |)$/.test(before) || /^\s*already\b/.test(after)) return { belt: last.belt, as: 'current' };
+  if (/(\bis|'s|\bare|'re|\bcurrently|\balready|\bnow|\bon|\bhas|\bgot|\bhaving|\bholding|\bwearing|\bcompleted|\bpassed|\bfinished|\bachieved|\bearned|\bdid|\bgraded(?: for| to| in)?|\bwas|\bat)\s+(a |an |on |on a |at |his |her |their |)$/.test(before) || /^\s*already\b/.test(after)) return { belt: last.belt, as: 'current' };
   return { belt: last.belt, as: 'target' };
+}
+// Does a reply talk about a belt? A belt colour from the programme's ladder named with "belt", or next to "grading"/"graded".
+export function mentionsBelt(t, ladder) {
+  const s = ' ' + String(t || '').toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, ' ') + ' ';
+  const keys = [...new Set((ladder || []).map(b => String(b.belt).toLowerCase().replace(/ belt$/, '')))].map(k => k.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'));
+  if (!keys.length) return false;
+  return new RegExp('\\b(' + keys.join('|') + ')( belt|\\s+(grading|grade|graded|tip|stripe))\\b').test(s);
 }
 // Another grading for this student: a coming day of the same programme, for their belt and age, still open for bookings.
 // d.belts (or the belts with an EFC session) says which belts it's for; min_age / max_age split kids' and teens' sessions.
@@ -1116,6 +1123,15 @@ export async function handle(req, db, env = {}, http = fetch) {
             await db.from('cb_calls').update({ done: true, outcome: 'belt_fixed', outcome_note: `Belt changed by text from ${was}`, updated_at: nowIso }).eq('entry_id', e.entry_id).eq('done', false).then(() => {}, () => {});
             return json({ ok: true, matched: mine.length, belt: { from, to, was, day: nd.day_id, moved: nd.day_id !== d.day_id }, ...r });
           }
+        }
+        // A reply that talks about a belt but couldn't be read as a correction ("Grace completed her green belt grading on
+        // September 22", "Is this the right belt?"): text the admin a belt check instead of leaving it as an ordinary call
+        if (!claim && !yes && !isNotGrading(msg) && !/[\u201c"][^\u201d"]*(train-ama\.com|invited to grade|invitation to grade)/i.test(msg) && mentionsBelt(msg, ladderOf((d || open.find(x => x.day_id === mine[0].day_id) || {}).programme))) {
+          const nowIso = new Date().toISOString(), who = e ? [e] : mine, gm = byKey[who[0].member_key];
+          for (const x of who) await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: new Date(Date.now() + 2 * 864e5).toISOString() }).eq('entry_id', x.entry_id);
+          const have = who.map(x => (who.length > 1 ? firstWord(x.full_name) + ' ' : '') + x.belt_from + ' to ' + x.belt_to).join('; ');
+          await askAdmin({ kind: 'unclear', ...(e ? { entry: e } : { entries: mine }), text: ref => `Belt check #${ref}: ${firstWord((gm && gm.guardian_name) || 'A family')}${e ? ' for ' + firstWord(e.full_name) : ''} said "${msg.slice(0, 120)}" (we have ${have}). Reply "${ref} ${e ? '' : firstWord(mine[0].full_name) + ' '}green to blue" to change it, or "${ref} ignore".` });
+          return json({ ok: true, matched: mine.length, belt: 'asked admin (unclear)' });
         }
       }
 
