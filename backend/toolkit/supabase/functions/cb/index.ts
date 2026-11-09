@@ -47,6 +47,35 @@ export function isNo(t) {
   if (!s || isYes(s)) return false;
   return /^(no|nope|nah|n)\b/.test(s) || /\b(can'?t|cannot|can not|won'?t be able|unable|not able|not available|unavailable|away|busy|clash(es)?|(another|different|other) (day|time|date|location|school|grading))\b/.test(s);
 }
+// Replies: they don't want to grade at all ("We don't want to grade this time", "Not grading", "She's stopped", "Not ready",
+// "Skip this one", "Next time"). Not "can't make it" or "another day", which are offered other gradings instead.
+export function isNotGrading(t) {
+  const s = String(t || '').trim().toLowerCase().replace(/[‘’]/g, "'");
+  if (!s || /\b(another|different|other)\s+(day|time|date|location|school|grading|session)\b/.test(s)) return false;
+  if (/\b(don'?t|do not|doesn'?t|does not|won'?t|wont|will not|not|no longer)\s+(want(ing)?|wanna|going|planning|plan|interested|keen|doing|be doing|ready)\b[^.?!]*\b(grad(e|ing)|test(ing)?|it|this|that)\b/.test(s)) return true;
+  if (/\bnot\s+grad(e|ing)\b|\bwon'?t be grading\b|\bnot (ready|this time|this round)\b|\b(skip|sit out|pass on|miss)\s+(this|the|that)\s+(one|grading|time|round)\b|\bnext (grading|time|round|term|cycle)\b/.test(s)) return true;
+  return /\b(quit|quitting|stopped|stopping|leaving|left (the|ama|amaa|the club|the academy|the school|martial arts|taekwondo)\b|we'?ve left|cancel+ing|cancel+ed (her|his|their|the) (membership|enrol)|withdraw(n|ing)?|pulling (him|her|them) out|pulled (him|her|them) out)\b/.test(s);
+}
+// Replies: "That's the wrong belt, she's going for Green" / "He's a Blue Belt" / "Should be red two". ladder is the programme's
+// belts ({ belt, next_belt }). Returns { belt, as: 'target' | 'current' } for the last belt named, or null if it isn't a belt correction.
+export function beltClaim(t, ladder) {
+  const s = ' ' + String(t || '').toLowerCase().replace(/[‘’]/g, "'").replace(/\b(red)\s*(2|ii)\b|\b2nd red\b/g, 'red two').replace(/\b(red)\s*(3|iii)\b|\b3rd red\b/g, 'red three').replace(/\s+/g, ' ') + ' ';
+  if (!/\b(wrong|mistake|incorrect|actually|should (be|say)|not (a|an|on|the|for)\b|going (for|to)|grading (for|to)|trying (for|to)|up for|go for|currently|already|is (a|an|on|now)|'s (a|an|on|now)|'re (a|an|on|now)|has (his|her|their|a)|got (his|her|their))\b/.test(s)) return null;
+  const names = (ladder || []).map(b => ({ belt: b.belt, key: String(b.belt).toLowerCase().replace(/ belt$/, '') })).sort((a, b) => b.key.length - a.key.length);
+  const hits = [];
+  for (const n of names) {
+    const re = new RegExp('\\b' + n.key.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '(?: belt)?\\b', 'g'); let m;
+    while ((m = re.exec(s))) if (!hits.some(h => m.index < h.end && m.index + m[0].length > h.start)) hits.push({ belt: n.belt, start: m.index, end: m.index + m[0].length });
+  }
+  // "orange not yellow": a belt after "not" is the wrong one, so the claim is the last belt that isn't
+  const notNeg = h => !/\bnot (the |a |an |)$/.test(s.slice(Math.max(0, h.start - 10), h.start));
+  const kept = hits.sort((a, b) => a.start - b.start).filter(notNeg);
+  if (!kept.length) return null;
+  const last = kept[kept.length - 1], before = s.slice(Math.max(0, last.start - 40), last.start), after = s.slice(last.end, last.end + 12);
+  if (/\b(going|grading|trying|test(ing)?|up|go)\s+(for|to)\s+(the |a |an |his |her |their |)$|\bshould (be|say) (the |a |an |)$|\b(it's|it is|its) (the |a |an |)$|\bfor (his|her|their) $/.test(before)) return { belt: last.belt, as: 'target' };
+  if (/(\bis|'s|\bare|'re|\bcurrently|\balready|\bnow|\bon|\bhas|\bgot|\bwas|\bat)\s+(a |an |on |on a |at |his |her |their |)$/.test(before) || /^\s*already\b/.test(after)) return { belt: last.belt, as: 'current' };
+  return { belt: last.belt, as: 'target' };
+}
 // Another grading for this student: a coming day of the same programme, for their belt and age, still open for bookings.
 // d.belts (or the belts with an EFC session) says which belts it's for; min_age / max_age split kids' and teens' sessions.
 export function fitsDay(d, e, age, from) {
@@ -936,6 +965,64 @@ export async function handle(req, db, env = {}, http = fetch) {
         }
         return json({ ok: true, matched: mine.length, moved: out.filter(x => x.moved_to).length, results: out });
       }
+      const stopping = /^\s*(stop|stopall|unsubscribe|end|quit)\b/i.test(msg);
+      // Whose entry a reply is about: the only one waiting, or the child named in it
+      const whichKid = () => { if (mine.length === 1) return mine[0]; const low = msg.toLowerCase(); const named = mine.filter(e => new RegExp('\\b' + firstWord(e.full_name).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(low)); return named.length === 1 ? named[0] : null; };
+      const callFor = async (e, reason, note, admin = false) => {
+        const { data: openCall } = await db.from('cb_calls').select('call_id').eq('entry_id', e.entry_id).eq('done', false);
+        if ((openCall || []).length) await db.from('cb_calls').update({ reason, note: note.slice(0, 300), for_admin: admin, callback_on: today, updated_at: new Date().toISOString() }).eq('entry_id', e.entry_id).eq('done', false);
+        else await db.from('cb_calls').insert({ entry_id: e.entry_id, reason, note: note.slice(0, 300), for_admin: admin, callback_on: today });
+      };
+
+      // ---- "That's the wrong belt" / "She's going for Green": fix the belt, move them to a grading for it, send the booking link ----
+      if (!stopping) {
+        const { data: belts } = await db.from('cb_belts').select('programme, belt, next_belt, sort');
+        const ladderOf = prog => (belts || []).filter(b => b.programme === (prog || 'Taekwondo'));
+        const e = whichKid(), d = e && open.find(x => x.day_id === e.day_id);
+        const claim = e && d ? beltClaim(msg, ladderOf(d.programme)) : (mine.length > 1 && beltClaim(msg, ladderOf((open.find(x => x.day_id === mine[0].day_id) || {}).programme)));
+        if (claim && !e) {   // a belt correction, but which child? An instructor rings them
+          for (const x of mine) { await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: new Date().toISOString() }).eq('entry_id', x.entry_id); }
+          await callFor(mine[0], 'concern', 'Belt correction, which child? ' + msg);
+          return json({ ok: true, matched: mine.length, belt: 'which child' });
+        }
+        if (claim && e && d) {
+          const ladder = ladderOf(d.programme), nowIso = new Date().toISOString(), m = byKey[e.member_key];
+          const from = claim.as === 'target' ? ((ladder.find(b => b.next_belt === claim.belt) || {}).belt || null) : claim.belt;
+          const to = claim.as === 'target' ? claim.belt : ((ladder.find(b => b.belt === claim.belt) || {}).next_belt || null);
+          if (from && to && (from !== e.belt_from || to !== e.belt_to)) {
+            const age = ageNow(m);
+            const fits = day => fitsDay({ ...day, day_id: '-' }, { day_id: '', belt_from: from }, age, d);
+            let nd = fits(d) ? d : open.filter(x => x.location === d.location && x.day_id !== d.day_id && fits(x))
+              .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')))[0] || null;
+            if (nd && nd.day_id !== d.day_id) { const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', nd.day_id).eq('member_key', e.member_key).maybeSingle(); if (clash) nd = null; }
+            const was = `${e.belt_from} to ${e.belt_to}`;
+            if (!nd) {   // no grading at their school for that belt (and age): an instructor sorts it out
+              await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: nowIso }).eq('entry_id', e.entry_id);
+              await callFor(e, 'concern', `Says ${claim.as === 'target' ? 'going for' : 'is on'} ${claim.belt} (we have ${was}); no ${d.location} grading for that belt. ${msg}`);
+              return json({ ok: true, matched: mine.length, belt: 'no grading for that belt' });
+            }
+            await db.from('cb_entries').update({ belt_from: from, belt_to: to, belt_changed_from: was, belt_changed_at: nowIso, yes_at: e.yes_at || nowIso, reply_text: msg.slice(0, 300), reply_at: nowIso,
+              seq_paused_until: null, alt_offer: null, ...(nd.day_id !== d.day_id ? { day_id: nd.day_id, moved_from_day: d.day_id } : {}) }).eq('entry_id', e.entry_id);
+            const fixed = { ...e, belt_from: from, belt_to: to, day_id: nd.day_id };
+            const tm = (et => et ? ' at ' + clock(et) : '')(entryTime(nd, fixed));
+            const text = `Thanks ${firstWord(m.guardian_name) || 'there'}, sorry about that! We've updated ${firstWord(m.full_name || e.full_name)} to grade for ${to} at AMA ${whereOf(fixed, nd)} on ${longDay(nd.grading_date)}${tm}. Book here: ${SITE}b#${e.token} AMA ${whereOf(fixed, nd)}`;
+            const r = await familyText(m, fixed, text, 'belt_fix', 'automatic: belt corrected by reply', `${firstWord(m.full_name || e.full_name)}'s grading: ${to}`);
+            await db.from('cb_calls').update({ done: true, outcome: 'belt_fixed', outcome_note: `Belt changed by text from ${was}`, updated_at: nowIso }).eq('entry_id', e.entry_id).eq('done', false).then(() => {}, () => {});
+            return json({ ok: true, matched: mine.length, belt: { from, to, was, day: nd.day_id, moved: nd.day_id !== d.day_id }, ...r });
+          }
+        }
+      }
+
+      // ---- "We don't want to grade" / "Not grading this time": a call for admins on the hub, and the booking messages stop ----
+      if (!stopping && !yes && isNotGrading(msg)) {
+        const e = whichKid(), list = e ? [e] : mine, nowIso = new Date().toISOString();
+        for (const x of list) {
+          await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: new Date(Date.now() + 14 * 864e5).toISOString() }).eq('entry_id', x.entry_id);
+          await callFor(x, 'not_grading', msg, true);
+        }
+        return json({ ok: true, matched: mine.length, not_grading: list.length });
+      }
+
       const no = !yes && isNo(msg);
       // The booking sequence (coloured-belts-23.sql): STOP ends it for good; any other reply pauses it for 2 days, and
       // anything that isn't a YES puts a "concern" call on My Day so an instructor rings them back.

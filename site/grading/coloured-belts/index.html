@@ -1620,7 +1620,7 @@ function renderDash() {
 const seqOnFor = d => !!(state.seqReady && state.settings.seq_on && d && !d.bb);
 const SEQ_GRID = [['invite_sms', 'Invited'], ['nudge_d2', 'Day 2'], ['ready_d4', 'Day 4'], ['checkin_d6', 'Day 6'], ['close_g8', 'G−8'], ['call_g5', 'Call'], ['booked_sms', 'Booked text'], ['reminder_g2', 'G−2'], ['morning_g', 'Morning']];
 const SEQ_MARK = { sent: ['✓', 'ok', 'Sent'], test: ['✓', 'ok', 'Sent (test mode)'], sending: ['…', '', 'Sending'], failed: ['!', 'bad', 'Failed'], skipped: ['–', '', 'Skipped'], missed: ['·', '', 'Not sent (too late)'] };
-const CALL_OUT = { send_link: 'Link sent', will_book: 'Will book', call_back: 'Call back', not_grading: 'Not grading', no_answer: 'No answer', wrong_number: 'Wrong number' };
+const CALL_OUT = { send_link: 'Link sent', will_book: 'Will book', call_back: 'Call back', not_grading: 'Not grading', no_answer: 'No answer', wrong_number: 'Wrong number', moved: 'Moved by text', belt_fixed: 'Belt fixed by text' };
 function seqWhen(s) {
   const t = s.send_at ? ' at ' + fmtTime(s.send_at) : '';
   if (s.anchor === 'invite') return s.offset_days ? `Day ${s.offset_days} after the invitation${t}` : 'As soon as they are added to the day';
@@ -1644,7 +1644,7 @@ async function openSequence(d) {
         const tip = code === 'invite_sms' && !l && e.invited_at ? 'Invited by hand' : m ? `${m[2]}${l.why ? ': ' + l.why : ''}, ${whenText(l.at)}` : 'Not yet';
         return `<td title="${esc(tip)}">${m ? `<span class="seq-m ${m[1]}">${m[0]}</span>` : code === 'invite_sms' && e.invited_at ? '<span class="seq-m ok">✓</span>' : ''}</td>`; }).join('')}
       <td>${e.booked_at ? '<span class="seq-m ok">✓</span>' : ''}</td><td>${e.paid ? '<span class="seq-m ok">✓</span>' : ''}</td>
-      <td>${c ? esc(c.outcome ? CALL_OUT[c.outcome] || c.outcome : c.reason === 'concern' ? 'Concern: to call' : 'To call') : ''}</td>
+      <td>${c ? esc(c.outcome ? CALL_OUT[c.outcome] || c.outcome : c.reason === 'not_grading' ? 'Not grading: admin to call' : c.reason === 'concern' ? 'Concern: to call' : 'To call') : ''}</td>
       ${canTexts() ? `<td class="seq-acts">${e.seq_stopped_at || (e.seq_paused_until && new Date(e.seq_paused_until) > new Date()) ? `<button class="btn sm" data-seq="resume">Resume</button>` : `<button class="btn sm" data-seq="pause">Pause</button><button class="btn sm" data-seq="skip">Skip</button>`}</td>` : ''}</tr>`;
   }).join('');
   openDlg(`<div class="dlg-body seq-dlg"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>Booking sequence</h3><p class="sub">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</p></div><button class="btn ghost" data-close>Close</button></div>

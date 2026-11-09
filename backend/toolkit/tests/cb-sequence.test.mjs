@@ -361,6 +361,40 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   const r4 = await call(none, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'No' });
   ok(r4.body.no && r4.body.offered === 0 && ghlCalls.length === n2, 'when no other grading suits, nothing is texted');
 }
+// "That's the wrong belt": the belt is fixed, they're moved to a grading for it, and the booking link goes
+{
+  console.log('\nWrong belt');
+  const LAD = ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple'].map((b, i, a) => ({ programme: 'Taekwondo', belt: b + ' Belt', next_belt: a[i + 1] ? a[i + 1] + ' Belt' : 'Brown Belt', fee: 70 }));
+  const mk = () => { const T = tables(); T.cb_belts = LAD;
+    T.cb_days = [{ day_id: 'lo', location: 'Marrickville', grading_date: '2026-12-08', start_time: '16:00', programme: 'Taekwondo', closed: false, bb: false, belt_times: {}, belts: ['White Belt', 'Yellow Belt'] },
+      { day_id: 'hi', location: 'Marrickville', grading_date: '2026-12-09', start_time: '17:15', programme: 'Taekwondo', closed: false, bb: false, belt_times: {}, belts: ['Orange Belt', 'Green Belt'] },
+      { day_id: 'co', location: 'Concord', grading_date: '2026-12-01', start_time: '16:00', programme: 'Taekwondo', closed: false, bb: false, belt_times: {}, belts: ['Blue Belt'] }];
+    T.cb_entries = [{ ...base, day_id: 'lo', invited_at: '2026-11-08T05:00:00Z' }]; return makeDb(T); };
+  Date.now = () => at('2026-11-10', '12:00');
+  let w = mk(), n0 = ghlCalls.length;
+  let r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "That's the wrong belt, Sam's going for Green" });
+  const fx = ghlCalls.slice(n0).find(c => c.body && c.body.type === 'SMS'), e = w.t.cb_entries[0];
+  ok(e.belt_from === 'Orange Belt' && e.belt_to === 'Green Belt' && e.belt_changed_from === 'Yellow Belt to Orange Belt', 'the belt is changed to what they said (going for Green: on Orange)');
+  ok(e.day_id === 'hi' && e.moved_from_day === 'lo' && r.body.belt.moved, '...and they move to the grading at their school for that belt');
+  ok(fx && /updated Sam to grade for Green Belt at AMA Marrickville on Wednesday 9 December at 5:15pm\. Book here: https:\/\/app\.train-ama\.com\/b#TOK/.test(fx.body.message) && w.t.cb_messages.some(m => m.kind === 'belt_fix'), 'the booking link is texted straight away');
+  w = mk(); r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Sorry he's a White Belt" });
+  ok(w.t.cb_entries[0].belt_from === 'White Belt' && w.t.cb_entries[0].belt_to === 'Yellow Belt' && w.t.cb_entries[0].day_id === 'lo', '"he\'s a White Belt" means the belt they are on; the same day still suits');
+  w = mk(); n0 = ghlCalls.length; r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Wrong belt, she is going for purple' });
+  ok(w.t.cb_entries[0].belt_to === 'Orange Belt' && w.t.cb_calls.some(c => c.reason === 'concern' && /Purple/.test(c.note)) && !ghlCalls.slice(n0).some(c => c.body && c.body.type === 'SMS'), 'no grading for that belt at their school: nothing changes, an instructor gets a call');
+  w = mk(); r = await call(w, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Yes see you there' });
+  ok(!r.body.belt && w.t.cb_entries[0].belt_to === 'Orange Belt', 'a plain YES is not a belt change');
+}
+// "We don't want to grade": a call for admins on the hub
+{
+  console.log('\nNot grading');
+  const T = tables(); T.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }];
+  const ng = makeDb(T); Date.now = () => at('2026-11-10', '12:00');
+  const n0 = ghlCalls.length;
+  const r = await call(ng, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "We don't want to grade this time thanks" });
+  const c = ng.t.cb_calls[0];
+  ok(r.body.not_grading === 1 && c && c.reason === 'not_grading' && c.for_admin === true && /don't want/.test(c.note), 'a call for an admin goes on the hub\'s list, with what they said');
+  ok(Date.parse(ng.t.cb_entries[0].seq_paused_until) > Date.now() + 10 * 864e5 && ghlCalls.length === n0, 'their booking messages stop, and nothing is texted to them');
+}
 Date.now = realNow;
 
 console.log(`\n${passed} passed, ${failed} failed`);
