@@ -1,0 +1,26 @@
+# Deploy a Supabase Edge Function (byte-exact from this repo), on demand.
+# One-time setup: add a repo secret SUPABASE_ACCESS_TOKEN
+#   (Supabase dashboard > Account > Access Tokens > Generate new token).
+# Then: Actions > "Deploy Supabase function" > Run workflow (pick the function, default "cb").
+name: Deploy Supabase function
+on:
+  workflow_dispatch:
+    inputs:
+      function:
+        description: Function slug to deploy (e.g. cb, efc, ghl)
+        required: true
+        default: cb
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ptdrcxngaptcgswfbjhg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Deploy ${{ github.event.inputs.function }}
+        working-directory: backend/toolkit/supabase
+        run: supabase functions deploy "${{ github.event.inputs.function }}" --project-ref "$PROJECT_REF" --no-verify-jwt
