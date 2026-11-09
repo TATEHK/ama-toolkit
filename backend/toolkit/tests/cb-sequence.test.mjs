@@ -318,7 +318,8 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   lim.t.cb_entries[0].invited_at = null; lim.t.cb_entries[0].seq_paused_until = null;
   const before3 = ghlCalls.filter(c => c.body && c.body.type === 'SMS').length;
   await cron2();
-  ok(ghlCalls.filter(c => c.body && c.body.type === 'SMS').length - before3 === 2, 'once the limit resets, the invitation texts go again');
+  ok(ghlCalls.filter(c => c.body && c.body.type === 'SMS').length - before3 === 3, 'once the limit resets, the invitation texts go again, and the queued booking-link text');
+  ok(lim.t.cb_outbox.length === 1 && lim.t.cb_outbox[0].status === 'sent', 'the booking-link text queued during the block is sent');
 }
 // The daily cap: invitation texts beyond sms_daily_cap wait for the next day
 {
