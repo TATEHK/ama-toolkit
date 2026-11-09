@@ -547,11 +547,12 @@
 <header class="appbar">
   <div class="appbar-inner">
     <a class="home-btn" id="homeBtn" href="/" aria-label="Back to AMA Toolkit" title="AMA Toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></a>
-    <a class="home-btn hub-btn" href="https://train.australianmartialarts.com.au/admin" aria-label="Back to the hub" title="Back to the hub">Hub</a>
+    <a class="home-btn hub-btn" href="https://train.australianmartialarts.com.au/admin" aria-label="Back to the hub" title="Back to the hub" hidden>Hub</a>
     <div class="brand"><img src="ama-logo.png" alt=""><div><small>Australian Martial Arts Academy</small><h1>Black Belt Gradings</h1></div></div>
     <span class="pill" id="cyclePill" hidden><span class="dot"></span><span id="cyclePillText"></span></span>
   </div>
 </header>
+<script>try{if(sessionStorage.getItem('amaFromHub')==='1'){var hb=document.querySelector('.hub-btn');if(hb)hb.hidden=false;}}catch(e){}</script>
 
 <nav class="tabbar" id="tabbar" role="tablist" hidden>
   <button class="tab" role="tab" data-view="dashboard" aria-selected="true">

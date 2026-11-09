@@ -64,6 +64,8 @@
       return sb.auth.setSession(r.session).then(function (s) {
         if (s && s.error) throw s.error;
         var next = r.next && /^\/[A-Za-z0-9_\-./]*$/.test(r.next) ? r.next : '/';
+        // Remember they arrived via the hub's sign-in, so the apps can show a link back to it.
+        try { sessionStorage.setItem('amaFromHub', '1'); } catch (e) {}
         // Land them where the link asked (same-site only), default the apps home.
         location.replace(next);
       });
