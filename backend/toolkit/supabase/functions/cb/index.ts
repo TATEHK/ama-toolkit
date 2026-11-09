@@ -45,13 +45,22 @@ export function isYes(t) {
 export function isNo(t) {
   const s = String(t || '').trim().toLowerCase().replace(/[‘’]/g, "'");
   if (!s || isYes(s)) return false;
-  return /^(no|nope|nah|n)\b/.test(s) || /\b(can'?t|cannot|can not|won'?t be able|unable|not able|not available|unavailable|away|busy|clash(es)?|(another|different|other) (day|time|date|location|school|grading))\b/.test(s);
+  return /^(no|nope|nah|n)\b/.test(s) || cantMakeIt(s) || /\b(can'?t|cannot|can not|won'?t be able|unable|not able|(another|different|other) (day|time|date|location|school|grading))\b/.test(s);
+}
+// Replies: the date is the problem, not the grading ("We'll be overseas", "on holiday that week", "can't make that day"): offer other gradings
+export function cantMakeIt(t) {
+  const s = String(t || '').toLowerCase().replace(/[\u2018\u2019]/g, "'");
+  return /\b(away|overseas|holidays?|on vacation|travel+ing|interstate|out of (town|the country|sydney)|not available|unavailable|busy|clash(es|ing)?|can'?t make|cannot make|can not make|won'?t make|not be able to make|(another|different|other) (day|time|date))\b/.test(s);
 }
 // Replies: they don't want to grade at all ("We don't want to grade this time", "Not grading", "She's stopped", "Not ready",
 // "Skip this one", "Next time"). Not "can't make it" or "another day", which are offered other gradings instead.
 export function isNotGrading(t) {
   const s = String(t || '').trim().toLowerCase().replace(/[‘’]/g, "'");
   if (!s || /\b(another|different|other)\s+(day|time|date|location|school|grading|session)\b/.test(s)) return false;
+  // Left, stopped, injured or paused: not grading even if they also mention being away
+  if (/\binjur(ed|y|ies)\b|\bstop(ped)? (attending|coming|training)\b|\b(quit|quitting|withdraw(n|ing)?)\b|\bleft (ama|the club|the academy|martial arts|taekwondo)\b|\bwe'?ve left\b|\b(paus(e|ed|ing)|suspend(ed|ing)?|on hold)\b[^.?!]*\bmembership\b|\bmembership\b[^.?!]*\b(paused|suspended|on hold)\b/.test(s)) return true;
+  // "We won't be grading, we'll be overseas": it's the date, so they're offered other gradings instead
+  if (cantMakeIt(s)) return false;
   if (/\b(don'?t|do not|doesn'?t|does not|won'?t|wont|will not|not|no longer)\s+(want(ing)?|wanna|going|planning|plan|interested|keen|doing|be doing|ready)\b[^.?!]*\b(grad(e|ing)|test(ing)?|it|this|that)\b/.test(s)) return true;
   if (/\b(not|no)\s+grad(e|ing)\b|\bno for \w+|\binjur(ed|y|ies)\b|\bstop(ped)? (attending|coming|training)\b|\b(not|haven'?t|have not|hasn'?t|has not) (been )?(attending|coming|training)\b|\b(don'?t|do not|doesn'?t) (feel|think)\b[^.?!]*\b(time|ready)\b|\bnot the right time\b|\b(paus(e|ed|ing)|suspend(ed|ing)?|freez(e|ing)|froze|frozen|put on hold|on hold)\b[^.?!]*\b(membership|enrol(l?ment)?|training|classes|lessons)\b|\b(membership|enrol(l?ment)?)\b[^.?!]*\b(paused|suspended|frozen|on hold)\b|\bwon'?t be grading\b|\bnot (ready|this time|this round)\b|\b(skip|sit out|pass on|miss)\s+(this|the|that)\s+(one|grading|time|round)\b|\bnext (grading|time|round|term|cycle)\b/.test(s)) return true;
   return /\b(quit|quitting|stopped|stopping|leaving|left (the|ama|amaa|the club|the academy|the school|martial arts|taekwondo)\b|we'?ve left|cancel+ing|cancel+ed (her|his|their|the) (membership|enrol)|withdraw(n|ing)?|pulling (him|her|them) out|pulled (him|her|them) out)\b/.test(s);

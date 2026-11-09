@@ -355,6 +355,13 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   ok(link && link.body.message === 'OFFICIAL Sam https://app.train-ama.com/b#TOK', 'and texts the booking link');
   const r3 = await call(alt, { action: 'reply', key: 'rk', phone: '0412 345 678', message: '1' });
   ok(!r3.body.moved, 'a number with no offer waiting does nothing');
+  // "We won't be grading, we'll be overseas": the date is the problem, so they get the other gradings (not a not-grading call)
+  { const T3 = tables(); T3.cb_days = T.cb_days; T3.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z', school: 'Marrickville' }]; T3.efc_members[0].date_of_birth = '2017-03-01';
+    const ov = makeDb(T3); const rr = await call(ov, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Hi\nWe won't be grading unfortunately\nWe will be overseas at that time" });
+    ok(rr.body.no && rr.body.offered === 2 && !ov.t.cb_calls.some(c => c.reason === 'not_grading'), '"we won\'t be grading, we\'ll be overseas" is offered the other gradings'); }
+  { const T3 = tables(); T3.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const x = makeDb(T3);
+    const rr = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "He's injured and we're away anyway" });
+    ok(rr.body.not_grading === 1, 'injured (even if also away) is still not grading'); }
   // Nothing suits: no offer (the call to the family still happens)
   const T2 = tables(); T2.cb_days = [T.cb_days[0], T.cb_days[4]]; T2.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z' }];
   const none = makeDb(T2), n2 = ghlCalls.length;
