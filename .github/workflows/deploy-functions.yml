@@ -23,4 +23,7 @@ jobs:
           version: latest
       - name: Deploy ${{ github.event.inputs.function }}
         working-directory: backend/toolkit/supabase
-        run: supabase functions deploy "${{ github.event.inputs.function }}" --project-ref "$PROJECT_REF" --no-verify-jwt
+        # The CLI asks to confirm the deploy and won't in CI (no terminal); give it a pseudo-TTY and answer yes.
+        run: |
+          set -o pipefail
+          printf 'y\n' | script -q -e -c "supabase functions deploy ${{ github.event.inputs.function }} --project-ref $PROJECT_REF --no-verify-jwt" /dev/null
