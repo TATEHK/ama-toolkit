@@ -1029,7 +1029,8 @@ export async function handle(req, db, env = {}, http = fetch) {
               seq_paused_until: null, alt_offer: null, ...(nd.day_id !== d.day_id ? { day_id: nd.day_id, moved_from_day: d.day_id } : {}) }).eq('entry_id', e.entry_id);
             const fixed = { ...e, belt_from: from, belt_to: to, day_id: nd.day_id };
             const tm = (et => et ? ' at ' + clock(et) : '')(entryTime(nd, fixed));
-            const text = `Thanks ${firstWord(m.guardian_name) || 'there'}, sorry about that! We've updated ${firstWord(m.full_name || e.full_name)} to grade for ${to} at AMA ${whereOf(fixed, nd)} on ${longDay(nd.grading_date)}${tm}. Book here: ${SITE}b#${e.token} AMA ${whereOf(fixed, nd)}`;
+            const bfSelf = selfOf(m), bfGreet = bfSelf ? firstWord(m.full_name || e.full_name) : (firstWord(m.guardian_name) || 'there'), bfWho = bfSelf ? 'you' : firstWord(m.full_name || e.full_name);
+            const text = `Thanks ${bfGreet}, sorry about that! We've updated ${bfWho} to grade for ${to} at AMA ${whereOf(fixed, nd)} on ${longDay(nd.grading_date)}${tm}. Book here: ${SITE}b#${e.token} AMA ${whereOf(fixed, nd)}`;
             const r = await familyText(m, fixed, text, 'belt_fix', 'automatic: belt corrected by reply', `${firstWord(m.full_name || e.full_name)}'s grading: ${to}`);
             await db.from('cb_calls').update({ done: true, outcome: 'belt_fixed', outcome_note: `Belt changed by text from ${was}`, updated_at: nowIso }).eq('entry_id', e.entry_id).eq('done', false).then(() => {}, () => {});
             return json({ ok: true, matched: mine.length, belt: { from, to, was, day: nd.day_id, moved: nd.day_id !== d.day_id }, ...r });
@@ -1073,7 +1074,8 @@ export async function handle(req, db, env = {}, http = fetch) {
         const e0 = mine[0], m0 = byKey[e0.member_key], d0 = open.find(x => x.day_id === e0.day_id);
         const names = [...new Set(mine.map(e => firstWord(e.full_name)))].join(' and ');
         const nums = common.length === 1 ? 'Reply 1' : `Reply ${common.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${common.length}`;
-        const text = `Hi ${firstWord(m0.guardian_name) || 'there'}, no worries. ${names} can grade on another day instead:\n${common.map((d, i) => `${i + 1}. ${dayLine(d, e0)}`).join('\n')}\n${nums} to switch and we'll send the booking link, or call us if none of these suit. AMA ${whereOf(e0, d0)}`;
+        const offSelf = selfOf(m0) && mine.length === 1, offGreet = offSelf ? firstWord(m0.full_name || e0.full_name) : (firstWord(m0.guardian_name) || 'there'), offWho = offSelf ? 'You' : names;
+        const text = `Hi ${offGreet}, no worries. ${offWho} can grade on another day instead:\n${common.map((d, i) => `${i + 1}. ${dayLine(d, e0)}`).join('\n')}\n${nums} to switch and we'll send the booking link, or call us if none of these suit. AMA ${whereOf(e0, d0)}`;
         const r = await familyText(m0, e0, text, 'alt_offer', 'automatic: offered another grading', `Another grading day for ${names}`);
         if (r.ok) {
           for (const e of mine) await db.from('cb_entries').update({ alt_offer: { days: common.map(d => d.day_id), at: now } }).eq('entry_id', e.entry_id);
