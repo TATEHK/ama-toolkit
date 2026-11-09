@@ -1186,8 +1186,11 @@ function editBelt(e) {
     if (!from || !to) { toast('Pick both belts'); return; }
     $('#ebGo').disabled = true; $('#ebGo').textContent = 'Saving…';
     const tb = belts.find(b => b.belt === to), toProg = (beltOf(to, state.programme).programme) || (tb && tb.programme) || null;
+    const changed = from !== e.belt_from || to !== e.belt_to;
+    const upd = { belt_from: from, belt_to: to, to_programme: toProg };
+    if (changed) upd.efc_belt_fix = new Date().toISOString();   // show on Update EFC so staff fix the belt in EFC too
     try {
-      await run(sb.from('cb_entries').update({ belt_from: from, belt_to: to, to_programme: toProg }).eq('entry_id', e.entry_id), 'Belt updated');
+      await run(sb.from('cb_entries').update(upd).eq('entry_id', e.entry_id), changed ? 'Belt updated — added to Update EFC' : 'Belt updated');
       dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
     } catch (er) { toast(errMsg(er), 6000); $('#ebGo').disabled = false; $('#ebGo').textContent = 'Save'; }
   };
@@ -1393,13 +1396,15 @@ function renderBbc() {
 }
 function renderEfc() {
   const v = $('#view-efc');
-  const todo = state.entries.filter(e => resultIs(e, 'pass') && !e.efc_done).map(e => ({ e, d: dayOf(e.day_id) })).filter(x => x.d)
-    .sort((a, b) => a.d.grading_date.localeCompare(b.d.grading_date) || a.e.full_name.localeCompare(b.e.full_name));
+  const beltFix = state.entries.filter(e => e.efc_belt_fix && !resultIs(e, 'pass')).map(e => ({ e, d: dayOf(e.day_id), kind: 'belt' })).filter(x => x.d);
+  const promote = state.entries.filter(e => resultIs(e, 'pass') && !e.efc_done).map(e => ({ e, d: dayOf(e.day_id), kind: 'promote' })).filter(x => x.d);
+  const todo = [...beltFix, ...promote]   // corrected belts first, then passed students to promote
+    .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'belt' ? -1 : 1) || a.d.grading_date.localeCompare(b.d.grading_date) || a.e.full_name.localeCompare(b.e.full_name));
   const done = state.entries.filter(e => e.efc_done).sort((a, b) => String(b.efc_done_at).localeCompare(String(a.efc_done_at))).slice(0, 30);
-  v.innerHTML = `<div class="view-head"><div><h2>Update EFC</h2><p class="sub">Promote each student in EFC, then tick them off.</p></div></div>
+  v.innerHTML = `<div class="view-head"><div><h2>Update EFC</h2><p class="sub">Promote each student in EFC (or fix a corrected belt), then tick them off.</p></div></div>
     <p class="hint" id="efcAt">${state.efcAt ? `Belts and classes last came from EFC ${esc(new Date(state.efcAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}. New belts come back with the nightly update.` : 'Belts and classes come from EFC every night.'}</p>
-    <ul class="list">${todo.length ? todo.map(({ e, d }) => `<li><label class="item" style="${beltVar(e.belt_to)}"><input type="checkbox" data-efc="${e.entry_id}" ${canGrade() ? '' : 'disabled'}>
-      <div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div><div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></label></li>`).join('') : '<li class="empty">Nothing to update in EFC.</li>'}</ul>
+    <ul class="list">${todo.length ? todo.map(({ e, d, kind }) => `<li><label class="item" style="${beltVar(kind === 'belt' ? e.belt_from : e.belt_to)}"><input type="checkbox" data-efc="${e.entry_id}" data-efckind="${kind}" ${canGrade() ? '' : 'disabled'}>
+      <div class="main"><div class="name">${esc(e.full_name)}</div>${kind === 'belt' ? `<div class="meta"><b>Fix belt in EFC</b> — current belt is now ${esc(short(e.belt_from))} (grading for ${esc(short(toText(e)))})</div>` : `<div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div>`}<div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></label></li>`).join('') : '<li class="empty">Nothing to update in EFC.</li>'}</ul>
     ${done.length ? `<h3>Recently done</h3><ul class="list">${done.map(e => `<li><div class="item plain"><div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(toText(e))}, by ${esc(e.efc_done_by || 'staff')}</div></div>${canGrade() ? `<button class="btn sm" data-undo="${e.entry_id}">Undo</button>` : ''}</div></li>`).join('')}</ul>` : ''}
     ${canGrade() ? `<details class="fold" id="importCard"><summary>Import an EFC list</summary><div class="fold-body">
       <p class="hint">Export students from EFC as CSV or Excel. Belts, last grading dates, classes, birthdays and contacts are updated, and new students are added. Blank cells keep what's saved. Medical notes and balances are never stored.</p>
@@ -1408,7 +1413,8 @@ function renderEfc() {
       <div id="impPrev"></div></div></details>` : ''}`;
   if (canGrade()) wireImport();
   $$('[data-efc]').forEach(c => c.onchange = async () => {
-    const e = state.entries.find(x => x.entry_id === c.dataset.efc), f = { efc_done: true, efc_done_at: new Date().toISOString(), efc_done_by: state.me };
+    const e = state.entries.find(x => x.entry_id === c.dataset.efc);
+    const f = c.dataset.efckind === 'belt' ? { efc_belt_fix: null } : { efc_done: true, efc_done_at: new Date().toISOString(), efc_done_by: state.me };
     try { await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), 'Ticked off'); Object.assign(e, f); render(); }
     catch (er) { c.checked = false; toast(errMsg(er), 6000); }
   });
