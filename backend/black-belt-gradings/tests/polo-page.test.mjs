@@ -33,6 +33,7 @@ await db.exec(`insert into prep_roles (email, role) values ('pay@ama.test', 'pay
     ('BB0103', 'Probationary grading Nov 2026', 'Probationary Black Belt', 'passed', 'passed'),
     ('BB0104', 'Probationary grading Nov 2026', 'Probationary Black Belt', 'unsuccessful', 'unsuccessful');
   insert into prep_grading (student_id, grading_event, target_rank, status, result, grading_date) values ('BB0105', 'Dan grading 2025', '2nd Dan', 'passed', 'passed', '2025-11-20');`);
+await db.exec(read(join(here, '../supabase/prep-update-26.sql')));   // the Masters Club uniform combo
 await db.exec(read(join(here, '../../toolkit/supabase/app-permissions.sql')));   // per-feature permissions (Staff logins), from the roles above
 
 const users = Object.fromEntries(['owner@ama.test', 'pay@ama.test', 'grade@ama.test', 'inst@ama.test'].map((e, i) => [e, { id: `00000000-0000-0000-0000-00000000001${i}`, password: 'pw' }]));
@@ -52,6 +53,8 @@ async function open(email, path = '/') {
   await ctx.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ contentType: 'text/javascript', body: read(join(here, 'node_modules/@supabase/supabase-js/dist/umd/supabase.js')) }));
   await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: '' }));
   await ctx.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: configJs }));
+  // The family page lives at /polo/ (site/polo), outside the app folder this test server serves
+  await ctx.route(u => new URL(u).pathname.startsWith('/polo/'), r => r.fulfill({ contentType: 'text/html', body: read(join(here, '../../../site/polo/index.html')) }));
   // The "ghl" function: texts are recorded
   await ctx.route('**/functions/v1/ghl', async r => {
     const b = JSON.parse(r.request().postData() || '{}');
@@ -66,16 +69,19 @@ async function open(email, path = '/') {
     const st = (await q(`select * from prep_polo_settings`))[0];
     if (!o) return r.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false,"error":"This link isn\'t right."}' });
     if (b.action === 'checkout') {
-      await q(`update prep_polo_orders set status = 'pending', size = $2, qty = $3, price = $4 where order_id = $1`, [o.order_id, b.size, b.qty, st.price]);
+      await q(`update prep_polo_orders set status = 'pending', size = $2, qty = $3, price = $4, uniform = $5, uniform_size = $6, uniform_price = $7 where order_id = $1`,
+        [o.order_id, b.size, b.qty, st.price, !!b.uniform, b.uniform ? b.uniform_size : null, b.uniform ? st.combo_price : null]);
       return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, url: `${BASE}/pretend-stripe?o=${o.order_id}&back=${encodeURIComponent(`${BASE}/polo/?paid=1#t=${b.token}`)}` }) });
     }
     r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, first: o.full_name.split(' ')[0], year: o.year, rank: o.rank, size: o.size, qty: o.qty, status: o.status,
-      price: Number(st.price), amount: o.amount != null ? Number(o.amount) : null, sizes: st.sizes, open: st.is_open, note: st.note, card: true }) });
+      price: Number(st.price), amount: o.amount != null ? Number(o.amount) : null, sizes: st.sizes, open: st.is_open, note: st.note, card: true,
+      combo: st.combo_on ? Number(st.combo_price) : null, uniform_sizes: st.uniform_sizes, uniform: o.uniform, uniform_size: o.uniform_size }) });
   });
   await ctx.route('**/pretend-stripe?**', async r => {
     const u = new URL(r.request().url());
-    await q(`update prep_polo_orders set status = 'paid', paid_at = now(), paid_how = 'stripe', amount = price * qty, stripe_session = 'cs_1', stripe_payment = 'pi_1' where order_id = $1`, [u.searchParams.get('o')]);
-    r.fulfill({ status: 302, headers: { location: u.searchParams.get('back') } });
+    await q(`update prep_polo_orders set status = 'paid', paid_at = now(), paid_how = 'stripe', amount = case when uniform then uniform_price + price * (qty - 1) else price * qty end, stripe_session = 'cs_' || $1, stripe_payment = 'pi_' || $1 where order_id = $1`, [u.searchParams.get('o')]);
+    // Back to the family page by script: a redirect's target isn't routed by the browser test, so it would miss /polo/
+    r.fulfill({ contentType: 'text/html', body: `<script>location.replace(${JSON.stringify(u.searchParams.get('back'))})</script>` });
   });
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(e.message));
@@ -135,6 +141,25 @@ try {
   ok(await page.isVisible('#bad'), 'a wrong link says so');
   await ctx.close();
 
+  console.log('\nThe Masters Club uniform combo');
+  ({ ctx, page } = await open(null, '/polo/index.html#t=' + orders[2].token));
+  await page.waitForSelector('#form:not([hidden])');
+  ok(await page.isVisible('#combo') && (await page.textContent('#combo')).includes('Masters Club uniform') && (await page.textContent('#comboPrice')).includes('$150') && !(await page.isVisible('#usizeBox')), 'the polo link offers a Masters Club uniform for $150 with the polo');
+  await page.click('#sizes [data-s="L"]'); await page.click('#comboBtn');
+  ok(await page.isVisible('#usizeBox') && (await page.textContent('#total')).includes('$150') && (await page.textContent('#sizeLbl')) === 'Polo size', 'adding it shows the uniform sizes and a $150 total');
+  await page.click('#go'); await page.waitForSelector('#err:not([hidden])');
+  ok((await page.textContent('#err')).includes('uniform size'), 'they must choose a uniform size');
+  await page.click('#usizes [data-u="3"]'); await page.selectOption('#qty', '2');
+  ok((await page.textContent('#total')).includes('$195') && (await page.textContent('#total')).includes('1 extra polo'), 'an extra polo is the polo price on top ($195)');
+  await page.screenshot({ path: join(SHOTS, 'polo-family-combo.png'), fullPage: true });
+  await page.selectOption('#qty', '1'); await page.click('#go');
+  await page.waitForSelector('#done:not([hidden])', { timeout: 10000 });
+  const dc = await page.textContent('#done');
+  ok(dc.includes('Masters Club uniform') && dc.includes('$150') && dc.includes('Size 3'), 'after paying they see the uniform and polo, and $150 paid');
+  const nz = (await q(`select * from prep_polo_orders where student_id = 'BB0103'`))[0];
+  ok(nz.status === 'paid' && nz.uniform === true && nz.uniform_size === '3' && nz.size === 'L' && Number(nz.amount) === 150, 'the order is paid with the uniform and both sizes');
+  await ctx.close();
+
   console.log('\nPayments, sizes and the supplier');
   ({ ctx, page } = await open('pay@ama.test'));
   await polos(page);
@@ -154,12 +179,13 @@ try {
   await polos(page);
   await page.click('[data-pof="paid"]');
   const pv = await page.textContent('#view-polos');
-  ok(/Sizes to order[\s\S]*M\s*2[\s\S]*L\s*1/.test(pv), 'sizes to order are added up (M x2, L x1)');
+  ok(/Sizes to order[\s\S]*M\s*2[\s\S]*L\s*2/.test(pv), 'sizes to order are added up (M x2, L x2)');
+  ok(/Masters Club uniform size\s*Uniforms\s*3\s*1/.test(pv) && pv.includes('+ uniform 3'), 'uniform sizes to order are added up too, and the order shows the uniform');
   const dl = page.waitForEvent('download'); await page.click('#poCsv'); const file = await dl;
   const csv = readFileSync(await file.path(), 'utf8');
-  ok(csv.includes('Student,Size,Qty') && csv.includes('Kian Lee,M,2') && csv.includes('Ava Brown,L,1'), 'the supplier list has each student, size and number');
+  ok(csv.includes('Student,Polo size,Polos,Masters Club uniform size') && csv.includes('Kian Lee,M,2,') && csv.includes('Ava Brown,L,1,') && csv.includes('Noah Smith,L,1,3'), 'the supplier list has each student, polo size and number, and uniform size');
   await page.click('#poOrdered'); await page.click('#askYes'); await toastSays(page, 'Marked ordered');
-  ok((await q(`select count(*)::int n from prep_polo_orders where status = 'ordered' and ordered_at is not null`))[0].n === 2, 'paid orders are marked ordered once sent to the supplier');
+  ok((await q(`select count(*)::int n from prep_polo_orders where status = 'ordered' and ordered_at is not null`))[0].n === 3, 'paid orders are marked ordered once sent to the supplier');
   await page.click('[data-pof="ordered"]'); await page.click('#poList [data-po]:has-text("Kian Lee")'); await page.waitForSelector('#poDel');
   await page.click('#poDel'); await toastSays(page, 'handed out');
   ok((await q(`select status from prep_polo_orders where student_id = 'BB0101'`))[0].status === 'delivered', 'and handed out');
@@ -170,9 +196,11 @@ try {
   ({ ctx, page } = await open('owner@ama.test'));
   await polos(page);
   await page.click('#poSet'); await page.waitForSelector('#psForm');
-  await page.fill('#psPrice', '50'); await page.fill('#psSizes', 'S, M, L'); await page.uncheck('#psOpen'); await page.click('#psForm [type=submit]'); await toastSays(page, 'saved');
+  await page.fill('#psPrice', '50'); await page.fill('#psSizes', 'S, M, L'); await page.uncheck('#psOpen');
+  await page.fill('#psComboPrice', '160'); await page.fill('#psUSizes', '1, 2, 3'); await page.uncheck('#psCombo'); await page.click('#psForm [type=submit]'); await toastSays(page, 'saved');
   const st = (await q(`select * from prep_polo_settings`))[0];
   ok(Number(st.price) === 50 && st.sizes.join() === 'S,M,L' && st.is_open === false, 'admins set the price, sizes and whether orders are open');
+  ok(Number(st.combo_price) === 160 && st.uniform_sizes.join() === '1,2,3' && st.combo_on === false, '...and the uniform combo price, uniform sizes and whether it is offered');
   await ctx.close();
   ({ ctx, page } = await open('inst@ama.test'));
   await page.click('.tab[data-view="more"]');

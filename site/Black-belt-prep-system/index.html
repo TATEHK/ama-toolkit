@@ -4575,24 +4575,29 @@ const poloUrl = token => location.origin + '/polo#' + token;   // short family l
 const poloOpen = (sid, year = state.po.year) => state.polos.find(o => o.student_id === sid && o.year === year && o.status !== 'cancelled') || null;
 // Graded that year, with no polo order for that year yet
 const poloEligible = year => poloGraded(year).filter(x => !poloOpen(x.s.student_id, year));
+// Masters Club uniform combo (prep-update-26.sql): one uniform + one polo for the combo price, extra polos at the polo price
+const poCombo = S => S && S.combo_on !== false && S.combo_price != null && (S.uniform_sizes || []).length ? Number(S.combo_price) : null;
+const poDue = (o, S) => o.uniform && poCombo(S) != null ? poCombo(S) + Number(S.price || 0) * ((o.qty || 1) - 1) : Number(S.price || 0) * (o.qty || 1);
 const poTag = o => `<span class="tag ${PO_STATUS[o.status][1]}">${PO_STATUS[o.status][0]}</span>`;
 function renderPolos() {
   const v = $('#view-polos'), P = state.po;
   if (!state.polosReady) { v.innerHTML = `${backToMore()}<div class="view-head"><h2>Polo shirts</h2></div><div class="card">${has('polos', 'payments') ? 'Run supabase/prep-update-15.sql in Supabase to take polo orders.' : 'Only admins, grading and payments staff can see polo orders.'}</div>`; wireBack(); return; }
   if (!P.year) P.year = new Date().getFullYear();
   const Y = P.year, S = state.poloSet || {}, all = state.polos.filter(o => o.year === Y), graded = poloGraded(Y), el = poloEligible(Y), n = k => all.filter(PO_FILTERS[k][1]).length;
-  const toOrder = all.filter(o => o.status === 'paid'), sizes = {};
-  toOrder.forEach(o => { sizes[o.size || '?'] = (sizes[o.size || '?'] || 0) + (o.qty || 1); });
+  const toOrder = all.filter(o => o.status === 'paid'), sizes = {}, usizes = {};
+  toOrder.forEach(o => { sizes[o.size || '?'] = (sizes[o.size || '?'] || 0) + (o.qty || 1); if (o.uniform) usizes[o.uniform_size || '?'] = (usizes[o.uniform_size || '?'] || 0) + 1; });
+  const uOrder = z => { const i = (S.uniform_sizes || []).indexOf(z); return i < 0 ? 99 : i; };
   const sizeOrder = s => { const i = (S.sizes || []).indexOf(s); return i < 0 ? 99 : i; };
   v.innerHTML = `${backToMore()}<div class="view-head"><h2>Polo shirts</h2><div class="row">${has('settings') ? '<button class="btn sm" id="poSet">Settings</button>' : ''}<button class="btn sm" id="poCsv" ${all.some(o => ['paid', 'ordered'].includes(o.status)) ? '' : 'disabled'}>Supplier list (CSV)</button></div></div>
     <div class="field"><label for="poYear">Year</label><select id="poYear">${poloYears().map(y => `<option${y === Y ? ' selected' : ''}>${y}</option>`).join('')}</select></div>
-    <p class="hint">The ${Y} polo has the names of everyone who passed Probationary Black Belt or a Dan in ${Y} on the back, and each of them can order one. Families get a personal link, pick the size and how many, and pay by card. It's marked paid here automatically. ${S.is_open ? `Price <b>${money(S.price)}</b>.` : '<b>Orders are closed</b> (Settings).'}</p>
+    <p class="hint">The ${Y} polo has the names of everyone who passed Probationary Black Belt or a Dan in ${Y} on the back, and each of them can order one. Families get a personal link, pick the size and how many, and pay by card. It's marked paid here automatically. ${S.is_open ? `Price <b>${money(S.price)}</b>${poCombo(S) != null ? `, or <b>${money(poCombo(S))}</b> with a Masters Club uniform` : ''}.` : '<b>Orders are closed</b> (Settings).'}</p>
     <div class="stats">
       <div class="stat"><span class="n">${graded.length}</span><span class="l">names on the back</span></div>
       <div class="stat"><span class="n">${n('topay')}</span><span class="l">not paid yet</span></div>
       <div class="stat"><span class="n">${toOrder.reduce((t, o) => t + (o.qty || 1), 0)}</span><span class="l">paid, to order</span></div>
       <div class="stat"><span class="n">${n('ordered')}</span><span class="l">ordered</span></div></div>
     ${toOrder.length ? `<div class="card"><h3>Sizes to order</h3><table class="grid"><thead><tr><th>Size</th><th>Shirts</th></tr></thead><tbody>${Object.entries(sizes).sort((a, b) => sizeOrder(a[0]) - sizeOrder(b[0])).map(([s, c]) => `<tr><td>${esc(s)}</td><td>${c}</td></tr>`).join('')}</tbody></table>
+      ${Object.keys(usizes).length ? `<table class="grid"><thead><tr><th>Masters Club uniform size</th><th>Uniforms</th></tr></thead><tbody>${Object.entries(usizes).sort((a, b) => uOrder(a[0]) - uOrder(b[0])).map(([z, c]) => `<tr><td>${esc(z)}</td><td>${c}</td></tr>`).join('')}</tbody></table>` : ''}
       ${has('polos') ? `<div class="row"><button class="btn sm" id="poOrdered">Mark these ${toOrder.length} as ordered</button></div><p class="hint">Download the supplier list first, then mark them ordered once the order is placed.</p>` : ''}</div>` : ''}
     <div class="card"><div class="row"><h3 class="grow">Names on the back (${graded.length})</h3><button class="btn sm" id="poNames" ${graded.length ? '' : 'disabled'}>Names list (CSV)</button></div>
       <p class="hint">${graded.length ? esc(graded.map(x => x.s.certificate_name || x.s.full_name).join(', ')) : `No one has passed Probationary Black Belt or a Dan in ${Y} yet. Results come from Grading.`}</p></div>
@@ -4609,7 +4614,7 @@ function renderPolos() {
     const sel = all.filter(o => PO_FILTERS[P.filter][1](o)).map(o => ({ o, s: student(o.student_id) || { full_name: o.student_id, student_id: o.student_id } }))
       .filter(x => !q || x.s.full_name.toLowerCase().includes(q) || x.s.student_id.toLowerCase().includes(q)).sort((a, b) => a.s.full_name.localeCompare(b.s.full_name));
     $('#poList').innerHTML = sel.length ? sel.map(({ o, s }) => `<li><button class="item" data-po="${o.order_id}"><div class="main"><div class="name">${esc(s.full_name)}</div>
-      <div class="meta">${esc([o.rank, o.size ? `size ${o.size}${o.qty > 1 ? ' x' + o.qty : ''}` : 'size not chosen', has('payments') && o.amount != null ? money(o.amount) + (o.paid_how ? ' ' + (PAID_HOW[o.paid_how] || o.paid_how).toLowerCase() : '') : ''].filter(Boolean).join(' · '))}</div></div>${poTag(o)}</button></li>`).join('')
+      <div class="meta">${esc([o.rank, o.size ? `size ${o.size}${o.qty > 1 ? ' x' + o.qty : ''}` : 'size not chosen', o.uniform ? `+ uniform ${o.uniform_size || ''}`.trim() : '', has('payments') && o.amount != null ? money(o.amount) + (o.paid_how ? ' ' + (PAID_HOW[o.paid_how] || o.paid_how).toLowerCase() : '') : ''].filter(Boolean).join(' · '))}</div></div>${poTag(o)}</button></li>`).join('')
       : '<li><div class="empty">No orders here.</div></li>';
     $$('#poList [data-po]').forEach(b => b.onclick = () => openPolo(b.dataset.po));
   };
@@ -4655,10 +4660,12 @@ function openPolo(id) {
     </dl>
     <div class="grid2"><div class="field"><label for="poSize">Size</label><select id="poSize" ${edit ? '' : 'disabled'}><option value="">Not chosen</option>${(S.sizes || []).map(z => `<option${z === o.size ? ' selected' : ''}>${esc(z)}</option>`).join('')}</select></div>
       <div class="field"><label for="poQty">How many</label><select id="poQty" ${edit ? '' : 'disabled'}>${[1, 2, 3, 4, 5].map(q => `<option${q === (o.qty || 1) ? ' selected' : ''}>${q}</option>`).join('')}</select></div></div>
+    ${poCombo(S) != null || o.uniform ? `<div class="grid2"><label class="check"><input type="checkbox" id="poUni" ${o.uniform ? 'checked' : ''} ${edit ? '' : 'disabled'}> Masters Club uniform combo</label>
+      <div class="field"><label for="poUSize">Uniform size</label><select id="poUSize" ${edit ? '' : 'disabled'}><option value="">Not chosen</option>${[...new Set([...(S.uniform_sizes || []), ...(o.uniform_size ? [o.uniform_size] : [])])].map(z => `<option${z === o.uniform_size ? ' selected' : ''}>${esc(z)}</option>`).join('')}</select></div></div>` : ''}
     <div class="field"><label for="poNotes">Notes</label><textarea id="poNotes" rows="2" ${grade ? '' : 'disabled'}>${esc(o.notes || '')}</textarea></div>
     ${o.status !== 'cancelled' ? `<div class="section"><h3>Family's link</h3><p class="hint" style="word-break:break-all">${esc(poloUrl(o.token))}</p><div class="row"><button type="button" class="btn sm" id="poCopy">Copy link</button>${state.textsReady && grade && open ? '<button type="button" class="btn sm" id="poTextOne">Text it</button>' : ''}</div></div>` : ''}
     ${pay && open ? `<div class="section"><h3>Paid another way</h3><div class="grid2"><div class="field"><label for="poHow">How</label><select id="poHow">${Object.entries(PAID_HOW).filter(([k]) => k !== 'stripe').map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></div>
-      <div class="field"><label for="poAmt">Amount ($)</label><input type="number" id="poAmt" min="0" step="0.01" value="${Number((S.price || 0) * (o.qty || 1)).toFixed(2)}"></div></div>
+      <div class="field"><label for="poAmt">Amount ($)</label><input type="number" id="poAmt" min="0" step="0.01" value="${poDue(o, S).toFixed(2)}"></div></div>
       <div class="row"><button type="button" class="btn" id="poPaid">Mark paid</button></div></div>` : ''}
     <div class="dlg-actions">
       ${grade && o.status === 'paid' ? '<button type="button" class="btn" id="poOrd">Mark ordered</button>' : ''}
@@ -4667,12 +4674,16 @@ function openPolo(id) {
       ${grade && o.status !== 'cancelled' ? '<button type="button" class="btn danger" id="poCancel">Cancel order</button>' : ''}
       ${grade ? '<button class="btn primary" type="submit">Save</button>' : '<button type="button" class="btn" data-close>Close</button>'}</div></form>`);
   const save = async (rec, msg) => { try { await run(sb.from('prep_polo_orders').update(rec).eq('order_id', id), msg); sheet.close(); await loadAll(); render(); } catch (e) { toast(errMsg(e), 6000); } };
+  const uni = () => { const c = $('#poUni'); return c ? { uniform: c.checked, uniform_size: c.checked ? ($('#poUSize').value || null) : null } : {}; };
+  // The amount for "Paid another way" follows the combo, uniform and how many
+  const due = () => { const a = $('#poAmt'); if (a) a.value = poDue({ ...o, qty: +$('#poQty').value, ...uni() }, S).toFixed(2); };
+  ['#poUni', '#poQty'].forEach(k => { const el = $(k); if (el) el.addEventListener('change', due); });
   $('#poForm').onsubmit = e => { e.preventDefault();
-    save({ size: $('#poSize').value || null, qty: +$('#poQty').value, notes: $('#poNotes').value.trim() || null }, 'Saved'); };
+    save({ size: $('#poSize').value || null, qty: +$('#poQty').value, notes: $('#poNotes').value.trim() || null, ...uni() }, 'Saved'); };
   const on = (sel, f) => { const b = $(sel); if (b) b.onclick = f; };
   on('#poCopy', async () => { try { await navigator.clipboard.writeText(poloUrl(o.token)); toast('Link copied'); } catch (e) { toast('Press and hold the link to copy it.'); } });
   on('#poTextOne', () => poloTexts([o]));
-  on('#poPaid', () => { if (!$('#poSize').value) return toast('Choose the size first.'); save({ status: 'paid', paid_at: new Date().toISOString(), paid_how: $('#poHow').value, paid_by: state.email, amount: Number($('#poAmt').value || 0),
+  on('#poPaid', () => { if (!$('#poSize').value) return toast('Choose the size first.'); const u = uni(); if (u.uniform && !u.uniform_size) return toast('Choose the uniform size first.'); save({ ...u, uniform_price: u.uniform ? poCombo(S) : null, status: 'paid', paid_at: new Date().toISOString(), paid_how: $('#poHow').value, paid_by: state.email, amount: Number($('#poAmt').value || 0),
     price: S.price, size: $('#poSize').value, qty: +$('#poQty').value }, 'Marked paid'); });
   on('#poOrd', () => save({ status: 'ordered', ordered_at: new Date().toISOString() }, 'Marked ordered'));
   on('#poDel', () => save({ status: 'delivered', delivered_at: new Date().toISOString() }, 'Marked handed out'));
@@ -4715,6 +4726,10 @@ function poloSettings() {
     <label class="check"><input type="checkbox" id="psOpen" ${S.is_open ? 'checked' : ''}> Taking orders (families can pay)</label>
     <div class="field"><label for="psPrice">Price per polo ($)</label><input type="number" id="psPrice" min="0" step="0.01" value="${Number(S.price || 0).toFixed(2)}"></div>
     <div class="field"><label for="psSizes">Sizes, in order, separated by commas</label><input type="text" id="psSizes" value="${esc((S.sizes || []).join(', '))}"></div>
+    <div class="section"><h3>Masters Club uniform combo</h3>
+      <label class="check"><input type="checkbox" id="psCombo" ${S.combo_on !== false ? 'checked' : ''}> Offer the uniform + polo combo on families' links</label>
+      <div class="field"><label for="psComboPrice">Combo price: one uniform and one polo ($)</label><input type="number" id="psComboPrice" min="0" step="0.01" value="${Number(S.combo_price ?? 150).toFixed(2)}"><p class="hint">Extra polos in the same order are the polo price each.</p></div>
+      <div class="field"><label for="psUSizes">Uniform sizes, in order, separated by commas</label><input type="text" id="psUSizes" value="${esc((S.uniform_sizes || []).join(', '))}"></div></div>
     <div class="field"><label for="psNote">Note for families (optional)</label><input type="text" id="psNote" maxlength="200" value="${esc(S.note || '')}" placeholder="e.g. Polos arrive about 4 weeks after ordering"></div>
     ${state.textsReady ? `<div class="field"><label for="psMsg">Text message with the link</label><textarea id="psMsg" rows="3" maxlength="1000">${esc(msgTpl('polo'))}</textarea><p class="hint">{first_name} {name} {belt} {year} {link}</p></div>` : ''}
     <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit">Save</button></div></form>`);
@@ -4723,8 +4738,13 @@ function poloSettings() {
     const sizes = $('#psSizes').value.split(',').map(x => x.trim()).filter(Boolean), price = Number($('#psPrice').value);
     if (!sizes.length) return toast('Add at least one size.');
     if (!(price >= 0)) return toast('Check the price.');
+    const combo = $('#psCombo') ? $('#psCombo').checked : false, comboPrice = Number($('#psComboPrice') ? $('#psComboPrice').value : 0);
+    const usizes = $('#psUSizes') ? $('#psUSizes').value.split(',').map(x => x.trim()).filter(Boolean) : [];
+    if ($('#psCombo') && combo && !(comboPrice > 0)) return toast('Check the combo price.');
+    if ($('#psCombo') && combo && !usizes.length) return toast('Add at least one uniform size.');
     try {
-      await run(sb.from('prep_polo_settings').update({ is_open: $('#psOpen').checked, price, sizes: [...new Set(sizes)], note: $('#psNote').value.trim() || null, updated_at: new Date().toISOString() }).eq('id', 1));
+      await run(sb.from('prep_polo_settings').update({ is_open: $('#psOpen').checked, price, sizes: [...new Set(sizes)], note: $('#psNote').value.trim() || null, updated_at: new Date().toISOString(),
+        ...($('#psCombo') ? { combo_on: combo, combo_price: comboPrice, ...(usizes.length ? { uniform_sizes: [...new Set(usizes)] } : {}) } : {}) }).eq('id', 1));
       const m = $('#psMsg'); if (m && m.value.trim() && m.value.trim() !== msgTpl('polo')) await run(sb.from('prep_message_templates').update({ body: m.value.trim(), updated_at: new Date().toISOString() }).eq('kind', 'polo'));
       toast('Polo settings saved'); sheet.close(); await loadAll(); render();
     } catch (er) { toast(errMsg(er), 6000); }
@@ -4741,7 +4761,8 @@ function poloCsv(year) {
   const sz = state.poloSet.sizes || [];
   const rows = state.polos.filter(o => o.year === year && ['paid', 'ordered'].includes(o.status)).map(o => ({ o, s: student(o.student_id) || {} }))
     .sort((a, b) => (sz.indexOf(a.o.size) - sz.indexOf(b.o.size)) || String(a.s.full_name).localeCompare(String(b.s.full_name)));
-  csvDownload(`polo-orders-${year}.csv`, [['Student', 'Size', 'Qty', 'Student ID', 'Rank', 'Status'], ...rows.map(({ o, s }) => [s.full_name || '', o.size || '', o.qty || 1, o.student_id, o.rank || '', PO_STATUS[o.status][0]])]);
+  csvDownload(`polo-orders-${year}.csv`, [['Student', 'Polo size', 'Polos', 'Masters Club uniform size', 'Student ID', 'Rank', 'Status'],
+    ...rows.map(({ o, s }) => [s.full_name || '', o.size || '', o.qty || 1, o.uniform ? (o.uniform_size || '?') : '', o.student_id, o.rank || '', PO_STATUS[o.status][0]])]);
   toast(`Supplier list: ${rows.length} order${rows.length === 1 ? '' : 's'}`);
 }
 // The names for the back of the year's shirt: everyone who passed Probationary Black Belt or a Dan that year

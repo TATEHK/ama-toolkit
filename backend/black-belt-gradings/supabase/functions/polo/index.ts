@@ -15,7 +15,9 @@
 //
 // Requests (POST JSON):
 //   { action: 'info', token }                                  the order on a family's link
-//   { action: 'checkout', token, size, qty }                   save the choice and get the Stripe payment page
+//   { action: 'checkout', token, size, qty, uniform?, uniform_size? }   save the choice and get the Stripe payment page.
+//        uniform: the Masters Club uniform + polo combo (prep-update-26.sql): one uniform and one polo for the combo price,
+//        and any extra polos at the polo price.
 //   Stripe's webhook (has a Stripe-Signature header)
 
 const STRIPE = 'https://api.stripe.com/v1';
@@ -29,6 +31,8 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 const fail = (msg, status = 400) => json({ ok: false, error: msg }, status);
 const tokenOk = t => /^[A-Za-z0-9]{10,16}$|^[a-f0-9]{48,72}$/.test(String(t || ''));   // short codes (/polo#<code>) and the old long tokens
 const OPEN = ['invited', 'pending'];
+// What an order costs: polos at the polo price, or the combo (one uniform + one polo) plus any extra polos
+export function orderTotal(price, qty, combo = null) { return combo != null ? Number(combo) + Number(price) * (qty - 1) : Number(price) * qty; }
 
 // Stripe's form encoding, with nested keys: { a: { b: 1 } } -> a[b]=1
 function form(obj, pre = '', out = []) {
@@ -90,14 +94,16 @@ export async function handle(req, db, env = {}, http = fetch) {
     // ---- Families ----
     let body = {}; try { body = JSON.parse(raw || '{}'); } catch (e) { /* not JSON */ }
     if (!tokenOk(body.token)) return fail('This link isn\'t right. Ask your instructor for a new one.', 404);
-    const { data: o } = await db.from('prep_polo_orders').select('order_id, student_id, year, rank, size, qty, price, amount, status, stripe_session, stripe_payment, paid_at, paid_how').eq('token', body.token).maybeSingle();
+    const { data: o } = await db.from('prep_polo_orders').select('order_id, student_id, year, rank, size, qty, price, amount, status, stripe_session, stripe_payment, paid_at, paid_how, uniform, uniform_size, uniform_price').eq('token', body.token).maybeSingle();
     if (!o || o.status === 'cancelled') return fail('This link isn\'t right. Ask your instructor for a new one.', 404);
-    const { data: st } = await db.from('prep_polo_settings').select('price, sizes, is_open, note').eq('id', 1).maybeSingle();
+    const { data: st } = await db.from('prep_polo_settings').select('*').eq('id', 1).maybeSingle();
     const { data: s } = await db.from('prep_students').select('full_name, contact_email').eq('student_id', o.student_id).maybeSingle();
     const price = st ? Number(st.price) : null;
+    const combo = st && st.combo_on !== false && st.combo_price != null && Array.isArray(st.uniform_sizes) && st.uniform_sizes.length ? Number(st.combo_price) : null;
     const info = () => ({ ok: true, first: String((s && s.full_name) || '').trim().split(/\s+/)[0] || '', year: o.year, rank: o.rank, size: o.size, qty: o.qty,
       status: o.status, price: OPEN.includes(o.status) ? price : Number(o.price ?? price), amount: o.amount != null ? Number(o.amount) : null,
-      sizes: (st && st.sizes) || [], open: !!(st && st.is_open), note: (st && st.note) || null, card: !!env.STRIPE_SECRET_KEY, paid_how: o.paid_how || null, receipt: o.receipt || null });
+      sizes: (st && st.sizes) || [], open: !!(st && st.is_open),
+      combo: OPEN.includes(o.status) ? combo : (o.uniform ? Number(o.uniform_price ?? combo) : null), uniform_sizes: (st && st.uniform_sizes) || [], uniform: !!o.uniform, uniform_size: o.uniform_size || null, note: (st && st.note) || null, card: !!env.STRIPE_SECRET_KEY, paid_how: o.paid_how || null, receipt: o.receipt || null });
 
     if (body.action === 'info') {
       // Back from Stripe (or the webhook hasn't come yet): ask Stripe whether it was paid
@@ -119,16 +125,23 @@ export async function handle(req, db, env = {}, http = fetch) {
     if (!(st.sizes || []).includes(size)) return fail('Choose a size.');
     if (!Number.isInteger(qty) || qty < 1 || qty > 5) return fail('Choose how many (1 to 5).');
     if (!(price > 0)) return fail('The polo price isn\'t set yet. Please ask at the front desk.');
+    const uniform = body.uniform === true, usize = uniform ? String(body.uniform_size || '') : null;
+    if (uniform && combo == null) return fail('The uniform combo isn\'t available at the moment. Please ask at the front desk.');
+    if (uniform && !st.uniform_sizes.includes(usize)) return fail('Choose a uniform size.');
     if (!env.STRIPE_SECRET_KEY) return fail('Card payments aren\'t set up yet. Please ask at the front desk.', 409);
 
-    const { error: ue } = await db.from('prep_polo_orders').update({ size, qty, price, status: 'pending' }).eq('order_id', o.order_id);
+    const { error: ue } = await db.from('prep_polo_orders').update({ size, qty, price, uniform, uniform_size: usize, uniform_price: uniform ? combo : null, status: 'pending' }).eq('order_id', o.order_id);
     if (ue) throw ue;
     const site = env.POLO_SITE || SITE;
     const email = s && s.contact_email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.contact_email) ? s.contact_email : null;
     const sess = await stripe('/checkout/sessions', { method: 'POST', body: form({
-      mode: 'payment', client_reference_id: o.order_id, metadata: { order_id: o.order_id, student_id: o.student_id, year: o.year, size },
-      payment_intent_data: { metadata: { order_id: o.order_id, student_id: o.student_id }, description: `AMA ${o.year} black belt polo x${qty} (${size})`, ...(email ? { receipt_email: email } : {}) },
-      line_items: { 0: { quantity: qty, price_data: { currency: 'aud', unit_amount: Math.round(price * 100), product_data: { name: `AMA ${o.year} black belt polo`, description: `Size ${size}` } } } },
+      mode: 'payment', client_reference_id: o.order_id, metadata: { order_id: o.order_id, student_id: o.student_id, year: o.year, size, ...(uniform ? { uniform_size: usize } : {}) },
+      payment_intent_data: { metadata: { order_id: o.order_id, student_id: o.student_id }, ...(email ? { receipt_email: email } : {}),
+        description: uniform ? `AMA ${o.year} Masters Club uniform (${usize}) + black belt polo (${size})${qty > 1 ? ` + ${qty - 1} extra polo${qty > 2 ? 's' : ''}` : ''}` : `AMA ${o.year} black belt polo x${qty} (${size})` },
+      line_items: uniform
+        ? { 0: { quantity: 1, price_data: { currency: 'aud', unit_amount: Math.round(combo * 100), product_data: { name: `AMA Masters Club uniform + ${o.year} black belt polo`, description: `Uniform size ${usize}, polo size ${size}` } } },
+            ...(qty > 1 ? { 1: { quantity: qty - 1, price_data: { currency: 'aud', unit_amount: Math.round(price * 100), product_data: { name: `Extra AMA ${o.year} black belt polo`, description: `Size ${size}` } } } } : {}) }
+        : { 0: { quantity: qty, price_data: { currency: 'aud', unit_amount: Math.round(price * 100), product_data: { name: `AMA ${o.year} black belt polo`, description: `Size ${size}` } } } },
       ...(email ? { customer_email: email } : {}),
       success_url: `${site}?paid=1#t=${body.token}`, cancel_url: `${site}#t=${body.token}` }) });
     await db.from('prep_polo_orders').update({ stripe_session: sess.id }).eq('order_id', o.order_id);

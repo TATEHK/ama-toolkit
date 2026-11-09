@@ -100,6 +100,31 @@ r = await call(event, env, { 'stripe-signature': sign(event) });
 ok(r.received && o1().paid_at === paidAt, 'the same webhook twice changes nothing');
 ok(await signatureOk('x', 't=1,v1=00', 'whsec') === false, 'signatures are checked properly');
 
+console.log('\nMasters Club uniform combo');
+const T4 = 'e'.repeat(64);
+tables.prep_polo_orders.push({ order_id: 'o4', student_id: 'S1', year: 2026, rank: '2nd Dan', token: T4, size: null, qty: 1, status: 'invited', stripe_session: null });
+Object.assign(tables.prep_polo_settings[0], { combo_on: true, combo_price: 150, uniform_sizes: ['0', '1', '2', '3'] });
+const o4 = () => tables.prep_polo_orders[3];
+sessionPaid = false;   // a new order: the pretend Stripe session isn't paid
+r = await call({ action: 'info', token: T4 });
+ok(r.combo === 150 && r.uniform_sizes.join() === '0,1,2,3' && r.uniform === false, 'the link offers the uniform combo with its price and sizes');
+r = await call({ action: 'checkout', token: T4, size: 'M', qty: 1, uniform: true, uniform_size: '9' });
+ok(!r.ok && /uniform size/.test(r.error), 'a uniform size that isn\'t offered is refused');
+calls.length = 0;
+r = await call({ action: 'checkout', token: T4, size: 'M', qty: 2, uniform: true, uniform_size: '2' });
+const cc = calls.find(x => x.path === '/v1/checkout/sessions' && x.method === 'POST').body;
+ok(r.ok && cc.get('line_items[0][price_data][unit_amount]') === '15000' && cc.get('line_items[0][quantity]') === '1' && /Masters Club uniform/.test(cc.get('line_items[0][price_data][product_data][name]')), 'Stripe is asked for the $150 combo');
+ok(cc.get('line_items[1][price_data][unit_amount]') === '4500' && cc.get('line_items[1][quantity]') === '1', '...and the extra polo at $45');
+ok(o4().uniform === true && o4().uniform_size === '2' && o4().uniform_price === 150 && o4().size === 'M', 'the uniform and its size are saved with the order');
+r = await call({ action: 'checkout', token: T4, size: 'M', qty: 1 });
+const cp = calls.filter(x => x.path === '/v1/checkout/sessions' && x.method === 'POST').pop().body;
+ok(r.ok && o4().uniform === false && o4().uniform_size === null && cp.get('line_items[0][price_data][unit_amount]') === '4500' && !cp.get('line_items[1][quantity]'), 'turning the uniform off goes back to the polo on its own');
+tables.prep_polo_settings[0].combo_on = false;
+r = await call({ action: 'info', token: T4 });
+ok(r.combo === null, 'when staff turn the combo off, the link doesn\'t offer it');
+r = await call({ action: 'checkout', token: T4, size: 'M', qty: 1, uniform: true, uniform_size: '2' });
+ok(!r.ok && /isn't available/.test(r.error), '...and it can\'t be bought');
+
 console.log('\nOther');
 ok((await handle(new Request('https://x.test/', { method: 'GET' }), db, env, http)).status === 405, 'only POST');
 ok((await handle(new Request('https://x.test/', { method: 'OPTIONS' }), db, env, http)).status === 200, 'browser pre-check (CORS) is answered');
