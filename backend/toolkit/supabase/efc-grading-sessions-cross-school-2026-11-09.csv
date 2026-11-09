@@ -1,0 +1,266 @@
+attending_school,held_at,date,start,end,session_name,efc_session_id,original_session_id,type
+Concord,Concord,2026-12-01,16:00,17:30,Green to Blue Belt Grading,7f25e6bf-9dbb-4aff-a798-86cd81ea562c,,original
+Concord,Concord,2026-12-01,16:00,17:30,Orange to Green Belt Grading,ecd8f133-f91e-459d-a2df-dc45aa6465e0,,original
+Concord,Concord,2026-12-01,16:00,17:30,White to Yellow Belt Grading,f7519a2e-63b4-4186-9cc3-4f08a7485b7a,,original
+Concord,Concord,2026-12-01,16:00,17:30,Yellow to Orange Belt Grading,5700e54c-888a-4d3b-a8ee-1027672cc311,,original
+Concord,Concord,2026-12-01,17:30,19:00,Blue to Purple Belt Grading,3c3f99c4-046d-4609-845c-b513e3cd0dd1,,original
+Concord,Concord,2026-12-01,17:30,19:00,Brown to Red Belt Grading,9b2831a7-bc56-4111-80f9-555a3a846fc6,,original
+Concord,Concord,2026-12-01,17:30,19:00,Purple to Brown Belt Grading,8cb0cd5c-da49-4587-9e57-e8ff021b3a40,,original
+Concord,Concord,2026-12-01,17:30,19:00,Red 2 to Red 3 Belt Grading,2dc520e4-1d21-4a0f-b2d2-7d6510ead26e,,original
+Concord,Concord,2026-12-01,17:30,19:00,Red 3 to Cho Dan Bo Grading,457ba0af-b28f-430f-a995-35de4066037c,,original
+Concord,Concord,2026-12-01,17:30,19:00,Red to Red 2 Belt Grading,df79d756-6949-49c7-8a61-d9c111532139,,original
+Concord,Sylvania,2026-12-02,16:00,17:20,Blue to Purple Belt Grading (at Sylvania),ddfbed3a-b16e-4fef-bd95-b1380271eb75,fd3e2556-7cfc-4446-a3a2-5fd3e194ba9f,copy
+Concord,Sylvania,2026-12-02,16:00,17:20,Brown to Red Belt Grading (at Sylvania),efb01b10-b8ba-49ec-9825-8cda29aa4705,d27ad830-27e2-4424-bd17-0c0ee47b9453,copy
+Concord,Sylvania,2026-12-02,16:00,17:20,Green to Blue Belt Grading (at Sylvania),099da652-ebe5-4a21-8372-ecff7027f954,5982e9ba-d321-4c52-b98f-e5cbfdf03747,copy
+Concord,Sylvania,2026-12-02,16:00,17:20,Orange to Green Belt Grading (at Sylvania),01c58020-2f1b-46b2-9767-897b53ae093c,a94f7e5e-4536-40c4-9390-3e5b2467eb8d,copy
+Concord,Sylvania,2026-12-02,16:00,17:20,Purple to Brown Belt Grading (at Sylvania),7e3f0a44-6f70-410b-9cfd-932b60a0be2d,2d0f6999-3947-4110-8b3d-6f3f92e701ae,copy
+Concord,Sylvania,2026-12-02,16:00,17:20,Red 2 to Red 3 Belt Grading (at Sylvania),5ae97f35-64de-40d0-ac05-3ce9b60fd26e,da09989d-7f42-432a-93ab-5468da33962e,copy
+Concord,Sylvania,2026-12-02,16:00,17:20,Red 3 to Cho Dan Bo Grading (at Sylvania),345615f7-9b44-44d8-9208-de73f2afd60b,30aadb8f-c174-4fd1-b9c1-6cbef2eafc1c,copy
+Concord,Sylvania,2026-12-02,16:00,17:20,Red to Red 2 Belt Grading (at Sylvania),dc406647-e0e9-4c48-8049-5cc7125890c1,3c25efad-43d5-42e4-b31e-6b89d1b81953,copy
+Concord,Sylvania,2026-12-02,16:00,17:20,White to Yellow Belt Grading (at Sylvania),8152756f-c9bc-4209-89dc-567e4f5c1da2,8d91cc8c-690c-40ce-b52f-6cf5bf439b0a,copy
+Concord,Sylvania,2026-12-02,16:00,17:20,Yellow to Orange Belt Grading (at Sylvania),f01efcb3-f311-4688-8f93-7cb0fd0d6c36,ad393e3b-07d4-4aba-b6bd-bba739c43b4a,copy
+Concord,Marrickville,2026-12-07,16:00,17:15,Dragons and Ninjas: Brown to Red Belt Grading (at Marrickville),93b4dc44-72c8-4456-90c3-c6bfe7b58732,7049e86b-aa0e-4d82-a9f7-11e220fa8553,copy
+Concord,Marrickville,2026-12-07,16:00,17:15,Dragons and Ninjas: Red to Red 2 Belt Grading (at Marrickville),27a34a5f-9932-490f-9966-4436b74b45fc,49ae2f44-4754-47b1-96d0-2d4f377858e6,copy
+Concord,Marrickville,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 2 to Red 3 Grading (at Marrickville),f4a44669-6977-4c6d-9109-ab7997c92dc6,db9f961b-9824-43b9-9b93-1c90590836b7,copy
+Concord,Marrickville,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 3 to Cho Dan Bo grading @Marrickville,55ca2a86-7b10-41a0-8981-86360a9cfef3,c1fcc342-660a-439c-9fc6-ddb37c216d7e,copy
+Concord,Marrickville,2026-12-08,16:00,17:15,Dragons and Ninjas: White to Yellow Grading (at Marrickville),e9853c5b-aca3-4cfe-ba5e-e75f15f5425c,2532e22c-8463-4c10-9745-8031f7b2687c,copy
+Concord,Marrickville,2026-12-08,17:15,18:30,Dragons and Ninjas: Yellow to Orange Grading (at Marrickville),357cddc4-9397-48f6-9afd-6f2222506d22,b7b7c7c4-906d-4b1c-8745-5c4f1d79cb63,copy
+Concord,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Green to Blue Belt Grading (at Marrickville),3c8d0163-d9a7-4b96-b1d8-dfa36128e26b,6392cee1-1251-4cf2-ab15-f330fda4ebaa,copy
+Concord,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Orange to Green Belt Grading (at Marrickville),1fed4b4a-afee-4a3e-ac60-a80553b5ff5d,3ce8402b-26c5-4b13-94ab-5caafc0bfc63,copy
+Concord,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: White to Yellow Belt Grading (at Marrickville),3d886ce4-104e-4bd8-9658-d3d2e957e68e,255756b4-f0f3-469b-942a-f4140085d074,copy
+Concord,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Yellow to Orange Grading (at Marrickville),176e5e4f-71ef-4d4b-80ac-b1ebf25951f1,b6345f5d-6ab7-4c66-a092-60e0da44cf95,copy
+Concord,Marrickville,2026-12-09,16:00,17:15,Dragons and Ninjas: Orange to Green Grading (at Marrickville),6de23ac3-4766-4395-b800-60c98c5cfe8d,4f3b663f-1dae-4232-986f-de68faecf4a2,copy
+Concord,Marrickville,2026-12-09,17:15,18:30,Dragons and Ninjas: Green to Blue Belt Grading (at Marrickville),bae2725e-a35c-4497-974f-c261f1f473f6,e11d2513-5914-4d45-af58-a9062ba61b65,copy
+Concord,Marrickville,2026-12-10,15:45,17:00,Little Dragons: Master to Dragon Orange Belt grading @Marrickvil,36915f64-a52d-417b-a9ea-5f01f9ab4de5,b3053897-43a6-4a39-8aa3-3642ac4c3123,copy
+Concord,Marrickville,2026-12-10,15:45,17:00,Little Dragons: Red Black to Little Dragon Master grading @Marri,afdcd2fe-34bd-4ac9-a751-0f0ead67ca55,d3318ee3-b4f3-451d-9959-d6311d4e6b3a,copy
+Concord,Marrickville,2026-12-10,15:45,17:00,Little Dragons: White Stripe to Yellow Dragon Belt grading @Marr,ac3ac1b3-8553-44e2-b65b-cdc7ce455343,6eddd98a-c897-4eb3-92da-4d908fcbdd29,copy
+Concord,Marrickville,2026-12-10,17:00,18:15,Dragons and Ninjas: Blue to Purple Grading (at Marrickville),57197fc6-f61b-455b-9088-12dcb0f1c4ac,0a82ae7d-e58d-4281-9b91-fd20f58b8b31,copy
+Concord,Marrickville,2026-12-10,17:00,18:15,Dragons and Ninjas: Purple to Brown Grading (at Marrickville),6763a8ae-8bd2-4c44-ac73-cd7308e85038,10dd48cc-9bae-45cd-b26f-b6a0f58b886c,copy
+Concord,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Blue to Purple Belt Grading (at Marrickville),e6e491aa-aaac-4e8d-9b5c-59154f09581c,308f5844-4e13-4154-96fa-addfb0eb18b8,copy
+Concord,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Brown to Red Belt Grading (at Marrickville),25fff5b5-8e91-486b-824c-4dc177d06ed8,080bd216-a15b-45c5-921c-60a0b3e0e241,copy
+Concord,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Purple to Brown Belt Grading (at Marrickville),e6952aac-4de9-465b-9284-4ea4709a5faa,15e11634-25fc-454b-a89b-aca30601d09e,copy
+Concord,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red 2 to Red 3 Belt Grading (at Marrickville),601d1d6d-8828-4163-9a46-96523d224b08,13c48579-ee2c-4b97-96b4-772ea4d4d437,copy
+Concord,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red 3 to Cho Dan Bo Grading (at Marrickville),a67aafd3-dbc6-411d-b579-69abcf4dbf66,84b044c0-7060-4b67-852f-dbe5903a255c,copy
+Concord,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red to Red 2 Belt Grading (at Marrickville),9cbe00f7-eac6-4d31-8909-306f40521702,1cb28085-0469-4e0a-8d63-932eca679187,copy
+Concord,West,2026-12-11,17:00,18:00,Green to Blue Belt Grading (at West),956b2ebb-75da-4bef-b3b7-9a018e8695dc,18e0eff1-89a7-40b4-bac2-01085fcf138c,copy
+Concord,West,2026-12-11,17:00,18:00,Orange to Green Belt Grading (at West),b8da4297-0942-40b5-b25c-15ca4401620c,f5c8bc3d-104d-4322-a198-5ef97bdebf03,copy
+Concord,West,2026-12-11,17:00,18:00,White to Yellow Belt Grading (at West),d96f7deb-ccfe-4e55-acc7-32fefa89cfbb,922bf31b-56d7-4296-a511-6a893dfa0365,copy
+Concord,West,2026-12-11,17:00,18:00,Yellow to Orange Belt Grading (at West),5f32e623-1c53-4a5e-abc1-6590fade93e6,7d0cf3b8-78f3-4d3a-bab9-c1be41fd1f0b,copy
+Concord,West,2026-12-11,18:45,19:45,Blue to Purple Belt Grading (at West),389e350c-24c3-423f-be2d-35385f3acc9c,eeea47f1-cf25-4ea4-8487-433162086af6,copy
+Concord,West,2026-12-11,18:45,19:45,Brown to Red Belt Grading (at West),a4c172c1-20f9-46d7-87b3-be794c309397,5c8f20c0-2d9c-4e38-b072-5e78fade378c,copy
+Concord,West,2026-12-11,18:45,19:45,Purple to Brown Belt Grading (at West),b3923839-aeb4-4ffe-a7e2-4b663e1fa1b2,5975d567-defc-4c7c-930e-e28f2697d077,copy
+Concord,West,2026-12-11,18:45,19:45,Red 2 to Red 3 Belt Grading (at West),9eec5052-63d5-41ea-b93a-455955bc7202,adb0ad46-c8a0-4467-b620-5eb85b7a7446,copy
+Concord,West,2026-12-11,18:45,19:45,Red 3 to Cho Dan Bo Grading (at West),750893d4-2017-47bc-a02b-b31d3f6f1750,ae8ccc74-1dcf-479f-8ce2-4f8094ab16f0,copy
+Concord,West,2026-12-11,18:45,19:45,Red to Red 2 Belt Grading (at West),77a2db21-d129-4f34-8b02-f6a06d76ccb0,781bfc31-e647-476f-a561-1ec9d904f5ab,copy
+Marrickville,Concord,2026-12-01,16:00,17:30,Green to Blue Belt Grading (at Concord),6eb3dd1b-ac21-4c21-89bc-923253f60960,7f25e6bf-9dbb-4aff-a798-86cd81ea562c,copy
+Marrickville,Concord,2026-12-01,16:00,17:30,Orange to Green Belt Grading (at Concord),65479f98-0950-4598-bc1d-2a0b91c18628,ecd8f133-f91e-459d-a2df-dc45aa6465e0,copy
+Marrickville,Concord,2026-12-01,16:00,17:30,White to Yellow Belt Grading (at Concord),a556a016-6907-4450-8b26-84b5a9eb904a,f7519a2e-63b4-4186-9cc3-4f08a7485b7a,copy
+Marrickville,Concord,2026-12-01,16:00,17:30,Yellow to Orange Belt Grading (at Concord),826398d2-b6fa-41f1-ab4d-91641595131e,5700e54c-888a-4d3b-a8ee-1027672cc311,copy
+Marrickville,Concord,2026-12-01,17:30,19:00,Blue to Purple Belt Grading (at Concord),7201eb71-4b1b-4138-809c-e2b9defaee66,3c3f99c4-046d-4609-845c-b513e3cd0dd1,copy
+Marrickville,Concord,2026-12-01,17:30,19:00,Brown to Red Belt Grading (at Concord),76151513-0975-4602-bc0e-671fcc3c8cc4,9b2831a7-bc56-4111-80f9-555a3a846fc6,copy
+Marrickville,Concord,2026-12-01,17:30,19:00,Purple to Brown Belt Grading (at Concord),22aa3e63-f23f-489f-a493-81be49939807,8cb0cd5c-da49-4587-9e57-e8ff021b3a40,copy
+Marrickville,Concord,2026-12-01,17:30,19:00,Red 2 to Red 3 Belt Grading (at Concord),38ec6aa4-18b1-436c-b286-36c22ee92e78,2dc520e4-1d21-4a0f-b2d2-7d6510ead26e,copy
+Marrickville,Concord,2026-12-01,17:30,19:00,Red 3 to Cho Dan Bo Grading (at Concord),2008dc3c-fa70-4b15-922e-5e737f24e7ac,457ba0af-b28f-430f-a995-35de4066037c,copy
+Marrickville,Concord,2026-12-01,17:30,19:00,Red to Red 2 Belt Grading (at Concord),efaad6cf-104d-43ac-97fb-3c05340f5e69,df79d756-6949-49c7-8a61-d9c111532139,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,Blue to Purple Belt Grading (at Sylvania),4136b4b4-50a3-4891-bfce-44c4017ab4c4,fd3e2556-7cfc-4446-a3a2-5fd3e194ba9f,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,Brown to Red Belt Grading (at Sylvania),ea7f132c-c69e-449a-9647-e00a202b4c7d,d27ad830-27e2-4424-bd17-0c0ee47b9453,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,Green to Blue Belt Grading (at Sylvania),fdc5c3d2-0ebc-4f23-99cf-93431842978d,5982e9ba-d321-4c52-b98f-e5cbfdf03747,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,Orange to Green Belt Grading (at Sylvania),22840ecd-a04c-4ce3-9f70-fd165f61fceb,a94f7e5e-4536-40c4-9390-3e5b2467eb8d,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,Purple to Brown Belt Grading (at Sylvania),03df99aa-7572-42a9-8848-673322df0bcc,2d0f6999-3947-4110-8b3d-6f3f92e701ae,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,Red 2 to Red 3 Belt Grading (at Sylvania),84e79704-86f5-4579-a60e-dfaef29a7f26,da09989d-7f42-432a-93ab-5468da33962e,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,Red 3 to Cho Dan Bo Grading (at Sylvania),dcbffc30-3f89-4c27-9a70-c6df3bbf5c49,30aadb8f-c174-4fd1-b9c1-6cbef2eafc1c,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,Red to Red 2 Belt Grading (at Sylvania),2afee7de-2831-4d94-9f18-02a970a23718,3c25efad-43d5-42e4-b31e-6b89d1b81953,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,White to Yellow Belt Grading (at Sylvania),5970203f-7236-47d4-914b-e2ea01eba840,8d91cc8c-690c-40ce-b52f-6cf5bf439b0a,copy
+Marrickville,Sylvania,2026-12-02,16:00,17:20,Yellow to Orange Belt Grading (at Sylvania),5780cea0-0e49-4702-bae2-5123c009b604,ad393e3b-07d4-4aba-b6bd-bba739c43b4a,copy
+Marrickville,Marrickville,2026-12-07,16:00,17:15,Dragons and Ninjas: Brown to Red Belt Grading,7049e86b-aa0e-4d82-a9f7-11e220fa8553,,original
+Marrickville,Marrickville,2026-12-07,16:00,17:15,Dragons and Ninjas: Red to Red 2 Belt Grading,49ae2f44-4754-47b1-96d0-2d4f377858e6,,original
+Marrickville,Marrickville,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 2 to Red 3 Belt Grading,db9f961b-9824-43b9-9b93-1c90590836b7,,original
+Marrickville,Marrickville,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 3 to Cho Dan Bo Grading,c1fcc342-660a-439c-9fc6-ddb37c216d7e,,original
+Marrickville,Marrickville,2026-12-08,16:00,17:15,Dragons and Ninjas: White to Yellow Belt Grading,2532e22c-8463-4c10-9745-8031f7b2687c,,original
+Marrickville,Marrickville,2026-12-08,17:15,18:30,Dragons and Ninjas: Yellow to Orange Belt Grading,b7b7c7c4-906d-4b1c-8745-5c4f1d79cb63,,original
+Marrickville,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Green to Blue Belt Grading,6392cee1-1251-4cf2-ab15-f330fda4ebaa,,original
+Marrickville,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Orange to Green Belt Grading,3ce8402b-26c5-4b13-94ab-5caafc0bfc63,,original
+Marrickville,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: White to Yellow Belt Grading,255756b4-f0f3-469b-942a-f4140085d074,,original
+Marrickville,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Yellow to Orange Belt Grading,b6345f5d-6ab7-4c66-a092-60e0da44cf95,,original
+Marrickville,Marrickville,2026-12-09,16:00,17:15,Dragons and Ninjas: Orange to Green Belt Grading,4f3b663f-1dae-4232-986f-de68faecf4a2,,original
+Marrickville,Marrickville,2026-12-09,17:15,18:30,Dragons and Ninjas: Green to Blue Belt Grading,e11d2513-5914-4d45-af58-a9062ba61b65,,original
+Marrickville,Marrickville,2026-12-10,15:45,17:00,Little Dragons Grading: Master Belt to Dragon Orange Belt,b3053897-43a6-4a39-8aa3-3642ac4c3123,,original
+Marrickville,Marrickville,2026-12-10,15:45,17:00,Little Dragons Grading: Red Black to Little Dragon Master Belt,d3318ee3-b4f3-451d-9959-d6311d4e6b3a,,original
+Marrickville,Marrickville,2026-12-10,15:45,17:00,Little Dragons Grading: White Stripe Belt to Yellow Dragon Belt,6eddd98a-c897-4eb3-92da-4d908fcbdd29,,original
+Marrickville,Marrickville,2026-12-10,17:00,18:15,Dragons and Ninjas: Blue to Purple Belt Grading,0a82ae7d-e58d-4281-9b91-fd20f58b8b31,,original
+Marrickville,Marrickville,2026-12-10,17:00,18:15,Dragons and Ninjas: Purple to Brown Belt Grading,10dd48cc-9bae-45cd-b26f-b6a0f58b886c,,original
+Marrickville,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Blue to Purple Belt Grading,308f5844-4e13-4154-96fa-addfb0eb18b8,,original
+Marrickville,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Brown to Red Belt Grading,080bd216-a15b-45c5-921c-60a0b3e0e241,,original
+Marrickville,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Purple to Brown Belt Grading,15e11634-25fc-454b-a89b-aca30601d09e,,original
+Marrickville,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red 2 to Red 3 Belt Grading,13c48579-ee2c-4b97-96b4-772ea4d4d437,,original
+Marrickville,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red 3 to Cho Dan Bo Grading,84b044c0-7060-4b67-852f-dbe5903a255c,,original
+Marrickville,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red to Red 2 Belt Grading,1cb28085-0469-4e0a-8d63-932eca679187,,original
+Marrickville,West,2026-12-11,17:00,18:00,Green to Blue Belt Grading (at West),a9071df2-453c-4025-8f61-0859fa8884d6,18e0eff1-89a7-40b4-bac2-01085fcf138c,copy
+Marrickville,West,2026-12-11,17:00,18:00,Orange to Green Belt Grading (at West),0f60e3e6-b8ae-4c4a-8eb7-a1e925728ff4,f5c8bc3d-104d-4322-a198-5ef97bdebf03,copy
+Marrickville,West,2026-12-11,17:00,18:00,White to Yellow Belt Grading (at West),4f215658-5985-4f27-b4a9-774e94039032,922bf31b-56d7-4296-a511-6a893dfa0365,copy
+Marrickville,West,2026-12-11,17:00,18:00,Yellow to Orange Belt Grading (at West),3247b6a5-d0d5-43e4-ae1a-fc6ae103c182,7d0cf3b8-78f3-4d3a-bab9-c1be41fd1f0b,copy
+Marrickville,West,2026-12-11,18:45,19:45,Blue to Purple Belt Grading (at West),3fa0e9cd-ee4c-40ed-af1b-3a7a980ca6d7,eeea47f1-cf25-4ea4-8487-433162086af6,copy
+Marrickville,West,2026-12-11,18:45,19:45,Brown to Red Belt Grading (at West),f1ebc084-00ce-4951-af37-fad30e4b61be,5c8f20c0-2d9c-4e38-b072-5e78fade378c,copy
+Marrickville,West,2026-12-11,18:45,19:45,Purple to Brown Belt Grading (at West),1151395a-ee1e-46f5-8d02-e470342815cd,5975d567-defc-4c7c-930e-e28f2697d077,copy
+Marrickville,West,2026-12-11,18:45,19:45,Red 2 to Red 3 Belt Grading (at West),83c034fa-11c7-4a5f-9090-a901c7a26016,adb0ad46-c8a0-4467-b620-5eb85b7a7446,copy
+Marrickville,West,2026-12-11,18:45,19:45,Red 3 to Cho Dan Bo Grading (at West),4cf1a87d-1460-4f32-a2f3-6b40b6ae864f,ae8ccc74-1dcf-479f-8ce2-4f8094ab16f0,copy
+Marrickville,West,2026-12-11,18:45,19:45,Red to Red 2 Belt Grading (at West),f2cb84a5-af4e-4b7a-9287-1b13a66a0703,781bfc31-e647-476f-a561-1ec9d904f5ab,copy
+Sydenham,Concord,2026-12-01,16:00,17:30,Green to Blue Belt Grading (at Concord),e30de398-ece4-4c78-b3ba-22d3b7b1938f,7f25e6bf-9dbb-4aff-a798-86cd81ea562c,copy
+Sydenham,Concord,2026-12-01,16:00,17:30,Orange to Green Belt Grading (at Concord),af7230c2-33a6-4dad-9aee-06d50bb1ba51,ecd8f133-f91e-459d-a2df-dc45aa6465e0,copy
+Sydenham,Concord,2026-12-01,16:00,17:30,White to Yellow Belt Grading (at Concord),2fba9eb3-da75-4303-92a7-85e77f403149,f7519a2e-63b4-4186-9cc3-4f08a7485b7a,copy
+Sydenham,Concord,2026-12-01,16:00,17:30,Yellow to Orange Belt Grading (at Concord),e2260db8-e0e6-42a8-a3c1-e1102bf3ba92,5700e54c-888a-4d3b-a8ee-1027672cc311,copy
+Sydenham,Concord,2026-12-01,17:30,19:00,Blue to Purple Belt Grading (at Concord),b8cd7be8-23c3-4a24-b762-99a3071e98b2,3c3f99c4-046d-4609-845c-b513e3cd0dd1,copy
+Sydenham,Concord,2026-12-01,17:30,19:00,Brown to Red Belt Grading (at Concord),cf1a5faf-e133-45aa-ae33-1fba82c02c41,9b2831a7-bc56-4111-80f9-555a3a846fc6,copy
+Sydenham,Concord,2026-12-01,17:30,19:00,Purple to Brown Belt Grading (at Concord),5c956669-c7e8-4d49-ab30-e66328248926,8cb0cd5c-da49-4587-9e57-e8ff021b3a40,copy
+Sydenham,Concord,2026-12-01,17:30,19:00,Red 2 to Red 3 Belt Grading (at Concord),8afe8571-50ef-45cb-9312-c69ea9fc29cb,2dc520e4-1d21-4a0f-b2d2-7d6510ead26e,copy
+Sydenham,Concord,2026-12-01,17:30,19:00,Red 3 to Cho Dan Bo Grading (at Concord),1930a587-8313-4136-9c04-11c43c9ac1f0,457ba0af-b28f-430f-a995-35de4066037c,copy
+Sydenham,Concord,2026-12-01,17:30,19:00,Red to Red 2 Belt Grading (at Concord),8b528182-2c39-465b-abab-c817202d5d2a,df79d756-6949-49c7-8a61-d9c111532139,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,Blue to Purple Belt Grading (at Sylvania),e7503775-0555-4194-af18-0ba59a9cc6fc,fd3e2556-7cfc-4446-a3a2-5fd3e194ba9f,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,Brown to Red Belt Grading (at Sylvania),47515b0b-e67a-4c97-a4b5-77f39dbc639b,d27ad830-27e2-4424-bd17-0c0ee47b9453,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,Green to Blue Belt Grading (at Sylvania),be8f4eb2-d2ea-493e-afb9-df34dc85a592,5982e9ba-d321-4c52-b98f-e5cbfdf03747,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,Orange to Green Belt Grading (at Sylvania),5bac635d-e04d-469c-91f6-1ce823e49bf5,a94f7e5e-4536-40c4-9390-3e5b2467eb8d,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,Purple to Brown Belt Grading (at Sylvania),fe232595-2bee-4058-adc7-dcb6061bc300,2d0f6999-3947-4110-8b3d-6f3f92e701ae,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,Red 2 to Red 3 Belt Grading (at Sylvania),372d6ced-36ad-4590-a39e-7395571093e3,da09989d-7f42-432a-93ab-5468da33962e,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,Red 3 to Cho Dan Bo Grading (at Sylvania),591d6ee7-e845-4188-8319-c5672425a9a6,30aadb8f-c174-4fd1-b9c1-6cbef2eafc1c,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,Red to Red 2 Belt Grading (at Sylvania),f1f3fbab-ff1d-4a50-b268-e1f90c960fb8,3c25efad-43d5-42e4-b31e-6b89d1b81953,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,White to Yellow Belt Grading (at Sylvania),c5d8858a-862a-4ee9-9ef9-757fb7ec347e,8d91cc8c-690c-40ce-b52f-6cf5bf439b0a,copy
+Sydenham,Sylvania,2026-12-02,16:00,17:20,Yellow to Orange Belt Grading (at Sylvania),678adaf0-cf31-4377-a4fd-1ac0ef40b4bc,ad393e3b-07d4-4aba-b6bd-bba739c43b4a,copy
+Sydenham,Sydenham,2026-12-07,16:00,17:15,Dragons and Ninjas: Brown to Red Belt Grading,ea32c6c3-9cd6-45ca-8172-6f88623546ea,,original
+Sydenham,Sydenham,2026-12-07,16:00,17:15,Dragons and Ninjas: Red to Red 2 Belt Grading,0380fb48-59c5-4610-847f-09b72266ef5d,,original
+Sydenham,Sydenham,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 2 to Red 3 Belt Grading,b69d5e16-7328-42fd-b019-f11f8d8dd3c4,,original
+Sydenham,Sydenham,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 3 to Cho Dan Bo Grading,3c4f09c5-e62a-4d94-9f12-31f636e9f10f,,original
+Sydenham,Sydenham,2026-12-08,16:00,17:15,Dragons and Ninjas: White to Yellow Belt Grading,d6de9aee-c30c-40ed-9aee-9ce485476f64,,original
+Sydenham,Sydenham,2026-12-08,17:15,18:30,Dragons and Ninjas: Yellow to Orange Belt Grading,4a40a703-e519-4d01-96e0-371a2b196c8d,,original
+Sydenham,Sydenham,2026-12-08,18:30,19:45,Teens and Adults: Green to Blue Belt Grading,abf50e78-7a4c-49bf-a1a1-63d9ed6d1557,,original
+Sydenham,Sydenham,2026-12-08,18:30,19:45,Teens and Adults: Orange to Green Belt Grading,8f80ccb4-7172-4683-9572-7029ab3010b9,,original
+Sydenham,Sydenham,2026-12-08,18:30,19:45,Teens and Adults: White to Yellow Belt Grading,6f4293f3-dba7-4c8a-a20c-b34642a86741,,original
+Sydenham,Sydenham,2026-12-08,18:30,19:45,Teens and Adults: Yellow to Orange Belt Grading,6961fd36-df2d-4ca5-9ae3-ff61dcf3508d,,original
+Sydenham,Sydenham,2026-12-09,16:00,17:15,Dragons and Ninjas: Orange to Green Belt Grading,f6bf1b88-c510-4b1e-84ec-59124e091fe3,,original
+Sydenham,Sydenham,2026-12-09,17:15,18:30,Dragons and Ninjas: Green to Blue Belt Grading,be0027b0-7901-4d4c-898a-b78aeb6940cb,,original
+Sydenham,Sydenham,2026-12-10,15:45,17:00,Little Dragons Grading: Master Belt to Dragon Orange Belt,161355bd-203e-4943-9ce6-bedd3bbe493c,,original
+Sydenham,Sydenham,2026-12-10,15:45,17:00,Little Dragons Grading: Red Black to Little Dragon Master Belt,3fb470a6-f576-4b6d-95a2-e28e9784597f,,original
+Sydenham,Sydenham,2026-12-10,15:45,17:00,Little Dragons Grading: White Stripe Belt to Yellow Dragon Belt,f176a004-3867-4f90-8bf6-c6b64c2aab52,,original
+Sydenham,Sydenham,2026-12-10,17:00,18:15,Dragons and Ninjas: Blue to Purple Belt Grading,980ab3a2-c236-4f7f-9eda-a63ddfbee1d6,,original
+Sydenham,Sydenham,2026-12-10,17:00,18:15,Dragons and Ninjas: Purple to Brown Belt Grading,5aa5ce8f-196c-473b-be94-f8de6bf92d12,,original
+Sydenham,Sydenham,2026-12-10,18:45,20:00,Teens and Adults: Blue to Purple Belt Grading,ea8bed64-2cbf-4340-bef3-61033da572fd,,original
+Sydenham,Sydenham,2026-12-10,18:45,20:00,Teens and Adults: Brown to Red Belt Grading,c28063d6-9049-4620-8f88-460c112c18b2,,original
+Sydenham,Sydenham,2026-12-10,18:45,20:00,Teens and Adults: Purple to Brown Belt Grading,7e25f8c7-2a90-4066-b636-84f1142eec75,,original
+Sydenham,Sydenham,2026-12-10,18:45,20:00,Teens and Adults: Red 2 to Red 3 Belt Grading,86596ac2-9fa3-41ed-b9a6-7b532a11628e,,original
+Sydenham,Sydenham,2026-12-10,18:45,20:00,Teens and Adults: Red 3 to Cho Dan Bo Grading,83be5c92-bc40-489b-ae1e-0c0dbd418d2b,,original
+Sydenham,Sydenham,2026-12-10,18:45,20:00,Teens and Adults: Red to Red 2 Belt Grading,6c2be0d8-8980-48cb-a261-4290b41c60a2,,original
+Sydenham,West,2026-12-11,17:00,18:00,Green to Blue Belt Grading (at West),a9c4be1f-1d78-4a3a-a75b-1dfc0604f55f,18e0eff1-89a7-40b4-bac2-01085fcf138c,copy
+Sydenham,West,2026-12-11,17:00,18:00,Orange to Green Belt Grading (at West),d37d0b43-3a95-47fb-933a-b9f93258fbba,f5c8bc3d-104d-4322-a198-5ef97bdebf03,copy
+Sydenham,West,2026-12-11,17:00,18:00,White to Yellow Belt Grading (at West),fde810a4-68ed-495e-a727-7e468979e9c5,922bf31b-56d7-4296-a511-6a893dfa0365,copy
+Sydenham,West,2026-12-11,17:00,18:00,Yellow to Orange Belt Grading (at West),1879b7b3-d4de-4764-b58e-bcb8b963fb89,7d0cf3b8-78f3-4d3a-bab9-c1be41fd1f0b,copy
+Sydenham,West,2026-12-11,18:45,19:45,Blue to Purple Belt Grading (at West),08394f2c-513f-489e-8009-9daab122123a,eeea47f1-cf25-4ea4-8487-433162086af6,copy
+Sydenham,West,2026-12-11,18:45,19:45,Brown to Red Belt Grading (at West),9415647f-3cc4-4a25-8ba8-9240ff4aca66,5c8f20c0-2d9c-4e38-b072-5e78fade378c,copy
+Sydenham,West,2026-12-11,18:45,19:45,Purple to Brown Belt Grading (at West),17dc47bc-4cc1-404d-8e7c-a35d4c250219,5975d567-defc-4c7c-930e-e28f2697d077,copy
+Sydenham,West,2026-12-11,18:45,19:45,Red 2 to Red 3 Belt Grading (at West),c0c12c98-ab2b-4427-b70c-721579a825de,adb0ad46-c8a0-4467-b620-5eb85b7a7446,copy
+Sydenham,West,2026-12-11,18:45,19:45,Red 3 to Cho Dan Bo Grading (at West),72058477-cfd3-4e9c-9abb-a376daea8c18,ae8ccc74-1dcf-479f-8ce2-4f8094ab16f0,copy
+Sydenham,West,2026-12-11,18:45,19:45,Red to Red 2 Belt Grading (at West),4935c45e-e6de-4e6d-a418-eab5b5e38010,781bfc31-e647-476f-a561-1ec9d904f5ab,copy
+Sylvania,Concord,2026-12-01,16:00,17:30,Green to Blue Belt Grading (at Concord),10e3567a-c72f-4f24-b078-9eb2b26fdc26,7f25e6bf-9dbb-4aff-a798-86cd81ea562c,copy
+Sylvania,Concord,2026-12-01,16:00,17:30,Orange to Green Belt Grading (at Concord),c43b9b07-257d-41e8-890f-e6a675d0c9cb,ecd8f133-f91e-459d-a2df-dc45aa6465e0,copy
+Sylvania,Concord,2026-12-01,16:00,17:30,White to Yellow Belt Grading (at Concord),6959661d-2ad8-4b07-86d0-5ecf1337bbce,f7519a2e-63b4-4186-9cc3-4f08a7485b7a,copy
+Sylvania,Concord,2026-12-01,16:00,17:30,Yellow to Orange Belt Grading (at Concord),9d306687-d9d0-49fe-9bf7-56945734205b,5700e54c-888a-4d3b-a8ee-1027672cc311,copy
+Sylvania,Concord,2026-12-01,17:30,19:00,Blue to Purple Belt Grading (at Concord),5c49313d-ff2e-4105-8254-4c0a3707013e,3c3f99c4-046d-4609-845c-b513e3cd0dd1,copy
+Sylvania,Concord,2026-12-01,17:30,19:00,Brown to Red Belt Grading (at Concord),2f31eb4b-4987-4993-9c80-716eec711cd3,9b2831a7-bc56-4111-80f9-555a3a846fc6,copy
+Sylvania,Concord,2026-12-01,17:30,19:00,Purple to Brown Belt Grading (at Concord),436b07d3-c07d-4fdd-96d5-f6059a193f88,8cb0cd5c-da49-4587-9e57-e8ff021b3a40,copy
+Sylvania,Concord,2026-12-01,17:30,19:00,Red 2 to Red 3 Belt Grading (at Concord),49e5d938-b1a1-4a16-9f0d-d4713623fcfc,2dc520e4-1d21-4a0f-b2d2-7d6510ead26e,copy
+Sylvania,Concord,2026-12-01,17:30,19:00,Red 3 to Cho Dan Bo Grading (at Concord),add1dae9-ed3c-405f-ab02-881cbe12800b,457ba0af-b28f-430f-a995-35de4066037c,copy
+Sylvania,Concord,2026-12-01,17:30,19:00,Red to Red 2 Belt Grading (at Concord),d67aded6-83c4-467c-bbe3-7fdebb403706,df79d756-6949-49c7-8a61-d9c111532139,copy
+Sylvania,Sylvania,2026-12-02,16:00,17:20,Blue to Purple Belt Grading,fd3e2556-7cfc-4446-a3a2-5fd3e194ba9f,,original
+Sylvania,Sylvania,2026-12-02,16:00,17:20,Brown to Red Belt Grading,d27ad830-27e2-4424-bd17-0c0ee47b9453,,original
+Sylvania,Sylvania,2026-12-02,16:00,17:20,Green to Blue Belt Grading,5982e9ba-d321-4c52-b98f-e5cbfdf03747,,original
+Sylvania,Sylvania,2026-12-02,16:00,17:20,Orange to Green Belt Grading,a94f7e5e-4536-40c4-9390-3e5b2467eb8d,,original
+Sylvania,Sylvania,2026-12-02,16:00,17:20,Purple to Brown Belt Grading,2d0f6999-3947-4110-8b3d-6f3f92e701ae,,original
+Sylvania,Sylvania,2026-12-02,16:00,17:20,Red 2 to Red 3 Belt Grading,da09989d-7f42-432a-93ab-5468da33962e,,original
+Sylvania,Sylvania,2026-12-02,16:00,17:20,Red 3 to Cho Dan Bo Grading,30aadb8f-c174-4fd1-b9c1-6cbef2eafc1c,,original
+Sylvania,Sylvania,2026-12-02,16:00,17:20,Red to Red 2 Belt Grading,3c25efad-43d5-42e4-b31e-6b89d1b81953,,original
+Sylvania,Sylvania,2026-12-02,16:00,17:20,White to Yellow Belt Grading,8d91cc8c-690c-40ce-b52f-6cf5bf439b0a,,original
+Sylvania,Sylvania,2026-12-02,16:00,17:20,Yellow to Orange Belt Grading,ad393e3b-07d4-4aba-b6bd-bba739c43b4a,,original
+Sylvania,Marrickville,2026-12-07,16:00,17:15,Dragons and Ninjas: Brown to Red Belt Grading (at Marrickville),84347aec-08f1-4048-a5d9-bb89c3f3397c,7049e86b-aa0e-4d82-a9f7-11e220fa8553,copy
+Sylvania,Marrickville,2026-12-07,16:00,17:15,Dragons and Ninjas: Red to Red 2 Belt Grading (at Marrickville),4845eb70-4c06-4d42-9d66-3af04c242aee,49ae2f44-4754-47b1-96d0-2d4f377858e6,copy
+Sylvania,Marrickville,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 2 to Red 3 Grading (at Marrickville),5b490f09-74c0-4497-998d-e566df8298a3,db9f961b-9824-43b9-9b93-1c90590836b7,copy
+Sylvania,Marrickville,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 3 to Cho Dan Bo grading @Marrickville,676d2117-fa53-47e3-9772-4dbbcbc9023d,c1fcc342-660a-439c-9fc6-ddb37c216d7e,copy
+Sylvania,Marrickville,2026-12-08,16:00,17:15,Dragons and Ninjas: White to Yellow Grading (at Marrickville),53832a79-13f3-4b29-bb82-6b26dce2945a,2532e22c-8463-4c10-9745-8031f7b2687c,copy
+Sylvania,Marrickville,2026-12-08,17:15,18:30,Dragons and Ninjas: Yellow to Orange Grading (at Marrickville),6ef9e6f4-9beb-4c8f-915c-919f1111a09c,b7b7c7c4-906d-4b1c-8745-5c4f1d79cb63,copy
+Sylvania,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Green to Blue Belt Grading (at Marrickville),a0ffd053-0cc1-4f06-9002-d409bf79c51b,6392cee1-1251-4cf2-ab15-f330fda4ebaa,copy
+Sylvania,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Orange to Green Belt Grading (at Marrickville),9f488d32-b773-41a1-8ad3-7ad10f72a2a3,3ce8402b-26c5-4b13-94ab-5caafc0bfc63,copy
+Sylvania,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: White to Yellow Belt Grading (at Marrickville),ccc17828-d712-46b1-a8ac-214a9ffa898f,255756b4-f0f3-469b-942a-f4140085d074,copy
+Sylvania,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Yellow to Orange Grading (at Marrickville),a6fe7d8f-c24c-438b-9524-7f7c329cda25,b6345f5d-6ab7-4c66-a092-60e0da44cf95,copy
+Sylvania,Marrickville,2026-12-09,16:00,17:15,Dragons and Ninjas: Orange to Green Grading (at Marrickville),332ef8fc-f400-44e7-9b8f-bf9450ab1643,4f3b663f-1dae-4232-986f-de68faecf4a2,copy
+Sylvania,Marrickville,2026-12-09,17:15,18:30,Dragons and Ninjas: Green to Blue Belt Grading (at Marrickville),dccc0c1a-ed63-46ca-83fb-1391474e146c,e11d2513-5914-4d45-af58-a9062ba61b65,copy
+Sylvania,Marrickville,2026-12-10,15:45,17:00,Little Dragons: Master to Dragon Orange Belt grading @Marrickvil,758d6588-e5b3-4794-9de6-2e3c913743ec,b3053897-43a6-4a39-8aa3-3642ac4c3123,copy
+Sylvania,Marrickville,2026-12-10,15:45,17:00,Little Dragons: Red Black to Little Dragon Master grading @Marri,64c4b2ad-9457-4b2f-b1bf-b6cd01475b08,d3318ee3-b4f3-451d-9959-d6311d4e6b3a,copy
+Sylvania,Marrickville,2026-12-10,15:45,17:00,Little Dragons: White Stripe to Yellow Dragon Belt grading @Marr,47ee9fa5-ba49-476d-9247-f9457890a89a,6eddd98a-c897-4eb3-92da-4d908fcbdd29,copy
+Sylvania,Marrickville,2026-12-10,17:00,18:15,Dragons and Ninjas: Blue to Purple Grading (at Marrickville),6eac5b76-c3fd-47d4-848f-95ea67e4489a,0a82ae7d-e58d-4281-9b91-fd20f58b8b31,copy
+Sylvania,Marrickville,2026-12-10,17:00,18:15,Dragons and Ninjas: Purple to Brown Grading (at Marrickville),9c2de1ab-1980-4ea3-ac6a-594622c607fe,10dd48cc-9bae-45cd-b26f-b6a0f58b886c,copy
+Sylvania,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Blue to Purple Belt Grading (at Marrickville),e0720f0f-8443-4720-9cb3-4ceef08e085b,308f5844-4e13-4154-96fa-addfb0eb18b8,copy
+Sylvania,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Brown to Red Belt Grading (at Marrickville),abf98442-c5be-40cb-962e-ef426ba73bf2,080bd216-a15b-45c5-921c-60a0b3e0e241,copy
+Sylvania,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Purple to Brown Belt Grading (at Marrickville),e037159e-7c43-4eec-9655-02bf3958df96,15e11634-25fc-454b-a89b-aca30601d09e,copy
+Sylvania,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red 2 to Red 3 Belt Grading (at Marrickville),d4999d69-3975-4487-814c-ad00e8418f5c,13c48579-ee2c-4b97-96b4-772ea4d4d437,copy
+Sylvania,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red 3 to Cho Dan Bo Grading (at Marrickville),b6f282d6-162e-4751-96f9-e35179b6e535,84b044c0-7060-4b67-852f-dbe5903a255c,copy
+Sylvania,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red to Red 2 Belt Grading (at Marrickville),31b9dadc-a9b1-443b-b2fc-9b86ca8fb7d5,1cb28085-0469-4e0a-8d63-932eca679187,copy
+Sylvania,West,2026-12-11,17:00,18:00,Green to Blue Belt Grading (at West),b0228389-74a8-47b0-a901-5b2f83cd2d33,18e0eff1-89a7-40b4-bac2-01085fcf138c,copy
+Sylvania,West,2026-12-11,17:00,18:00,Orange to Green Belt Grading (at West),077e989a-c629-45ee-a681-4bc2d75d07e7,f5c8bc3d-104d-4322-a198-5ef97bdebf03,copy
+Sylvania,West,2026-12-11,17:00,18:00,White to Yellow Belt Grading (at West),2ffc100a-357a-45de-bfe6-c04299a24587,922bf31b-56d7-4296-a511-6a893dfa0365,copy
+Sylvania,West,2026-12-11,17:00,18:00,Yellow to Orange Belt Grading (at West),82e08f37-0fa1-4d4a-a9db-f74a83cb5115,7d0cf3b8-78f3-4d3a-bab9-c1be41fd1f0b,copy
+Sylvania,West,2026-12-11,18:45,19:45,Blue to Purple Belt Grading (at West),98bd2547-9a45-4ae2-a303-ddfbd587b1c2,eeea47f1-cf25-4ea4-8487-433162086af6,copy
+Sylvania,West,2026-12-11,18:45,19:45,Brown to Red Belt Grading (at West),db12b767-957a-472f-a631-54fadef8f8a6,5c8f20c0-2d9c-4e38-b072-5e78fade378c,copy
+Sylvania,West,2026-12-11,18:45,19:45,Purple to Brown Belt Grading (at West),0d106292-2618-42ca-8640-842c82880679,5975d567-defc-4c7c-930e-e28f2697d077,copy
+Sylvania,West,2026-12-11,18:45,19:45,Red 2 to Red 3 Belt Grading (at West),b3758261-d5a4-45bd-b086-515c0664d3c7,adb0ad46-c8a0-4467-b620-5eb85b7a7446,copy
+Sylvania,West,2026-12-11,18:45,19:45,Red 3 to Cho Dan Bo Grading (at West),b24e42a1-420e-426a-bdf3-a94a96574ba0,ae8ccc74-1dcf-479f-8ce2-4f8094ab16f0,copy
+Sylvania,West,2026-12-11,18:45,19:45,Red to Red 2 Belt Grading (at West),009a842b-c748-4998-9aeb-bfec16dcf629,781bfc31-e647-476f-a561-1ec9d904f5ab,copy
+West,Concord,2026-12-01,16:00,17:30,Green to Blue Belt Grading (at Concord),f32ec9fb-6731-4e9e-9386-4c36d21ed6fd,7f25e6bf-9dbb-4aff-a798-86cd81ea562c,copy
+West,Concord,2026-12-01,16:00,17:30,Orange to Green Belt Grading (at Concord),7fac6896-61d5-4263-a8cf-654293b7aaba,ecd8f133-f91e-459d-a2df-dc45aa6465e0,copy
+West,Concord,2026-12-01,16:00,17:30,White to Yellow Belt Grading (at Concord),766e865b-af69-431c-8a6a-9c7bf83b97de,f7519a2e-63b4-4186-9cc3-4f08a7485b7a,copy
+West,Concord,2026-12-01,16:00,17:30,Yellow to Orange Belt Grading (at Concord),af48ede2-3575-44cf-9132-c7bdd88ba135,5700e54c-888a-4d3b-a8ee-1027672cc311,copy
+West,Concord,2026-12-01,17:30,19:00,Blue to Purple Belt Grading (at Concord),a4e5c45c-e92d-436b-86c6-7ca8e1405120,3c3f99c4-046d-4609-845c-b513e3cd0dd1,copy
+West,Concord,2026-12-01,17:30,19:00,Brown to Red Belt Grading (at Concord),0ff4bae0-4711-4139-9ee7-e8785000fe16,9b2831a7-bc56-4111-80f9-555a3a846fc6,copy
+West,Concord,2026-12-01,17:30,19:00,Purple to Brown Belt Grading (at Concord),fc324548-7a91-4450-a2ba-85c2047b7ec4,8cb0cd5c-da49-4587-9e57-e8ff021b3a40,copy
+West,Concord,2026-12-01,17:30,19:00,Red 2 to Red 3 Belt Grading (at Concord),1d2540d4-8742-43a0-a529-cb133cc02cc2,2dc520e4-1d21-4a0f-b2d2-7d6510ead26e,copy
+West,Concord,2026-12-01,17:30,19:00,Red 3 to Cho Dan Bo Grading (at Concord),40846514-fe21-4d3a-b382-242c73eddc47,457ba0af-b28f-430f-a995-35de4066037c,copy
+West,Concord,2026-12-01,17:30,19:00,Red to Red 2 Belt Grading (at Concord),04fb7f0f-e07a-4b4a-8ebf-5b706935295c,df79d756-6949-49c7-8a61-d9c111532139,copy
+West,Sylvania,2026-12-02,16:00,17:20,Blue to Purple Belt Grading (at Sylvania),224f96ae-a4d4-4aff-a498-84bd503be3ef,fd3e2556-7cfc-4446-a3a2-5fd3e194ba9f,copy
+West,Sylvania,2026-12-02,16:00,17:20,Brown to Red Belt Grading (at Sylvania),b8412952-1558-4e63-9a6d-377983868728,d27ad830-27e2-4424-bd17-0c0ee47b9453,copy
+West,Sylvania,2026-12-02,16:00,17:20,Green to Blue Belt Grading (at Sylvania),150ff688-7b35-4158-b3a0-0349045c45ba,5982e9ba-d321-4c52-b98f-e5cbfdf03747,copy
+West,Sylvania,2026-12-02,16:00,17:20,Orange to Green Belt Grading (at Sylvania),d2e14cfa-5373-4ac7-85ca-11bbf6b2d971,a94f7e5e-4536-40c4-9390-3e5b2467eb8d,copy
+West,Sylvania,2026-12-02,16:00,17:20,Purple to Brown Belt Grading (at Sylvania),efdfd1f7-7553-409a-a29c-9b8806140638,2d0f6999-3947-4110-8b3d-6f3f92e701ae,copy
+West,Sylvania,2026-12-02,16:00,17:20,Red 2 to Red 3 Belt Grading (at Sylvania),7dc29fde-97cf-44be-b8f8-ff3097269494,da09989d-7f42-432a-93ab-5468da33962e,copy
+West,Sylvania,2026-12-02,16:00,17:20,Red 3 to Cho Dan Bo Grading (at Sylvania),4f9e0b04-0b66-4b9e-860b-4d8b002f8617,30aadb8f-c174-4fd1-b9c1-6cbef2eafc1c,copy
+West,Sylvania,2026-12-02,16:00,17:20,Red to Red 2 Belt Grading (at Sylvania),5e5c92a0-1f85-4b1f-8931-48b38f14892b,3c25efad-43d5-42e4-b31e-6b89d1b81953,copy
+West,Sylvania,2026-12-02,16:00,17:20,White to Yellow Belt Grading (at Sylvania),4fba34ea-3409-41b9-9cd3-ab0615f295a4,8d91cc8c-690c-40ce-b52f-6cf5bf439b0a,copy
+West,Sylvania,2026-12-02,16:00,17:20,Yellow to Orange Belt Grading (at Sylvania),82737505-cdcd-4fb4-a8df-32c9b7d142e0,ad393e3b-07d4-4aba-b6bd-bba739c43b4a,copy
+West,Marrickville,2026-12-07,16:00,17:15,Dragons and Ninjas: Brown to Red Belt Grading (at Marrickville),a0ddc6bd-7689-4604-9d8b-a1445425a4fc,7049e86b-aa0e-4d82-a9f7-11e220fa8553,copy
+West,Marrickville,2026-12-07,16:00,17:15,Dragons and Ninjas: Red to Red 2 Belt Grading (at Marrickville),f84ed1a1-48bd-4e8f-938d-6e7e9857a2f2,49ae2f44-4754-47b1-96d0-2d4f377858e6,copy
+West,Marrickville,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 2 to Red 3 Grading (at Marrickville),5d0893e7-8b08-4b0d-bd16-4e05eeda805a,db9f961b-9824-43b9-9b93-1c90590836b7,copy
+West,Marrickville,2026-12-07,17:15,18:30,Dragons and Ninjas: Red 3 to Cho Dan Bo grading @Marrickville,54a4368f-dc36-4347-8706-32c635774764,c1fcc342-660a-439c-9fc6-ddb37c216d7e,copy
+West,Marrickville,2026-12-08,16:00,17:15,Dragons and Ninjas: White to Yellow Grading (at Marrickville),75928d06-2631-44cd-aa49-67c674f6b653,2532e22c-8463-4c10-9745-8031f7b2687c,copy
+West,Marrickville,2026-12-08,17:15,18:30,Dragons and Ninjas: Yellow to Orange Grading (at Marrickville),84577002-dd4a-431f-9939-d40577a8a249,b7b7c7c4-906d-4b1c-8745-5c4f1d79cb63,copy
+West,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Green to Blue Belt Grading (at Marrickville),fd280067-fae9-4451-b6f8-8d213299250b,6392cee1-1251-4cf2-ab15-f330fda4ebaa,copy
+West,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Orange to Green Belt Grading (at Marrickville),8a37b24a-23a0-47cf-b470-21ca83ae9be8,3ce8402b-26c5-4b13-94ab-5caafc0bfc63,copy
+West,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: White to Yellow Belt Grading (at Marrickville),7edbe3a1-b841-4303-93d8-bfecd1a757cb,255756b4-f0f3-469b-942a-f4140085d074,copy
+West,Marrickville,2026-12-08,18:30,19:45,Teens and Adults: Yellow to Orange Grading (at Marrickville),c81d3398-bdcf-4117-bea0-5868dd1d2683,b6345f5d-6ab7-4c66-a092-60e0da44cf95,copy
+West,Marrickville,2026-12-09,16:00,17:15,Dragons and Ninjas: Orange to Green Grading (at Marrickville),11bbe5a9-6966-424c-ad5a-8118b5b74068,4f3b663f-1dae-4232-986f-de68faecf4a2,copy
+West,Marrickville,2026-12-09,17:15,18:30,Dragons and Ninjas: Green to Blue Belt Grading (at Marrickville),d0c21dbc-b224-401b-ae16-a52652b1cf24,e11d2513-5914-4d45-af58-a9062ba61b65,copy
+West,Marrickville,2026-12-10,15:45,17:00,Little Dragons: Master to Dragon Orange Belt grading @Marrickvil,7fd0a3ab-5183-49db-907b-5bb607e6cf99,b3053897-43a6-4a39-8aa3-3642ac4c3123,copy
+West,Marrickville,2026-12-10,15:45,17:00,Little Dragons: Red Black to Little Dragon Master grading @Marri,81722159-f2d4-4ae9-8467-5be59e0b1237,d3318ee3-b4f3-451d-9959-d6311d4e6b3a,copy
+West,Marrickville,2026-12-10,15:45,17:00,Little Dragons: White Stripe to Yellow Dragon Belt grading @Marr,afd8f1b2-a7e2-4a98-ae8d-14d73a2cde80,6eddd98a-c897-4eb3-92da-4d908fcbdd29,copy
+West,Marrickville,2026-12-10,17:00,18:15,Dragons and Ninjas: Blue to Purple Grading (at Marrickville),eaf8cf15-aa15-4a97-b578-a2772e0ff320,0a82ae7d-e58d-4281-9b91-fd20f58b8b31,copy
+West,Marrickville,2026-12-10,17:00,18:15,Dragons and Ninjas: Purple to Brown Grading (at Marrickville),a27e9fc3-f750-4333-aedd-ce01d1f23d46,10dd48cc-9bae-45cd-b26f-b6a0f58b886c,copy
+West,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Blue to Purple Belt Grading (at Marrickville),f7d6ed20-8a92-4609-8814-3dac86c870b5,308f5844-4e13-4154-96fa-addfb0eb18b8,copy
+West,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Brown to Red Belt Grading (at Marrickville),220b0292-78f4-44c5-904a-e5f74dff9fb3,080bd216-a15b-45c5-921c-60a0b3e0e241,copy
+West,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Purple to Brown Belt Grading (at Marrickville),9b2eb49d-a864-484e-8570-5755719b243c,15e11634-25fc-454b-a89b-aca30601d09e,copy
+West,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red 2 to Red 3 Belt Grading (at Marrickville),5406877f-d1f8-4231-bca7-1e5249054dfc,13c48579-ee2c-4b97-96b4-772ea4d4d437,copy
+West,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red 3 to Cho Dan Bo Grading (at Marrickville),7d7ba470-1a5c-4a35-9730-027466c468c0,84b044c0-7060-4b67-852f-dbe5903a255c,copy
+West,Marrickville,2026-12-10,18:45,20:00,Teens and Adults: Red to Red 2 Belt Grading (at Marrickville),94cadeb1-02ec-485e-bde2-530ea266af9f,1cb28085-0469-4e0a-8d63-932eca679187,copy
+West,West,2026-12-11,17:00,18:00,Green to Blue Belt Grading,18e0eff1-89a7-40b4-bac2-01085fcf138c,,original
+West,West,2026-12-11,17:00,18:00,Orange to Green Belt Grading,f5c8bc3d-104d-4322-a198-5ef97bdebf03,,original
+West,West,2026-12-11,17:00,18:00,White to Yellow Belt Grading,922bf31b-56d7-4296-a511-6a893dfa0365,,original
+West,West,2026-12-11,17:00,18:00,Yellow to Orange Belt Grading,7d0cf3b8-78f3-4d3a-bab9-c1be41fd1f0b,,original
+West,West,2026-12-11,18:45,19:45,Blue to Purple Belt Grading,eeea47f1-cf25-4ea4-8487-433162086af6,,original
+West,West,2026-12-11,18:45,19:45,Brown to Red Belt Grading,5c8f20c0-2d9c-4e38-b072-5e78fade378c,,original
+West,West,2026-12-11,18:45,19:45,Purple to Brown Belt Grading,5975d567-defc-4c7c-930e-e28f2697d077,,original
+West,West,2026-12-11,18:45,19:45,Red 2 to Red 3 Belt Grading,adb0ad46-c8a0-4467-b620-5eb85b7a7446,,original
+West,West,2026-12-11,18:45,19:45,Red 3 to Cho Dan Bo Grading,ae8ccc74-1dcf-479f-8ce2-4f8094ab16f0,,original
+West,West,2026-12-11,18:45,19:45,Red to Red 2 Belt Grading,781bfc31-e647-476f-a561-1ec9d904f5ab,,original
