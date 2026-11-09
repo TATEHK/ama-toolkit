@@ -543,6 +543,23 @@ function vars(e, s, d, extra = {}) {
 // Age and list order (youngest first by default, as gradings line up by age)
 const yrs = s => s && s.age != null ? s.age : null;
 const ageText = s => yrs(s) != null ? `${yrs(s)} yrs` : 'Age not in EFC';
+// An adult student is their own contact: address them directly ("your") instead of as if to a parent ("their")
+const normName = n => String(n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const isSelf = s => !!s && ((yrs(s) != null && yrs(s) >= 18) || (!!s.guardian_name && !!s.full_name && normName(s.guardian_name) === normName(s.full_name)));
+// Rewrite a parent-facing message into second person for an adult grading themselves (their greeting is filled with their own name)
+function adultize(t) {
+  return String(t || '')
+    .replace(/Congratulations \{first\}!/g, 'Congratulations!')
+    .replace(/\{first\}'s/g, 'your')
+    .replace(/\{first\} (is|are|was|passed|worked|needs|has|have|will|did)\b/g, (m, v) => 'you ' + ({ is: 'are', are: 'are', was: 'were', passed: 'passed', worked: 'worked', needs: 'need', has: 'have', have: 'have', will: 'will', did: 'did' }[v]))
+    .replace(/\{first\}/g, 'you')
+    .replace(/\bis now a\b/g, 'are now a')
+    .replace(/\bTheir\b/g, 'Your').replace(/\btheir\b/g, 'your')
+    .replace(/\bThey'll\b/g, "You'll").replace(/\bthey'll\b/g, "you'll")
+    .replace(/\bThey're\b/g, "You're").replace(/\bthey're\b/g, "you're")
+    .replace(/\bThey\b/g, 'You').replace(/\bthey\b/g, 'you').replace(/\bthem\b/g, 'you')
+    .replace(/(^|[.!?]\s+)you\b/g, (m, p) => p + 'You');
+}
 const SORTS = { age: 'Age, youngest first', age_desc: 'Age, oldest first', belt: 'Belt, then age', name: 'Name' };
 const pref = (k, d) => { try { return localStorage.getItem('cb_' + k) || d; } catch (e) { return d; } };
 const savePref = (k, v) => { try { localStorage.setItem('cb_' + k, v); } catch (e) { /* private window */ } };
@@ -812,7 +829,7 @@ const KIND_HELP = { invite: 'Sent from a grading day to students marked ready. I
 // people: [{ member_key, entry_id, s, e, d }]
 function composeTexts(kind, people) {
   const tpl = state.settings[KIND_TPL[kind]] || '';
-  const preview = p => fill($('#txTpl').value, vars(p.e, p.s, p.d));
+  const preview = p => { const self = isSelf(p.s); const v = vars(p.e, p.s, p.d); if (self) v.parent = firstName((p.s && p.s.full_name) || (p.e && p.e.full_name)); return fill(self ? adultize($('#txTpl').value) : $('#txTpl').value, v); };
   openDlg(`<form id="txForm" class="dlg">
     <div class="dlg-head"><div><h3>${KIND_NAME[kind]}</h3><p class="sub">Each family gets their own text from AMA.</p></div><button class="x" data-close>Close</button></div>
     <div class="field"><label for="txTpl">Message</label><textarea id="txTpl" rows="4">${esc(tpl)}</textarea>

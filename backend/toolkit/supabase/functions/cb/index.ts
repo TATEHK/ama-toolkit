@@ -100,6 +100,30 @@ const clock = t => { const [h, mi] = String(t).split(':').map(Number); return `$
 // belt -> "HH:MM"; black belt keys by the rank they grade to, otherwise the belt they are on now), falling back to the day's single start_time.
 export function entryTime(d, e) { const k = (d && d.bb) ? (e && e.belt_to) : (e && e.belt_from); return (d && d.belt_times && d.belt_times[k]) || (d && d.start_time) || null; }
 export function fillText(tpl, v) { return String(tpl || '').replace(/\{(\w+)\}/g, (m, k) => v[k] != null ? v[k] : '').replace(/[ \t]+([.,!])/g, '$1').replace(/ {2,}/g, ' ').trim(); }
+// An adult grading themselves is their own contact: address them directly instead of as if to a parent.
+export function selfOf(m) {
+  if (!m) return false;
+  const dob = String(m.date_of_birth || '');
+  if (/^\d{4}-\d{2}-\d{2}/.test(dob) && (Date.now() - Date.parse(dob.slice(0, 10))) / 31557600000 >= 18) return true;
+  const g = String(m.guardian_name || '').trim().toLowerCase().replace(/\s+/g, ' '), f = String(m.full_name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return !!g && !!f && g === f;
+}
+// Rewrite a parent-facing message into second person ("your") for an adult grading themselves.
+export function adultize(t) {
+  return String(t || '')
+    .replace(/Congratulations \{first\}!/g, 'Congratulations!')
+    .replace(/\{first\}'s/g, 'your')
+    .replace(/\{first\} (is|are|was|passed|worked|needs|has|have|will|did)\b/g, (m, v) => 'you ' + ({ is: 'are', are: 'are', was: 'were', passed: 'passed', worked: 'worked', needs: 'need', has: 'have', have: 'have', will: 'will', did: 'did' }[v]))
+    .replace(/\{first\}/g, 'you')
+    .replace(/\bis now a\b/g, 'are now a')
+    .replace(/\bTheir\b/g, 'Your').replace(/\btheir\b/g, 'your')
+    .replace(/\bThey'll\b/g, "You'll").replace(/\bthey'll\b/g, "you'll")
+    .replace(/\bThey're\b/g, "You're").replace(/\bthey're\b/g, "you're")
+    .replace(/\bThey\b/g, 'You').replace(/\bthey\b/g, 'you').replace(/\bthem\b/g, 'you')
+    .replace(/(^|[.!?]\s+)you\b/g, (m, p) => p + 'You');
+}
+// Fill a family template, switching to second person for an adult grading themselves (their greeting becomes their own name).
+export function famFill(tpl, m, v) { return selfOf(m) ? fillText(adultize(tpl), { ...v, parent: firstWord(m.full_name || '') }) : fillText(tpl, v); }
 export const EFC_LOCATIONS = {
   Marrickville: 'f39cf2f5-a3e0-47bc-97cc-bc05c9b2bc58', Sydenham: '5af07764-95bc-4caf-b889-ba846e409dc5', West: 'eafda575-a10e-4656-a045-8e20201aad40',
   Concord: '7ca1c142-be41-4d02-b5eb-13534b23043b', Sylvania: 'a5a5ab24-e85d-4e14-ac16-1d9c189ff0dd'
@@ -656,7 +680,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';
     const v = seqVars(e, d, m, { channel: step.channel, fee, prepTime, phone: st.contact_phone, deadlineDays: st.deadline_days ?? 7, prepUrl: st.prep_url, prepCloses: st.prep_closes,
       bring: String(st.email_bring || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean) });
-    const text = fillText(seqTemplate(step, st), v), subject = fillText(step.subject || '', v);
+    const text = famFill(seqTemplate(step, st), m, v), subject = fillText(step.subject || '', v);
     const phone = to ? phoneE164(to.phone) : phoneE164(m.phone || m.guardian_phone);
     const email = to ? (to.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to.email) ? to.email : null) : emailOf(m);
     const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: to ? null : e.entry_id, member_key: e.member_key, kind: to ? 'seq_test' : 'seq',
@@ -943,7 +967,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const ageNow = m => (m && typeof m.date_of_birth === 'string' && /^\d{4}-\d{2}-\d{2}/.test(m.date_of_birth)) ? Math.floor((Date.now() - Date.parse(m.date_of_birth.slice(0, 10))) / 31557600000) : null;
       const shortDay = ymd => { const [y, mo, dd] = String(ymd).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, mo - 1, dd)).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', ''); };
       const dayLine = (d, e) => `${shortDay(d.grading_date)}${(et => et ? ' ' + clock(et) : '')(entryTime(d, e))} at AMA ${whereOf(e, d)}`;
-      const bookText = (m, e, d) => fillText(st.not_booked_text, { parent: firstWord(m.guardian_name) || 'there', first: firstWord(m.full_name || e.full_name), next: e.belt_to,
+      const bookText = (m, e, d) => famFill(st.not_booked_text, m, { parent: firstWord(m.guardian_name) || 'there', first: firstWord(m.full_name || e.full_name), next: e.belt_to,
         school: whereOf(e, d), date: longDay(d.grading_date), time: (et => et ? ' at ' + clock(et) : '')(entryTime(d, e)), link: SITE + 'b#' + e.token });
 
       // ---- They picked another grading we offered (a reply of 1, 2 or 3): move them to it and send its booking link ----
@@ -1067,7 +1091,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         let skip = null; try { ({ data: skip } = await db.from('cb_skip').select('reason, until').eq('member_key', e.member_key).maybeSingle()); } catch (_) { /* no skip list */ }
         if (skip && (!skip.until || String(skip.until) >= today)) { out.push({ entry_id: e.entry_id, skipped: true }); continue; }
         const m = byKey[e.member_key], d = open.find(x => x.day_id === e.day_id);
-        const text = fillText(st.not_booked_text, { parent: firstWord(m.guardian_name) || 'there', first: firstWord(m.full_name || e.full_name), next: e.belt_to,
+        const text = famFill(st.not_booked_text, m, { parent: firstWord(m.guardian_name) || 'there', first: firstWord(m.full_name || e.full_name), next: e.belt_to,
           school: whereOf(e, d), date: longDay(d.grading_date), time: (et => et ? ' at ' + clock(et) : '')(entryTime(d, e)), link: SITE + 'b#' + e.token });
         const phone = phoneE164(m.phone || m.guardian_phone);
         const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind: 'not_booked', phone, body: text, status, sent_by: 'automatic: replied YES', ...extra });
