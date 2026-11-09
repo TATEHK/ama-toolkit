@@ -611,12 +611,14 @@ function readyTags(s) {
 /* ---------------- Loading ---------------- */
 async function loadAll() {
   const q = (t, order) => { let x = sb.from(t).select('*'); if (order) x = x.order(order[0], { ascending: order[1] !== false }); return x; };
-  const [st, be, se, da, en, me, pr, lr] = await Promise.all([
+  const [st, be, se, da, en, me, pr, lr, bc] = await Promise.all([
     fetchAll('cb_students', ['full_name', 'member_key', 'programme']), q('cb_belts', ['sort']), q('cb_settings'), q('cb_days', ['grading_date', false]), fetchAll('cb_entries', ['full_name', 'entry_id']),
     sb.from('cb_messages').select('entry_id, member_key, kind, status, sent_at').order('sent_at', { ascending: false }).limit(5000), q('cb_programmes', ['sort']),
-    sb.from('cb_efc_runs').select('ran_at').order('ran_at', { ascending: false }).limit(1)]);
+    sb.from('cb_efc_runs').select('ran_at').order('ran_at', { ascending: false }).limit(1),
+    sb.from('cb_belt_changes').select('*').is('reviewed_at', null).order('changed_at', { ascending: false }).limit(200)]);
   // When EFC last updated (the nightly update); missing before coloured-belts-6.sql
   state.efcAt = !lr.error && lr.data && lr.data[0] ? lr.data[0].ran_at : null;
+  state.beltChanges = (bc && !bc.error) ? (bc.data || []) : [];   // belts the EFC update changed, newest first
   for (const r of [st, be, se, da, en]) if (r.error) throw r.error;
   state.all = { students: st.data || [], belts: be.data || [], days: da.data || [], entries: en.data || [] };
   state.programmes = pr.error || !(pr.data || []).length ? [{ programme: 'Taekwondo', label: 'Taekwondo', active: true }] : pr.data.filter(x => x.active !== false);
@@ -1497,7 +1499,10 @@ function renderEfc() {
   v.innerHTML = `<div class="view-head"><div><h2>Update EFC</h2><p class="sub">Promote each student in EFC (or fix a corrected belt), then tick them off.</p></div></div>
     <p class="hint" id="efcAt">${state.efcAt ? `Belts and classes last came from EFC ${esc(new Date(state.efcAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' }))}. New belts come back with the nightly update.` : 'Belts and classes come from EFC every night.'}</p>
     <ul class="list">${todo.length ? todo.map(({ e, d, kind }) => `<li><label class="item" style="${beltVar(kind === 'belt' ? e.belt_from : e.belt_to)}"><input type="checkbox" data-efc="${e.entry_id}" data-efckind="${kind}" ${canGrade() ? '' : 'disabled'}>
-      <div class="main"><div class="name">${esc(e.full_name)}</div>${kind === 'belt' ? `<div class="meta"><b>Fix belt in EFC</b> — current belt is now ${esc(short(e.belt_from))} (grading for ${esc(short(toText(e)))})</div>` : `<div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div>`}<div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></label></li>`).join('') : '<li class="empty">Nothing to update in EFC.</li>'}</ul>
+      <div class="main"><div class="name">${esc(e.full_name)}</div>${kind === 'belt' ? `<div class="meta"><b>Fix belt in EFC</b> — should be ${esc(short(e.belt_from))} (grading for ${esc(short(toText(e)))})</div>${(() => { const eb = (student(e.member_key) || {}).belt; if (!eb) return ''; const ok = short(eb) === short(e.belt_from); return `<div class="meta" style="color:${ok ? 'var(--green-text)' : 'var(--red)'}">${ok ? 'EFC now matches — safe to tick off' : 'EFC still says ' + esc(short(eb))}</div>`; })()}` : `<div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div>`}<div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></label></li>`).join('') : '<li class="empty">Nothing to update in EFC.</li>'}</ul>
+    ${(state.beltChanges || []).length ? `<h3>Belt changes from EFC</h3><p class="hint">The last EFC update moved these belts. Tick to clear once you've seen them.</p>
+      <ul class="list">${state.beltChanges.slice(0, 80).map(c => `<li><label class="item" style="${beltVar(c.to_belt)}"><input type="checkbox" data-bcseen="${c.id}" ${canGrade() ? '' : 'disabled'}>
+        <div class="main"><div class="name">${esc(c.full_name || 'Unknown')}</div><div class="meta">${esc(short(c.from_belt))} → <b>${esc(short(c.to_belt))}</b>${c.programme && c.programme !== 'Taekwondo' ? ` · ${esc(c.programme)}` : ''}</div><div class="meta">${esc(new Date(c.changed_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }))}</div></div></label></li>`).join('')}</ul>` : ''}
     ${noContact.length ? `<h3>No contact details</h3><p class="hint">No mobile and no email, so they can't be sent invitations, booking links or payment emails. Tap to add details (also fix EFC).</p>
       <ul class="list">${noContact.map(({ e, d }) => `<li><button class="item" data-open="${e.entry_id}"><div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div><div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></button></li>`).join('')}</ul>` : ''}
     ${done.length ? `<h3>Recently done</h3><ul class="list">${done.map(e => `<li><div class="item plain"><div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(toText(e))}, by ${esc(e.efc_done_by || 'staff')}</div></div>${canGrade() ? `<button class="btn sm" data-undo="${e.entry_id}">Undo</button>` : ''}</div></li>`).join('')}</ul>` : ''}
@@ -1511,6 +1516,10 @@ function renderEfc() {
     const e = state.entries.find(x => x.entry_id === c.dataset.efc);
     const f = c.dataset.efckind === 'belt' ? { efc_belt_fix: null } : { efc_done: true, efc_done_at: new Date().toISOString(), efc_done_by: state.me };
     try { await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), 'Ticked off'); Object.assign(e, f); render(); }
+    catch (er) { c.checked = false; toast(errMsg(er), 6000); }
+  });
+  $$('[data-bcseen]').forEach(c => c.onchange = async () => {
+    try { await run(sb.from('cb_belt_changes').update({ reviewed_at: new Date().toISOString(), reviewed_by: state.me }).eq('id', c.dataset.bcseen), 'Cleared'); state.beltChanges = (state.beltChanges || []).filter(x => x.id !== c.dataset.bcseen); render(); }
     catch (er) { c.checked = false; toast(errMsg(er), 6000); }
   });
   $$('[data-undo]').forEach(b => b.onclick = async () => {
