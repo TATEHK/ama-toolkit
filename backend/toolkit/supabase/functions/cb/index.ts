@@ -75,7 +75,6 @@ export const EFC_LOCATIONS = {
   Marrickville: 'f39cf2f5-a3e0-47bc-97cc-bc05c9b2bc58', Sydenham: '5af07764-95bc-4caf-b889-ba846e409dc5', West: 'eafda575-a10e-4656-a045-8e20201aad40',
   Concord: '7ca1c142-be41-4d02-b5eb-13534b23043b', Sylvania: 'a5a5ab24-e85d-4e14-ac16-1d9c189ff0dd'
 };
-// Who may send each kind (admins always can): invitations and day reminders by grading staff, "not yet" by instructors too
 // Coloured Belts permissions (app_permissions, app 'cb'; supabase/app-permissions.sql). "admin" covers everything.
 const KINDS = { invite: ['texts'], not_booked: ['texts'], reminder: ['texts'], unpaid: ['texts'], congrats: ['texts'], retest: ['texts'], photo: ['results', 'texts'], not_ready: ['readiness'], bbc_followup: ['readiness'] };
 const cors = {
