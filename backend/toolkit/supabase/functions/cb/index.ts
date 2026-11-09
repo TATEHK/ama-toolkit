@@ -53,8 +53,13 @@ export function isNotGrading(t) {
   const s = String(t || '').trim().toLowerCase().replace(/[‘’]/g, "'");
   if (!s || /\b(another|different|other)\s+(day|time|date|location|school|grading|session)\b/.test(s)) return false;
   if (/\b(don'?t|do not|doesn'?t|does not|won'?t|wont|will not|not|no longer)\s+(want(ing)?|wanna|going|planning|plan|interested|keen|doing|be doing|ready)\b[^.?!]*\b(grad(e|ing)|test(ing)?|it|this|that)\b/.test(s)) return true;
-  if (/\b(not|no)\s+grad(e|ing)\b|\bno for \w+|\binjur(ed|y|ies)\b|\bstop(ped)? (attending|coming|training)\b|\bwon'?t be grading\b|\bnot (ready|this time|this round)\b|\b(skip|sit out|pass on|miss)\s+(this|the|that)\s+(one|grading|time|round)\b|\bnext (grading|time|round|term|cycle)\b/.test(s)) return true;
+  if (/\b(not|no)\s+grad(e|ing)\b|\bno for \w+|\binjur(ed|y|ies)\b|\bstop(ped)? (attending|coming|training)\b|\b(not|haven'?t|have not|hasn'?t|has not) (been )?(attending|coming|training)\b|\b(don'?t|do not|doesn'?t) (feel|think)\b[^.?!]*\b(time|ready)\b|\bnot the right time\b|\bwon'?t be grading\b|\bnot (ready|this time|this round)\b|\b(skip|sit out|pass on|miss)\s+(this|the|that)\s+(one|grading|time|round)\b|\bnext (grading|time|round|term|cycle)\b/.test(s)) return true;
   return /\b(quit|quitting|stopped|stopping|leaving|left (the|ama|amaa|the club|the academy|the school|martial arts|taekwondo)\b|we'?ve left|cancel+ing|cancel+ed (her|his|their|the) (membership|enrol)|withdraw(n|ing)?|pulling (him|her|them) out|pulled (him|her|them) out)\b/.test(s);
+}
+// Replies: they want someone to ring them ("Could I please have a phone call with a staff member today?", "Can someone call me")
+export function wantsCall(t) {
+  const s = String(t || '').toLowerCase().replace(/[\u2018\u2019]/g, "'");
+  return /\b(phone call|call me|call us|call back|callback|ring me|ring us|give (me|us) a (call|ring)|(can|could|would) (someone|somebody|you|a staff member|staff) (please )?(call|ring|phone)|please (call|ring|phone)|(speak|talk|chat) (to|with) (someone|somebody|a staff|staff|a person|an instructor|the instructor|mark|you))\b/.test(s);
 }
 // Replies: "That's the wrong belt, she's going for Green" / "He's a Blue Belt" / "Should be red two". ladder is the programme's
 // belts ({ belt, next_belt }). Returns { belt, as: 'target' | 'current' } for the last belt named, or null if it isn't a belt correction.
@@ -1161,7 +1166,10 @@ export async function handle(req, db, env = {}, http = fetch) {
         for (const e of mine) await db.from('cb_entries').update({ seq_paused_until: new Date(Date.now() + 2 * 864e5).toISOString() }).eq('entry_id', e.entry_id);
         if (!yes) for (const e of mine) {
           const { data: open } = await db.from('cb_calls').select('call_id').eq('entry_id', e.entry_id).eq('done', false);
-          if (!(open || []).length) await db.from('cb_calls').insert({ entry_id: e.entry_id, reason: 'concern', note: msg.slice(0, 300), callback_on: today });
+          // "Could I please have a phone call with a staff member?": a call for an admin, at the top of the hub's list
+          const ask = wantsCall(msg);
+          if (!(open || []).length) await db.from('cb_calls').insert({ entry_id: e.entry_id, reason: 'concern', note: ((ask ? 'Asked for a call: ' : '') + msg).slice(0, 300), callback_on: today, for_admin: ask });
+          else if (ask) await db.from('cb_calls').update({ for_admin: true, note: ('Asked for a call: ' + msg).slice(0, 300), callback_on: today, updated_at: new Date().toISOString() }).eq('entry_id', e.entry_id).eq('done', false);
         }
       }
       // ---- "No" or "can't make it": offer the other gradings that suit every student in the family (belt and age) ----

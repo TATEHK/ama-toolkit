@@ -406,6 +406,16 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   ok(Date.parse(ng.t.cb_entries[0].seq_paused_until) > Date.now() + 10 * 864e5 && ghlCalls.length === n0, 'their booking messages stop, and nothing is texted to them');
   for (const t of ['Thank you no grading this time', "Not ready yet, maybe next time", "He's injured"]) { const T3 = tables(); T3.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const x = makeDb(T3);
     const rr = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: t }); ok(rr.body.not_grading === 1 && x.t.cb_calls[0].for_admin, `"${t}" is a not-grading call for an admin`); }
+  { const T4 = tables(); T4.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const x = makeDb(T4);
+    const rr = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Yes, I did. Thank you very very much. It's just that for family reasons. We have not been attending so therefore we don't feel it. It's time for them to be graded once again thank you Angela." });
+    ok(rr.body.not_grading === 1 && x.t.cb_calls[0].for_admin, '"we have not been attending" is a not-grading call for an admin, even starting "Yes, I did"'); }
+  { const T5 = tables(); T5.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; T5.cb_settings[0].seq_on = true; const x = makeDb(T5);
+    await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Hi, could I please have a phone call with a staff member at some point today?' });
+    const c5 = x.t.cb_calls[0];
+    ok(c5 && c5.reason === 'concern' && c5.for_admin === true && /^Asked for a call: /.test(c5.note), 'asking for a phone call puts a call for an admin on the hub'); }
+  { const T6 = tables(); T6.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; T6.cb_settings[0].seq_on = true; const x = makeDb(T6);
+    await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'What time does it finish?' });
+    ok(x.t.cb_calls[0] && x.t.cb_calls[0].for_admin !== true, 'an ordinary question stays an ordinary call'); }
   // "Yes for Kim, no for Sam": only Sam is not grading (both children on the same mobile)
   const T4 = tables(); T4.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }, { ...base, entry_id: 'e9', member_key: 'efc:9', full_name: 'Kim Lee', token: 'TOK9', invited_at: '2026-11-08T05:00:00Z' }];
   T4.efc_members.push({ member_key: 'efc:9', full_name: 'Kim Lee', guardian_name: 'Pat Lee', phone: '0412 345 678' });
