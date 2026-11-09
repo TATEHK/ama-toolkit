@@ -404,7 +404,7 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   const c = ng.t.cb_calls[0];
   ok(r.body.not_grading === 1 && c && c.reason === 'not_grading' && c.for_admin === true && /don't want/.test(c.note), 'a call for an admin goes on the hub\'s list, with what they said');
   ok(Date.parse(ng.t.cb_entries[0].seq_paused_until) > Date.now() + 10 * 864e5 && ghlCalls.length === n0, 'their booking messages stop, and nothing is texted to them');
-  for (const t of ['Thank you no grading this time', "Not ready yet, maybe next time", "He's injured"]) { const T3 = tables(); T3.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const x = makeDb(T3);
+  for (const t of ['Thank you no grading this time', "Not ready yet, maybe next time", "He's injured", "Hi, Yes I did. We opted to pause Luca's membership as he is representing his football academy in the Sydney Premier League championship. This is for the remainder of the year.", 'Her membership is on hold until January']) { const T3 = tables(); T3.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const x = makeDb(T3);
     const rr = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: t }); ok(rr.body.not_grading === 1 && x.t.cb_calls[0].for_admin, `"${t}" is a not-grading call for an admin`); }
   { const T4 = tables(); T4.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const x = makeDb(T4);
     const rr = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Yes, I did. Thank you very very much. It's just that for family reasons. We have not been attending so therefore we don't feel it. It's time for them to be graded once again thank you Angela." });
