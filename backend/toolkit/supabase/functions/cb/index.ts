@@ -997,6 +997,18 @@ export async function handle(req, db, env = {}, http = fetch) {
         }
         const resolveQ = how => db.from('cb_admin_q').update({ resolved_at: new Date().toISOString(), resolution: how }).eq('id', q.id);
         if (/^\s*(ignore|skip|leave|none|no)\b/i.test(rest)) { await resolveQ('ignored'); await alertAdmin('OK, left #' + q.ref + ' as it was.'); return json({ ok: true, admin: true, ignored: true }); }
+        if (q.kind === 'test') {   // a test belt-check: show how the reply is read, change nothing
+          const { data: tb } = await db.from('cb_belts').select('belt, next_belt').eq('programme', 'Taekwondo');
+          const lad = tb || [], bw = b => String(b.belt).replace(/\s*belt$/i, '').trim().toLowerCase(), lw = ' ' + rest.toLowerCase() + ' ';
+          const hs = lad.map(b => ({ belt: b.belt, at: lw.search(new RegExp('\\b' + bw(b).replace(/\s+/g, '\\s+') + '\\b')) })).filter(h => h.at >= 0).sort((a, b) => a.at - b.at);
+          const nx = x => (lad.find(b => b.belt === x) || {}).next_belt || null, pv = x => (lad.find(b => b.next_belt === x) || {}).belt || null;
+          let f = null, t = null; const ta = lw.search(/\bto\b/);
+          if (ta >= 0 && hs.some(h => h.at < ta) && hs.some(h => h.at > ta)) { f = hs.filter(h => h.at < ta).pop().belt; t = hs.find(h => h.at > ta).belt; }
+          else if (hs.length) { const b = hs[hs.length - 1].belt; if (/\b(is|are|already|currently|now|on|has|had|got|having|holding|wearing)\b/.test(lw)) { f = b; t = nx(b); } else { t = b; f = pv(b); } }
+          await resolveQ('test');
+          await alertAdmin(f && t ? `TEST #${q.ref}: read as "${f} to ${t}". The reply path works - nothing was changed.` : `TEST #${q.ref}: couldn't read a belt from that. Try "${q.ref} green to blue".`);
+          return json({ ok: true, admin: true, test: true, from: f, to: t });
+        }
         let entryId = q.entry_id;
         if (!entryId) {
           const { data: cand } = await db.from('cb_entries').select('entry_id, member_key, full_name').in('entry_id', q.entry_ids || []);
@@ -1196,6 +1208,22 @@ export async function handle(req, db, env = {}, http = fetch) {
     const can = (...want) => perms.includes('admin') || want.some(w => perms.includes(w));
     const may = kind => can(...(KINDS[kind] || []));
     if (!perms.length) return fail('Your login cannot use Coloured Belts. Ask a Staff admin to give you access.', 403);
+    // Staff: send a test belt-check alert to the alert phone, so they can check they get it and can reply
+    if (body.action === 'alert_test') {
+      const { data: s2 } = await db.from('cb_settings').select('alert_phone').eq('id', 1).maybeSingle();
+      if (!s2 || !s2.alert_phone) return json({ ok: false, error: 'No alert phone is set.' });
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return json({ ok: false, error: 'Texting is not set up.' });
+      const { data: top } = await db.from('cb_admin_q').select('ref').is('resolved_at', null).order('ref', { ascending: false }).limit(1);
+      const ref = ((top && top[0] && top[0].ref) || 0) + 1;
+      await db.from('cb_admin_q').insert({ ref, kind: 'test', body: 'Test sent by ' + me });
+      const text = `Belt check #${ref} (TEST): this is how belt questions will reach you. Reply "${ref} ignore" to test the reply, or "${ref} green to blue" to see it read the belt. Nothing real changes.`;
+      try {
+        const cid = await contactFor({ guardian_name: 'AMA grading', full_name: 'AMA grading' }, phoneE164(s2.alert_phone));
+        if (!cid) throw new Error('Could not create the contact for the alert number');
+        const gid = await sendSms(cid, text);
+        return json({ ok: true, sent: true, ref, to: s2.alert_phone, ghl_id: gid || null });
+      } catch (er) { return json({ ok: false, error: String(er.message || er).slice(0, 300), ref }); }
+    }
     // A payment taken by staff (cash, EFTPOS, bank transfer): mark paid, then book the EFC session like a card payment would
     if (body.action === 'record_payment') {
       if (!can('payments')) return fail('Your login cannot record payments.', 403);
