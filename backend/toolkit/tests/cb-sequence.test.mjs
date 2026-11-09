@@ -362,6 +362,18 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   { const T3 = tables(); T3.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const x = makeDb(T3);
     const rr = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "He's injured and we're away anyway" });
     ok(rr.body.not_grading === 1, 'injured (even if also away) is still not grading'); }
+  // "I normally do Sam's grading at Concord": moved to that school's grading for their belt and age, and the link is texted
+  { const T3 = tables(); T3.cb_days = T.cb_days; T3.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z', school: 'Marrickville' }]; T3.efc_members[0].date_of_birth = '2017-03-01';
+    const sc = makeDb(T3), k0 = ghlCalls.length; const rr = await call(sc, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Hello\n\nI normally do Sam's grading at Concord" });
+    const tx = ghlCalls.slice(k0).find(c => c.body && c.body.type === 'SMS');
+    ok(rr.body.school && sc.t.cb_entries[0].day_id === 'co' && sc.t.cb_entries[0].moved_from_day === 'mk', '"I normally grade at Concord" moves them to the Concord grading for their belt');
+    ok(tx && /moved Sam to grade for Orange Belt at AMA Concord on Tuesday 1 December at 4:00pm\. Book here: https:\/\/app\.train-ama\.com\/b#TOK/.test(tx.body.message), '...and texts the booking link'); }
+  { const T3 = tables(); T3.cb_days = T.cb_days; T3.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z', school: 'Marrickville' }]; T3.efc_members[0].date_of_birth = '2017-03-01';
+    const sc = makeDb(T3); const rr = await call(sc, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "We don't go to Concord any more, Marrickville is fine" });
+    ok(!rr.body.school && sc.t.cb_entries[0].day_id === 'mk', 'a school they say they don\'t go to is not a move (and the one they are on stays)'); }
+  { const T3 = tables(); T3.cb_days = T.cb_days; T3.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z', school: 'Marrickville' }]; T3.efc_members[0].date_of_birth = '2017-03-01';
+    const sc = makeDb(T3); const rr = await call(sc, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Can she grade at Sylvania instead?' });
+    ok(!rr.body.school && sc.t.cb_entries[0].day_id === 'mk', 'no open grading at that school for their belt: nothing moves'); }
   // Nothing suits: no offer (the call to the family still happens)
   const T2 = tables(); T2.cb_days = [T.cb_days[0], T.cb_days[4]]; T2.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z' }];
   const none = makeDb(T2), n2 = ghlCalls.length;

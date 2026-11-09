@@ -177,6 +177,24 @@ export const refSchool = ref => REF_SCHOOL[String(ref || '').split('-')[1]] || n
 // still booked into EFC under Sydenham (their own school's session and EFC location); this only changes what families are told.
 export const GRADING_VENUE = { Sydenham: 'Marrickville' };
 export const venueOf = school => GRADING_VENUE[school] || school || '';
+// Replies: "I normally do Leon's grading at Sylvania" / "Can she grade at Concord instead?". Returns the school they want to grade
+// at (as a grading venue), or null. A school after "not" / "don't attend" / "no longer" is one they don't want.
+const SCHOOL_WORDS = [['Marrickville', /\bmarrickville\b/g], ['Sydenham', /\bsydenham\b/g], ['Concord', /\bconcord\b/g], ['Sylvania', /\bsylvania\b/g],
+  ['West', /\bauburn\b|\bama west\b|\b(?:at|in|to) west\b/g]];
+export function schoolClaim(t, current) {
+  const s = ' ' + String(t || '').toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, ' ') + ' ';
+  const want = new Set();
+  for (const [school, re] of SCHOOL_WORDS) {
+    re.lastIndex = 0; let m;
+    while ((m = re.exec(s))) {
+      const before = s.slice(Math.max(0, m.index - 40), m.index);
+      if (/\b(not|don'?t|do not|doesn'?t|no longer|never|stopped|left|moved from|instead of|rather than)\b[^.?!,]*$/.test(before)) continue;
+      want.add(venueOf(school));
+    }
+  }
+  const list = [...want].filter(x => x !== venueOf(current || ''));
+  return list.length === 1 && want.size === 1 ? list[0] : null;
+}
 // Where a student grades, as families are told. A black belt grading is held at the day's venue (AMA Sydenham) for every
 // school, while each student is still booked into EFC under their own school's session (bookEntry). A coloured belt day is at
 // the day's school, with a school's own venue swapped in if it grades elsewhere.
@@ -1146,6 +1164,27 @@ export async function handle(req, db, env = {}, http = fetch) {
           const have = who.map(x => (who.length > 1 ? firstWord(x.full_name) + ' ' : '') + x.belt_from + ' to ' + x.belt_to).join('; ');
           await askAdmin({ kind: 'unclear', ...(e ? { entry: e } : { entries: mine }), text: ref => `Belt check #${ref}: ${firstWord((gm && gm.guardian_name) || 'A family')}${e ? ' for ' + firstWord(e.full_name) : ''} said "${msg.slice(0, 120)}" (we have ${have}). Reply "${ref} ${e ? '' : firstWord(mine[0].full_name) + ' '}green to blue" to change it, or "${ref} ignore".` });
           return json({ ok: true, matched: mine.length, belt: 'asked admin (unclear)' });
+        }
+      }
+
+      // ---- "I normally grade at Sylvania": move them to that school's grading for their belt and age, and text the booking link ----
+      if (!stopping && !isNotGrading(msg)) {
+        const e = whichKid(), d = e && open.find(x => x.day_id === e.day_id), to = d && schoolClaim(msg, d.location);
+        if (e && d && to) {
+          const m = byKey[e.member_key], age = ageNow(m);
+          const nd = open.filter(x => x.location === to && x.day_id !== d.day_id && fitsDay(x, e, age, d))
+            .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')))[0] || null;
+          const { data: clash } = nd ? await db.from('cb_entries').select('entry_id').eq('day_id', nd.day_id).eq('member_key', e.member_key).maybeSingle() : { data: null };
+          if (nd && !clash) {
+            const nowIso = new Date().toISOString();
+            await db.from('cb_entries').update({ day_id: nd.day_id, moved_from_day: d.day_id, yes_at: e.yes_at || nowIso, reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: null, alt_offer: null }).eq('entry_id', e.entry_id);
+            await db.from('cb_calls').update({ done: true, outcome: 'moved', outcome_note: 'Moved to ' + to + ' by text', updated_at: nowIso }).eq('entry_id', e.entry_id).eq('done', false).then(() => {}, () => {});
+            const moved = { ...e, day_id: nd.day_id }, tm = (et => et ? ' at ' + clock(et) : '')(entryTime(nd, moved));
+            const self = selfOf(m), greet = self ? firstWord(m.full_name || e.full_name) : (firstWord(m.guardian_name) || 'there'), who = self ? 'you' : firstWord(m.full_name || e.full_name);
+            const text = `Thanks ${greet}! We've moved ${who} to grade for ${e.belt_to} at AMA ${whereOf(moved, nd)} on ${longDay(nd.grading_date)}${tm}. Book here: ${SITE}b#${e.token} AMA ${whereOf(moved, nd)}`;
+            const r = await familyText(m, moved, text, 'not_booked', 'automatic: moved school by reply', `${firstWord(m.full_name || e.full_name)}'s grading at AMA ${whereOf(moved, nd)}`);
+            return json({ ok: true, matched: mine.length, school: { to, day: nd.day_id }, ...r });
+          }
         }
       }
 
