@@ -255,6 +255,11 @@
   .choice .btn { min-height: 52px; font-size: 16px; }
   .choice .btn[aria-pressed="true"].go { background: var(--green); border-color: var(--green); color: #fff; }
   .choice .btn[aria-pressed="true"].stop { background: var(--red); border-color: var(--red); color: #1a0d09; }
+  .qacts { display: flex; gap: 8px; padding: 0 14px 12px 18px; }
+  .qacts .qbtn { flex: 1; min-height: 40px; font-size: 15px; }
+  .qbtn[aria-pressed="true"].go { background: var(--green); border-color: var(--green); color: #fff; }
+  .qbtn[aria-pressed="true"].stop { background: var(--red); border-color: var(--red); color: #1a0d09; }
+  .list > li.grouphd { padding: 11px 14px 6px 18px; font-weight: 600; font-size: 14px; color: var(--sub); background: var(--raise); }
   .msgprev { white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 15px; }
   .people { max-height: 240px; overflow: auto; }
 
@@ -589,7 +594,7 @@ function readyTags(s) {
   else if (s.approval === 'not_yet') t.push('<span class="tag bad">Not yet</span>');
   const od = openDayFor(s.member_key);
   if (od) t.push(`<span class="tag info">Grading ${esc(shortDate(dayOf(od.day_id).grading_date))}</span>`);
-  else if (overdue(s)) t.push('<span class="tag bad" title="A long time on this belt: they may be about to drop off">Overdue</span>');
+  else if (overdue(s)) t.push('<span class="tag bad" title="A long time on this belt: they may be about to drop off">On belt too long</span>');
   if (s.black_belt_club) t.push('<span class="tag bbc" title="Enrolled in Black Belt Club (from EFC)">Black Belt Club</span>');
   else if (s.bbc_invited_at) t.push(`<span class="tag bbcinv">${s.bbc_written_at ? 'BBC card written' : 'BBC card to write'}</span>`);
   return t.join('');
@@ -700,7 +705,7 @@ function renderReady() {
       <div class="pipeline" id="readyPipe" role="group" aria-label="Students at a glance"></div>
       <div class="finder">
         <input type="search" id="fQ" placeholder="Find a student" aria-label="Find a student">
-        <select id="fShow" aria-label="Show"><option value="eligible">Enough classes</option><option value="ready">Marked ready</option><option value="not_yet">Marked not yet</option><option value="undecided">Enough classes, not decided</option><option value="overdue">Overdue</option><option value="all">Everyone</option></select>
+        <select id="fShow" aria-label="Show"><option value="eligible">Enough classes</option><option value="ready">Marked ready</option><option value="not_yet">Marked not yet</option><option value="undecided">Enough classes, not decided</option><option value="overdue">On belt too long</option><option value="all">Everyone</option></select>
         <button type="button" class="btn filters-toggle" id="fMore" aria-expanded="false" aria-controls="fMoreBox">Filters</button>
       </div>
       <div class="more-filters shut" id="fMoreBox">
@@ -727,7 +732,7 @@ function drawReady() {
   const base = state.students.filter(s => (!filt.school || s.location === filt.school) && (!filt.belt || s.belt === filt.belt) && (!filt.q || s.full_name.toLowerCase().includes(filt.q)) &&
     (!filt.bbc || (filt.bbc === 'invited' ? !s.black_belt_club && !!s.bbc_invited_at : (filt.bbc === 'yes') === !!s.black_belt_club)));
   const pipe = [['eligible', 'Enough classes', base.filter(eligible).length], ['undecided', 'Not decided', base.filter(s => eligible(s) && !s.approval).length],
-    ['ready', 'Marked ready', base.filter(s => s.approval === 'ready').length], ['overdue', 'Overdue', base.filter(overdue).length, 'alert']];
+    ['ready', 'Marked ready', base.filter(s => s.approval === 'ready').length], ['overdue', 'On belt too long', base.filter(overdue).length, 'alert']];
   const pb = $('#readyPipe');
   if (pb) { pb.innerHTML = pipe.map(([k, t, n, c]) => `<button type="button" data-pipe="${k}" class="${n && c ? c : ''}" aria-pressed="${show === k}"><span class="n">${n}</span><span class="l">${t}</span></button>`).join('');
     $$('#readyPipe [data-pipe]').forEach(b => b.onclick = () => { $('#fShow').value = b.dataset.pipe; $('#fShow').dispatchEvent(new Event('input')); }); }
@@ -738,12 +743,39 @@ function drawReady() {
   const extra = [filt.school, filt.belt, filt.bbc].filter(Boolean).length;
   $('#fMore').textContent = extra ? `Filters (${extra})` : 'Filters';
   $('#readyCount').textContent = `${list.length} student${list.length === 1 ? '' : 's'}`;
-  $('#readyList').innerHTML = list.length ? list.slice(0, 400).map(s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}">
+  const qbtns = s => canApprove() ? `<div class="qacts" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}">
+      <button type="button" class="btn go qbtn" data-mark="ready" aria-pressed="${s.approval === 'ready'}">Ready</button>
+      <button type="button" class="btn stop qbtn" data-mark="not_yet" aria-pressed="${s.approval === 'not_yet'}">Not yet</button></div>` : '';
+  const mk = s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}">
       <div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${isAll() ? esc(progLabel(s.programme)) + ', ' : ''}${esc(short(s.belt))} to ${esc(short(sNext(s)))}</div><div class="meta">${esc(ageText(s))}, ${esc(s.location)}</div></div>
-      <div class="side"><span class="classes${s.enough_classes ? '' : ' short'}">${s.classes}/${s.classes_needed}<small> classes</small></span><span class="tags">${readyTags(s)}</span></div></button></li>`).join('') + (list.length > 400 ? `<li class="empty">Showing the first 400. Narrow it down with a search or the filters.</li>` : '')
-    : '<li class="empty">No one matches.</li>';
-  $$('#readyList [data-key]').forEach(b => b.onclick = () => openStudent(b.dataset.key, b.dataset.prog));
+      <div class="side"><span class="classes${s.enough_classes ? '' : ' short'}">${s.classes}/${s.classes_needed}<small> classes</small></span><span class="tags">${readyTags(s)}</span></div></button>${qbtns(s)}</li>`;
+  let html;
+  if (!list.length) html = '<li class="empty">No one matches.</li>';
+  else if (show === 'undecided') {
+    // Group the not-decided students by the grading day they'd go on, so an instructor can clear them one day at a time
+    const groups = new Map();
+    list.forEach(s => { const d = upcomingDayFor(s), k = d ? d.day_id : 'none'; if (!groups.has(k)) groups.set(k, { d, items: [] }); groups.get(k).items.push(s); });
+    const ordered = [...groups.values()].sort((a, b) => (a.d && b.d) ? a.d.grading_date.localeCompare(b.d.grading_date) : a.d ? -1 : b.d ? 1 : 0);
+    html = ordered.map(g => `<li class="grouphd">${g.d ? `${esc(fmtDate(g.d.grading_date))} — ${esc(g.d.location)}` : 'No grading day scheduled yet'} <span class="hint">(${g.items.length})</span></li>` + g.items.map(mk).join('')).join('');
+  } else html = list.slice(0, 400).map(mk).join('') + (list.length > 400 ? `<li class="empty">Showing the first 400. Narrow it down with a search or the filters.</li>` : '');
+  $('#readyList').innerHTML = html;
+  $$('#readyList .item[data-key]').forEach(b => b.onclick = () => openStudent(b.dataset.key, b.dataset.prog));
+  $$('#readyList .qbtn').forEach(b => b.onclick = async () => {
+    const w = b.closest('.qacts'), on = b.getAttribute('aria-pressed') === 'true';
+    b.disabled = true;
+    try { await setApproval(w.dataset.key, w.dataset.prog, on ? null : b.dataset.mark); drawReady(); }
+    catch (e) { b.disabled = false; toast(errMsg(e), 6000); }
+  });
 }
+// Mark a student ready / not yet (or clear), used by the popup and the quick buttons in the list
+async function setApproval(key, prog, status, note) {
+  const P = prog || 'Taekwondo', s = student(key, P);
+  if (status) await run(sb.from('cb_approvals').upsert({ member_key: key, programme: P, belt: (s && s.belt) || null, status, note: note || null, decided_by: state.me, decided_at: new Date().toISOString() }), status === 'ready' ? 'Marked ready' : 'Marked not yet');
+  else await run(sb.from('cb_approvals').delete().eq('member_key', key).eq('programme', P), 'Cleared');
+  state.all.students.forEach(x => { if (x.member_key === key && (x.programme || 'Taekwondo') === P) Object.assign(x, { approval: status, approval_note: status ? (note || null) : null, decided_by: status ? state.me : null }); });
+}
+// The next open grading day a student could go on (their school, their belt), soonest first
+const upcomingDayFor = s => state.days.filter(d => !d.closed && d.grading_date >= today() && forDay(d, s)).sort((a, b) => a.grading_date.localeCompare(b.grading_date))[0] || null;
 function openStudent(key, prog) {
   const s = student(key, prog); if (!s) return;
   const P = s.programme || 'Taekwondo', open = () => openStudent(key, P);
@@ -765,7 +797,7 @@ function openStudent(key, prog) {
     ${bbcBlock}
     <dl class="kv">
       <dt>Classes</dt><dd><b>${s.classes}</b> of ${s.classes_needed} since their last grading ${s.enough_classes ? '<span class="tag ok">Enough classes</span>' : `<span class="tag warn">Not enough classes: ${Math.max(0, s.classes_needed - s.classes)} to go</span>`}</dd>
-      <dt>Last grading</dt><dd>${s.promoted_on ? `${esc(fmtDate(s.promoted_on))}, ${s.weeks_at_belt} weeks ago` : 'Not in EFC'}${overdue(s) ? ' <span class="tag bad">Overdue</span>' : ''}</dd>
+      <dt>Last grading</dt><dd>${s.promoted_on ? `${esc(fmtDate(s.promoted_on))}, ${s.weeks_at_belt} weeks ago` : 'Not in EFC'}${overdue(s) ? ' <span class="tag bad">On belt too long</span>' : ''}</dd>
       <dt>Age</dt><dd>${esc(ageText(s))}</dd>
       <dt>School</dt><dd>${esc(s.location)}${isAll() ? ', ' + esc(progLabel(P)) : ''}${s.efc_reference ? ` <span class="hint">${esc(s.efc_reference)}</span>` : ''}</dd>
       ${contactRows(s)}
@@ -774,13 +806,8 @@ function openStudent(key, prog) {
     ${hist.length ? `<div class="section"><h3>Gradings</h3><ul class="list">${hist.map(x => `<li><button type="button" class="item" data-gday="${esc(x.d.day_id)}"><div class="main"><div class="name">${esc(fmtDate(x.d.grading_date))}</div><div class="meta">${esc(x.d.location)}, to ${esc(toText(x.e))}</div></div><span class="tags">${x.e.result ? `<span class="tag ${x.e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[x.e.result]}</span>` : x.e.booked_at ? '<span class="tag ok">Booked</span>' : x.e.yes_at ? '<span class="tag ok">Said YES</span>' : x.e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Added</span>'}</span></button></li>`).join('')}</ul></div>` : ''}
   </div>`);
   const decide = async status => {
-    const note = $('#apNote').value.trim() || null;
-    try {
-      if (status) await run(sb.from('cb_approvals').upsert({ member_key: key, programme: P, belt: s.belt, status, note, decided_by: state.me, decided_at: new Date().toISOString() }), status === 'ready' ? 'Marked ready' : 'Marked not yet');
-      else await run(sb.from('cb_approvals').delete().eq('member_key', key).eq('programme', P), 'Cleared');
-      state.all.students.forEach(x => { if (x.member_key === key && (x.programme || 'Taekwondo') === P) Object.assign(x, { approval: status, approval_note: status ? note : null, decided_by: status ? state.me : null }); });
-      render(); open();
-    } catch (e) { toast(errMsg(e), 6000); }
+    try { await setApproval(key, P, status, $('#apNote').value.trim() || null); render(); open(); }
+    catch (e) { toast(errMsg(e), 6000); }
   };
   const r = $('#apReady'); if (r) r.onclick = () => decide('ready');
   const n = $('#apNot'); if (n) n.onclick = () => decide('not_yet');
@@ -885,6 +912,20 @@ async function fnCall(body) {
 
 /* ---------------- Grading days ---------------- */
 const daysFilt = { location: '', belt: '' };
+// Students on a day who haven't booked yet (no booking, no result, not paid)
+const notBookedOf = d => entriesOf(d.day_id).filter(e => !e.booked_at && !e.result && !e.paid);
+// Put the not-booked students on the call list so they show on Mark's My Day. Skips anyone already on an open call.
+async function callNotBooked(d) {
+  const es = notBookedOf(d);
+  if (!es.length) { toast('Everyone on this day has booked.'); return 0; }
+  const ids = es.map(e => e.entry_id);
+  const open = await run(sb.from('cb_calls').select('entry_id').in('entry_id', ids).eq('done', false));
+  const has = new Set((open || []).map(r => r.entry_id));
+  const add = es.filter(e => !has.has(e.entry_id));
+  if (!add.length) { toast('They are already on the call list.'); return 0; }
+  await run(sb.from('cb_calls').insert(add.map(e => ({ entry_id: e.entry_id, reason: 'not_booked', for_admin: false }))), `Added ${add.length} to the call list`);
+  return add.length;
+}
 function renderDays() {
   const v = $('#view-days');
   const locs = [...new Set(state.days.map(d => d.location).filter(Boolean))].sort();
@@ -894,11 +935,12 @@ function renderDays() {
   const up = allUp.filter(match);
   const past = state.days.filter(d => !allUp.includes(d)).filter(match);
   const row = d => { const es = entriesOf(d.day_id), n = k => es.filter(k).length;
-    const status = d.closed ? '<span class="tag plain">Finished</span>' : n(e => e.result) ? `<span class="tag ok">${n(e => e.result)} results</span>` : es.length ? `<span class="tag ${n(e => e.booked_at) === es.length ? 'ok' : 'info'}">${n(e => e.booked_at)} booked</span>` : '';
+    const booked = n(e => e.booked_at), notBooked = notBookedOf(d).length, coming = !d.closed && d.grading_date >= today();
+    const status = d.closed ? '<span class="tag plain">Finished</span>' : n(e => e.result) ? `<span class="tag ok">${n(e => e.result)} results</span>` : es.length ? `<span class="tag ${notBooked ? 'info' : 'ok'}">${booked} booked${notBooked ? ` · ${notBooked} to book` : ''}</span>` : '';
     return `<li><button class="item" data-day="${d.day_id}"><div class="main"><div class="name">${isAll() ? esc(progLabel(d.programme || 'Taekwondo')) + ': ' : ''}${esc(fmtDate(d.grading_date))}${d.start_time ? ', ' + fmtTime(d.start_time) : ''}</div>
       <div class="meta">${esc(d.location)}, ${esc(beltsText(d))}${d.move_up ? ', moving up to Taekwondo' : ''}</div>${fromText(d) ? `<div class="meta">${esc(fromText(d))}</div>` : ''}
-      ${es.length && !d.closed && !n(e => e.result) ? `<div class="progress" title="${n(e => e.booked_at)} of ${es.length} booked"><i style="width:${Math.round(100 * n(e => e.booked_at) / es.length)}%"></i></div>` : ''}</div>
-      <div class="side"><span class="classes">${es.length} student${es.length === 1 ? '' : 's'}</span>${status}</div></button></li>`; };
+      ${es.length && !d.closed && !n(e => e.result) ? `<div class="progress" title="${booked} of ${es.length} booked"><i style="width:${Math.round(100 * booked / es.length)}%"></i></div>` : ''}</div>
+      <div class="side"><span class="classes">${es.length} student${es.length === 1 ? '' : 's'}</span>${status}</div></button>${coming && notBooked && canDays() ? `<div class="qacts"><button type="button" class="btn go callnb" data-callday="${d.day_id}">Call ${notBooked} not booked</button></div>` : ''}</li>`; };
   v.innerHTML = `<div class="view-head"><h2>Grading days</h2>${canGrade() && !isAll() ? '<button class="btn primary" id="newDay">New grading day</button>' : ''}</div>
     ${isAll() && canGrade() ? '<p class="hint">Every program\'s grading days. To add one, choose its program at the top.</p>' : ''}
     ${state.days.length ? `<div class="list-tools">
@@ -907,7 +949,12 @@ function renderDays() {
       ${(daysFilt.location || daysFilt.belt) ? '<button class="btn link" id="dfDaysClear">Clear</button>' : ''}</div>` : ''}
     <h3>Coming up</h3><ul class="list">${up.length ? up.map(row).join('') : `<li class="empty">${daysFilt.location || daysFilt.belt ? 'No grading days match.' : 'No grading days coming up.'}</li>`}</ul>
     ${past.length ? `<h3>Earlier</h3><ul class="list">${past.map(row).join('')}</ul>` : ''}`;
-  $$('#view-days [data-day]').forEach(b => b.onclick = () => go('day', b.dataset.day));
+  $$('#view-days .item[data-day]').forEach(b => b.onclick = () => go('day', b.dataset.day));
+  $$('#view-days [data-callday]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { const added = await callNotBooked(dayOf(b.dataset.callday)); b.textContent = added ? 'Added to calls' : 'Already on calls'; }
+    catch (e) { b.disabled = false; toast(errMsg(e), 6000); }
+  });
   const nd = $('#newDay'); if (nd) nd.onclick = () => openDayForm();
   const dl = $('#dfLoc'); if (dl) dl.onchange = () => { daysFilt.location = dl.value; renderDays(); };
   const ddb = $('#dfDayBelt'); if (ddb) ddb.onchange = () => { daysFilt.belt = ddb.value; renderDays(); };
@@ -1034,7 +1081,7 @@ function renderDay() {
   // What to do, in order: before the day, on the day, after. It opens on the one that fits the date.
   const stages = [];
   if ((canDays() || canTexts()) && !d.closed) stages.push(['before', 'Before', `
-      ${canDays() ? '<button class="btn primary wide" id="addReady">Add everyone marked ready</button><button class="btn" id="addOne">Add a student</button>' : ''}
+      ${canDays() ? '<button class="btn primary wide" id="addReady">Add everyone marked ready</button><button class="btn" id="addOne">Add a student</button>' + (notBookedOf(d).length ? `<button class="btn" id="callNB">Call the ${notBookedOf(d).length} not booked</button>` : '') : ''}
       ${!canTexts() ? '' : seqOnFor(d) ? `<button class="btn" id="seqBtn">Booking sequence${notInvited.length ? ` (${notInvited.length} to invite)` : ''}</button>`
         : `<button class="btn${notInvited.length ? ' primary' : ''}" id="sendInv" ${notInvited.length ? '' : 'disabled'}>${cnt('Invite', notInvited)}</button>${state.seqReady && !d.bb ? '<button class="btn" id="seqBtn">Booking sequence</button>' : ''}`}
       ${canTexts() ? `<button class="btn" id="sendNotBooked" ${notBooked.length ? '' : 'disabled'}>${cnt('Remind to book', notBooked)}</button>
@@ -1083,6 +1130,7 @@ function renderDay() {
   on('#editDay', () => openDayForm(d));
   on('#addReady', () => addStudents(d, state.students.filter(s => forDay(d, s) && s.approval === 'ready')));
   on('#addOne', () => pickStudent(d));
+  on('#callNB', async () => { const b = $('#callNB'); b.disabled = true; try { const added = await callNotBooked(d); b.textContent = added ? 'Added to the call list' : 'Already on the call list'; } catch (e) { b.disabled = false; toast(errMsg(e), 6000); } });
   on('#sendInv', () => composeTexts('invite', people(notInvited)));
   on('#seqBtn', () => openSequence(d));
   on('#sendNotBooked', () => composeTexts('not_booked', people(notBooked)));
@@ -1438,7 +1486,7 @@ function renderEfc() {
     .filter(x => x.d && !x.d.closed && String(x.d.grading_date) >= today0 && !x.e.result && (!x.s || (!x.s.phone && !x.s.email)))
     .sort((a, b) => String(a.d.grading_date).localeCompare(String(b.d.grading_date)) || a.e.full_name.localeCompare(b.e.full_name));
   v.innerHTML = `<div class="view-head"><div><h2>Update EFC</h2><p class="sub">Promote each student in EFC (or fix a corrected belt), then tick them off.</p></div></div>
-    <p class="hint" id="efcAt">${state.efcAt ? `Belts and classes last came from EFC ${esc(new Date(state.efcAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}. New belts come back with the nightly update.` : 'Belts and classes come from EFC every night.'}</p>
+    <p class="hint" id="efcAt">${state.efcAt ? `Belts and classes last came from EFC ${esc(new Date(state.efcAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' }))}. New belts come back with the nightly update.` : 'Belts and classes come from EFC every night.'}</p>
     <ul class="list">${todo.length ? todo.map(({ e, d, kind }) => `<li><label class="item" style="${beltVar(kind === 'belt' ? e.belt_from : e.belt_to)}"><input type="checkbox" data-efc="${e.entry_id}" data-efckind="${kind}" ${canGrade() ? '' : 'disabled'}>
       <div class="main"><div class="name">${esc(e.full_name)}</div>${kind === 'belt' ? `<div class="meta"><b>Fix belt in EFC</b> — current belt is now ${esc(short(e.belt_from))} (grading for ${esc(short(toText(e)))})</div>` : `<div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div>`}<div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></label></li>`).join('') : '<li class="empty">Nothing to update in EFC.</li>'}</ul>
     ${noContact.length ? `<h3>No contact details</h3><p class="hint">No mobile and no email, so they can't be sent invitations, booking links or payment emails. Tap to add details (also fix EFC).</p>
