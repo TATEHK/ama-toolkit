@@ -2,7 +2,7 @@
 -- Each app has its own list of permissions (app_permissions), set on the Staff logins page. "admin" in an app means
 -- everything in that app. The database enforces every permission (row security and the staff functions), so hiding a
 -- button is never the only thing stopping someone.
---   Coloured Belts (cb):        view, days, readiness, texts, payments, results, calls, settings, admin
+--   Coloured Belts (cb):        view, days, belts, readiness, texts, payments, results, calls, settings, admin
 --   Black Belt Gradings (bb):   view, attendance, readiness, scoring, grading, payments, texts, certificates, idcards, polos, settings, admin
 --   Long Service Awards (awards): view, edit, admin
 -- Everyone's old Black Belt role (prep_roles) is turned into matching permissions in all three apps, so nobody loses access.
@@ -17,7 +17,7 @@ create table if not exists public.app_permissions (
   added_at timestamptz not null default now(),
   primary key (email, app, perm),
   constraint app_permissions_perm check (
-    (app = 'cb' and perm in ('view','days','readiness','texts','payments','results','calls','settings','admin')) or
+    (app = 'cb' and perm in ('view','days','belts','readiness','texts','payments','results','calls','settings','admin')) or
     (app = 'bb' and perm in ('view','attendance','readiness','scoring','grading','payments','texts','certificates','idcards','polos','settings','admin')) or
     (app = 'awards' and perm in ('view','edit','admin')))
 );
@@ -90,10 +90,12 @@ on conflict do nothing;
 
 create trigger app_permissions_sync after insert or update or delete on public.app_permissions for each row execute function public.app_permissions_sync();
 
--- Coloured belt entries: results and photos need "results"; anything else a person changes needs "days".
+-- Coloured belt entries: results and photos need "results"; a belt-only change needs "days" or "belts"; anything else needs "days".
 -- (The app's own functions, which run as the database, aren't checked here: they check permissions themselves.)
 create or replace function public.cb_entries_guard()
 returns trigger language plpgsql as $$
+declare resultcols text[] := array['result','result_at','photo_path','photo_at','photo_by','photo_removed_at'];
+        beltcols   text[] := array['belt_from','belt_to','to_programme','efc_belt_fix'];
 begin
   if current_user <> 'authenticated' then return coalesce(new, old); end if;
   if tg_op in ('INSERT', 'DELETE') then
@@ -105,10 +107,15 @@ begin
      and not public.app_can('cb', 'results') then
     raise exception 'Your login cannot enter results or photos.' using errcode = '42501';
   end if;
-  if (to_jsonb(new) - array['result','result_at','photo_path','photo_at','photo_by','photo_removed_at']) is distinct from
-     (to_jsonb(old) - array['result','result_at','photo_path','photo_at','photo_by','photo_removed_at'])
-     and not public.app_can('cb', 'days') then
-    raise exception 'Your login cannot change grading days.' using errcode = '42501';
+  -- anything changed other than results/photos
+  if (to_jsonb(new) - resultcols) is distinct from (to_jsonb(old) - resultcols) then
+    if (to_jsonb(new) - resultcols - beltcols) is distinct from (to_jsonb(old) - resultcols - beltcols) then
+      -- a change outside the belt columns: full grading-day permission
+      if not public.app_can('cb', 'days') then raise exception 'Your login cannot change grading days.' using errcode = '42501'; end if;
+    else
+      -- only the belt columns changed: "days" or the narrower "belts"
+      if not public.app_can('cb', 'days', 'belts') then raise exception 'Your login cannot edit student belts.' using errcode = '42501'; end if;
+    end if;
   end if;
   return new;
 end $$;
@@ -170,9 +177,9 @@ begin
     ('cb_settings','write','ALL',$q$app_can('cb', 'settings')$q$,$q$app_can('cb', 'settings')$q$),
     ('cb_seq_steps','write','UPDATE',$q$app_can('cb', 'settings')$q$,$q$app_can('cb', 'settings')$q$),
     ('cb_days','write','ALL',$q$app_can('cb', 'days')$q$,$q$app_can('cb', 'days')$q$),
-    ('cb_entries','write','ALL',$q$app_can('cb', 'days', 'results')$q$,$q$app_can('cb', 'days', 'results')$q$),
-    ('efc_grades','read','SELECT',$q$(app_can('cb', 'days', 'readiness', 'texts', 'results', 'calls', 'settings') or app_any('awards') or app_any('bb'))$q$,null),
-    ('efc_members','read','SELECT',$q$(app_can('cb', 'days', 'readiness', 'texts', 'results', 'calls', 'settings') or app_any('awards') or app_any('bb'))$q$,null),
+    ('cb_entries','write','ALL',$q$app_can('cb', 'days', 'results', 'belts')$q$,$q$app_can('cb', 'days', 'results', 'belts')$q$),
+    ('efc_grades','read','SELECT',$q$(app_can('cb', 'days', 'belts', 'readiness', 'texts', 'results', 'calls', 'settings') or app_any('awards') or app_any('bb'))$q$,null),
+    ('efc_members','read','SELECT',$q$(app_can('cb', 'days', 'belts', 'readiness', 'texts', 'results', 'calls', 'settings') or app_any('awards') or app_any('bb'))$q$,null),
     ('lsa_awards','read','SELECT',$q$app_any('awards')$q$,null),
     ('lsa_members','read','SELECT',$q$app_any('awards')$q$,null),
     ('lsa_runs','read','SELECT',$q$app_any('awards')$q$,null),
