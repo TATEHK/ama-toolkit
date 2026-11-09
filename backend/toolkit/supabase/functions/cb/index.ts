@@ -60,7 +60,7 @@ export function isNotGrading(t) {
 // belts ({ belt, next_belt }). Returns { belt, as: 'target' | 'current' } for the last belt named, or null if it isn't a belt correction.
 export function beltClaim(t, ladder) {
   const s = ' ' + String(t || '').toLowerCase().replace(/[‘’]/g, "'").replace(/\b(red)\s*(2|ii)\b|\b2nd red\b/g, 'red two').replace(/\b(red)\s*(3|iii)\b|\b3rd red\b/g, 'red three').replace(/\s+/g, ' ') + ' ';
-  if (!/\b(wrong|mistake|incorrect|actually|should (be|say)|not (a|an|on|the|for)\b|going (for|to)|grading (for|to)|trying (for|to)|up for|go for|currently|already|is (a|an|on|now)|'s (a|an|on|now)|'re (a|an|on|now)|has (his|her|their|a)|got (his|her|their))\b/.test(s)) return null;
+  if (!/\b(wrong|mistake|incorrect|actually|should (be|say)|not (a|an|on|the|for)\b|going (for|to)|grading (for|to)|trying (for|to)|up for|go for|currently|already|holding|having|wearing|is (a|an|on|now)|'s (a|an|on|now)|'re (a|an|on|now)|has (his|her|their|a)|got (his|her|their))\b/.test(s)) return null;
   const names = (ladder || []).map(b => ({ belt: b.belt, key: String(b.belt).toLowerCase().replace(/ belt$/, '') })).sort((a, b) => b.key.length - a.key.length);
   const hits = [];
   for (const n of names) {
@@ -73,7 +73,7 @@ export function beltClaim(t, ladder) {
   if (!kept.length) return null;
   const last = kept[kept.length - 1], before = s.slice(Math.max(0, last.start - 40), last.start), after = s.slice(last.end, last.end + 12);
   if (/\b(going|grading|trying|test(ing)?|up|go)\s+(for|to)\s+(the |a |an |his |her |their |)$|\bshould (be|say) (the |a |an |)$|\b(it's|it is|its) (the |a |an |)$|\bfor (his|her|their) $/.test(before)) return { belt: last.belt, as: 'target' };
-  if (/(\bis|'s|\bare|'re|\bcurrently|\balready|\bnow|\bon|\bhas|\bgot|\bwas|\bat)\s+(a |an |on |on a |at |his |her |their |)$/.test(before) || /^\s*already\b/.test(after)) return { belt: last.belt, as: 'current' };
+  if (/(\bis|'s|\bare|'re|\bcurrently|\balready|\bnow|\bon|\bhas|\bgot|\bhaving|\bholding|\bwearing|\bwas|\bat)\s+(a |an |on |on a |at |his |her |their |)$/.test(before) || /^\s*already\b/.test(after)) return { belt: last.belt, as: 'current' };
   return { belt: last.belt, as: 'target' };
 }
 // Another grading for this student: a coming day of the same programme, for their belt and age, still open for bookings.
@@ -952,7 +952,6 @@ export async function handle(req, db, env = {}, http = fetch) {
       const byKey = Object.fromEntries((mems || []).map(m => [m.member_key, m]));
       const last9 = x => String(x || '').replace(/\D/g, '').slice(-9);
       const mine = waiting.filter(e => { const m = byKey[e.member_key]; return m && (last9(m.phone) === p9 || last9(m.guardian_phone) === p9); });
-      if (!mine.length) return json({ ok: true, matched: 0 });
       const ready0 = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing0 = env.GHL_TEST === '1';
       // A text (or, while GoHighLevel's daily limit has stopped texting, the same words by email) to this family
       const familyText = async (m, e, text, kind, sentBy, subject) => {
@@ -969,6 +968,74 @@ export async function handle(req, db, env = {}, http = fetch) {
       const dayLine = (d, e) => `${shortDay(d.grading_date)}${(et => et ? ' ' + clock(et) : '')(entryTime(d, e))} at AMA ${whereOf(e, d)}`;
       const bookText = (m, e, d) => famFill(st.not_booked_text, m, { parent: firstWord(m.guardian_name) || 'there', first: firstWord(m.full_name || e.full_name), next: e.belt_to,
         school: whereOf(e, d), date: longDay(d.grading_date), time: (et => et ? ' at ' + clock(et) : '')(entryTime(d, e)), link: SITE + 'b#' + e.token });
+
+      // ---- When a belt correction can't be auto-fixed, text the admin (cb_settings.alert_phone) and remember the question ----
+      const alertAdmin = async (text) => {
+        if (!st.alert_phone || !ready0) return { ok: false };
+        try { const cid = await contactFor({ guardian_name: 'AMA grading', full_name: 'AMA grading' }, phoneE164(st.alert_phone)); if (cid) { await sendSms(cid, text); return { ok: true }; } } catch (_) { /* ignore */ }
+        return { ok: false };
+      };
+      const askAdmin = async ({ kind, entry, entries, text }) => {
+        const { data: top } = await db.from('cb_admin_q').select('ref').is('resolved_at', null).order('ref', { ascending: false }).limit(1);
+        const ref = ((top && top[0] && top[0].ref) || 0) + 1;
+        await db.from('cb_admin_q').insert({ ref, kind, phone: body.phone || null, entry_id: entry ? entry.entry_id : null, entry_ids: entries ? entries.map(e => e.entry_id) : null, body: msg.slice(0, 300) });
+        await alertAdmin(text(ref));
+        return ref;
+      };
+
+      // ---- The admin replied to a belt-check text: apply it to the right student (ref number maps the reply to its question) ----
+      if (st.alert_phone && p9 === last9(st.alert_phone)) {
+        const r = String(msg).trim();
+        const mref = r.match(/^\s*#?\s*(\d{1,4})\b[\s:.\-]*(.*)$/s);
+        let q = null, rest = r;
+        if (mref) { const { data } = await db.from('cb_admin_q').select('*').eq('ref', Number(mref[1])).is('resolved_at', null).order('created_at', { ascending: false }).limit(1); if (data && data[0]) { q = data[0]; rest = mref[2].trim(); } }
+        if (!q) {
+          const { data: openq } = await db.from('cb_admin_q').select('*').is('resolved_at', null).order('created_at');
+          if (!openq || !openq.length) { await alertAdmin('No belt checks are waiting.'); return json({ ok: true, admin: true, none: true }); }
+          if (openq.length === 1) { q = openq[0]; }
+          else { await alertAdmin('Start your reply with the number, e.g. "' + openq[0].ref + ' green to blue". Waiting: ' + openq.map(x => '#' + x.ref).join(', ')); return json({ ok: true, admin: true, need_ref: true }); }
+        }
+        const resolveQ = how => db.from('cb_admin_q').update({ resolved_at: new Date().toISOString(), resolution: how }).eq('id', q.id);
+        if (/^\s*(ignore|skip|leave|none|no)\b/i.test(rest)) { await resolveQ('ignored'); await alertAdmin('OK, left #' + q.ref + ' as it was.'); return json({ ok: true, admin: true, ignored: true }); }
+        let entryId = q.entry_id;
+        if (!entryId) {
+          const { data: cand } = await db.from('cb_entries').select('entry_id, member_key, full_name').in('entry_id', q.entry_ids || []);
+          const low = ' ' + rest.toLowerCase() + ' ';
+          const named = (cand || []).filter(e => new RegExp('\\b' + firstWord(e.full_name).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(low));
+          if (named.length !== 1) { await alertAdmin('#' + q.ref + ': which child - ' + (cand || []).map(e => firstWord(e.full_name)).join(', ') + '? e.g. "' + q.ref + ' ' + (firstWord((cand || [])[0] && (cand || [])[0].full_name) || 'Name') + ' brown to red"'); return json({ ok: true, admin: true, need_child: true }); }
+          entryId = named[0].entry_id; rest = rest.replace(new RegExp('\\b' + firstWord(named[0].full_name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'), '').trim();
+        }
+        const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, yes_at').eq('entry_id', entryId).maybeSingle();
+        if (!e) { await resolveQ('gone'); await alertAdmin('#' + q.ref + ': that student is no longer on a grading day.'); return json({ ok: true, admin: true, gone: true }); }
+        let d = open.find(x => x.day_id === e.day_id);
+        if (!d) { const { data: dd } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by').eq('day_id', e.day_id).maybeSingle(); d = dd; }
+        const { data: belts2 } = await db.from('cb_belts').select('programme, belt, next_belt, sort');
+        const ladder = (belts2 || []).filter(b => b.programme === ((d && d.programme) || 'Taekwondo'));
+        const beltWord = b => String(b.belt).replace(/\s*belt$/i, '').trim().toLowerCase();
+        const low2 = ' ' + rest.toLowerCase() + ' ';
+        const hits = ladder.map(b => ({ belt: b.belt, at: low2.search(new RegExp('\\b' + beltWord(b).replace(/\s+/g, '\\s+') + '\\b')) })).filter(h => h.at >= 0).sort((a, b) => a.at - b.at);
+        const nextB = x => (ladder.find(b => b.belt === x) || {}).next_belt || null, prevB = x => (ladder.find(b => b.next_belt === x) || {}).belt || null;
+        let from = null, to = null; const toAt = low2.search(/\bto\b/);
+        if (toAt >= 0 && hits.some(h => h.at < toAt) && hits.some(h => h.at > toAt)) { from = hits.filter(h => h.at < toAt).pop().belt; to = hits.find(h => h.at > toAt).belt; }
+        else if (hits.length) { const b = hits[hits.length - 1].belt; if (/\b(is|are|already|currently|now|on|has|had|got|having|holding|wearing)\b/.test(low2)) { from = b; to = nextB(b); } else { to = b; from = prevB(b); } }
+        if (!from || !to) { await alertAdmin('#' + q.ref + ': didn\'t catch the belt. Reply like "' + q.ref + ' green to blue" or "' + q.ref + ' grade for blue".'); return json({ ok: true, admin: true, need_belt: true }); }
+        const m = (await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').eq('member_key', e.member_key).maybeSingle()).data || { member_key: e.member_key };
+        const age = ageNow(m), was = `${e.belt_from} to ${e.belt_to}`, nowIso = new Date().toISOString();
+        let nd = d;
+        if (d && !fitsDay({ ...d, day_id: '-' }, { day_id: '', belt_from: from }, age, d)) {
+          const alt = open.filter(x => x.location === d.location && x.day_id !== d.day_id && fitsDay(x, { day_id: '', belt_from: from }, age, d))
+            .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')))[0];
+          if (alt) { const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', alt.day_id).eq('member_key', e.member_key).maybeSingle(); if (!clash) nd = alt; }
+        }
+        await db.from('cb_entries').update({ belt_from: from, belt_to: to, belt_changed_from: was, belt_changed_at: nowIso, efc_belt_fix: nowIso, yes_at: e.yes_at || nowIso, seq_paused_until: null, alt_offer: null, ...(nd && nd.day_id !== e.day_id ? { day_id: nd.day_id, moved_from_day: e.day_id } : {}) }).eq('entry_id', e.entry_id);
+        await db.from('cb_calls').update({ done: true, outcome: 'belt_fixed', outcome_note: 'Belt set by admin text: ' + from + ' to ' + to, updated_at: nowIso }).eq('entry_id', e.entry_id).eq('done', false).then(() => {}, () => {});
+        await resolveQ(from + ' to ' + to);
+        let sent = { ok: false };
+        if (nd) { const fixed = { ...e, belt_from: from, belt_to: to, day_id: nd.day_id }; sent = await familyText(m, fixed, bookText(m, fixed, nd), 'belt_fix', 'admin: belt set by text', `${firstWord(m.full_name || e.full_name)}'s grading: ${to}`); }
+        await alertAdmin('Done #' + q.ref + ': ' + firstWord(e.full_name) + ' set to ' + from + ' to ' + to + (nd && nd.day_id !== e.day_id ? ' (moved to ' + longDay(nd.grading_date) + ')' : '') + (sent.ok ? ', link resent.' : (nd ? ', couldn\'t resend.' : ', no day to book.')));
+        return json({ ok: true, admin: true, applied: { entry_id: e.entry_id, from, to, moved: !!(nd && nd.day_id !== e.day_id) }, sent });
+      }
+      if (!mine.length) return json({ ok: true, matched: 0 });
 
       // ---- They picked another grading we offered (a reply of 1, 2 or 3): move them to it and send its booking link ----
       const pick = msg.match(/^\s*(?:option\s*|#)?([1-9])\s*[.!)]?\s*$/i);
@@ -1004,10 +1071,11 @@ export async function handle(req, db, env = {}, http = fetch) {
         const ladderOf = prog => (belts || []).filter(b => b.programme === (prog || 'Taekwondo'));
         const e = whichKid(), d = e && open.find(x => x.day_id === e.day_id);
         const claim = e && d ? beltClaim(msg, ladderOf(d.programme)) : (mine.length > 1 && beltClaim(msg, ladderOf((open.find(x => x.day_id === mine[0].day_id) || {}).programme)));
-        if (claim && !e) {   // a belt correction, but which child? An instructor rings them
+        if (claim && !e) {   // a belt correction, but which child? Text the admin to decide
           for (const x of mine) { await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: new Date().toISOString() }).eq('entry_id', x.entry_id); }
-          await callFor(mine[0], 'concern', 'Belt correction, which child? ' + msg);
-          return json({ ok: true, matched: mine.length, belt: 'which child' });
+          const m0 = byKey[mine[0].member_key];
+          await askAdmin({ kind: 'which_child', entries: mine, text: ref => `Belt check #${ref}: ${firstWord((m0 && m0.guardian_name) || 'A family')} said "${msg.slice(0, 120)}". Which child - ${mine.map(x => firstWord(x.full_name)).join(', ')}? Reply e.g. "${ref} ${firstWord(mine[0].full_name)} brown to red".` });
+          return json({ ok: true, matched: mine.length, belt: 'asked admin (which child)' });
         }
         if (claim && e && d) {
           const ladder = ladderOf(d.programme), nowIso = new Date().toISOString(), m = byKey[e.member_key];
@@ -1020,10 +1088,11 @@ export async function handle(req, db, env = {}, http = fetch) {
               .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')))[0] || null;
             if (nd && nd.day_id !== d.day_id) { const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', nd.day_id).eq('member_key', e.member_key).maybeSingle(); if (clash) nd = null; }
             const was = `${e.belt_from} to ${e.belt_to}`;
-            if (!nd) {   // no grading at their school for that belt (and age): an instructor sorts it out
+            if (!nd) {   // no grading at their school for that belt (and age): text the admin to decide
               await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: nowIso }).eq('entry_id', e.entry_id);
-              await callFor(e, 'concern', `Says ${claim.as === 'target' ? 'going for' : 'is on'} ${claim.belt} (we have ${was}); no ${d.location} grading for that belt. ${msg}`);
-              return json({ ok: true, matched: mine.length, belt: 'no grading for that belt' });
+              const gm = byKey[e.member_key];
+              await askAdmin({ kind: 'no_grading', entry: e, text: ref => `Belt check #${ref}: ${firstWord((gm && gm.guardian_name) || 'family')} for ${firstWord(e.full_name)} said "${msg.slice(0, 120)}" (we have ${was}); no ${d.location} grading for ${claim.belt}. Reply "${ref} <belt>" to set it anyway, e.g. "${ref} ${String(claim.belt).toLowerCase()}".` });
+              return json({ ok: true, matched: mine.length, belt: 'asked admin (no grading)' });
             }
             await db.from('cb_entries').update({ belt_from: from, belt_to: to, belt_changed_from: was, belt_changed_at: nowIso, yes_at: e.yes_at || nowIso, reply_text: msg.slice(0, 300), reply_at: nowIso,
               seq_paused_until: null, alt_offer: null, ...(nd.day_id !== d.day_id ? { day_id: nd.day_id, moved_from_day: d.day_id } : {}) }).eq('entry_id', e.entry_id);
