@@ -1498,6 +1498,7 @@ function renderEfc() {
     .sort((a, b) => String(a.d.grading_date).localeCompare(String(b.d.grading_date)) || a.e.full_name.localeCompare(b.e.full_name));
   v.innerHTML = `<div class="view-head"><div><h2>Update EFC</h2><p class="sub">Promote each student in EFC (or fix a corrected belt), then tick them off.</p></div></div>
     <p class="hint" id="efcAt">${state.efcAt ? `Belts and classes last came from EFC ${esc(new Date(state.efcAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' }))}. New belts come back with the nightly update.` : 'Belts and classes come from EFC every night.'}</p>
+    ${has('admin') ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:2px 0 12px"><button class="btn" id="efcSyncNow">Update from EFC now</button><span class="hint" id="efcSyncMsg" style="margin:0">Pull the latest belts, classes and ready-to-grade straight from EFC.</span></div>` : ''}
     <ul class="list">${todo.length ? todo.map(({ e, d, kind }) => `<li><label class="item" style="${beltVar(kind === 'belt' ? e.belt_from : e.belt_to)}"><input type="checkbox" data-efc="${e.entry_id}" data-efckind="${kind}" ${canGrade() ? '' : 'disabled'}>
       <div class="main"><div class="name">${esc(e.full_name)}</div>${kind === 'belt' ? `<div class="meta"><b>Fix belt in EFC</b> — should be ${esc(short(e.belt_from))} (grading for ${esc(short(toText(e)))})</div>${(() => { const eb = (student(e.member_key) || {}).belt; if (!eb) return ''; const ok = short(eb) === short(e.belt_from); return `<div class="meta" style="color:${ok ? 'var(--green-text)' : 'var(--red)'}">${ok ? 'EFC now matches — safe to tick off' : 'EFC still says ' + esc(short(eb))}</div>`; })()}` : `<div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div>`}<div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></label></li>`).join('') : '<li class="empty">Nothing to update in EFC.</li>'}</ul>
     ${(state.beltChanges || []).length ? `<h3>Belt changes from EFC</h3><p class="hint">The last EFC update moved these belts. Tick to clear once you've seen them.</p>
@@ -1512,6 +1513,18 @@ function renderEfc() {
         <div class="field"><label for="impSchool">School, for rows with none</label><select id="impSchool"><option value="">Keep what's saved</option>${SCHOOLS.map(x => `<option>${x}</option>`).join('')}</select></div></div>
       <div id="impPrev"></div></div></details>` : ''}`;
   if (canGrade()) wireImport();
+  { const sync = $('#efcSyncNow'), msg = $('#efcSyncMsg'); if (sync) sync.onclick = async () => {
+    const old = msg ? msg.textContent : ''; sync.disabled = true; if (msg) msg.textContent = 'Updating from EFC…';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/efc-pull', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, ...(session ? { Authorization: 'Bearer ' + session.access_token } : {}) }, body: '{}' });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.ok) throw new Error((j && (j.error || (j.results && j.results[0] && j.results[0].ingestError))) || ('Update failed (' + r.status + ')'));
+      const res = (j.results && j.results[0]) || {};
+      toast('EFC updated — ' + (res.pulled || 0) + ' records synced', 5000);
+      await loadAll(); render();
+    } catch (er) { toast(errMsg(er), 7000); sync.disabled = false; if (msg) msg.textContent = old; }
+  }; }
   $$('[data-efc]').forEach(c => c.onchange = async () => {
     const e = state.entries.find(x => x.entry_id === c.dataset.efc);
     const f = c.dataset.efckind === 'belt' ? { efc_belt_fix: null } : { efc_done: true, efc_done_at: new Date().toISOString(), efc_done_by: state.me };
