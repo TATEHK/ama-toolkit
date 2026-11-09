@@ -799,6 +799,8 @@ const sessionPay = (cid, sid) => state.payments.find(x => x.cycle_id === cid && 
 const gradingPay = (cid, sid) => state.payments.find(x => x.cycle_id === cid && x.student_id === sid && x.kind === 'grading');
 const readinessFor = (cid, sid) => state.readiness.find(r => r.cycle_id === cid && r.student_id === sid) || null;
 const canReadiness = () => has('readiness');
+const canEssays = () => has('essays');   // essay feedback/marking, split out of readiness
+const canCfg = () => has('set_general', 'set_fees', 'set_wording', 'settings');   // any Settings tick opens the Settings screen
 const backToMore = () => '<button class="btn ghost sm mobile-only" data-back style="align-self:flex-start;padding-left:0">‹ More</button>';
 const wireBack = () => $$('[data-back]').forEach(b => b.onclick = () => showView('more'));
 // ID cards are only for students going for a Dan: Probationary Black Belt to 1st Dan, and the last level before
@@ -941,7 +943,7 @@ async function loadAll() {
   const res = await Promise.all([
     q('prep_settings'), q('prep_students', ['full_name']), q('prep_cycles', ['created_at', false]), q('prep_sessions', ['session_number']),
     q('prep_enrolments'), q('prep_attendance'), q('prep_attendance_summary'), q('prep_overview'),
-    has('settings') ? q('prep_possible_duplicates') : Promise.resolve({ data: [] }),
+    canCfg() ? q('prep_possible_duplicates') : Promise.resolve({ data: [] }),
     q('prep_dan_numbers', ['dan_number']),
     has('payments') ? q('prep_payment_summary') : Promise.resolve({ data: [] })
   ]);
@@ -968,12 +970,12 @@ async function loadAll() {
   // Essays (supabase/prep-update-10.sql): questions for everyone, the essays themselves for admins and instructors
   const eq = await sb.from('prep_essay_questions').select('*');
   state.essaysReady = !eq.error; state.essayQs = eq.data || [];
-  const es = state.essaysReady && has('readiness') ? await sb.from('prep_essays').select('essay_id, cycle_id, student_id, target_rank, token, status, word_count, file_name, file_path, submitted_at, version, mark, feedback, reviewed_by, reviewed_at, late_ok') : { data: [] };
+  const es = state.essaysReady && canEssays() ? await sb.from('prep_essays').select('essay_id, cycle_id, student_id, target_rank, token, status, word_count, file_name, file_path, submitted_at, version, mark, feedback, reviewed_by, reviewed_at, late_ok') : { data: [] };
   state.essays = es.data || [];
   // Texts through GoHighLevel (supabase/prep-update-11.sql)
   const mt = await sb.from('prep_message_templates').select('*');
   state.textsReady = !mt.error; state.msgTemplates = mt.data || [];
-  const ml = state.textsReady && has('texts', 'readiness') ? await sb.from('prep_messages').select('student_id, cycle_id, kind, status, sent_at, error').order('sent_at', { ascending: false }).limit(3000) : { data: [] };
+  const ml = state.textsReady && has('text_invite', 'text_result', 'text_followup', 'texts', 'readiness') ? await sb.from('prep_messages').select('student_id, cycle_id, kind, status, sent_at, error').order('sent_at', { ascending: false }).limit(3000) : { data: [] };
   state.messages = ml.data || [];
   // Grading enrolment nurture sequence (supabase/prep-update-19.sql)
   const [nsq, tgq] = await Promise.all([sb.from('prep_nurture_steps').select('*').order('sort'), sb.from('prep_time_groups').select('*').order('sort')]);
@@ -1063,7 +1065,7 @@ function navGroups() {
     ['', [['dashboard', 'Dashboard'], ['students', 'Students']]],
     ['This cycle', [['attendance', 'Attendance'], ['readiness', 'Readiness'], ['grading', 'Grading'],
       has('payments') && ['payments', 'Payments'], ['certificates', 'Certificates'],
-      state.essaysReady && has('readiness') && ['essays', 'Essays']]],
+      state.essaysReady && canEssays() && ['essays', 'Essays']]],
     ['Admin', [['cycles', 'Cycles'], ['reports', 'Reports'], has('polos', 'payments') && ['polos', 'Polo shirts'], ['more', 'Settings']]]
   ].map(([g, items]) => [g, items.filter(Boolean)]);
 }
@@ -1095,7 +1097,7 @@ function renderDashboard() {
   if (!c) {
     v.innerHTML = `<div class="view-head"><h2>Dashboard</h2></div>
       <div class="card empty"><p>No preparation cycle is active.</p>
-      ${has('settings') ? '<button class="btn primary" id="dashStart">Start new preparation cycle</button>' : '<p class="hint">An admin can start one under Cycles.</p>'}</div>
+      ${canCfg() ? '<button class="btn primary" id="dashStart">Start new preparation cycle</button>' : '<p class="hint">An admin can start one under Cycles.</p>'}</div>
       <div class="stats"><div class="stat"><span class="n">${active.length}</span><span class="l">Active students</span></div></div>`;
     const b = $('#dashStart'); if (b) b.onclick = () => openNewCycle();
     return;
@@ -1124,7 +1126,7 @@ function renderDashboard() {
   const clsNeed = r => classesReady() ? classesNeeded(c.cycle_id, r.s.student_id) : null;
   const clsSet = rows.filter(r => clsNeed(r));
   const clsBelow = clsSet.filter(r => classesOf(c.cycle_id, r.s.student_id) < clsNeed(r));
-  const esOn = state.essaysReady && has('readiness'), esRows = esOn ? essayRows(c.cycle_id) : [], esN = st => esRows.filter(r => r.st === st).length;
+  const esOn = state.essaysReady && canEssays(), esRows = esOn ? essayRows(c.cycle_id) : [], esN = st => esRows.filter(r => r.st === st).length;
   const esSoon = c.essay_due && addDays(c.essay_due, -7) <= today();
   const attention = [
     ...(esSoon ? esRows.filter(r => r.st === 'not_submitted').map(r => ({ r: { s: r.s }, issue: c.essay_due < today() ? 'Essay overdue' : 'Essay not handed in', tone: c.essay_due < today() ? 'bad' : 'warn', open: 'essay' })) : []),
@@ -1262,7 +1264,7 @@ function renderStudents() {
     return `<li><button class="item" data-student="${esc(s.student_id)}">
       ${stuSel.on ? `<input type="checkbox" tabindex="-1" ${stuSel.ids.has(s.student_id) ? 'checked' : ''} aria-label="Select ${esc(s.full_name)}" style="pointer-events:none">` : ''}
       <div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc([s.student_id, s.belt_rank, danMeta(s)].filter(Boolean).join(' · '))}</div></div>
-      ${efcTag(s)}${c && enrolled.has(s.student_id) && state.essaysReady && has('readiness') && needsEssay(s) ? essayBadge(essayStatus(c.cycle_id, s.student_id)) : ''}${cardState(s.student_id) && cardState(s.student_id).tone === 'ok' ? '<span class="tag ok" title="ID card printed">Card</span>' : ''}${s.is_test ? tag('', 'Test') : ''}${!s.is_active ? tag('', 'Inactive') : ''}${sum ? tag(sum.attended === sum.sessions ? 'present' : '', `${sum.attended}/${sum.sessions}`) : ''}${c && enrolled.has(s.student_id) && classesReady() ? (() => { const n = classesOf(c.cycle_id, s.student_id), need = classesNeeded(c.cycle_id, s.student_id);
+      ${efcTag(s)}${c && enrolled.has(s.student_id) && state.essaysReady && canEssays() && needsEssay(s) ? essayBadge(essayStatus(c.cycle_id, s.student_id)) : ''}${cardState(s.student_id) && cardState(s.student_id).tone === 'ok' ? '<span class="tag ok" title="ID card printed">Card</span>' : ''}${s.is_test ? tag('', 'Test') : ''}${!s.is_active ? tag('', 'Inactive') : ''}${sum ? tag(sum.attended === sum.sessions ? 'present' : '', `${sum.attended}/${sum.sessions}`) : ''}${c && enrolled.has(s.student_id) && classesReady() ? (() => { const n = classesOf(c.cycle_id, s.student_id), need = classesNeeded(c.cycle_id, s.student_id);
         return tag(need ? (n >= need ? 'present' : 'warn') : '', `${n}${need ? '/' + need : ''} classes`); })() : ''}
     </button></li>`;
   }).join('') : `<li><div class="empty">${state.students.length ? 'No students match.' : 'No students yet.'}</div></li>`;
@@ -1357,7 +1359,7 @@ function openClasses(cid, only, show = '') {
           <input type="number" data-cls="${esc(id)}" value="${n}" min="0" max="999" step="1" inputmode="numeric" aria-label="Classes attended by ${esc(s.full_name)}" style="width:72px;text-align:center">
           <button type="button" class="btn sm" data-cls-up="${esc(id)}" aria-label="One more for ${esc(s.full_name)}">+</button></div>`
         : `<span class="tag ${need && n < need ? 'warn' : ''}">${n}${need ? ' of ' + need : ''}</span>`}</div></li>`; }).join('') || '<li class="muted">No students in this cycle.</li>'}</ul>
-    ${!only && has('settings') && c.status !== 'archived' ? `<div class="field"><label for="clsReq">Classes required this cycle (optional)</label><input type="number" id="clsReq" min="1" max="999" step="1" value="${req || ''}" placeholder="No minimum"><p class="hint">For belts without their own number${state.classReqs ? ' (set in More &gt; Settings &gt; Classes needed for each belt)' : ''}. Students below what they need show under Needs attention on the dashboard.</p></div>` : ''}
+    ${!only && canCfg() && c.status !== 'archived' ? `<div class="field"><label for="clsReq">Classes required this cycle (optional)</label><input type="number" id="clsReq" min="1" max="999" step="1" value="${req || ''}" placeholder="No minimum"><p class="hint">For belts without their own number${state.classReqs ? ' (set in More &gt; Settings &gt; Classes needed for each belt)' : ''}. Students below what they need show under Needs attention on the dashboard.</p></div>` : ''}
     <div class="dlg-actions">${edit && !only ? '<button type="button" class="btn" id="clsImport" style="margin-right:auto">Import</button>' : ''}<button type="button" class="btn" data-close>${edit ? 'Cancel' : 'Close'}</button>${edit ? '<button type="submit" class="btn primary" id="clsSave">Save</button>' : ''}</div></form>`);
   const ci = $('#clsImport'); if (ci) ci.onclick = () => openImportClasses(cid);
   const box = id => sheet.querySelector(`[data-cls="${CSS.escape(id)}"]`);
@@ -1492,7 +1494,7 @@ const ES_FILTERS = { all: ['All', () => true], not_submitted: ['Not handed in', 
 function renderEssays() {
   const v = $('#view-essays'), E = state.es;
   if (!state.essaysReady) { v.innerHTML = `${backToMore()}<div class="view-head"><h2>Essays</h2></div><div class="card">Run supabase/prep-update-10.sql in Supabase to use essays.</div>`; wireBack(); return; }
-  if (!has('readiness')) { v.innerHTML = `${backToMore()}<div class="card empty">Only admins and instructors can see essays.</div>`; wireBack(); return; }
+  if (!canEssays()) { v.innerHTML = `${backToMore()}<div class="card empty">Only admins and instructors can see essays.</div>`; wireBack(); return; }
   if (!E.cycle || !cycle(E.cycle)) E.cycle = (currentCycle() || state.cycles[0] || {}).cycle_id;
   if (!E.cycle) { v.innerHTML = `${backToMore()}<div class="view-head"><h2>Essays</h2></div><div class="card empty">No preparation cycles yet.</div>`; wireBack(); return; }
   const c = cycle(E.cycle), rows = essayRows(E.cycle), n = k => rows.filter(r => ES_FILTERS[k][1](r.st)).length;
@@ -1500,7 +1502,7 @@ function renderEssays() {
   v.innerHTML = `${backToMore()}<div class="view-head"><h2>Essays</h2><div class="row">${rows.some(r => r.e && r.e.version) ? '<button class="btn sm" id="esAllPdf">PDF of these</button>' : ''}${rows.length ? '<button class="btn primary sm" id="esAll">Copy all links</button>' : ''}</div></div>
     <div class="field"><label for="esCycle">Preparation cycle</label><select id="esCycle">${state.cycles.map(x => `<option value="${x.cycle_id}"${x.cycle_id === E.cycle ? ' selected' : ''}>${esc(x.name)}${x.status === 'active' ? ' (active)' : ` (${label(x.status).toLowerCase()})`}</option>`).join('')}</select></div>
     <p class="hint">Students going for a Dan each get a personal link to hand in their essay (no login). ${c.essay_due ? `Due <b>${fmt(c.essay_due, { weekday: 'short', day: 'numeric', month: 'short' })}</b>.` : 'No due date set (set it on the cycle).'}</p>
-    ${missingQ.length ? `<div class="banner"><span>No essay question yet for ${esc(missingQ.join(', '))}${has('settings') ? '. Add it in More &gt; Settings.' : '.'}</span></div>` : ''}
+    ${missingQ.length ? `<div class="banner"><span>No essay question yet for ${esc(missingQ.join(', '))}${canCfg() ? '. Add it in More &gt; Settings.' : '.'}</span></div>` : ''}
     <div class="seg" role="group" aria-label="Show">${Object.entries(ES_FILTERS).map(([k, [t]]) => `<button data-esf="${k}" aria-pressed="${E.filter === k}">${t}<small>${n(k)}</small></button>`).join('')}</div>
     <input type="search" id="esSearch" placeholder="Search name or Student ID" aria-label="Search" value="${esc(E.search)}">
     <ul class="list" id="esList"></ul>`;
@@ -1743,7 +1745,7 @@ async function openEssay(cid, sid) {
 const MSG_KINDS = { invite: 'Grading invitation', congrats: 'Congratulations', not_ready: 'Not ready yet', essay: 'Essay link' };
 const BB_DAY_KINDS = { bb_congrats: 'Passed — congratulations', bb_retest: 'Retest — try again', bb_photo: 'Grading photo link' };
 const BB_DAY_DEFAULTS = { bb_congrats: 'Congratulations {first} on passing your {belt} grading! - AMA', bb_retest: "Hi, {first} wasn't successful this time. The instructors will explain what to work on, and {first} can grade again at a later grading. - AMA", bb_photo: "Here is {first}'s grading photo: {photo} - AMA" };
-const MSG_WHO = { invite: ['texts'], congrats: ['texts'], not_ready: ['texts', 'readiness'], essay: ['readiness'] };
+const MSG_WHO = { invite: ['text_invite', 'texts'], congrats: ['text_result', 'texts'], not_ready: ['text_followup', 'texts', 'readiness'], essay: ['essays', 'readiness'] };
 const canText = k => state.textsReady && has(...MSG_WHO[k]);
 const msgTpl = k => (state.msgTemplates.find(t => t.kind === k) || {}).body || '';
 const fillMsg = (tpl, v) => tpl.replace(/\{(\w+)\}/g, (m, k) => v[k] != null && v[k] !== '' ? String(v[k]) : m);
@@ -1798,9 +1800,9 @@ async function openTexts(cid, kind = 'invite', only) {
     const noLink = /\{link\}/.test(body) && first && !msgVars(cid, first.student_id, kind).link;
     openSheet(`<div class="body">${sheetHead('Text families', `${esc(c.name)} · sent through GoHighLevel`)}
       ${only ? '' : `<div class="seg" role="group" aria-label="Message">${kinds.map(k => `<button type="button" data-tk="${k}" aria-pressed="${k === kind}">${MSG_KINDS[k]}</button>`).join('')}</div>`}
-      ${kind === 'invite' && !c.invite_link && !(bbData[cid] && bbData[cid].day) ? `<div class="banner"><span>No booking link yet${has('settings') ? '. Set up EFC booking on the Grading screen, or add a cycle link (Grading invitation link).' : '.'}</span></div>` : ''}
+      ${kind === 'invite' && !c.invite_link && !(bbData[cid] && bbData[cid].day) ? `<div class="banner"><span>No booking link yet${canCfg() ? '. Set up EFC booking on the Grading screen, or add a cycle link (Grading invitation link).' : '.'}</span></div>` : ''}
       <div class="field"><label for="txBody">Message</label><textarea id="txBody" rows="4" maxlength="1000">${esc(body)}</textarea>
-        <p class="hint">Filled in for each student: {first_name} {name} {belt} {current_belt} {grading_date} {link} {reason}. Changes here are for this send only${has('settings') ? '; change the usual wording in More &gt; Settings' : ''}.</p></div>
+        <p class="hint">Filled in for each student: {first_name} {name} {belt} {current_belt} {grading_date} {link} {reason}. Changes here are for this send only${canCfg() ? '; change the usual wording in More &gt; Settings' : ''}.</p></div>
       ${first ? `<div class="card" style="box-shadow:none;border:1px solid var(--line)"><b class="small">Preview for ${esc(first.full_name)}</b><div id="txPrev" style="white-space:pre-wrap">${esc(preview)}</div></div>` : ''}
       ${noLink ? '<p class="hint" style="color:var(--danger)">{link} has nothing to fill in yet.</p>' : ''}
       <div class="row"><h3 class="grow">Who (${picked.size} of ${people.length})</h3>${people.length > 1 ? '<button type="button" class="btn sm ghost" id="txAll">All with a mobile</button><button type="button" class="btn sm ghost" id="txNone">None</button>' : ''}</div>
@@ -1849,7 +1851,7 @@ function openStudent(id) {
       <span class="small muted">${sum.attended ?? 0} of ${sess.length} attended${sum.attendance_pct != null ? ` · ${sum.attendance_pct}%` : ''} · sign-off: ${label(sum.signoff_status || 'not_recorded').toLowerCase()}${sum.attendance_eligible ? ' · meets requirement' : ''}</span></div>
       <dl class="kv">
         ${classesReady() ? `<dt>Classes</dt><dd><b>${classesOf(cy.cycle_id, id)}</b>${classesNeeded(cy.cycle_id, id) ? ` of ${classesNeeded(cy.cycle_id, id)} needed` : ''} attended${canEditAttendance() && cy.status !== 'archived' ? ` <button class="btn sm ghost" data-clsopen="${cy.cycle_id}" style="min-height:0;padding:0 6px">Update</button>` : ''}</dd>` : ''}
-        ${state.essaysReady && has('readiness') && needsEssay(s) ? `<dt>Essay</dt><dd>${essayTag(essayStatus(cy.cycle_id, id))} <button class="btn sm ghost" data-esopen="${cy.cycle_id}" style="min-height:0;padding:0 6px">Open</button></dd>` : ''}
+        ${state.essaysReady && canEssays() && needsEssay(s) ? `<dt>Essay</dt><dd>${essayTag(essayStatus(cy.cycle_id, id))} <button class="btn sm ghost" data-esopen="${cy.cycle_id}" style="min-height:0;padding:0 6px">Open</button></dd>` : ''}
         <dt>Readiness</dt><dd>${tag((readinessFor(cy.cycle_id, id) || {}).status || ov.readiness)}${(() => { const x = readinessFor(cy.cycle_id, id); return x && x.reason ? ` <span class="small muted">${esc(RD_REASONS[x.reason])}</span>` : ''; })()}
           <button class="btn sm ghost" data-rdopen="${cy.cycle_id}" style="min-height:0;padding:0 6px">${canReadiness() ? 'Update' : 'View'}</button></dd>
         ${ov.payment_status !== undefined && ov.payment_status !== null ? `<dt>Payment</dt><dd>${ov.payment_status === 'not_invoiced' && Number(ov.amount_due) === 0 && (sessionPay(cy.cycle_id, id) || {}).payment_plan === 'per_session' ? tag('', 'Nothing owed yet') : tag(ov.payment_status)} <span class="small muted">${money(ov.amount_paid)} of ${money(ov.amount_due)}</span></dd>` : ''}
@@ -1874,7 +1876,7 @@ function openStudent(id) {
         <dt>Certificate name</dt><dd>${esc(s.certificate_name || s.full_name)}</dd>
         ${s.contact_phone || s.contact_email || s.contact_name ? `<dt>Family contact</dt><dd>${esc([s.contact_name, s.contact_phone, s.contact_email].filter(Boolean).join(' · '))}</dd>` : ''}
         ${state.efcReady ? `<dt>EFC profile</dt><dd>${s.efc_ref ? `${efcState(s) === 'linked' ? '<span class="tag ok">Linked</span>' : '<span class="tag warn">Ref not found in EFC</span>'} <span class="small muted">${esc(s.efc_ref)}</span>` : '<span class="tag">Not linked</span>'}
-          ${has('settings') ? `<button class="btn sm ghost" id="stEfc" style="min-height:0;padding:0 6px">${s.efc_ref ? 'Change' : 'Find in EFC'}</button>` : ''}</dd>` : ''}
+          ${canCfg() ? `<button class="btn sm ghost" id="stEfc" style="min-height:0;padding:0 6px">${s.efc_ref ? 'Change' : 'Find in EFC'}</button>` : ''}</dd>` : ''}
         <dt>Belt rank</dt><dd>${esc(s.belt_rank || '—')}</dd>
         ${danTarget(s) ? `<dt>Going for</dt><dd>${esc(danTarget(s))}</dd><dt>Dan number</dt><dd>${danFor(s) ? `<b>${danFor(s).dan_number}</b>` : '<span class="muted">Not assigned yet</span>'}
           ${danFor(s) ? '<button class="btn sm ghost need-admin" id="stDan" style="min-height:0;padding:0 6px">Change</button>' : ''}</dd>` : ''}
@@ -2242,7 +2244,7 @@ function openCycle(id) {
   const c = cycle(id); if (!c) return;
   const sess = cycleSessions(id), ids = enrolledIds(id);
   const people = [...ids].map(student).filter(Boolean).sort((a, b) => a.full_name.localeCompare(b.full_name));
-  const admin = has('settings');
+  const admin = canCfg();
   const missingDan = people.filter(s => danTarget(s) && !danFor(s));
   const canGrade = state.gradingReady && has('grading') && c.status !== 'archived';
   const gradingCount = people.filter(s => enrolment(id, s.student_id).is_grading).length;
@@ -2536,7 +2538,7 @@ const ATT_STATUS = { present: 'present', p: 'present', yes: 'present', y: 'prese
 // Upload who attended a session. Students already in the cycle are marked; for an admin, students not in
 // the cycle are added to it, and names not in the register become new students, then are marked.
 function openImportAttendance() {
-  const cid = state.att.cycle, c = cycle(cid), sess = cycleSessions(cid), ids = enrolledIds(cid), admin = has('settings');
+  const cid = state.att.cycle, c = cycle(cid), sess = cycleSessions(cid), ids = enrolledIds(cid), admin = canCfg();
   const se0 = sess.find(x => x.session_number === state.att.session) || sess[0];
   const canAdd = admin && c.status !== 'archived';
   let plan = [];
@@ -2712,7 +2714,7 @@ function drawCheckinLists() {
   $('#ciCountL').textContent = 'checked in';
   const matches = waiting.filter(r => ciMatch(r.s, q));
   // Not in this cycle (admins can add them and check them in)
-  const others = q && has('settings') ? state.students.filter(s => s.is_active && !s.is_test && !enrolledIds(C.cycle).has(s.student_id) && ciMatch(s, q)).slice(0, 5) : [];
+  const others = q && canCfg() ? state.students.filter(s => s.is_active && !s.is_test && !enrolledIds(C.cycle).has(s.student_id) && ciMatch(s, q)).slice(0, 5) : [];
   const alreadyHere = q ? here.filter(r => ciMatch(r.s, q)) : [];
   const meta = s => esc([s.belt_rank, danMeta(s)].filter(Boolean).join(' · '));
   $('#ciList').innerHTML = [
@@ -3027,7 +3029,12 @@ async function openPayment(pid) {
 state.gr = { cycle: null, filter: 'decide', search: '', panel: 'candidates' };
 const grSel = { on: false, ids: new Set() };
 const gradingFor = (cid, sid) => state.grading.filter(g => g.cycle_id === cid && g.student_id === sid).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] || null;
-const canGradeRole = () => has('grading');
+const canGradeRole = () => has('grading');                 // build the candidate/grading list and decide eligibility
+const canDaysBB = () => has('days', 'grading');            // set up and book grading days ('grading' kept for legacy holders)
+const canResultsBB = () => has('results', 'grading');      // enter results, report cards and check-in
+const canScoreBB = () => has('scoring', 'grading');        // examiner scoring on the day
+const canCallsBB = () => has('calls', 'grading');          // the booking/enrolment call list
+const canGradeAny = () => canGradeRole() || canDaysBB() || canResultsBB() || canScoreBB() || canCallsBB();
 function grFacts(cid, sid) {
   const s = student(sid), sum = summaryFor(cid, sid) || {}, r = readinessFor(cid, sid) || {}, g = gradingFor(cid, sid), e = enrolment(cid, sid);
   const sp = sessionPay(cid, sid), gp = gradingPay(cid, sid);
@@ -3100,7 +3107,7 @@ async function loadBbBooking(cid) {
 }
 
 async function renderBbBooking(c) {
-  const box = $('#grBooking'); if (!box || !canGradeRole()) return;
+  const box = $('#grBooking'); if (!box || !(canDaysBB() || canResultsBB())) return;
   const cid = c.cycle_id;
   let data;
   try { data = await loadBbBooking(cid); } catch (e) { box.innerHTML = '<div class="panel-empty">Grading day booking isn\'t available right now.</div>'; return; }   // cb tables not reachable (or test env)
@@ -3134,20 +3141,19 @@ async function renderBbBooking(c) {
   if (bbFilt.belt && !bbBelts.includes(bbFilt.belt)) bbFilt.belt = '';
   box.innerHTML = `<div class="day-head">
       <div><h3>${day.grading_date ? esc(fmt(day.grading_date, { weekday: 'long', day: 'numeric', month: 'long' })) : 'Black belt grading'}</h3><p class="sub">${facts.map(esc).join(' · ')}</p></div>
-      <div class="row" style="gap:6px">${picker}<button class="btn sm" id="bbEdit">Edit day</button></div>
+      <div class="row" style="gap:6px">${picker}${canDaysBB() ? '<button class="btn sm" id="bbEdit">Edit day</button>' : ''}</div>
     </div>
     <div class="kpis">${kp.map(([l, v, bar]) => `<div class="kpi"><b>${v}</b><span>${l}</span>${bar ? `<i><em style="width:${pct(v)}%"></em></i>` : ''}</div>`).join('')}</div>
     ${entries.length ? `<div class="day-acts">
-        <button class="btn primary" id="bbCheckin">Check in</button>
-        <button class="btn" id="bbResults">Enter results</button>
+        ${canResultsBB() ? '<button class="btn primary" id="bbCheckin">Check in</button><button class="btn" id="bbResults">Enter results</button>' : ''}
         <button class="btn" id="bbMore" aria-label="More grading day actions">More</button></div>`
-      : `<div class="row"><button class="btn primary" id="bbSync2">Sync candidates</button><button class="btn" id="bbMore">More</button></div>`}
+      : `<div class="row">${canDaysBB() ? '<button class="btn primary" id="bbSync2">Sync candidates</button>' : ''}<button class="btn" id="bbMore">More</button></div>`}
     ${entries.length ? `<div class="toolbar" id="bbFilterBar">
         <input type="search" id="bbSearch" placeholder="Search candidates" aria-label="Search candidates" value="${esc(bbFilt.q)}">
         <div class="chips" role="group" aria-label="Show">${[['', 'All'], ['notbooked', 'Not booked'], ['unpaid', 'Unpaid'], ['here', 'Here'], ['passed', 'Passed']].map(([k, t]) => `<button type="button" data-bbf="${k}" aria-pressed="${(bbFilt.show || '') === k}">${esc(t)}</button>`).join('')}</div>
         ${bbBelts.length > 1 ? `<select id="bbBeltF" aria-label="Belt"><option value="">All belts</option>${bbBelts.map(b => `<option value="${esc(b)}"${b === bbFilt.belt ? ' selected' : ''}>${esc(b)}</option>`).join('')}</select>` : ''}
       </div>
-      <div class="row" style="justify-content:space-between"><span class="sub" id="bbShown"></span><button class="btn sm ghost" id="bbSync">Sync candidates</button></div>` : ''}
+      <div class="row" style="justify-content:space-between"><span class="sub" id="bbShown"></span>${canDaysBB() ? '<button class="btn sm ghost" id="bbSync">Sync candidates</button>' : ''}</div>` : ''}
     <ul class="list" id="bbList">${entries.length ? sorted.map(bbEntryRow).join('') : '<li><div class="empty">No candidates on the day yet. Put people forward for grading, then tap Sync candidates.</div></li>'}</ul>`;
   const on = (id, f) => { const b = $(id); if (b) b.onclick = f; };
   const dp = $('#bbDayPick'); if (dp) dp.onchange = () => { bbData[cid].sel = dp.value; renderBbBooking(c); };
@@ -3446,7 +3452,7 @@ function bbLineup(day, entries) {
 // ---- The grading enrolment sequence: start/pause/skip, progress grid, test sends, and the calls list ----
 async function renderNurture(c) {
   const box = $('#grNurture'); if (!box) return;
-  if (!canGradeRole() || !state.nurtureReady) { box.innerHTML = '<div class="panel-empty">The enrolment sequence isn\'t set up.</div>'; return; }
+  if (!canCallsBB() || !state.nurtureReady) { box.innerHTML = '<div class="panel-empty">The enrolment sequence isn\'t set up.</div>'; return; }
   const cid = c.cycle_id;
   let runq, logq, stq, callq;
   try { [runq, logq, stq, callq] = await Promise.all([
@@ -3545,7 +3551,7 @@ function renderGrading() {
   if (!state.gradingReady) { v.innerHTML = `<div class="view-head"><h2>Grading</h2></div><div class="card">Run supabase/prep-update-04.sql in Supabase to use grading.</div>`; return; }
   const c = cycle(G.cycle), rows = grRows(), count = k => rows.filter(x => GR_FILTERS[k][1](x)).length;
   const staff = canGradeRole();
-  const panels = [['candidates', 'Candidates', rows.length], staff && ['day', 'Grading day', null], staff && state.nurtureReady && ['sequence', 'Sequence', null], state.scoringReady && ['scoring', 'Scoring', null]].filter(Boolean);
+  const panels = [['candidates', 'Candidates', rows.length], (canDaysBB() || canResultsBB()) && ['day', 'Grading day', null], canCallsBB() && state.nurtureReady && ['sequence', 'Sequence', null], state.scoringReady && canScoreBB() && ['scoring', 'Scoring', null]].filter(Boolean);
   if (!panels.some(p => p[0] === G.panel)) G.panel = 'candidates';
   const keepFocus = document.activeElement && document.activeElement.id === 'grSearch';
   const pipe = [['decide', 'To decide', count('decide')], ['nominated', 'Put forward', count('nominated')], ['ready', 'Ready', count('ready')], ['results', 'Results', count('results')]];
@@ -4033,7 +4039,7 @@ function glColumns(cid) {
     { k: 'student_id', t: 'Student ID' }, { k: 'name', t: 'Name' }, { k: 'cert', t: 'Certificate name' },
     { k: 'belt', t: 'Current belt' }, { k: 'target', t: 'Grading to' }, { k: 'dan', t: 'Dan number' },
     ...sess.map(se => ({ k: 'att_' + se.session_number, t: isSignoff(se) ? 'Sign-off' : 'Session ' + se.session_number, group: 'sessions' })),
-    { k: 'attended', t: 'Sessions attended' }, { k: 'pct', t: 'Attendance %' }, { k: 'att_met', t: 'Attendance requirement met' }, ...clsCols(), ...(state.essaysReady && has('readiness') ? [{ k: 'essay', t: 'Essay' }] : []),
+    { k: 'attended', t: 'Sessions attended' }, { k: 'pct', t: 'Attendance %' }, { k: 'att_met', t: 'Attendance requirement met' }, ...clsCols(), ...(state.essaysReady && canEssays() ? [{ k: 'essay', t: 'Essay' }] : []),
     { k: 'readiness', t: 'Readiness' }, { k: 'rd_reason', t: 'Readiness reason' },
     { k: 'eligibility', t: 'Eligibility' }, { k: 'decision_reason', t: 'Decision reason' }, { k: 'put', t: 'Put forward' },
     { k: 'grading_date', t: 'Grading date' }, { k: 'status', t: 'Grading status' }, { k: 'result', t: 'Result' },
@@ -4538,7 +4544,7 @@ function renderReports() {
   v.innerHTML = `${backToMore()}<div class="view-head"><h2>Reports and exports</h2></div>
     <p class="hint">Choose a report, filter it and pick columns, then download it as Excel or CSV (opens in Google Sheets), or print it (or save as PDF from the print screen).</p>
     <ul class="list">${list.map(([k, r]) => `<li><button class="item" data-report="${k}" ${(k === 'grading' || k === 'certificates' || k === 'attendance' || k === 'readiness' || k === 'payments' || k === 'followup') && !state.cycles.length ? 'disabled' : ''}><div class="main"><div class="name">${esc(r.title)}</div><div class="meta">${esc(r.desc)}</div></div><span class="muted">›</span></button></li>`).join('')}</ul>
-    ${has('settings') ? `<div class="card"><h3>Export everything</h3><p class="hint">One Excel workbook with every table: students, cycles, sessions, attendance, readiness, grading, certificates${has('payments') ? ', fees and payment transactions' : ''}. Useful as a backup or to share with the committee.</p>
+    ${canCfg() ? `<div class="card"><h3>Export everything</h3><p class="hint">One Excel workbook with every table: students, cycles, sessions, attendance, readiness, grading, certificates${has('payments') ? ', fees and payment transactions' : ''}. Useful as a backup or to share with the committee.</p>
       <div class="row"><button class="btn primary" id="exportAll">Export everything (Excel)</button></div></div>` : ''}`;
   wireBack();
   $$('#view-reports [data-report]').forEach(b => b.onclick = () => REPORTS[b.dataset.report].open());
@@ -4614,7 +4620,7 @@ function renderPolos() {
   toOrder.forEach(o => { sizes[o.size || '?'] = (sizes[o.size || '?'] || 0) + (o.qty || 1); if (o.uniform) usizes[o.uniform_size || '?'] = (usizes[o.uniform_size || '?'] || 0) + 1; });
   const uOrder = z => { const i = (S.uniform_sizes || []).indexOf(z); return i < 0 ? 99 : i; };
   const sizeOrder = s => { const i = (S.sizes || []).indexOf(s); return i < 0 ? 99 : i; };
-  v.innerHTML = `${backToMore()}<div class="view-head"><h2>Polo shirts</h2><div class="row">${has('settings') ? '<button class="btn sm" id="poSet">Settings</button>' : ''}<button class="btn sm" id="poCsv" ${all.some(o => ['paid', 'ordered'].includes(o.status)) ? '' : 'disabled'}>Supplier list (CSV)</button></div></div>
+  v.innerHTML = `${backToMore()}<div class="view-head"><h2>Polo shirts</h2><div class="row">${canCfg() ? '<button class="btn sm" id="poSet">Settings</button>' : ''}<button class="btn sm" id="poCsv" ${all.some(o => ['paid', 'ordered'].includes(o.status)) ? '' : 'disabled'}>Supplier list (CSV)</button></div></div>
     <div class="field"><label for="poYear">Year</label><select id="poYear">${poloYears().map(y => `<option${y === Y ? ' selected' : ''}>${y}</option>`).join('')}</select></div>
     <p class="hint">The ${Y} polo has the names of everyone who passed Probationary Black Belt or a Dan in ${Y} on the back, and each of them can order one. Families get a personal link, pick the size and how many, and pay by card. It's marked paid here automatically. ${S.is_open ? `Price <b>${money(S.price)}</b>${poCombo(S) != null ? `, or <b>${money(poCombo(S))}</b> with a Masters Club uniform` : ''}.` : '<b>Orders are closed</b> (Settings).'}</p>
     <div class="stats">
@@ -4799,12 +4805,12 @@ function poloNamesCsv(year) {
 }
 
 async function renderMore() {
-  const v = $('#view-more'), S = state.settings, admin = has('settings');
+  const v = $('#view-more'), S = state.settings, admin = canCfg();
   const tiles = [
     ['readiness', 'Readiness', 'Who is ready for grading'],
     ['certificates', 'Certificates', 'Approve, print, issue'],
     has('payments') && ['payments', 'Payments', 'Fees and balances'],
-    state.essaysReady && has('readiness') && ['essays', 'Essays', 'Dan essays and feedback'],
+    state.essaysReady && canEssays() && ['essays', 'Essays', 'Dan essays and feedback'],
     ['cycles', 'Cycles', 'Dates, fees, who is grading'],
     ['reports', 'Reports', 'Excel, CSV and PDF exports'],
     has('polos', 'payments') && ['polos', 'Polo shirts', 'Orders, sizes, names']].filter(Boolean);
@@ -5007,7 +5013,7 @@ async function start() {
   if (error) { showOnly('#setupView'); $('#setupError').textContent = /app_my_perms|function|schema cache/i.test(error.message) ? '' : error.message; return; }
   state.roles = roles || [];
   if (!state.roles.length) { $('#noAccessEmail').textContent = state.myName || state.email; return showOnly('#noAccessView'); }
-  document.body.classList.toggle('can-admin', has('settings'));
+  document.body.classList.toggle('can-admin', canCfg());
   document.body.classList.toggle('can-attendance', canEditAttendance());
   showOnly(null);
   $('#view-dashboard').innerHTML = '<p class="muted">Loading...</p>';

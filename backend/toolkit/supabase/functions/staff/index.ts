@@ -29,8 +29,12 @@
 export const CARD_PERMS = ['admin', 'edit', 'delete', 'send', 'approve', 'viewer', 'printer'];
 export const TV_PERMS = ['edit', 'slides', 'screens', 'party', 'remote'];
 // Per-feature permissions for each grading app (table app_permissions, supabase/app-permissions.sql). "admin" = everything in that app.
-export const BB_PERMS = ['admin', 'view', 'attendance', 'readiness', 'grading', 'scoring', 'payments', 'texts', 'certificates', 'idcards', 'polos', 'settings'];
-export const CB_PERMS = ['admin', 'view', 'days', 'belts', 'readiness', 'texts', 'payments', 'results', 'calls', 'settings'];
+export const BB_PERMS = ['admin', 'view', 'attendance', 'readiness', 'essays', 'days', 'grading', 'results', 'scoring', 'calls', 'payments',
+  'text_invite', 'text_result', 'text_followup', 'certificates', 'idcards', 'polos', 'set_general', 'set_fees', 'set_wording',
+  'texts', 'settings'];   // 'texts' and 'settings' kept valid for legacy rows until a save replaces them with the split ticks
+export const CB_PERMS = ['admin', 'view', 'days', 'belts', 'readiness', 'results', 'calls', 'payments',
+  'text_invite', 'text_result', 'text_followup', 'set_general', 'set_fees', 'set_wording',
+  'texts', 'settings'];   // 'texts' and 'settings' kept valid for legacy rows until a save replaces them with the split ticks
 export const AW_PERMS = ['admin', 'view', 'edit'];
 export const WELCOME_URL = 'https://app.train-ama.com/welcome/';
 // "AMA ID Cards, Black Belt Gradings and the dojang TV" (shown on the welcome page)
