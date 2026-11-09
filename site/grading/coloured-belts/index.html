@@ -1123,7 +1123,7 @@ function openEntry(id) {
       ${s && canDays() ? '<button class="btn" id="editContact">Edit mobile or email</button>' : ''}
       ${canDays() && !e.result ? '<button class="btn" id="editBelt">Edit belt</button>' : ''}</div>
     <div class="section"><h3>Booking link</h3><div class="linkbox">${esc(bookingLink(e))}</div>
-      <div class="row"><button class="btn sm" id="copyLink">Copy link</button>${canDays() && !e.result && !(e.booked_at && e.paid) ? '<button class="btn sm" id="newLink">Issue new link</button>' : ''}</div>
+      <div class="row"><button class="btn sm" id="copyLink">Copy link</button>${canTexts() && !e.result ? '<button class="btn sm" id="resendLink">Resend link</button>' : ''}${canDays() && !e.result && !(e.booked_at && e.paid) ? '<button class="btn sm" id="newLink">Issue new link</button>' : ''}</div>
       ${e.late_ok_until && new Date(e.late_ok_until) > new Date() ? `<p class="hint">Late booking allowed until ${esc(whenText(e.late_ok_until))}.</p>` : bookingShut(d) && !e.booked_at ? '<p class="hint">Bookings have closed for this day. Issue a new link to let them book or pay late. It works for 48 hours and the old link stops working.</p>' : ''}</div>
     ${e.photo_path ? `<div class="section"><h3>Photo link</h3><div class="linkbox">${esc(photoLink(e))}</div><div class="row"><button class="btn sm" id="copyPhoto">Copy link</button></div></div>` : ''}
     ${canGrade() && !e.result ? '<div class="row"><button class="btn link danger" id="removeEntry">Take off this day</button></div>' : ''}
@@ -1131,6 +1131,7 @@ function openEntry(id) {
   // Save a change to this entry, show it straight away, keep the dialog open
   const change = async (f, msg) => { try { await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), msg); Object.assign(e, f); render(); openEntry(id); } catch (er) { toast(errMsg(er), 6000); } };
   $('#copyLink').onclick = async () => { try { await navigator.clipboard.writeText(bookingLink(e)); toast('Link copied'); } catch (er) { toast('Press and hold the link to copy it.'); } };
+  const rl = $('#resendLink'); if (rl) rl.onclick = () => composeTexts('not_booked', [{ member_key: e.member_key, entry_id: e.entry_id, e, s: student(e.member_key), d }]);
   const nl = $('#newLink'); if (nl) nl.onclick = async () => {
     if (!confirm(`Issue ${e.full_name} a new booking link? The old link stops working, and the new one works for 48 hours even after bookings close.`)) return;
     const token = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(9)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
