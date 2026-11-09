@@ -1,6 +1,6 @@
 // In-memory stand-in for the parts of Supabase the staff function uses.
 export function makeDb() {
-  const t = { staff_roles: [], staff_permissions: [], prep_roles: [], push_subscriptions: [], tv_permissions: [], hub_logins: [], toolkit_owners: [], staff_admins: [], toolkit_audit: [] };
+  const t = { staff_roles: [], staff_permissions: [], prep_roles: [], app_permissions: [], push_subscriptions: [], tv_permissions: [], hub_logins: [], toolkit_owners: [], staff_admins: [], toolkit_audit: [] };
   const opts = { permissionsMissing: false, tvMissing: false };
   const users = []; let nextId = 1;
   const tokens = new Map();
@@ -29,6 +29,7 @@ export function makeDb() {
         for (const r of payload.rows) {
           if (table === 'staff_roles') { const i = t.staff_roles.findIndex(x => x.email === r.email); i >= 0 ? (t.staff_roles[i] = { ...r }) : t.staff_roles.push({ ...r }); }
           if (table === 'prep_roles') { if (!t.prep_roles.some(x => x.email === r.email && x.role === r.role)) t.prep_roles.push({ ...r }); }
+          if (table === 'app_permissions') { if (!t.app_permissions.some(x => x.email === r.email && x.app === r.app && x.perm === r.perm)) t.app_permissions.push({ ...r }); }
           if (table === 'tv_permissions') { if (!t.tv_permissions.some(x => x.email === r.email && x.permission === r.permission)) t.tv_permissions.push({ ...r }); }
           if (table === 'hub_logins') {
             if (t.hub_logins.some(x => x.mobile9 === r.mobile9 && x.email !== r.email)) return { data: null, error: { message: 'duplicate key value violates unique constraint "hub_logins_mobile9_key"' } };

@@ -16,7 +16,8 @@
 //   { action: 'send', items: [{ student_id, cycle_id, kind, body }] }
 
 const API = 'https://services.leadconnectorhq.com';
-const KINDS = { invite: ['grading'], congrats: ['grading'], not_ready: ['instructor', 'grading'], essay: ['instructor'], feedback: ['instructor', 'grading'], polo: ['grading'] };   // who may send each kind (admins always can)
+// Who may send each kind: Black Belt Gradings permissions (app_permissions 'bb', set on Staff logins). Admin can send everything.
+const KINDS = { invite: ['texts'], congrats: ['texts'], not_ready: ['texts', 'readiness'], essay: ['readiness'], feedback: ['readiness', 'texts'], polo: ['polos', 'texts'] };
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -44,10 +45,10 @@ export async function handle(req, db, env = {}, http = fetch) {
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
     if (!me) return fail('Sign in first.', 401);
-    const { data: roleRows } = await db.from('prep_roles').select('role').eq('email', me);
-    const roles = (roleRows || []).map(r => r.role);
+    const { data: roleRows } = await db.from('app_permissions').select('perm').eq('email', me).eq('app', 'bb');
+    const roles = (roleRows || []).map(r => r.perm);
     const may = kind => roles.includes('admin') || (KINDS[kind] || []).some(r => roles.includes(r));
-    if (!roles.length) return fail('Your login cannot use Black Belt Prep.', 403);
+    if (!roles.length) return fail('Your login cannot use Black Belt Gradings.', 403);
 
     const body = await req.json().catch(() => ({}));
     const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';

@@ -27,6 +27,7 @@ for (let i = 1; i <= 14; i++) await db.exec(read(join(PREP, `supabase/prep-updat
 await db.exec(read(join(ROOT, 'supabase/long-service.sql')));
 await db.exec(read(join(ROOT, 'supabase/long-service.sql')));   // safe to run twice
 await db.exec(`insert into prep_roles (email, role) values ('tate@ama.test', 'admin') on conflict do nothing; delete from prep_roles where email <> 'tate@ama.test'; insert into prep_roles (email, role) values ('coach@ama.test', 'instructor'), ('desk@ama.test', 'attendance');`);
+await db.exec(read(join(ROOT, 'supabase/app-permissions.sql')));   // per-feature permissions, from the roles above
 const q = async (s, p) => (await db.query(s, p)).rows;
 // What the weekly EFC check would load: each person's enrolled date range (about a month)
 const people = [

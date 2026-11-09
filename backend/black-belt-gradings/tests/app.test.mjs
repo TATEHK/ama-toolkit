@@ -39,9 +39,13 @@ await db.exec(read(join(here, '../supabase/prep-update-11.sql')));
 await db.exec(read(join(here, '../supabase/prep-update-12.sql')));
 await db.exec(read(join(here, '../supabase/prep-update-13.sql')));
 await db.exec(read(join(here, '../supabase/prep-update-14.sql')));
+// Later updates the page now uses (polos, nurture, essays allowed late, scoring); 20 needs pg_cron, 23 and 24 need the coloured belt tables
+await db.exec(`create or replace function public.gen_random_bytes(n int) returns bytea language sql volatile as $$ select substring(decode(md5(random()::text) || md5(random()::text) || md5(random()::text) || md5(random()::text) || md5(random()::text), 'hex') from 1 for n) $$`);   // pgcrypto stand-in
+for (const i of [15, 16, 17, 18, 19, 21, 22, 25]) await db.exec(read(join(here, `../supabase/prep-update-${i}.sql`)));
 await db.exec(`insert into prep_roles (email, role) values ('att@ama.test','attendance'), ('view@ama.test','viewer');
   update prep_settings set default_session_fee = 120;
   insert into prep_dan_counters (target_rank, next_number) values ('Probationary Black Belt', 501), ('1st Dan Black Belt', 701);`);
+await db.exec(read(join(here, '../../toolkit/supabase/app-permissions.sql')));   // per-feature permissions (Staff logins), from the roles above
 
 const users = Object.fromEntries(['owner@ama.test', 'att@ama.test', 'view@ama.test', 'nobody@ama.test']
   .map((e, i) => [e, { id: `00000000-0000-0000-0000-00000000000${i + 1}`, password: 'pw' }]));
@@ -431,7 +435,7 @@ try {
   ok(page.url().endsWith('#students'), 'closing the student goes back to the screen address');
   console.log('\nSettings and users');
   await tab(page, 'more');
-  await page.waitForSelector('#userList ul');
+  await page.waitForSelector('#auditList');
   ok(await page.inputValue('#setDan0') === '504' && await page.inputValue('#setDan1') === '701' && await page.inputValue('#setDan2') === '', 'settings show a next Dan number for each rank (Probationary 504, 1st Dan 701, 2nd Dan not set)');
   await page.fill('#setDan2', '301');
   ok(!(await page.$('#setInv')) && !(await page.$('#setFee')), 'old settings (fees due on joining, single session fee) are gone');
@@ -447,10 +451,9 @@ try {
     ok((await q(`select classes from prep_class_requirements where target_rank = $1`, [pick.nb]))[0]?.classes === pick.have + 5, `the classes needed for ${pick.nb} are saved`);
     await tab(page, 'dashboard');
     ok((await page.textContent('#view-dashboard')).includes(`${pick.have} of ${pick.have + 5} classes`), `${pick.name} (going for ${pick.nb}) is measured against that belt's number, not the cycle's`);
-    await tab(page, 'more'); await page.waitForSelector('#userList ul');
+    await tab(page, 'more');
   }
-  await page.click('#addUserBtn'); await page.fill('#uEmail', 'Coach@AMA.test'); await page.check('#uForm input[value="instructor"]'); await page.click('#uForm button[type=submit]'); await settle(page);
-  ok((await q(`select role from prep_roles where email = 'coach@ama.test'`)).map(r => r.role).join() === 'instructor', 'admin adds a user with a role');
+  ok((await page.getAttribute('#view-more a[href="/staff/"]', 'href')) === '/staff/', 'who can do what is set on Staff logins (linked from Settings)');
   await page.waitForSelector('#auditList table');
   const audit = await page.textContent('#auditList');
   ok(audit.includes('Attendance:') || audit.includes('Classes attended:'), 'recent changes list shows attendance changes');
@@ -563,9 +566,9 @@ try {
     ok((await page.textContent('#view-dashboard')).includes('Essay not handed in'), 'and lists those not handed in as the due date nears');
     await tab(page, 'students');
     ok(await page.$('#studentList [data-student="ES-001"] .tag.bad:has-text("No essay")'), '...and a red "No essay" badge when a student going for a Dan has not handed one in');
-    await tab(page, 'more'); await page.waitForSelector('#userList ul');
+    await tab(page, 'more'); await page.waitForSelector('#auditList');
     for (const t of ['prep_dan_numbers', 'prep_enrolments', 'prep_students']) await q(`delete from ${t} where student_id = 'ES-001'`);
-    await page.evaluate(() => loadAll().then(render)); await page.waitForSelector('#userList ul');
+    await page.evaluate(() => loadAll().then(render)); await page.waitForSelector('#auditList');
   }
   await page.evaluate(() => document.querySelector('#setForm .section').scrollIntoView()); await shot(page, 'more');
   await ctx.close();

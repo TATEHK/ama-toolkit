@@ -47,6 +47,7 @@ await db.exec(read(join(ROOT, 'supabase/coloured-belts-21.sql')));
 await db.exec(read(join(ROOT, 'supabase/coloured-belts-22.sql')));
 await db.exec(read(join(ROOT, 'supabase/coloured-belts-23.sql'))); await db.exec(read(join(ROOT, 'supabase/coloured-belts-23.sql')));
 await db.exec(`insert into prep_roles (email, role) values ('tate@ama.test', 'admin') on conflict do nothing; delete from prep_roles where email <> 'tate@ama.test'; insert into prep_roles (email, role) values ('coach@ama.test', 'instructor'), ('desk@ama.test', 'attendance');`);
+await db.exec(read(join(ROOT, 'supabase/app-permissions.sql')));   // per-feature permissions, from the roles above
 // EFC students (made up): Sam and Kim have enough classes; Alex is overdue; Jo is at another school
 await db.exec(`insert into efc_members (member_key, kind, full_name, guardian_name, phone, location, programme, belt, promoted_on, attended_since_promoted, efc_reference) values
   ('efc:m1', 'member', 'Sam Lee', 'Pat Lee', '0412 345 678', 'Marrickville', 'Taekwondo', 'Yellow Belt', current_date - 100, 30, 'AU-023-1'),
@@ -601,7 +602,7 @@ try {
   await q(`update cb_entries set checked_in_at = null, checked_in_by = null where day_id = '${ciDay.day_id}'`);
   await ctx.close();
   ({ ctx, page } = await open('desk@ama.test'));
-  ok(await page.isVisible('#noAccess') && (await page.textContent('#noAccess')).includes("can't use gradings"), 'attendance-only staff are told they need a role');
+  ok(await page.isVisible('#noAccess') && (await page.textContent('#noAccess')).includes("can't use Coloured Belts"), 'staff with no Coloured Belts ticks are told to ask for them');
   await ctx.close();
 
   console.log('\nBooking page and grading hub');

@@ -20,7 +20,9 @@ const ok = (c, m) => { if (c) { passed++; console.log('  pass  ' + m); } else { 
 const db = makeDb();
 for (const e of ['tate@ama.test', 'jo@ama.test']) await db.auth.admin.createUser({ email: e, password: 'password1' });
 db._t.staff_permissions = [{ email: 'tate@ama.test', permission: 'admin' }, { email: 'jo@ama.test', permission: 'viewer' }];
-db._t.prep_roles = [{ email: 'tate@ama.test', role: 'admin' }, { email: 'jo@ama.test', role: 'instructor' }];
+db._t.app_permissions = [{ email: 'tate@ama.test', app: 'bb', perm: 'admin' }, { email: 'tate@ama.test', app: 'cb', perm: 'admin' }, { email: 'tate@ama.test', app: 'awards', perm: 'admin' },
+  { email: 'jo@ama.test', app: 'bb', perm: 'view' }, { email: 'jo@ama.test', app: 'bb', perm: 'readiness' }];
+const bbOf = e => db._t.app_permissions.filter(x => x.email === e && x.app === 'bb').map(x => x.perm).sort().join();
 db._t.staff_admins = [{ email: 'tate@ama.test', added_by: 'seed' }];   // Tate can manage logins
 let fnDeployed = true, oldFunction = false;
 
@@ -66,7 +68,7 @@ try {
   await page.fill('#siPass', 'password1'); await page.click('#siGo');
   await page.waitForSelector('#app:not([hidden]) #list [data-email]');
   const list = await page.textContent('#list');
-  ok(list.includes('jo@ama.test') && list.includes('ID Cards: View only') && list.includes('Prep: Instructor'), 'list shows each login with roles in both apps');
+  ok(list.includes('jo@ama.test') && list.includes('ID Cards: View only') && list.includes('Black Belt: Readiness and essays'), 'list shows each login with roles in both apps');
   ok(list.includes('You') && (await page.textContent('#list [data-email="tate@ama.test"]')).includes('Admin'), 'you are marked, and admins get the gold Admin chip');
 
   // Staff admin: the activity log opens, and a login can be granted/removed Staff admin
@@ -94,7 +96,7 @@ try {
   const pw = await page.inputValue('#addPw');
   ok(pw.length === 12, '"Make one" fills in a 12-character password');
   await page.check('#cardChecks input[value="edit"]'); await page.check('#cardChecks input[value="send"]');
-  await page.check('#prepChecks input[value="attendance"]'); await page.check('#prepChecks input[value="payments"]');
+  await page.check('#bbChecks input[value="attendance"]'); await page.check('#bbChecks input[value="payments"]');
   await page.click('#addGo');
   await page.waitForSelector('#list [data-email="coach@ama.test"]');
   ok(db._users.some(u => u.email === 'coach@ama.test' && u.password === pw), 'login created with the starting password');
@@ -106,12 +108,12 @@ try {
   // Set-up link instead of a password
   await page.click('#addBtn'); await page.fill('#addName', 'New Bee'); await page.fill('#addEmail', 'newbie@ama.test');
   ok((await page.textContent('#addForm')).includes('Give me a link'), 'adding a login offers a set-up link to send them');
-  await page.check('#prepChecks input[value="instructor"]'); await page.check('#tvChecks input[value="party"]');
+  await page.check('#bbChecks input[value="readiness"]'); await page.check('#tvChecks input[value="party"]');
   await page.click('#addGo'); await page.waitForSelector('#linkText');
   const msg = await page.inputValue('#linkText');
   const made = db._mail.find(m => m.kind === 'invite' && m.email === 'newbie@ama.test');
   ok(made && msg.includes('https://app.train-ama.com/welcome/#token_hash=' + encodeURIComponent(made.hashed_token) + '&type=invite') && msg.includes('newbie@ama.test'), 'it shows a message with their set-up link, ready to copy or share');
-  ok(made.data.apps === 'Black Belt Gradings and the dojang TV' && made.data.setup_pending === true && db._t.prep_roles.some(r => r.email === 'newbie@ama.test' && r.role === 'instructor'), 'their login and permissions are made, waiting for set-up');
+  ok(made.data.apps === 'Black Belt Gradings and the dojang TV' && made.data.setup_pending === true && bbOf('newbie@ama.test') === 'readiness,view', 'their login and permissions are made, waiting for set-up');
   await page.click('#dlg [data-close]');
   await page.waitForSelector('#list [data-email="newbie@ama.test"]');
   ok((await page.textContent('#list [data-email="newbie@ama.test"]')).includes('Not set up yet'), 'the list shows they are not set up yet');
@@ -127,13 +129,17 @@ try {
 
   // Change roles
   await page.click('#list [data-email="jo@ama.test"]'); await page.waitForSelector('#rolesForm');
-  ok((await page.$$('#cardChecks input')).length === 7 && (await page.$$('#prepChecks input')).length === 8, 'both apps show tick boxes, laid out the same way');
+  ok((await page.$$('#cardChecks input')).length === 7 && (await page.$$('#bbChecks input')).length === 12 && (await page.$$('#cbChecks input')).length === 9 && (await page.$$('#awChecks input')).length === 3, 'every app shows its tick boxes');
+  ok((await page.textContent('#cbChecks')).includes('Record payments') && (await page.textContent('#cbChecks')).includes('Cash, EFTPOS'), 'each tick says what it lets them do');
   await page.uncheck('#cardChecks input[value="viewer"]'); await page.check('#cardChecks input[value="approve"]'); await page.check('#cardChecks input[value="edit"]');
-  await page.check('#prepChecks input[value="grading"]'); await page.uncheck('#prepChecks input[value="instructor"]');
+  await page.check('#bbChecks input[value="grading"]'); await page.uncheck('#bbChecks input[value="readiness"]'); await page.check('#cbChecks input[value="payments"]');
+  ok(await page.isChecked('#cbChecks input[value="view"]') && await page.isDisabled('#cbChecks input[value="view"]'), 'any tick includes View');
+  await page.check('#awChecks input[value="admin"]');
+  ok(await page.isChecked('#awChecks input[value="edit"]') && await page.isDisabled('#awChecks input[value="edit"]'), 'Admin ticks and locks everything else in that app');
   await page.screenshot({ path: process.env.SHOT_DIR ? join(process.env.SHOT_DIR, 'staff-person.png') : join(tmpdir(), 'staff-person.png') });
   await page.click('#saveRoles'); await settle();
   await page.waitForFunction(() => document.querySelector('#list [data-email="jo@ama.test"]').textContent.includes('Approve prints'));
-  ok(db._t.staff_permissions.filter(x => x.email === 'jo@ama.test').map(x => x.permission).sort().join() === 'approve,edit' && db._t.prep_roles.filter(x => x.email === 'jo@ama.test').map(x => x.role).join() === 'grading', 'roles saved in both apps');
+  ok(db._t.staff_permissions.filter(x => x.email === 'jo@ama.test').map(x => x.permission).sort().join() === 'approve,edit' && bbOf('jo@ama.test') === 'grading,view' && db._t.app_permissions.filter(x => x.email === 'jo@ama.test' && x.app === 'cb').map(x => x.perm).sort().join() === 'payments,view' && db._t.app_permissions.filter(x => x.email === 'jo@ama.test' && x.app === 'awards').map(x => x.perm).join() === 'admin', 'permissions saved in every app');
 
   // Dojang TV
   ok((await page.textContent('#list [data-email="tate@ama.test"]')).includes('TV: Admin'), 'the list shows TV access (admins always have it)');
@@ -142,7 +148,7 @@ try {
   await page.check('#tvChecks input[value="remote"]'); await page.click('#addGo');
   await page.waitForSelector('#list [data-email="tvonly@ama.test"]');
   const tvRow = await page.textContent('#list [data-email="tvonly@ama.test"]');
-  ok(tvRow.includes('TV: Remote') && tvRow.includes('ID Cards: No access') && tvRow.includes('Prep: No access'), 'a login can have just the TV remote and nothing else');
+  ok(tvRow.includes('TV: Remote') && tvRow.includes('ID Cards: No access') && tvRow.includes('Black Belt: No access') && tvRow.includes('Coloured: No access'), 'a login can have just the TV remote and nothing else');
   await page.click('#list [data-email="tvonly@ama.test"]'); await page.waitForSelector('#tvChecks');
   ok(await page.isChecked('#tvChecks input[value="remote"]') && !(await page.isChecked('#tvChecks input[value="party"]')), 'their TV ticks show when opened');
   await page.check('#tvChecks input[value="party"]'); await page.click('#saveRoles');
@@ -184,7 +190,7 @@ try {
   // A login with no email: name and mobile only
   await page.click('#addBtn'); await page.fill('#addName', 'Hub Person'); await page.fill('#addMobile', '0455 666 777');
   ok(await page.isHidden('#addEmailBits'), 'without an email, the password and set-up link choices are hidden');
-  await page.check('#prepChecks input[value="viewer"]'); await page.click('#addGo');
+  await page.check('#bbChecks input[value="view"]'); await page.click('#addGo');
   await page.waitForSelector('#list [data-email="hub-455666777@staff.amatoolkit.local"]');
   const hubRow = await page.textContent('#list [data-email="hub-455666777@staff.amatoolkit.local"]');
   ok(hubRow.includes('Hub Person') && hubRow.includes('0455 666 777') && hubRow.includes('Hub sign-in') && !hubRow.includes('staff.amatoolkit.local'), 'they show by name and mobile, marked as hub sign-in (no stand-in email shown)');
@@ -199,7 +205,7 @@ try {
   await page.click('#bulkGo'); await page.waitForSelector('#dlg h3:has-text("Added")');
   const res = await page.textContent('#dlg');
   ok(res.includes('Added 2') && res.includes('Sam Lee') && res.includes('Kim Ng') && res.includes('Skipped') && res.includes('already has a login'), 'Add several adds new people and skips anyone already set up');
-  ok(db._users.some(u => u.email === 'hub-466000111@staff.amatoolkit.local' && u.user_metadata.full_name === 'Sam Lee') && !db._t.prep_roles.some(r => r.email === 'hub-466000111@staff.amatoolkit.local'), 'they are added with no permissions');
+  ok(db._users.some(u => u.email === 'hub-466000111@staff.amatoolkit.local' && u.user_metadata.full_name === 'Sam Lee') && !db._t.app_permissions.some(r => r.email === 'hub-466000111@staff.amatoolkit.local'), 'they are added with no permissions');
   await page.evaluate(() => document.querySelector('#dlg').close());
   await page.fill('#search', 'kim'); ok((await page.$$('#list [data-email]')).length === 1, 'search finds people by name');
   await page.fill('#search', '0466 000 1'); ok((await page.$$('#list [data-email]')).length === 1, '...and by mobile');
@@ -221,7 +227,7 @@ try {
   ok((await page.textContent('#dlg')).includes('no longer be able to sign in'), 'remove asks first');
   await page.click('#cfYes');
   await page.waitForFunction(() => !document.querySelector('#list [data-email="coach@ama.test"]'));
-  ok(!db._users.some(u => u.email === 'coach@ama.test') && !db._t.prep_roles.some(x => x.email === 'coach@ama.test'), 'login and roles removed');
+  ok(!db._users.some(u => u.email === 'coach@ama.test') && !db._t.app_permissions.some(x => x.email === 'coach@ama.test'), 'login and roles removed');
 
   // Search
   await page.fill('#search', 'jo');
@@ -245,7 +251,7 @@ try {
 
   // The owner's login: another admin can see it but not change it
   await db.auth.admin.createUser({ email: 'boss@ama.test', password: 'password1' });
-  db._t.staff_permissions.push({ email: 'boss@ama.test', permission: 'admin' }); db._t.prep_roles.push({ email: 'boss@ama.test', role: 'admin' });
+  db._t.staff_permissions.push({ email: 'boss@ama.test', permission: 'admin' }); db._t.app_permissions.push({ email: 'boss@ama.test', app: 'bb', perm: 'admin' });
   db._t.staff_admins.push({ email: 'boss@ama.test', added_by: 'seed' });
   db._t.toolkit_owners = [{ email: 'tate@ama.test' }];
   await page.click('#signOut'); await page.waitForSelector('#signIn:not([hidden])');

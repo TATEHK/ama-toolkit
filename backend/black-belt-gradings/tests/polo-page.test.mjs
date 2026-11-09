@@ -33,6 +33,7 @@ await db.exec(`insert into prep_roles (email, role) values ('pay@ama.test', 'pay
     ('BB0103', 'Probationary grading Nov 2026', 'Probationary Black Belt', 'passed', 'passed'),
     ('BB0104', 'Probationary grading Nov 2026', 'Probationary Black Belt', 'unsuccessful', 'unsuccessful');
   insert into prep_grading (student_id, grading_event, target_rank, status, result, grading_date) values ('BB0105', 'Dan grading 2025', '2nd Dan', 'passed', 'passed', '2025-11-20');`);
+await db.exec(read(join(here, '../../toolkit/supabase/app-permissions.sql')));   // per-feature permissions (Staff logins), from the roles above
 
 const users = Object.fromEntries(['owner@ama.test', 'pay@ama.test', 'grade@ama.test', 'inst@ama.test'].map((e, i) => [e, { id: `00000000-0000-0000-0000-00000000001${i}`, password: 'pw' }]));
 const server = await startServer({ db, appDir: join(here, '../../../site/Black-belt-prep-system'), users, config: '' });
@@ -109,7 +110,7 @@ try {
   ok((await q(`select count(*)::int n from prep_polo_orders`))[0].n === 3, 'making links again doesn\'t make duplicates');
   await page.click('#poText'); await page.waitForSelector('#ptGo');
   const pp = await page.textContent('#ptPrev');
-  ok(orders.some(o => pp.includes('/polo/#t=' + o.token)) && pp.includes(String(new Date().getFullYear())), 'the text has the family\'s own link and the year');
+  ok(orders.some(o => pp.includes('/polo#' + o.token)) && pp.includes(String(new Date().getFullYear())), 'the text has the family\'s own link and the year');
   await page.click('#ptGo'); await toastSays(page, 'logged');
   ok(texts.length === 2 && texts.every(t => t.kind === 'polo') && texts.some(t => t.body.includes(orders[1].token)), 'polo links are texted through GoHighLevel');
   await ctx.close();

@@ -91,8 +91,9 @@ export async function handle(req) {
     const { data: who } = jwt ? await db.auth.getUser(jwt) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
     if (!me) return fail('Sign in first.', 401);
-    const { data: roles } = await db.from('prep_roles').select('role').eq('email', me);
-    if (!(roles || []).some(r => ['instructor', 'grading', 'admin'].includes(r.role))) return fail('You need grading or instructor access to send these.', 403);
+    // Long Service Awards permissions (app_permissions 'awards', set on Staff logins): Edit or Admin
+    const { data: perms } = await db.from('app_permissions').select('perm').eq('email', me).eq('app', 'awards');
+    if (!(perms || []).some(r => ['edit', 'admin'].includes(r.perm))) return fail('Your login cannot send memory links. Ask a Staff admin to tick Long Service Awards > Mark ordered and presented.', 403);
 
     const b = await req.json().catch(() => ({}));
 

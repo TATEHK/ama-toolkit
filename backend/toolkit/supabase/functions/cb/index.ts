@@ -41,6 +41,28 @@ export function isYes(t) {
   if (!s || /\b(no|not|cant|can't|cannot|won't|wont|unable|unsure|maybe)\b/.test(s)) return false;
   return /^(y|ye+s+|yep|yup|yeah|yea|ya|sure|ok|okay|confirm|confirmed|definitely|absolutely|of course|will do)(?![a-z])/u.test(s) || /^\u{1F44D}/u.test(s);
 }
+// Replies: is this a "no" or "can't make it"? ("No", "Can't make it", "We're away that day", "Is there another day?")
+export function isNo(t) {
+  const s = String(t || '').trim().toLowerCase().replace(/[‘’]/g, "'");
+  if (!s || isYes(s)) return false;
+  return /^(no|nope|nah|n)\b/.test(s) || /\b(can'?t|cannot|can not|won'?t be able|unable|not able|not available|unavailable|away|busy|clash(es)?|(another|different|other) (day|time|date|location|school|grading))\b/.test(s);
+}
+// Another grading for this student: a coming day of the same programme, for their belt and age, still open for bookings.
+// d.belts (or the belts with an EFC session) says which belts it's for; min_age / max_age split kids' and teens' sessions.
+export function fitsDay(d, e, age, from) {
+  if (!d || d.bb || d.closed || d.day_id === e.day_id) return false;
+  if ((d.programme || 'Taekwondo') !== ((from && from.programme) || 'Taekwondo')) return false;
+  if (d.book_by && Date.parse(d.book_by) <= Date.now()) return false;
+  const belts = Array.isArray(d.belts) && d.belts.length ? d.belts : (d.efc_belt_sessions && typeof d.efc_belt_sessions === 'object' && Object.keys(d.efc_belt_sessions).length ? Object.keys(d.efc_belt_sessions) : null);
+  if (belts && !belts.includes(e.belt_from)) return false;
+  if (d.min_age != null || d.max_age != null) {
+    if (age == null) return false;
+    if (d.min_age != null && age < d.min_age) return false;
+    if (d.max_age != null && age > d.max_age) return false;
+  }
+  return true;
+}
+export const ALT_DAYS = 3, ALT_VALID_MS = 7 * 864e5;   // offer up to 3 other gradings; a reply of 1, 2 or 3 works for 7 days
 const SITE = 'https://app.train-ama.com/';
 const firstWord = x => String(x || '').trim().split(/\s+/)[0] || '';
 const longDay = ymd => { const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).replace(',', ''); };
@@ -54,7 +76,8 @@ export const EFC_LOCATIONS = {
   Concord: '7ca1c142-be41-4d02-b5eb-13534b23043b', Sylvania: 'a5a5ab24-e85d-4e14-ac16-1d9c189ff0dd'
 };
 // Who may send each kind (admins always can): invitations and day reminders by grading staff, "not yet" by instructors too
-const KINDS = { invite: ['grading'], not_booked: ['grading'], reminder: ['grading'], unpaid: ['grading'], congrats: ['grading'], retest: ['grading'], photo: ['grading'], not_ready: ['instructor', 'grading'], bbc_followup: ['instructor', 'grading'] };
+// Coloured Belts permissions (app_permissions, app 'cb'; supabase/app-permissions.sql). "admin" covers everything.
+const KINDS = { invite: ['texts'], not_booked: ['texts'], reminder: ['texts'], unpaid: ['texts'], congrats: ['texts'], retest: ['texts'], photo: ['results', 'texts'], not_ready: ['readiness'], bbc_followup: ['readiness'] };
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cb-cron, stripe-signature',
@@ -868,16 +891,53 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (p9.length !== 9) return json({ ok: true, matched: 0, why: 'no mobile' });
       const yes = isYes(msg);
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-      const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb').gte('grading_date', today);
+      const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by').gte('grading_date', today);
       const open = (days || []).filter(d => !d.closed); if (!open.length) return json({ ok: true, matched: 0, why: 'no grading days coming up' });
-      const { data: ents } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school').in('day_id', open.map(d => d.day_id));
+      const { data: ents } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school, alt_offer').in('day_id', open.map(d => d.day_id));
       const waiting = (ents || []).filter(e => e.invited_at && !e.booked_at && !e.result);
       if (!waiting.length) return json({ ok: true, matched: 0 });
-      const mems = await selectIn('efc_members', 'member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email', 'member_key', waiting.map(e => e.member_key));
+      const mems = await selectIn('efc_members', 'member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth', 'member_key', waiting.map(e => e.member_key));
       const byKey = Object.fromEntries((mems || []).map(m => [m.member_key, m]));
       const last9 = x => String(x || '').replace(/\D/g, '').slice(-9);
       const mine = waiting.filter(e => { const m = byKey[e.member_key]; return m && (last9(m.phone) === p9 || last9(m.guardian_phone) === p9); });
       if (!mine.length) return json({ ok: true, matched: 0 });
+      const ready0 = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing0 = env.GHL_TEST === '1';
+      // A text (or, while GoHighLevel's daily limit has stopped texting, the same words by email) to this family
+      const familyText = async (m, e, text, kind, sentBy, subject) => {
+        const phone = phoneE164(m.phone || m.guardian_phone);
+        const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind, phone, body: text, status, sent_by: sentBy, ...extra });
+        if (testing0 && !ready0) { await log('test'); return { ok: true, test: true }; }
+        if (!ready0) return { ok: false, error: 'texting not set up' };
+        if (smsBlocked(st)) { const b = await emailBackup({ m, entry_id: e.entry_id, subject, text, why: 'texting paused' }); return { ok: b.ok, emailed: b.ok, error: b.why }; }
+        try { const cid = await contactFor({ ...m, email: m.email || m.guardian_email }, phone); const gid = await sendSms(cid, text); await log('sent', gid ? { ghl_id: gid } : {}); return { ok: true }; }
+        catch (er) { const w = String(er.message || er).slice(0, 500); await log('failed', { error: w }); return { ok: false, error: w }; }
+      };
+      const ageNow = m => (m && typeof m.date_of_birth === 'string' && /^\d{4}-\d{2}-\d{2}/.test(m.date_of_birth)) ? Math.floor((Date.now() - Date.parse(m.date_of_birth.slice(0, 10))) / 31557600000) : null;
+      const shortDay = ymd => { const [y, mo, dd] = String(ymd).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, mo - 1, dd)).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', ''); };
+      const dayLine = (d, e) => `${shortDay(d.grading_date)}${(et => et ? ' ' + clock(et) : '')(entryTime(d, e))} at AMA ${whereOf(e, d)}`;
+      const bookText = (m, e, d) => fillText(st.not_booked_text, { parent: firstWord(m.guardian_name) || 'there', first: firstWord(m.full_name || e.full_name), next: e.belt_to,
+        school: whereOf(e, d), date: longDay(d.grading_date), time: (et => et ? ' at ' + clock(et) : '')(entryTime(d, e)), link: SITE + 'b#' + e.token });
+
+      // ---- They picked another grading we offered (a reply of 1, 2 or 3): move them to it and send its booking link ----
+      const pick = msg.match(/^\s*(?:option\s*|#)?([1-9])\s*[.!)]?\s*$/i);
+      const offered = mine.filter(e => e.alt_offer && Array.isArray(e.alt_offer.days) && e.alt_offer.at && Date.now() - Date.parse(e.alt_offer.at) < ALT_VALID_MS);
+      if (pick && offered.length) {
+        const n = Number(pick[1]), out = [], nowIso = new Date().toISOString();
+        for (const e of offered) {
+          const nd = open.find(x => x.day_id === e.alt_offer.days[n - 1]), m = byKey[e.member_key];
+          if (!nd) { out.push({ entry_id: e.entry_id, error: 'not one of the choices' }); continue; }
+          const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', nd.day_id).eq('member_key', e.member_key).maybeSingle();
+          if (clash) { out.push({ entry_id: e.entry_id, error: 'already on that day' }); continue; }
+          await db.from('cb_entries').update({ day_id: nd.day_id, moved_from_day: e.day_id, alt_offer: null, yes_at: e.yes_at || nowIso, reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: null }).eq('entry_id', e.entry_id);
+          // The "can't make it" call isn't needed any more
+          await db.from('cb_calls').update({ done: true, outcome: 'moved', outcome_note: 'Moved to another grading by text', updated_at: nowIso }).eq('entry_id', e.entry_id).eq('done', false).then(() => {}, () => {});
+          const moved = { ...e, day_id: nd.day_id };
+          const r = await familyText(m, moved, bookText(m, moved, nd), 'not_booked', 'automatic: moved to another grading', `${firstWord(m.full_name || e.full_name)}'s grading booking link`);
+          out.push({ entry_id: e.entry_id, moved_to: nd.day_id, ...r });
+        }
+        return json({ ok: true, matched: mine.length, moved: out.filter(x => x.moved_to).length, results: out });
+      }
+      const no = !yes && isNo(msg);
       // The booking sequence (coloured-belts-23.sql): STOP ends it for good; any other reply pauses it for 2 days, and
       // anything that isn't a YES puts a "concern" call on My Day so an instructor rings them back.
       if (st.seq_on || /^\s*(stop|stopall|unsubscribe|end|quit)\b/i.test(msg)) {
@@ -891,6 +951,25 @@ export async function handle(req, db, env = {}, http = fetch) {
           const { data: open } = await db.from('cb_calls').select('call_id').eq('entry_id', e.entry_id).eq('done', false);
           if (!(open || []).length) await db.from('cb_calls').insert({ entry_id: e.entry_id, reason: 'concern', note: msg.slice(0, 300), callback_on: today });
         }
+      }
+      // ---- "No" or "can't make it": offer the other gradings that suit every student in the family (belt and age) ----
+      if (no) {
+        const now = new Date().toISOString();
+        for (const e of mine) await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: now }).eq('entry_id', e.entry_id);
+        const fit = mine.map(e => open.filter(d => fitsDay(d, e, ageNow(byKey[e.member_key]), open.find(x => x.day_id === e.day_id))).map(d => d.day_id));
+        const common = open.filter(d => fit.every(ids => ids.includes(d.day_id)))
+          .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || ''))).slice(0, ALT_DAYS);
+        if (!common.length) return json({ ok: true, matched: mine.length, yes: false, no: true, offered: 0 });
+        const e0 = mine[0], m0 = byKey[e0.member_key], d0 = open.find(x => x.day_id === e0.day_id);
+        const names = [...new Set(mine.map(e => firstWord(e.full_name)))].join(' and ');
+        const nums = common.length === 1 ? 'Reply 1' : `Reply ${common.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${common.length}`;
+        const text = `Hi ${firstWord(m0.guardian_name) || 'there'}, no worries. ${names} can grade on another day instead:\n${common.map((d, i) => `${i + 1}. ${dayLine(d, e0)}`).join('\n')}\n${nums} to switch and we'll send the booking link, or call us if none of these suit. AMA ${whereOf(e0, d0)}`;
+        const r = await familyText(m0, e0, text, 'alt_offer', 'automatic: offered another grading', `Another grading day for ${names}`);
+        if (r.ok) {
+          for (const e of mine) await db.from('cb_entries').update({ alt_offer: { days: common.map(d => d.day_id), at: now } }).eq('entry_id', e.entry_id);
+          await db.from('cb_calls').update({ note: (msg.slice(0, 240) + ' [Offered ' + common.length + ' other grading' + (common.length === 1 ? '' : 's') + ' by text]') }).in('entry_id', mine.map(e => e.entry_id)).eq('done', false).then(() => {}, () => {});
+        }
+        return json({ ok: true, matched: mine.length, yes: false, no: true, offered: r.ok ? common.length : 0, days: common.map(d => d.day_id) });
       }
       if (!yes) { for (const e of mine) await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: new Date().toISOString() }).eq('entry_id', e.entry_id); return json({ ok: true, matched: mine.length, yes: false }); }
       const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';
@@ -927,13 +1006,14 @@ export async function handle(req, db, env = {}, http = fetch) {
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
     if (!me) return fail('Sign in first.', 401);
-    const { data: roleRows } = await db.from('prep_roles').select('role').eq('email', me);
-    const roles = (roleRows || []).map(r => r.role);
-    const may = kind => roles.includes('admin') || (KINDS[kind] || []).some(r => roles.includes(r));
-    if (!roles.some(r => ['admin', 'instructor', 'grading', 'payments'].includes(r))) return fail('Your login cannot use coloured belt grading.', 403);
+    const { data: permRows } = await db.from('app_permissions').select('perm').eq('email', me).eq('app', 'cb');
+    const perms = (permRows || []).map(r => r.perm);
+    const can = (...want) => perms.includes('admin') || want.some(w => perms.includes(w));
+    const may = kind => can(...(KINDS[kind] || []));
+    if (!perms.length) return fail('Your login cannot use Coloured Belts. Ask a Staff admin to give you access.', 403);
     // A payment taken by staff (cash, EFTPOS, bank transfer): mark paid, then book the EFC session like a card payment would
     if (body.action === 'record_payment') {
-      if (!roles.some(r => ['admin', 'grading', 'payments'].includes(r))) return fail('Your login cannot record payments.', 403);
+      if (!can('payments')) return fail('Your login cannot record payments.', 403);
       const how = String(body.how || '');
       if (!['cash', 'eftpos', 'transfer', 'other'].includes(how)) return fail('Choose how they paid.');
       const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school').eq('entry_id', String(body.entry_id || '')).maybeSingle();
@@ -949,7 +1029,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
     // The booking sequence: "Send test to me" for any step (grading staff), with a real student's details or a sample
     if (body.action === 'seq_test') {
-      if (!roles.some(r => ['admin', 'grading'].includes(r))) return fail('Only grading staff can send tests.', 403);
+      if (!can('settings', 'texts')) return fail('Your login cannot send test messages.', 403);
       const { data: step } = await db.from('cb_seq_steps').select('*').eq('code', String(body.code || '')).maybeSingle();
       if (!step || step.channel === 'call') return fail('Choose a message to test.');
       const toPhone = String(body.phone || '').trim(), toEmail = String(body.email || '').trim();
@@ -972,7 +1052,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
     // Run the sequence now (admins), instead of waiting for the next 15-minute run
     if (body.action === 'seq_run') {
-      if (!roles.includes('admin')) return fail('Only an admin can run the sequence by hand.', 403);
+      if (!can('settings')) return fail('Only staff with Booking sequence and settings can run the sequence by hand.', 403);
       return json(await runSequence());
     }
     const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';

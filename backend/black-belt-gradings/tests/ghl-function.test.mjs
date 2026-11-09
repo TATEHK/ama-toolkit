@@ -16,6 +16,7 @@ const ok = (c, m) => { if (c) { passed++; console.log('  pass  ' + m); } else { 
 // A pretend database: just what the function reads and writes
 const tables = {
   prep_roles: [{ email: 'boss@ama.test', role: 'admin' }, { email: 'inst@ama.test', role: 'instructor' }, { email: 'view@ama.test', role: 'viewer' }],
+  app_permissions: [{ email: 'boss@ama.test', app: 'bb', perm: 'admin' }, { email: 'inst@ama.test', app: 'bb', perm: 'view' }, { email: 'inst@ama.test', app: 'bb', perm: 'readiness' }, { email: 'view@ama.test', app: 'bb', perm: 'view' }],
   prep_students: [{ student_id: 'S1', full_name: 'Kian Lee', contact_phone: '0412 345 678', contact_email: 'lee@family.test' },
     { student_id: 'S2', full_name: 'Ava Brown', contact_phone: '', contact_email: null },
     { student_id: 'S3', full_name: 'Noah Smith', contact_phone: '+61 400 111 222', contact_email: null }],

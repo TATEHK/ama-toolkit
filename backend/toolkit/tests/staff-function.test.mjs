@@ -19,11 +19,13 @@ const db = makeDb();
 // Starting state: Tate admin in both, Sam admin only in cards, Jo a viewer / instructor
 for (const e of ['tate@ama.test', 'sam@ama.test', 'jo@ama.test']) await db.auth.admin.createUser({ email: e, password: 'password1' });
 db._t.staff_permissions = [{ email: 'tate@ama.test', permission: 'admin' }, { email: 'sam@ama.test', permission: 'admin' }, { email: 'jo@ama.test', permission: 'viewer' }];
-db._t.prep_roles = [{ email: 'tate@ama.test', role: 'admin' }, { email: 'jo@ama.test', role: 'instructor' }];
+db._t.app_permissions = [{ email: 'tate@ama.test', app: 'bb', perm: 'admin' }, { email: 'tate@ama.test', app: 'cb', perm: 'admin' }, { email: 'tate@ama.test', app: 'awards', perm: 'admin' },
+  { email: 'jo@ama.test', app: 'bb', perm: 'view' }, { email: 'jo@ama.test', app: 'bb', perm: 'readiness' }, { email: 'jo@ama.test', app: 'cb', perm: 'view' }, { email: 'jo@ama.test', app: 'cb', perm: 'readiness' }];
 db._t.staff_admins = [{ email: 'tate@ama.test', added_by: 'seed' }];   // Tate can manage logins (Staff admin)
 const TATE = db._login('tate@ama.test'), SAM = db._login('sam@ama.test'), JO = db._login('jo@ama.test');
 const cardOf = e => db._t.staff_permissions.filter(x => x.email === e).map(x => x.permission).sort().join();
-const prepOf = e => db._t.prep_roles.filter(x => x.email === e).map(x => x.role).sort().join();
+const appOf = app => e => db._t.app_permissions.filter(x => x.email === e && x.app === app).map(x => x.perm).sort().join();
+const prepOf = appOf('bb'), cbOf = appOf('cb'), awOf = appOf('awards');
 
 const call = async (token, body, method = 'POST') => {
   const res = await handle(new Request('https://x.test/functions/v1/staff', { method, headers: { ...(token ? { authorization: 'Bearer ' + token } : {}), 'content-type': 'application/json' }, body: method === 'POST' ? JSON.stringify(body) : undefined }), db);
@@ -48,20 +50,22 @@ console.log('\nList');
 r = await call(TATE, { action: 'list' });
 const jo = r.body.users.find(u => u.email === 'jo@ama.test');
 ok(r.status === 200 && r.body.users.length === 3 && r.body.me === 'tate@ama.test', 'lists every login');
-ok(jo.card_perms.join() === 'viewer' && jo.prep_roles.join() === 'instructor' && jo.has_login, "shows each login's permissions in both apps");
+ok(jo.card_perms.join() === 'viewer' && jo.bb_perms.join() === 'view,readiness' && jo.cb_perms.join() === 'view,readiness' && jo.aw_perms.join() === '' && jo.has_login, "shows each login's permissions in both apps");
 ok(r.body.card_perms.length === 7, 'returns the 7 ID Cards permissions');
+ok(r.body.cb_perms.length === 9 && r.body.bb_perms.length === 12 && r.body.aw_perms.length === 3, 'returns the feature lists for Coloured Belts, Black Belt Gradings and Awards');
 
 console.log('\nAdd a login');
-r = await call(TATE, { action: 'create', email: 'New@AMA.test', password: 'short', card_perms: ['edit'], prep_roles: ['attendance'] });
+r = await call(TATE, { action: 'create', email: 'New@AMA.test', password: 'short', card_perms: ['edit'], bb_perms: ['attendance'] });
 ok(r.status === 400 && /8 characters/.test(r.body.error), 'password needs at least 8 characters');
 r = await call(TATE, { action: 'create', email: 'not-an-email', password: 'longenough' });
 ok(r.status === 400 && /valid email/.test(r.body.error), 'email must be valid');
-r = await call(TATE, { action: 'create', email: 'New@AMA.test', password: 'longenough', card_perms: ['edit', 'send', 'made-up'], prep_roles: ['attendance', 'payments', 'made-up'] });
+r = await call(TATE, { action: 'create', email: 'New@AMA.test', password: 'longenough', card_perms: ['edit', 'send', 'made-up'], bb_perms: ['attendance', 'payments', 'made-up'], cb_perms: ['payments'], aw_perms: ['admin', 'edit'] });
 ok(r.status === 200 && !r.body.existed, 'login created');
 ok(db._users.some(u => u.email === 'new@ama.test' && u.password === 'longenough'), 'email is saved in lower case with the starting password');
 ok(cardOf('new@ama.test') === 'edit,send', 'ID Cards permissions ticked; unknown ones ignored');
-ok(prepOf('new@ama.test') === 'attendance,payments', 'Black Belt Gradings roles ticked; unknown ones ignored');
-r = await call(TATE, { action: 'create', email: 'jo@ama.test', password: '', card_perms: ['edit', 'approve'], prep_roles: ['instructor', 'grading'] });
+ok(prepOf('new@ama.test') === 'attendance,payments,view', 'Black Belt Gradings ticks saved, with View added; unknown ones ignored');
+ok(cbOf('new@ama.test') === 'payments,view' && awOf('new@ama.test') === 'admin', 'Coloured Belts ticks saved; Admin is kept on its own (it covers everything)');
+r = await call(TATE, { action: 'create', email: 'jo@ama.test', password: '', card_perms: ['edit', 'approve'], bb_perms: ['readiness', 'grading'] });
 ok(r.status === 200 && r.body.existed && db._users.find(u => u.email === 'jo@ama.test').password === 'password1' && cardOf('jo@ama.test') === 'approve,edit', 'adding an existing login sets its ticks and keeps the password');
 
 console.log('\nPassword');
@@ -71,10 +75,12 @@ r = await call(TATE, { action: 'password', email: 'nobody@ama.test', password: '
 ok(r.status === 404, 'reset for an unknown email is refused');
 
 console.log('\nPermissions');
-r = await call(TATE, { action: 'roles', email: 'jo@ama.test', card_perms: ['viewer', 'send'], prep_roles: ['viewer'] });
-ok(r.status === 200 && cardOf('jo@ama.test') === 'send,viewer' && prepOf('jo@ama.test') === 'viewer', 'ticks changed in both apps');
+r = await call(TATE, { action: 'roles', email: 'jo@ama.test', card_perms: ['viewer', 'send'], bb_perms: ['view'] });
+ok(r.status === 200 && cardOf('jo@ama.test') === 'send,viewer' && prepOf('jo@ama.test') === 'view' && cbOf('jo@ama.test') === '', 'ticks changed; apps not sent are left alone');
+r = await call(TATE, { action: 'roles', email: 'jo@ama.test', cb_perms: ['texts', 'results'] });
+ok(r.status === 200 && cbOf('jo@ama.test') === 'results,texts,view', 'Coloured Belts ticks changed on their own');
 r = await call(TATE, { action: 'roles', email: 'jo@ama.test', card_perms: [] });
-ok(r.status === 200 && cardOf('jo@ama.test') === '' && prepOf('jo@ama.test') === 'viewer', 'all ID Cards access can be removed without touching Prep');
+ok(r.status === 200 && cardOf('jo@ama.test') === '' && prepOf('jo@ama.test') === 'view', 'all ID Cards access can be removed without touching Prep');
 r = await call(TATE, { action: 'roles', email: 'tate@ama.test', card_perms: ['viewer'] });
 ok(r.status === 400 && /your own admin/.test(r.body.error), "you can't remove your own admin access");
 
@@ -82,19 +88,19 @@ console.log('\nRemove');
 r = await call(TATE, { action: 'remove', email: 'tate@ama.test' });
 ok(r.status === 400 && /yourself/.test(r.body.error), "you can't remove yourself");
 r = await call(TATE, { action: 'remove', email: 'new@ama.test' });
-ok(r.status === 200 && !db._users.some(u => u.email === 'new@ama.test') && cardOf('new@ama.test') === '' && prepOf('new@ama.test') === '', 'login and permissions in both apps removed');
-db._t.prep_roles.push({ email: 'sam@ama.test', role: 'admin' });
+ok(r.status === 200 && !db._users.some(u => u.email === 'new@ama.test') && cardOf('new@ama.test') === '' && prepOf('new@ama.test') === '' && cbOf('new@ama.test') === '' && awOf('new@ama.test') === '', 'login and permissions in every app removed');
+db._t.app_permissions.push({ email: 'sam@ama.test', app: 'bb', perm: 'admin' });
 db._t.staff_admins.push({ email: 'sam@ama.test', added_by: 'seed' });   // now also a Staff admin, so Sam can manage logins
-r = await call(SAM, { action: 'roles', email: 'tate@ama.test', prep_roles: ['viewer'] });
+r = await call(SAM, { action: 'roles', email: 'tate@ama.test', bb_perms: ['view'] });
 ok(r.status === 200, 'another admin can change your roles when an admin remains');
-r = await call(SAM, { action: 'roles', email: 'sam@ama.test', prep_roles: ['viewer'] });
+r = await call(SAM, { action: 'roles', email: 'sam@ama.test', bb_perms: ['view'] });
 ok(r.status === 400, 'the last admin cannot be removed');
 
 console.log('\nDojang TV');
 const tvOf = e => db._t.tv_permissions.filter(x => x.email === e).map(x => x.permission).sort().join();
 r = await call(SAM, { action: 'list' });
 ok(r.body.tv_perms.join() === 'edit,slides,screens,party,remote' && Array.isArray(r.body.users[0].tv_perms), 'lists the TV permissions too');
-r = await call(SAM, { action: 'create', email: 'tvonly@ama.test', password: 'longenough', card_perms: [], prep_roles: [], tv_perms: ['remote', 'bogus'] });
+r = await call(SAM, { action: 'create', email: 'tvonly@ama.test', password: 'longenough', card_perms: [], bb_perms: [], tv_perms: ['remote', 'bogus'] });
 ok(r.status === 200 && tvOf('tvonly@ama.test') === 'remote' && cardOf('tvonly@ama.test') === '' && prepOf('tvonly@ama.test') === '', 'a login can have just the TV remote, and nothing in the other apps');
 r = await call(SAM, { action: 'roles', email: 'tvonly@ama.test', tv_perms: ['party', 'remote'] });
 ok(r.status === 200 && tvOf('tvonly@ama.test') === 'party,remote', 'party mode and the remote can be given together');
@@ -139,10 +145,10 @@ db._opts.hubMissing = false;
 
 console.log('\nNames, mobiles and logins without an email');
 const userOf = e => db._users.find(u => u.email === e);
-r = await call(SAM, { action: 'create', name: '  Alex   Kim ', mobile: '0433 111 222', prep_roles: ['attendance'] });
+r = await call(SAM, { action: 'create', name: '  Alex   Kim ', mobile: '0433 111 222', bb_perms: ['attendance'] });
 const alexEmail = 'hub-433111222@staff.amatoolkit.local';
 ok(r.status === 200 && r.body.hub_only && userOf(alexEmail) && userOf(alexEmail).user_metadata.full_name === 'Alex Kim', 'a login can be made with just a name and mobile');
-ok(db._t.hub_logins.some(x => x.email === alexEmail && x.mobile9 === '433111222') && prepOf(alexEmail) === 'attendance', '...linked to their hub mobile, with the permissions given');
+ok(db._t.hub_logins.some(x => x.email === alexEmail && x.mobile9 === '433111222') && prepOf(alexEmail) === 'attendance,view', '...linked to their hub mobile, with the permissions given');
 r = await call(SAM, { action: 'list' });
 const alexRow = r.body.users.find(u => u.email === alexEmail);
 ok(alexRow.name === 'Alex Kim' && alexRow.hub_only === true && alexRow.hub_mobile === '0433 111 222', 'the list shows their name, mobile and that they sign in with the hub');
@@ -180,26 +186,27 @@ ok(r.status === 403, 'only admins can add several');
 console.log('\nThe owner (superadmin)');
 await db.auth.admin.createUser({ email: 'boss@ama.test', password: 'password1' });
 db._t.staff_permissions.push({ email: 'boss@ama.test', permission: 'admin' });
-db._t.prep_roles.push({ email: 'boss@ama.test', role: 'admin' });
+db._t.app_permissions.push({ email: 'boss@ama.test', app: 'bb', perm: 'admin' });
 db._t.staff_admins.push({ email: 'boss@ama.test', added_by: 'seed' });   // Boss is a Staff admin too
 const BOSS = db._login('boss@ama.test');
 db._t.toolkit_owners = [{ email: 'tate@ama.test' }];
-for (const [t, col] of [['staff_permissions', 'permission'], ['prep_roles', 'role']]) if (!db._t[t].some(x => x.email === 'tate@ama.test' && x[col] === 'admin')) db._t[t].push({ email: 'tate@ama.test', [col]: 'admin' });
+if (!db._t.staff_permissions.some(x => x.email === 'tate@ama.test' && x.permission === 'admin')) db._t.staff_permissions.push({ email: 'tate@ama.test', permission: 'admin' });
+if (!db._t.app_permissions.some(x => x.email === 'tate@ama.test' && x.app === 'bb' && x.perm === 'admin')) db._t.app_permissions.push({ email: 'tate@ama.test', app: 'bb', perm: 'admin' });
 const tateCard = cardOf('tate@ama.test'), tatePrep = prepOf('tate@ama.test');
 r = await call(BOSS, { action: 'list' });
 ok(r.body.users.find(u => u.email === 'tate@ama.test').owner === true && !r.body.users.find(u => u.email === 'boss@ama.test').owner, 'the list marks the owner');
-for (const [body, what] of [[{ action: 'roles', email: 'tate@ama.test', card_perms: ['viewer'], prep_roles: ['viewer'] }, 'change their permissions'],
+for (const [body, what] of [[{ action: 'roles', email: 'tate@ama.test', card_perms: ['viewer'], bb_perms: ['view'] }, 'change their permissions'],
   [{ action: 'remove', email: 'tate@ama.test' }, 'remove their login'], [{ action: 'password', email: 'tate@ama.test', password: 'hijacked123' }, 'set their password'],
   [{ action: 'link', email: 'tate@ama.test' }, 'make a set-up link for them'], [{ action: 'details', email: 'tate@ama.test', name: 'Not Tate' }, 'rename them'],
   [{ action: 'hub', email: 'tate@ama.test', mobile: '0400999888' }, 'link a hub mobile to their login'],
-  [{ action: 'create', email: 'tate@ama.test', password: 'hijacked123', card_perms: [], prep_roles: [] }, 'overwrite them with Add login']]) {
+  [{ action: 'create', email: 'tate@ama.test', password: 'hijacked123', card_perms: [], bb_perms: [] }, 'overwrite them with Add login']]) {
   r = await call(BOSS, body);
   ok(r.status === 403 && /owner/.test(r.body.error), 'another admin can\'t ' + what);
 }
 ok(cardOf('tate@ama.test') === tateCard && prepOf('tate@ama.test') === tatePrep && userOf('tate@ama.test'), "the owner's access and login are untouched");
 r = await call(TATE, { action: 'details', email: 'tate@ama.test', name: 'Tate H' });
 ok(r.status === 200, 'the owner can still change their own login');
-r = await call(TATE, { action: 'roles', email: 'boss@ama.test', card_perms: ['admin', 'edit'], prep_roles: ['admin'] });
+r = await call(TATE, { action: 'roles', email: 'boss@ama.test', card_perms: ['admin', 'edit'], bb_perms: ['admin'] });
 ok(r.status === 200, 'the owner can still manage everyone else');
 db._t.toolkit_owners = [];
 
@@ -226,7 +233,7 @@ r = await call(JO, { action: 'list' });
 ok(r.status === 403, 'a removed Staff admin can no longer manage logins');
 
 console.log('\nAudit log');
-await call(TATE, { action: 'roles', email: 'jo@ama.test', card_perms: ['viewer'], prep_roles: ['instructor'] });
+await call(TATE, { action: 'roles', email: 'jo@ama.test', card_perms: ['viewer'], bb_perms: ['readiness'] });
 r = await call(TATE, { action: 'list' });
 ok(Array.isArray(r.body.audit) && r.body.audit.length > 0, 'the log records changes');
 ok(r.body.audit.some(e => e.action === 'roles' && e.target_email === 'jo@ama.test' && e.actor_email === 'tate@ama.test'), 'each entry has who did what to whom');

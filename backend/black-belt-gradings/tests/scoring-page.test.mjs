@@ -25,6 +25,7 @@ await db.exec(read(join(here, '../supabase/prep-update-25.sql')));
 await db.exec(`insert into prep_roles (email, role) values ('jo@ama.test','instructor');
   insert into prep_students (full_name, certificate_name, belt_rank) values ('Alex Smith','Alexandra Smith','Cho Dan Bo'), ('Ben Tran',null,'Probationary Black Belt'), ('Cara Lee',null,'1st Dan Level 1');
   insert into prep_cycles (name, start_date, end_date, status, grading_date) values ('December 2026', current_date - 60, current_date + 7, 'active', current_date + 7);`);
+await db.exec(read(join(here, '../../toolkit/supabase/app-permissions.sql')));   // per-feature permissions (Staff logins), from the roles above
 const cid = (await db.query(`select cycle_id from prep_cycles`)).rows[0].cycle_id;
 await db.query(`insert into prep_enrolments (cycle_id, student_id, is_grading) select $1, student_id, true from prep_students`, [cid]);
 await db.query(`insert into prep_grading (student_id, cycle_id, grading_event, current_rank, target_rank, eligibility_decision, decision_reason, status)

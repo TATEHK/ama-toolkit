@@ -1,5 +1,6 @@
 // @ts-nocheck
-// AMA Toolkit: staff logins for AMA ID Cards, Black Belt Gradings and the dojang TV, in one place.
+// AMA Toolkit: staff logins for AMA ID Cards, Coloured Belts, Black Belt Gradings, Long Service Awards and the dojang TV, in one place.
+// The three grading apps have per-feature permissions (table app_permissions, supabase/app-permissions.sql).
 //
 // Deploy in Supabase: Edge Functions > Deploy a new function > Via Editor, name it "staff",
 // paste this whole file, Deploy. Then turn OFF "Verify JWT with legacy secret" (or "Enforce JWT verification") for the function
@@ -26,17 +27,22 @@
 // TV permissions need supabase/tv-setup.sql from this repository (until then they're left out).
 
 export const CARD_PERMS = ['admin', 'edit', 'delete', 'send', 'approve', 'viewer', 'printer'];
-export const PREP_ROLES = ['admin', 'instructor', 'attendance', 'payments', 'grading', 'certificates', 'idcards', 'viewer'];
 export const TV_PERMS = ['edit', 'slides', 'screens', 'party', 'remote'];
+// Per-feature permissions for each grading app (table app_permissions, supabase/app-permissions.sql). "admin" = everything in that app.
+export const BB_PERMS = ['admin', 'view', 'attendance', 'readiness', 'grading', 'scoring', 'payments', 'texts', 'certificates', 'idcards', 'polos', 'settings'];
+export const CB_PERMS = ['admin', 'view', 'days', 'readiness', 'texts', 'payments', 'results', 'calls', 'settings'];
+export const AW_PERMS = ['admin', 'view', 'edit'];
 export const WELCOME_URL = 'https://app.train-ama.com/welcome/';
 // "AMA ID Cards, Black Belt Gradings and the dojang TV" (shown on the welcome page)
 // The welcome page signs them in with this one-time code, then they choose a password
 const setupLink = (data, type) => `${WELCOME_URL}#token_hash=${encodeURIComponent(data.properties.hashed_token)}&type=${type}`;
-const appNames = (card, prep, tv) => { const l = [card && card.length && 'AMA ID Cards', prep && prep.length && 'Black Belt Gradings', tv && tv.length && 'the dojang TV'].filter(Boolean);
+const appNames = (card, bb, tv, cb, aw) => { const l = [card && card.length && 'AMA ID Cards', cb && cb.length && 'Coloured Belts', bb && bb.length && 'Black Belt Gradings', aw && aw.length && 'Long Service Awards', tv && tv.length && 'the dojang TV'].filter(Boolean);
   return l.length <= 1 ? (l[0] || 'the AMA Toolkit') : l.slice(0, -1).join(', ') + ' and ' + l[l.length - 1]; };
 const APPS = {
   card: { table: 'staff_permissions', col: 'permission', allowed: CARD_PERMS, name: 'AMA ID Cards' },
-  prep: { table: 'prep_roles', col: 'role', allowed: PREP_ROLES, name: 'Black Belt Gradings' },
+  bb: { table: 'app_permissions', col: 'perm', app: 'bb', allowed: BB_PERMS, name: 'Black Belt Gradings' },
+  cb: { table: 'app_permissions', col: 'perm', app: 'cb', allowed: CB_PERMS, name: 'Coloured Belts' },
+  aw: { table: 'app_permissions', col: 'perm', app: 'awards', allowed: AW_PERMS, name: 'Long Service Awards' },
   tv: { table: 'tv_permissions', col: 'permission', allowed: TV_PERMS, name: 'Dojang TV' }
 };
 
@@ -70,22 +76,25 @@ async function allUsers(db) {
 const findUser = async (db, email) => (await allUsers(db)).find(u => (u.email || '').toLowerCase() === email) || null;
 const clean = (list, allowed) => [...new Set((list || []).filter(r => allowed.includes(r)))];
 const cardWantOf = b => b.card_perms === undefined ? undefined : clean(b.card_perms, CARD_PERMS);
-const prepWantOf = b => b.prep_roles === undefined ? undefined : clean(b.prep_roles, PREP_ROLES);
+// An app's ticks: admin covers everything, so it's kept on its own; any tick also means they can open the app ("view")
+const featWant = (list, allowed) => { if (list === undefined) return undefined; const l = clean(list, allowed); return l.includes('admin') ? ['admin'] : l.length && !l.includes('view') ? ['view', ...l] : l; };
+const bbWantOf = b => featWant(b.bb_perms, BB_PERMS), cbWantOf = b => featWant(b.cb_perms, CB_PERMS), awWantOf = b => featWant(b.aw_perms, AW_PERMS);
+const GRADING_APPS = [['bb', bbWantOf], ['cb', cbWantOf], ['aw', awWantOf]];
 // "TV editor" includes party mode and the remote, so it's kept on its own
 const tvWantOf = (b, ready) => b.tv_perms === undefined || !ready ? undefined : (l => l.includes('edit') ? ['edit'] : l)(clean(b.tv_perms, TV_PERMS));
 
 // Make one app's permissions for this email exactly "want" (adds first, so an admin is never lost half way)
 async function setPerms(db, app, email, want) {
-  const A = APPS[app];
+  const A = APPS[app], scope = q => A.app ? q.eq('app', A.app) : q;
   if (want.length) {
-    const { error } = await db.from(A.table).upsert(want.map(v => ({ email, [A.col]: v })), { onConflict: `email,${A.col}`, ignoreDuplicates: true });
+    const { error } = await db.from(A.table).upsert(want.map(v => ({ email, [A.col]: v, ...(A.app ? { app: A.app } : {}) })), { onConflict: A.app ? `email,app,${A.col}` : `email,${A.col}`, ignoreDuplicates: true });
     if (error) throw error;
   }
-  const { data: have, error: e2 } = await db.from(A.table).select(A.col).eq('email', email);
+  const { data: have, error: e2 } = await scope(db.from(A.table).select(A.col).eq('email', email));
   if (e2) throw e2;
   const drop = (have || []).map(r => r[A.col]).filter(v => !want.includes(v));
   if (drop.length) {
-    const { error } = await db.from(A.table).delete().eq('email', email).in(A.col, drop);
+    const { error } = await scope(db.from(A.table).delete().eq('email', email)).in(A.col, drop);
     if (error) throw error;
   }
 }
@@ -94,7 +103,9 @@ async function setPerms(db, app, email, want) {
 async function lastAdmin(db, app, email, want) {
   if (want.includes('admin')) return null;
   const A = APPS[app];
-  const { data } = await db.from(A.table).select('email').eq(A.col, 'admin');
+  let q = db.from(A.table).select('email').eq(A.col, 'admin'); if (A.app) q = q.eq('app', A.app);
+  const { data } = await q;
+  if (!(data || []).some(r => r.email === email)) return null;   // not an admin there now: nothing to lose
   return (data || []).some(r => r.email !== email) ? null : `${A.name} must keep at least one admin.`;
 }
 
@@ -132,14 +143,14 @@ export async function handle(req, db) {
     const staffAdmins = new Set(saRes.error ? [] : (saRes.data || []).map(r => String(r.email).toLowerCase()));
 
     if (action === 'list') {
-      const [users, cardRes, prepRes, tvRes] = await Promise.all([allUsers(db), db.from('staff_permissions').select('email, permission'), db.from('prep_roles').select('email, role'),
+      const [users, cardRes, appRes, tvRes] = await Promise.all([allUsers(db), db.from('staff_permissions').select('email, permission'), db.from('app_permissions').select('email, app, perm'),
         tvReady ? db.from('tv_permissions').select('email, permission') : Promise.resolve({ data: [] })]);
       if (cardRes.error) throw cardRes.error;
-      if (prepRes.error) throw prepRes.error;
+      if (appRes.error) throw appRes.error;
       if (tvRes.error) throw tvRes.error;
-      const card = new Map(), prep = new Map(), tv = new Map();
+      const card = new Map(), tv = new Map(), feat = { bb: new Map(), cb: new Map(), awards: new Map() };
       (cardRes.data || []).forEach(r => card.set(r.email, [...(card.get(r.email) || []), r.permission]));
-      (prepRes.data || []).forEach(r => prep.set(r.email, [...(prep.get(r.email) || []), r.role]));
+      (appRes.data || []).forEach(r => { const m = feat[r.app]; if (m) m.set(r.email, [...(m.get(r.email) || []), r.perm]); });
       (tvRes.data || []).forEach(r => tv.set(r.email, [...(tv.get(r.email) || []), r.permission]));
       const order = (list, all) => (list || []).sort((a, b) => all.indexOf(a) - all.indexOf(b));
       // setup_pending: made with a set-up link that hasn't been used yet (the welcome page clears it)
@@ -147,17 +158,18 @@ export async function handle(req, db) {
       const row = (email, u) => ({ email, has_login: !!u, created_at: u ? u.created_at : null, last_sign_in_at: u && u.last_sign_in_at || null,
         name: meta(u).full_name || null, hub_only: email.endsWith(HUB_DOMAIN),
         setup_pending: meta(u).setup_pending === true, setup_at: meta(u).setup_at || null,
-        card_perms: order(card.get(email), CARD_PERMS), prep_roles: order(prep.get(email), PREP_ROLES), tv_perms: order(tv.get(email), TV_PERMS),
+        card_perms: order(card.get(email), CARD_PERMS), tv_perms: order(tv.get(email), TV_PERMS),
+        bb_perms: order(feat.bb.get(email), BB_PERMS), cb_perms: order(feat.cb.get(email), CB_PERMS), aw_perms: order(feat.awards.get(email), AW_PERMS),
         hub_mobile: showMobile(hubOf.get(email)) });
       const rows = users.filter(u => u.email).map(u => row(u.email.toLowerCase(), u));
       const seen = new Set(rows.map(r => r.email));
       // Permissions given to an email that has no login yet
-      new Set([...card.keys(), ...prep.keys(), ...tv.keys()]).forEach(email => { if (!seen.has(email)) rows.push(row(email, null)); });
+      new Set([...card.keys(), ...feat.bb.keys(), ...feat.cb.keys(), ...feat.awards.keys(), ...tv.keys()]).forEach(email => { if (!seen.has(email)) rows.push(row(email, null)); });
       rows.sort((a, b) => a.email.localeCompare(b.email));
       rows.forEach(r => { r.owner = owners.has(r.email); r.staff_admin = staffAdmins.has(r.email) || owners.has(r.email); });
       // Recent activity (newest first), for the log on the Staff logins page
       const { data: log } = await db.from('toolkit_audit').select('at, actor_email, action, target_email, detail').order('at', { ascending: false }).limit(100);
-      return json({ me, me_owner: owners.has(me), me_staff_admin: true, users: rows, card_perms: CARD_PERMS, prep_roles: PREP_ROLES,
+      return json({ me, me_owner: owners.has(me), me_staff_admin: true, users: rows, card_perms: CARD_PERMS, bb_perms: BB_PERMS, cb_perms: CB_PERMS, aw_perms: AW_PERMS,
         tv_perms: tvReady ? TV_PERMS : null, hub: hubReady, audit: log || [] });
     }
 
@@ -174,7 +186,7 @@ export async function handle(req, db) {
       const { error } = await db.auth.admin.createUser({ email, password: randomPassword(), email_confirm: true, user_metadata: { full_name: name, hub_only: true } });
       if (error) throw error;
       await setPerms(db, 'card', email, perms.card || []);
-      await setPerms(db, 'prep', email, perms.prep || []);
+      for (const app of ['bb', 'cb', 'aw']) await setPerms(db, app, email, perms[app] || []);
       if (tvReady) await setPerms(db, 'tv', email, perms.tv || []);
       await linkMobile(email, m);
       return email;
@@ -214,14 +226,16 @@ export async function handle(req, db) {
       if (!mobile || mobile.length !== 9) return fail('Enter their mobile, or an email.');
       const clash = mobileClash(mobile, null);
       if (clash) return fail(`That mobile already belongs to ${whoIs(clash)}.`);
-      const made = await makeHubOnly(name, mobile, { card: cardWantOf(body), prep: prepWantOf(body), tv: tvWantOf(body, tvReady) });
+      const made = await makeHubOnly(name, mobile, { card: cardWantOf(body), bb: bbWantOf(body), cb: cbWantOf(body), aw: awWantOf(body), tv: tvWantOf(body, tvReady) });
       await audit('create', made, { hub_only: true });
       return json({ ok: true, existed: false, email: made, hub_only: true });
     }
     if (!validEmail(email)) return fail('Enter a valid email address.');
     if (owners.has(email) && email !== me) return fail("This is the owner's login. Only they can change it.", 403);
     const password = String(body.password || '');
-    const cardWant = cardWantOf(body), prepWant = prepWantOf(body), tvWant = tvWantOf(body, tvReady);
+    const cardWant = cardWantOf(body), tvWant = tvWantOf(body, tvReady);
+    const appWant = Object.fromEntries(GRADING_APPS.map(([app, f]) => [app, f(body)]));
+    const setGrading = async (empty) => { for (const [app] of GRADING_APPS) if (appWant[app] !== undefined || empty) await setPerms(db, app, email, appWant[app] || []); };
 
     if (action === 'create') {
       if (mobile && hubReady) { const clash = mobileClash(mobile, email); if (clash) return fail(`That mobile already belongs to ${whoIs(clash)}.`); }
@@ -231,9 +245,9 @@ export async function handle(req, db) {
       if (!existing && body.invite === true) {
         // Permissions first (an email can have them before it has a login), then the onboarding email
         await setPerms(db, 'card', email, cardWant || []);
-        await setPerms(db, 'prep', email, prepWant || []);
+        await setGrading(true);
         if (tvReady) await setPerms(db, 'tv', email, tvWant || []);
-        const { data, error } = await db.auth.admin.generateLink({ type: 'invite', email, options: { data: { apps: appNames(cardWant, prepWant, tvWant), invited_by: me, setup_pending: true, ...(name ? { full_name: name } : {}) } } });
+        const { data, error } = await db.auth.admin.generateLink({ type: 'invite', email, options: { data: { apps: appNames(cardWant, appWant.bb, tvWant, appWant.cb, appWant.aw), invited_by: me, setup_pending: true, ...(name ? { full_name: name } : {}) } } });
         if (error) return fail(`The permissions are saved, but the login wasn't made: ${error.message}`);
         if (mobile && hubReady) await linkMobile(email, mobile);
         await audit('create', email, { invite: true });
@@ -249,7 +263,7 @@ export async function handle(req, db) {
         if (error) return fail(error.message);
       }
       await setPerms(db, 'card', email, cardWant || []);
-      await setPerms(db, 'prep', email, prepWant || []);
+      await setGrading(true);
       if (tvReady) await setPerms(db, 'tv', email, tvWant || []);
       await extras();
       await audit('create', email, { existed: !!existing });
@@ -327,24 +341,25 @@ export async function handle(req, db) {
     }
 
     if (action === 'roles') {
-      if (email === me && ((cardWant && !cardWant.includes('admin')) || (prepWant && !prepWant.includes('admin'))))
+      if (email === me && ((cardWant && !cardWant.includes('admin')) || (appWant.bb && !appWant.bb.includes('admin'))))
         return fail("You can't remove your own admin access.");
-      for (const [app, want] of [['card', cardWant], ['prep', prepWant]]) {
+      for (const [app, want] of [['card', cardWant], ['bb', appWant.bb], ['cb', appWant.cb], ['aw', appWant.aw]]) {
         if (!want) continue;
         const last = await lastAdmin(db, app, email, want);
         if (last) return fail(last);
       }
       if (cardWant) await setPerms(db, 'card', email, cardWant);
-      if (prepWant) await setPerms(db, 'prep', email, prepWant);
+      await setGrading(false);
       if (tvWant) await setPerms(db, 'tv', email, tvWant);
-      await audit('roles', email, { card: cardWant, prep: prepWant, tv: tvWant });
+      await audit('roles', email, { card: cardWant, bb: appWant.bb, cb: appWant.cb, awards: appWant.aw, tv: tvWant });
       return json({ ok: true });
     }
 
     if (action === 'remove') {
       if (email === me) return fail("You can't remove yourself.");
-      for (const app of ['card', 'prep']) { const last = await lastAdmin(db, app, email, []); if (last) return fail(last); }
-      await setPerms(db, 'prep', email, []);
+      for (const app of ['card', 'bb', 'cb', 'aw']) { const last = await lastAdmin(db, app, email, []); if (last) return fail(last); }
+      for (const app of ['bb', 'cb', 'aw']) await setPerms(db, app, email, []);
+      await db.from('prep_roles').delete().eq('email', email);   // older roles, filled in from Black Belt permissions
       await setPerms(db, 'card', email, []);
       if (tvReady) await setPerms(db, 'tv', email, []);
       await db.from('staff_roles').delete().eq('email', email); // old single roles, if still there

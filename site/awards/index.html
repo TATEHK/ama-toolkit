@@ -168,7 +168,7 @@
       <button class="btn primary" id="siGo" type="submit">Sign in</button>
     </form>
   </section>
-  <section id="noAccess" class="panel" hidden><h2>No access yet</h2><p class="sub">Long service awards are for instructors, grading and payments staff. Ask an admin to tick one of those for you in Staff logins.</p></section>
+  <section id="noAccess" class="panel" hidden><h2>No access yet</h2><p class="sub">Ask a Staff admin to tick Long Service Awards for you on Staff logins.</p></section>
   <p id="loading" class="sub">Loading…</p>
   <section id="app" class="view" hidden></section>
 </main>
@@ -197,7 +197,8 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const dlg = $('#dlg');
 const state = { roles: [], members: [], awards: {}, leeway: 2, lastRun: null, round: null, q: '', school: '', years: '', flagged: false };
 const has = (...r) => state.roles.includes('admin') || r.some(x => state.roles.includes(x));
-const canEdit = () => has('instructor', 'grading');
+// Long Service Awards permissions (Staff logins; app_permissions 'awards'): view, edit, admin
+const canEdit = () => has('edit');
 
 let toastTimer;
 function toast(msg, ms = 3500) {
@@ -655,9 +656,9 @@ async function start() {
   $('#loading').hidden = true;
   if (!session) { $('#signIn').hidden = false; $('#app').hidden = $('#noAccess').hidden = true; $('#signOut').hidden = $('#settingsBtn').hidden = true; return; }
   $('#signIn').hidden = true; $('#signOut').hidden = false;
-  const { data } = await sb.rpc('prep_my_roles');
+  const { data } = await sb.rpc('app_my_perms', { p_app: 'awards' });
   state.roles = data || [];
-  if (!has('instructor', 'grading', 'payments')) { $('#noAccess').hidden = false; return; }
+  if (!state.roles.length) { $('#noAccess').hidden = false; return; }
   $('#settingsBtn').hidden = !state.roles.includes('admin');
   await load();
 }

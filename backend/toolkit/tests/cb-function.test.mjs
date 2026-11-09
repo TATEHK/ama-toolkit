@@ -25,6 +25,8 @@ const t = {
   efc_members: [{ member_key: 'efc:m1', efc_reference: 'AU-023-1', full_name: 'Sam Lee', guardian_name: 'Pat Lee', phone: '0412 345 678', guardian_phone: null, email: 'pat@example.test', guardian_email: null },
                 { member_key: 'efc:m2', efc_reference: 'AU-256-2', full_name: 'Kim Ng', guardian_name: 'Jo Ng', phone: null, guardian_phone: null, email: null, guardian_email: null }],
   prep_roles: [{ email: 'grader@ama.test', role: 'grading' }, { email: 'coach@ama.test', role: 'instructor' }, { email: 'desk@ama.test', role: 'attendance' }],
+  // Coloured Belts permissions (app_permissions): grading staff, an instructor, and someone with Black Belt attendance only (nothing in Coloured Belts)
+  app_permissions: [{ email: 'grader@ama.test', app: 'cb', perm: 'view' }, { email: 'grader@ama.test', app: 'cb', perm: 'days' }, { email: 'grader@ama.test', app: 'cb', perm: 'readiness' }, { email: 'grader@ama.test', app: 'cb', perm: 'texts' }, { email: 'grader@ama.test', app: 'cb', perm: 'payments' }, { email: 'grader@ama.test', app: 'cb', perm: 'results' }, { email: 'grader@ama.test', app: 'cb', perm: 'calls' }, { email: 'coach@ama.test', app: 'cb', perm: 'view' }, { email: 'coach@ama.test', app: 'cb', perm: 'readiness' }, { email: 'coach@ama.test', app: 'cb', perm: 'calls' }],
   cb_messages: [],
   cb_payments: []
 };

@@ -189,7 +189,7 @@ const tables = () => ({
     { member_key: 'efc:2', full_name: 'Kim Ng', guardian_name: 'Jo Ng', phone: '0412 000 111', email: null },
     { member_key: 'efc:3', full_name: 'Black Belt', guardian_name: 'BB Parent', phone: '0499 999 999' }],
   cb_belts: [{ programme: 'Taekwondo', belt: 'Yellow Belt', fee: 55 }],
-  cb_seq_log: [], cb_messages: [], cb_calls: [], cb_outbox: [], cb_prep_bookings: [], cb_skip: [], prep_roles: [{ email: 'grader@ama.test', role: 'grading' }, { email: 'boss@ama.test', role: 'admin' }]
+  cb_seq_log: [], cb_messages: [], cb_calls: [], cb_outbox: [], cb_prep_bookings: [], cb_skip: [], prep_roles: [{ email: 'grader@ama.test', role: 'grading' }, { email: 'boss@ama.test', role: 'admin' }], app_permissions: [{ email: 'grader@ama.test', app: 'cb', perm: 'view' }, { email: 'grader@ama.test', app: 'cb', perm: 'days' }, { email: 'grader@ama.test', app: 'cb', perm: 'readiness' }, { email: 'grader@ama.test', app: 'cb', perm: 'texts' }, { email: 'grader@ama.test', app: 'cb', perm: 'payments' }, { email: 'grader@ama.test', app: 'cb', perm: 'results' }, { email: 'grader@ama.test', app: 'cb', perm: 'calls' }, { email: 'boss@ama.test', app: 'cb', perm: 'admin' }]
 });
 const call = (db, body, headers = {}) => handle(new Request('https://x.test/functions/v1/cb', { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) }), db, env, http).then(async r => ({ status: r.status, body: await r.json() }));
 const cron = db => call(db, { action: 'sequence' }, { 'x-cb-cron': 'cron-secret' });
@@ -326,6 +326,39 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   const before = ghlCalls.filter(c => c.body && c.body.type === 'SMS').length;
   const r = await handle(new Request('https://x.test/functions/v1/cb', { method: 'POST', headers: { 'content-type': 'application/json', 'x-cb-cron': 'cron-secret' }, body: JSON.stringify({ action: 'sequence' }) }), cap, env, http).then(r => r.json());
   ok(ghlCalls.filter(c => c.body && c.body.type === 'SMS').length - before === 1 && r.waiting === 1, 'invitation texts stop at the daily cap; the rest wait');
+}
+// "No" or "can't make it": offer the other gradings for their belt and age; replying 1 moves them and sends the link
+{
+  console.log('\nAnother grading instead');
+  const T = tables();
+  T.cb_days = [
+    { day_id: 'mk', location: 'Marrickville', grading_date: '2026-12-08', start_time: '17:15', programme: 'Taekwondo', closed: false, bb: false, belt_times: {}, belts: ['Yellow Belt'], max_age: 12 },
+    { day_id: 'co', location: 'Concord', grading_date: '2026-12-01', start_time: '16:00', programme: 'Taekwondo', closed: false, bb: false, belt_times: {}, belts: ['White Belt', 'Yellow Belt', 'Orange Belt', 'Green Belt'] },
+    { day_id: 'teen', location: 'Marrickville', grading_date: '2026-12-08', start_time: '18:30', programme: 'Taekwondo', closed: false, bb: false, belt_times: {}, belts: ['White Belt', 'Yellow Belt'], min_age: 13 },
+    { day_id: 'we', location: 'West', grading_date: '2026-12-11', start_time: '17:00', programme: 'Taekwondo', closed: false, bb: false, belt_times: {}, efc_belt_sessions: { 'Yellow Belt': 'S1' } },
+    { day_id: 'hi', location: 'West', grading_date: '2026-12-11', start_time: '18:45', programme: 'Taekwondo', closed: false, bb: false, belt_times: {}, belts: ['Blue Belt'] },
+    { day_id: 'shut', location: 'Sylvania', grading_date: '2026-12-02', start_time: '16:00', programme: 'Taekwondo', closed: false, bb: false, belt_times: {}, book_by: '2026-11-01T00:00:00Z' }];
+  T.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z', school: 'Marrickville' }];
+  T.efc_members[0].date_of_birth = '2017-03-01';   // 9 years old
+  const alt = makeDb(T); Date.now = () => at('2026-11-10', '12:00');
+  const n0 = ghlCalls.length;
+  const r1 = await call(alt, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Sorry, we can't make that one" });
+  const offer = ghlCalls.slice(n0).find(c => c.body && c.body.type === 'SMS');
+  ok(r1.body.no && r1.body.offered === 2 && r1.body.days.join() === 'co,we', 'offers the other gradings for their belt and age: not the teens session, a higher belt group or one whose bookings have closed');
+  ok(offer && /1\. Tue 1 Dec 4:00pm at AMA Concord\n2\. Fri 11 Dec 5:00pm at AMA West/.test(offer.body.message) && /Reply 1 or 2 to switch/.test(offer.body.message), 'the text lists them by number');
+  ok(alt.t.cb_entries[0].alt_offer.days.join() === 'co,we' && alt.t.cb_messages.some(m => m.kind === 'alt_offer'), 'the offer is saved and logged');
+  const n1 = ghlCalls.length;
+  const r2 = await call(alt, { action: 'reply', key: 'rk', phone: '0412 345 678', message: '2' });
+  const link = ghlCalls.slice(n1).find(c => c.body && c.body.type === 'SMS');
+  ok(r2.body.moved === 1 && alt.t.cb_entries[0].day_id === 'we' && alt.t.cb_entries[0].moved_from_day === 'mk' && !alt.t.cb_entries[0].alt_offer, 'replying 2 moves them to that grading');
+  ok(link && link.body.message === 'OFFICIAL Sam https://app.train-ama.com/b#TOK', 'and texts the booking link');
+  const r3 = await call(alt, { action: 'reply', key: 'rk', phone: '0412 345 678', message: '1' });
+  ok(!r3.body.moved, 'a number with no offer waiting does nothing');
+  // Nothing suits: no offer (the call to the family still happens)
+  const T2 = tables(); T2.cb_days = [T.cb_days[0], T.cb_days[4]]; T2.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z' }];
+  const none = makeDb(T2), n2 = ghlCalls.length;
+  const r4 = await call(none, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'No' });
+  ok(r4.body.no && r4.body.offered === 0 && ghlCalls.length === n2, 'when no other grading suits, nothing is texted');
 }
 Date.now = realNow;
 

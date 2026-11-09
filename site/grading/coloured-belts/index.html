@@ -425,7 +425,9 @@ const dlg = $('#dlg');
 const state = { roles: [], me: '', students: [], belts: [], settings: {}, days: [], entries: [], messages: [], view: 'ready', day: null, resultsMode: false, photosMode: false, checkinMode: false,
   all: { students: [], belts: [], days: [], entries: [] }, programmes: [], programme: (() => { try { return localStorage.getItem('cb_programme') || 'Taekwondo'; } catch (e) { return 'Taekwondo'; } })() };
 const has = (...r) => state.roles.includes('admin') || r.some(x => state.roles.includes(x));
-const canApprove = () => has('instructor', 'grading'), canGrade = () => has('grading'), canPay = () => has('grading', 'payments'), isAdmin = () => state.roles.includes('admin');
+// Coloured Belts permissions (Staff logins; app_permissions 'cb'). Admin has them all. The database checks every one too.
+const canApprove = () => has('readiness'), canDays = () => has('days'), canTexts = () => has('texts'), canResults = () => has('results'), canPay = () => has('payments'),
+  canGrade = () => has('days'), isAdmin = () => has('settings');
 
 let toastTimer;
 function toast(msg, ms = 4000) {
@@ -751,7 +753,7 @@ function openStudent(key, prog) {
       <dt>School</dt><dd>${esc(s.location)}${isAll() ? ', ' + esc(progLabel(P)) : ''}${s.efc_reference ? ` <span class="hint">${esc(s.efc_reference)}</span>` : ''}</dd>
       ${contactRows(s)}
     </dl>
-    ${canGrade() ? '<div class="row"><button class="btn sm" id="editContact">Edit mobile or email</button></div>' : ''}
+    ${canDays() ? '<div class="row"><button class="btn sm" id="editContact">Edit mobile or email</button></div>' : ''}
     ${hist.length ? `<div class="section"><h3>Gradings</h3><ul class="list">${hist.map(x => `<li><button type="button" class="item" data-gday="${esc(x.d.day_id)}"><div class="main"><div class="name">${esc(fmtDate(x.d.grading_date))}</div><div class="meta">${esc(x.d.location)}, to ${esc(toText(x.e))}</div></div><span class="tags">${x.e.result ? `<span class="tag ${x.e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[x.e.result]}</span>` : x.e.booked_at ? '<span class="tag ok">Booked</span>' : x.e.yes_at ? '<span class="tag ok">Said YES</span>' : x.e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Added</span>'}</span></button></li>`).join('')}</ul></div>` : ''}
   </div>`);
   const decide = async status => {
@@ -1002,23 +1004,23 @@ function renderDay() {
   const cnt = (label, list) => `${label}${list.length ? ` (${list.length})` : ''}`;
   // What to do, in order: before the day, on the day, after. It opens on the one that fits the date.
   const stages = [];
-  if (canGrade() && !d.closed) stages.push(['before', 'Before', `
-      <button class="btn primary wide" id="addReady">Add everyone marked ready</button><button class="btn" id="addOne">Add a student</button>
-      ${seqOnFor(d) ? `<button class="btn" id="seqBtn">Booking sequence${notInvited.length ? ` (${notInvited.length} to invite)` : ''}</button>`
+  if ((canDays() || canTexts()) && !d.closed) stages.push(['before', 'Before', `
+      ${canDays() ? '<button class="btn primary wide" id="addReady">Add everyone marked ready</button><button class="btn" id="addOne">Add a student</button>' : ''}
+      ${!canTexts() ? '' : seqOnFor(d) ? `<button class="btn" id="seqBtn">Booking sequence${notInvited.length ? ` (${notInvited.length} to invite)` : ''}</button>`
         : `<button class="btn${notInvited.length ? ' primary' : ''}" id="sendInv" ${notInvited.length ? '' : 'disabled'}>${cnt('Invite', notInvited)}</button>${state.seqReady && !d.bb ? '<button class="btn" id="seqBtn">Booking sequence</button>' : ''}`}
-      <button class="btn" id="sendNotBooked" ${notBooked.length ? '' : 'disabled'}>${cnt('Remind to book', notBooked)}</button>
+      ${canTexts() ? `<button class="btn" id="sendNotBooked" ${notBooked.length ? '' : 'disabled'}>${cnt('Remind to book', notBooked)}</button>
       <button class="btn" id="sendReminder" ${booked.length ? '' : 'disabled'}>${cnt('Grading day reminder', booked)}</button>
-      <button class="btn" id="sendUnpaid" ${unpaid.length ? '' : 'disabled'}>${cnt('Fee reminder', unpaid)}</button>`]);
-  if (canApprove() && es.length) stages.push(['day', 'On the day', `
+      <button class="btn" id="sendUnpaid" ${unpaid.length ? '' : 'disabled'}>${cnt('Fee reminder', unpaid)}</button>` : ''}`]);
+  if ((canApprove() || canResults()) && es.length) stages.push(['day', 'On the day', `
       <button class="btn primary wide" id="checkinBtn">Check in students</button>
-      ${canGrade() ? `<button class="btn" id="resultsBtn">Enter results</button><button class="btn" id="photosBtn">Take photos${n(e => e.photo_path) ? ` (${n(e => e.photo_path)} of ${n(e => e.result !== 'retest')})` : ''}</button>` : ''}
+      ${canResults() ? `<button class="btn" id="resultsBtn">Enter results</button><button class="btn" id="photosBtn">Take photos${n(e => e.photo_path) ? ` (${n(e => e.photo_path)} of ${n(e => e.result !== 'retest')})` : ''}</button>` : ''}
       <button class="btn" id="lineupBtn">Print line-up sheet</button>`]);
-  if (canGrade() && es.length) stages.push(['after', 'After', `
-      <button class="btn${toCongrats.length ? ' primary' : ''}" id="sendCongrats" ${toCongrats.length ? '' : 'disabled'}>${cnt('Text congratulations', toCongrats)}</button>
-      <button class="btn" id="sendRetest" ${toRetest.length ? '' : 'disabled'}>${cnt('Text fails', toRetest)}</button>
-      <button class="btn" id="sendPhotos" ${toPhoto.length ? '' : 'disabled'}>${cnt('Text photos', toPhoto)}</button>
+  if ((canTexts() || canDays() || canResults()) && es.length) stages.push(['after', 'After', `
+      ${canTexts() ? `<button class="btn${toCongrats.length ? ' primary' : ''}" id="sendCongrats" ${toCongrats.length ? '' : 'disabled'}>${cnt('Text congratulations', toCongrats)}</button>
+      <button class="btn" id="sendRetest" ${toRetest.length ? '' : 'disabled'}>${cnt('Text fails', toRetest)}</button>` : ''}
+      ${canTexts() || canResults() ? `<button class="btn" id="sendPhotos" ${toPhoto.length ? '' : 'disabled'}>${cnt('Text photos', toPhoto)}</button>` : ''}
       <button class="btn" id="csvPassed" ${passed.length ? '' : 'disabled'}>Certificates CSV</button>
-      <button class="btn" id="closeDay">${d.closed ? 'Reopen this day' : 'Mark finished'}</button>`]);
+      ${canDays() ? `<button class="btn" id="closeDay">${d.closed ? 'Reopen this day' : 'Mark finished'}</button>` : ''}`]);
   const auto = d.closed || n(e => e.result) ? 'after' : d.grading_date <= today() ? 'day' : 'before';
   const stage = (stages.find(x => x[0] === dayFilt.stage) || stages.find(x => x[0] === auto) || stages[0] || [])[0];
   const fromCap = fromText(d) ? fromText(d)[0].toUpperCase() + fromText(d).slice(1) : '';
@@ -1114,13 +1116,13 @@ function openEntry(id) {
     </dl>
     <div class="row">
       ${canPay() && !e.paid ? '<button class="btn primary" id="recordPay">Record payment</button>' : ''}
-      ${canGrade() && e.efc_by_hand && !e.efc_by_hand_done_at ? '<button class="btn primary" id="byHandDone">Done in EFC</button>' : ''}
-      ${canGrade() && !e.booked_at ? '<button class="btn" id="markBooked">Mark booked</button>' : ''}
+      ${canDays() && e.efc_by_hand && !e.efc_by_hand_done_at ? '<button class="btn primary" id="byHandDone">Done in EFC</button>' : ''}
+      ${canDays() && !e.booked_at ? '<button class="btn" id="markBooked">Mark booked</button>' : ''}
       ${canPay() && e.paid && e.paid_how !== 'card' ? '<button class="btn" id="paidBtn">Mark unpaid</button>' : ''}
-      ${canGrade() && e.booked_at ? '<button class="btn" id="unbook">Clear booking</button>' : ''}
-      ${s && canGrade() ? '<button class="btn" id="editContact">Edit mobile or email</button>' : ''}</div>
+      ${canDays() && e.booked_at ? '<button class="btn" id="unbook">Clear booking</button>' : ''}
+      ${s && canDays() ? '<button class="btn" id="editContact">Edit mobile or email</button>' : ''}</div>
     <div class="section"><h3>Booking link</h3><div class="linkbox">${esc(bookingLink(e))}</div>
-      <div class="row"><button class="btn sm" id="copyLink">Copy link</button>${canGrade() && !e.result && !(e.booked_at && e.paid) ? '<button class="btn sm" id="newLink">Issue new link</button>' : ''}</div>
+      <div class="row"><button class="btn sm" id="copyLink">Copy link</button>${canDays() && !e.result && !(e.booked_at && e.paid) ? '<button class="btn sm" id="newLink">Issue new link</button>' : ''}</div>
       ${e.late_ok_until && new Date(e.late_ok_until) > new Date() ? `<p class="hint">Late booking allowed until ${esc(whenText(e.late_ok_until))}.</p>` : bookingShut(d) && !e.booked_at ? '<p class="hint">Bookings have closed for this day. Issue a new link to let them book or pay late. It works for 48 hours and the old link stops working.</p>' : ''}</div>
     ${e.photo_path ? `<div class="section"><h3>Photo link</h3><div class="linkbox">${esc(photoLink(e))}</div><div class="row"><button class="btn sm" id="copyPhoto">Copy link</button></div></div>` : ''}
     ${canGrade() && !e.result ? '<div class="row"><button class="btn link danger" id="removeEntry">Take off this day</button></div>' : ''}
@@ -1610,11 +1612,11 @@ async function openSequence(d) {
         return `<td title="${esc(tip)}">${m ? `<span class="seq-m ${m[1]}">${m[0]}</span>` : code === 'invite_sms' && e.invited_at ? '<span class="seq-m ok">✓</span>' : ''}</td>`; }).join('')}
       <td>${e.booked_at ? '<span class="seq-m ok">✓</span>' : ''}</td><td>${e.paid ? '<span class="seq-m ok">✓</span>' : ''}</td>
       <td>${c ? esc(c.outcome ? CALL_OUT[c.outcome] || c.outcome : c.reason === 'concern' ? 'Concern: to call' : 'To call') : ''}</td>
-      ${canGrade() ? `<td class="seq-acts">${e.seq_stopped_at || (e.seq_paused_until && new Date(e.seq_paused_until) > new Date()) ? `<button class="btn sm" data-seq="resume">Resume</button>` : `<button class="btn sm" data-seq="pause">Pause</button><button class="btn sm" data-seq="skip">Skip</button>`}</td>` : ''}</tr>`;
+      ${canTexts() ? `<td class="seq-acts">${e.seq_stopped_at || (e.seq_paused_until && new Date(e.seq_paused_until) > new Date()) ? `<button class="btn sm" data-seq="resume">Resume</button>` : `<button class="btn sm" data-seq="pause">Pause</button><button class="btn sm" data-seq="skip">Skip</button>`}</td>` : ''}</tr>`;
   }).join('');
   openDlg(`<div class="dlg-body seq-dlg"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>Booking sequence</h3><p class="sub">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</p></div><button class="btn ghost" data-close>Close</button></div>
     <p class="hint">${on ? 'On: invitations and follow-ups go automatically. Pause stops it for 2 days; Skip stops it for this student.' : 'Off: nothing goes automatically yet. Switch it on in Settings once Mark has approved the wording.'}</p>
-    ${es.length ? `<div class="scroll"><table class="grid seq-grid"><thead><tr><th>Student</th>${SEQ_GRID.map(([, t]) => `<th>${t}</th>`).join('')}<th>Booked</th><th>Paid</th><th>Call</th>${canGrade() ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
+    ${es.length ? `<div class="scroll"><table class="grid seq-grid"><thead><tr><th>Student</th>${SEQ_GRID.map(([, t]) => `<th>${t}</th>`).join('')}<th>Booked</th><th>Paid</th><th>Call</th>${canTexts() ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
       <p class="hint">✓ sent · – skipped (already done) · · too late, not sent · ! failed. Hover or long-press a mark for details.</p>` : '<p class="hint">No students on this day yet. Adding them starts the sequence.</p>'}</div>`);
   dlg.querySelectorAll('[data-seq]').forEach(b => b.onclick = async () => {
     const id = b.closest('tr').dataset.e;
@@ -1660,7 +1662,7 @@ function seqSettingsHtml() {
       <div class="sq-state ${st.seq_on ? 'on' : ''}"><span class="sq-dot"></span>${st.seq_on ? 'On' : 'Off'}</div></div>
     <div class="sq-bar">
       <span class="sq-note">${st.seq_on ? `Running since ${st.seq_on_at ? whenText(st.seq_on_at) : 'now'}${st.seq_on_by ? ' · ' + esc(st.seq_on_by.split('@')[0]) : ''}` : 'Send Mark every message, then switch on.'}</span>
-      ${canGrade() ? `<button class="btn sm" type="button" id="seqAllTests">Send all to me</button>` : ''}
+      ${canTexts() || isAdmin() ? `<button class="btn sm" type="button" id="seqAllTests">Send all to me</button>` : ''}
       ${admin && st.seq_on ? '<button class="btn sm" type="button" id="seqRun">Run now</button>' : ''}
       ${admin ? `<button class="btn sm ${st.seq_on ? '' : 'primary'}" type="button" id="seqSwitch">${st.seq_on ? 'Switch off' : 'Switch on'}</button>` : ''}</div>
     <details class="sq-to"${tp || te ? '' : ' open'}><summary>Tests go to <b>${esc([tp, te].filter(Boolean).join(' and ') || 'nobody yet')}</b></summary>
@@ -1676,7 +1678,7 @@ function seqSettingsHtml() {
     return `<div class="sq-edit"><p class="sq-when-long">${esc(seqWhen(s))}</p>
       ${fromSettings ? `<p class="hint">Edit this one in Texts and emails above.</p>` : `${s.channel === 'email' ? `<input type="text" data-subj value="${esc(s.subject || '')}" aria-label="Email subject" placeholder="Subject" ${admin ? '' : 'readonly'}>` : ''}
         <textarea data-tpl rows="${s.channel === 'email' ? 9 : 4}" aria-label="${esc(s.label)} wording" ${admin ? '' : 'readonly'}>${esc(s.template || '')}</textarea>`}
-      <div class="row">${admin && !fromSettings ? '<button class="btn sm primary" type="button" data-save>Save</button>' : ''}${canGrade() ? '<button class="btn sm" type="button" data-test>Send test to me</button>' : ''}</div></div>`;
+      <div class="row">${admin && !fromSettings ? '<button class="btn sm primary" type="button" data-save>Save</button>' : ''}${canTexts() || isAdmin() ? '<button class="btn sm" type="button" data-test>Send test to me</button>' : ''}</div></div>`;
   }
 }
 function wireSeqSettings() {
@@ -1774,17 +1776,17 @@ async function start() {
   if (!session) { showOnly('#signIn'); $('#signOut').hidden = true; return; }
   $('#signOut').hidden = false;
   state.me = (session.user.email || '').toLowerCase();
-  const { data: roles } = await sb.rpc('prep_my_roles');
+  const { data: roles } = await sb.rpc('app_my_perms', { p_app: 'cb' });
   state.roles = roles || [];
-  if (!has('instructor', 'grading', 'payments')) {
+  if (!state.roles.length) {
     showOnly('#noAccess');
-    $('#noAccessText').textContent = `${(session.user.user_metadata || {}).full_name || state.me} can't use gradings yet. An admin can give you the Instructor, Grading or Payments role on Staff logins.`;
+    $('#noAccessText').textContent = `${(session.user.user_metadata || {}).full_name || state.me} can't use Coloured Belts yet. A Staff admin can tick what you need under Coloured Belts on Staff logins.`;
     return;
   }
   try { await loadAll(); }
   catch (e) { showOnly('#noAccess'); $('#noAccessText').textContent = /cb_|does not exist|schema cache/i.test(errMsg(e)) ? 'Gradings aren\'t set up in Supabase yet: run supabase/coloured-belts.sql (then -2 to -5, in order) in the SQL Editor.' : errMsg(e); return; }
   showOnly(null); $('#tabs').hidden = false;
-  if (!has('instructor', 'grading')) state.view = 'days';   // payments staff: grading days (paid)
+  if (!has('readiness', 'days', 'texts', 'results', 'calls')) state.view = 'days';   // view or payments only: grading days
   // The address they opened (or were sent back with from 404.html as ?p=...)
   const asked = new URLSearchParams(location.search).get('p') || (location.pathname.startsWith(APP_BASE) ? location.pathname.slice(APP_BASE.length) : '');
   applyPath(asked.replace(/^index\.html$/, ''));

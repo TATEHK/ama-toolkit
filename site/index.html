@@ -128,18 +128,19 @@ const item = a => a.soon ? `<li><div class="item" aria-disabled="true" style="op
 
 async function access() {
   const rpc = async (fn, args) => { try { const { data, error } = await sb.rpc(fn, args); return error ? null : data; } catch (e) { return null; } };
-  const [card, prep, edit, party, remote] = await Promise.all([rpc('my_permissions'), rpc('prep_my_roles'), rpc('tv_can', { p_perm: 'edit' }), rpc('tv_can', { p_perm: 'party' }), rpc('tv_can', { p_perm: 'remote' })]);
+  const [card, prep, edit, party, remote, cb, aw] = await Promise.all([rpc('my_permissions'), rpc('app_my_perms', { p_app: 'bb' }), rpc('tv_can', { p_perm: 'edit' }), rpc('tv_can', { p_perm: 'party' }), rpc('tv_can', { p_perm: 'remote' }),
+    rpc('app_my_perms', { p_app: 'cb' }), rpc('app_my_perms', { p_app: 'awards' })]);
   let owner = false;
   try { const { data: { user } } = await sb.auth.getUser(); const em = (user && user.email || '').toLowerCase();
     if (em) { const { data } = await sb.from('toolkit_owners').select('email').eq('email', em); owner = Array.isArray(data) && data.length > 0; } } catch (e) { /* owner stays false */ }
-  return { card: card || [], prep: prep || [], edit: !!edit, party: !!party || !!edit, remote: !!remote || !!edit, owner };
+  return { card: card || [], prep: prep || [], cb: cb || [], aw: aw || [], edit: !!edit, party: !!party || !!edit, remote: !!remote || !!edit, owner };
 }
 function draw(a) {
   const admin = a.card.includes('admin') && a.prep.includes('admin');
   const tvAny = a.edit || a.party || a.remote;
   const groups = [
-    ['Gradings', [(a.prep.length || a.card.length) && { href: 'grading/', icon: 'belt', name: 'Gradings', meta: 'Coloured belts and every program, Black Belt Gradings and ID cards' }]],
-    ['Members', [a.prep.some(r => ['admin', 'instructor', 'grading', 'payments'].includes(r)) && { href: 'awards/', icon: 'medal', name: 'Long service awards', meta: 'Who reaches 5, 10, 15 years and more in time for the December order' }]],
+    ['Gradings', [(a.prep.length || a.cb.length || a.card.length) && { href: 'grading/', icon: 'belt', name: 'Gradings', meta: 'Coloured belts and every program, Black Belt Gradings and ID cards' }]],
+    ['Members', [a.aw.length > 0 && { href: 'awards/', icon: 'medal', name: 'Long service awards', meta: 'Who reaches 5, 10, 15 years and more in time for the December order' }]],
     ['Dojang TV', [
       a.party && { href: 'tv/edit/', icon: 'tv', name: a.edit ? 'TV Display' : 'TV party mode', meta: a.edit ? 'Change the photos, videos and notices on the dojang TV' : 'Birthday posters and messages on the dojang TV' },
       a.party && { href: 'tv/edit/?display=tablet', icon: 'tablet', name: a.edit ? 'Tablet Display' : 'Tablet party mode', meta: a.edit ? 'Slides for the upright tablets, with a link that just works' : 'Birthday posters and messages on the tablets' },
