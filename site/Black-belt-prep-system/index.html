@@ -3130,6 +3130,8 @@ async function renderBbBooking(c) {
   // Booked-but-unpaid and not-booked people float to the top so they're the first thing you see.
   const order = e => e.result ? 3 : (!e.booked_at || !e.paid) ? 0 : e.checked_in_at ? 2 : 1;
   const sorted = [...entries].sort((a, b) => order(a) - order(b) || a.full_name.localeCompare(b.full_name));
+  const bbBelts = [...new Set(entries.map(e => e.belt_to).filter(Boolean))].sort((a, b) => BELTS.indexOf(a) - BELTS.indexOf(b));
+  if (bbFilt.belt && !bbBelts.includes(bbFilt.belt)) bbFilt.belt = '';
   box.innerHTML = `<div class="day-head">
       <div><h3>${day.grading_date ? esc(fmt(day.grading_date, { weekday: 'long', day: 'numeric', month: 'long' })) : 'Black belt grading'}</h3><p class="sub">${facts.map(esc).join(' · ')}</p></div>
       <div class="row" style="gap:6px">${picker}<button class="btn sm" id="bbEdit">Edit day</button></div>
@@ -3140,13 +3142,22 @@ async function renderBbBooking(c) {
         <button class="btn" id="bbResults">Enter results</button>
         <button class="btn" id="bbMore" aria-label="More grading day actions">More</button></div>`
       : `<div class="row"><button class="btn primary" id="bbSync2">Sync candidates</button><button class="btn" id="bbMore">More</button></div>`}
-    <div class="row" style="justify-content:space-between"><span class="sub">${entries.length ? 'Not booked or unpaid first' : ''}</span>${entries.length ? '<button class="btn sm ghost" id="bbSync">Sync candidates</button>' : ''}</div>
+    ${entries.length ? `<div class="toolbar" id="bbFilterBar">
+        <input type="search" id="bbSearch" placeholder="Search candidates" aria-label="Search candidates" value="${esc(bbFilt.q)}">
+        <div class="chips" role="group" aria-label="Show">${[['', 'All'], ['notbooked', 'Not booked'], ['unpaid', 'Unpaid'], ['here', 'Here'], ['passed', 'Passed']].map(([k, t]) => `<button type="button" data-bbf="${k}" aria-pressed="${(bbFilt.show || '') === k}">${esc(t)}</button>`).join('')}</div>
+        ${bbBelts.length > 1 ? `<select id="bbBeltF" aria-label="Belt"><option value="">All belts</option>${bbBelts.map(b => `<option value="${esc(b)}"${b === bbFilt.belt ? ' selected' : ''}>${esc(b)}</option>`).join('')}</select>` : ''}
+      </div>
+      <div class="row" style="justify-content:space-between"><span class="sub" id="bbShown"></span><button class="btn sm ghost" id="bbSync">Sync candidates</button></div>` : ''}
     <ul class="list" id="bbList">${entries.length ? sorted.map(bbEntryRow).join('') : '<li><div class="empty">No candidates on the day yet. Put people forward for grading, then tap Sync candidates.</div></li>'}</ul>`;
   const on = (id, f) => { const b = $(id); if (b) b.onclick = f; };
   const dp = $('#bbDayPick'); if (dp) dp.onchange = () => { bbData[cid].sel = dp.value; renderBbBooking(c); };
   on('#bbEdit', () => bbEditDay(c, day));
   on('#bbSync', () => bbSync(c, day)); on('#bbSync2', () => bbSync(c, day));
   $$('#bbList [data-bbentry]').forEach(b => b.onclick = () => openBbEntry(c, b.dataset.bbentry));
+  const bs = $('#bbSearch'); if (bs) bs.oninput = () => { bbFilt.q = bs.value; applyBbFilter(); };
+  $$('#bbFilterBar [data-bbf]').forEach(b => b.onclick = () => { bbFilt.show = b.dataset.bbf || ''; applyBbFilter(); });
+  const bbf = $('#bbBeltF'); if (bbf) bbf.onchange = () => { bbFilt.belt = bbf.value; applyBbFilter(); };
+  if (entries.length) applyBbFilter();
   on('#bbCheckin', () => { bbData[cid].mode = 'checkin'; renderBbBooking(c); });
   on('#bbResults', () => { bbData[cid].mode = 'results'; renderBbBooking(c); });
   on('#bbMore', () => bbMoreMenu(c, day, entries, passed, retests));
@@ -3196,12 +3207,27 @@ function bbEditDay(c, day) {
 }
 // A black belt candidate on a grading day: who they're grading to, and their booking/paid/result status.
 function bbCandFor(e, cid) { const ref = ((bbData[cid] || {}).refByKey || {})[e.member_key]; return ref ? ((state.students || []).find(s => s.efc_ref === ref) || null) : null; }
+function bbEntryStatus(e) {
+  return e.result ? (e.result === 'retest' ? 'retest' : 'passed') : !e.booked_at ? 'notbooked' : !e.paid ? 'unpaid' : e.checked_in_at ? 'here' : 'booked';
+}
 function bbEntryRow(e) {
   const RES = { pass: ['ok', 'Passed'], distinction: ['ok', 'Distinction'], retest: ['bad', 'Retest'] };
   const facts = e.result ? '' : [e.booked_at ? (e.efc_by_hand && !e.efc_by_hand_done_at ? '<span class="fact warn">Book by hand</span>' : '<span class="fact ok">Booked</span>') : '<span class="fact bad">Not booked</span>',
     e.paid ? '<span class="fact ok">Paid</span>' : e.booked_at ? '<span class="fact warn">Unpaid</span>' : ''].join('');
   const st = e.result ? RES[e.result] || ['', label(e.result)] : e.checked_in_at ? ['ok', 'Here'] : null;
-  return `<li><button class="item gr-item" data-bbentry="${esc(e.entry_id)}"><div class="main"><div class="name-row"><span class="name">${esc(e.full_name)}</span>${st ? `<span class="status-pill ${st[0]}">${st[1]}</span>` : ''}</div><div class="meta">to ${esc(e.belt_to || '')}</div>${facts ? `<div class="facts">${facts}</div>` : ''}</div></button></li>`;
+  return `<li data-name="${esc(String(e.full_name || '').toLowerCase())}" data-belt="${esc(e.belt_to || '')}" data-status="${bbEntryStatus(e)}"><button class="item gr-item" data-bbentry="${esc(e.entry_id)}"><div class="main"><div class="name-row"><span class="name">${esc(e.full_name)}</span>${st ? `<span class="status-pill ${st[0]}">${st[1]}</span>` : ''}</div><div class="meta">to ${esc(e.belt_to || '')}</div>${facts ? `<div class="facts">${facts}</div>` : ''}</div></button></li>`;
+}
+// Filter state for the grading-day candidate list (search box, status chips, belt)
+const bbFilt = { q: '', show: '', belt: '' };
+function applyBbFilter() {
+  const q = bbFilt.q.trim().toLowerCase(), list = $('#bbList'); if (!list) return;
+  let shown = 0;
+  $$('#bbList > li[data-name]').forEach(li => {
+    const ok = (!q || li.dataset.name.includes(q)) && (!bbFilt.show || li.dataset.status === bbFilt.show) && (!bbFilt.belt || li.dataset.belt === bbFilt.belt);
+    li.hidden = !ok; if (ok) shown++;
+  });
+  const c = $('#bbShown'); if (c) c.textContent = `${shown} shown`;
+  $$('#bbFilterBar [data-bbf]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.bbf || '') === bbFilt.show)));
 }
 function bbEntryRowOld(e) {
   const tags = [e.result ? tag(e.result === 'passed' ? 'ok' : '', label(e.result)) : '', e.paid ? tag('ok', 'Paid') : '',
