@@ -1814,6 +1814,9 @@ function renderSettings() {
         <p class="hint">One item per line.</p></div>
       <div class="field"><label for="sPhone">Phone number for families</label><input type="tel" id="sPhone" value="${esc(st.contact_phone || '(02) 9569 1943')}">
         <p class="hint">Shown when a booking link has expired or bookings have closed.</p></div>
+      <div class="field"><label for="sAlert">Mobile to text for belt questions</label><input type="tel" id="sAlert" value="${esc(st.alert_phone || '')}" placeholder="04xx xxx xxx">
+        <p class="hint">When a family's belt reply can't be fixed automatically, this number gets a text. Reply starting with the number to fix it.</p>
+        <div class="row"><button type="button" class="btn sm" id="alertTest">Send test alert</button></div></div>
       <div class="field"><label for="sHook">Booking sheet address</label><input type="url" id="sHook" value="${esc(st.booking_webhook || '')}" placeholder="https://script.google.com/macros/s/.../exec">
         <p class="hint">Bookings are added to your Google Sheet, and the Zap books the EFC session. Set it up with <a href="https://github.com/theggatonklenner/theggatonklenner.github.io/blob/main/tools/booking-sheet.gs" target="_blank" rel="noopener">the booking sheet script</a>. A Zapier Catch Hook address also works.</p>
         <div class="row"><span class="hint">Key for the script:</span><code id="sKey" style="user-select:all;overflow-wrap:anywhere">${esc(st.booking_key || 'run coloured-belts-7.sql')}</code><button type="button" class="btn sm" id="copyKey">Copy key</button></div></div>
@@ -1833,12 +1836,21 @@ function renderSettings() {
     const hook = $('#sHook').value.trim();
     if (hook && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(hook) && !/^https:\/\/hooks\.zapier\.com\//.test(hook)) return toast('The booking sheet address should look like https://script.google.com/macros/s/.../exec (or a Zapier hook address)', 7000);
     const tpl = {}; $$('#msgForm textarea[data-col]').forEach(t => { if (t.value.trim()) tpl[t.dataset.col] = t.value.trim(); });
-    const f = { ...tpl, booking_webhook: hook || null, contact_phone: $('#sPhone').value.trim() || '(02) 9569 1943', ...($('#sBring').value.trim() ? { email_bring: $('#sBring').value.trim() } : {}), updated_at: new Date().toISOString() };
+    const f = { ...tpl, booking_webhook: hook || null, contact_phone: $('#sPhone').value.trim() || '(02) 9569 1943', alert_phone: $('#sAlert').value.trim() || null, ...($('#sBring').value.trim() ? { email_bring: $('#sBring').value.trim() } : {}), updated_at: new Date().toISOString() };
     try { await run(sb.from('cb_settings').update(f).eq('id', 1), 'Saved'); Object.assign(state.settings, f); }
     catch (er) { toast(errMsg(er), 6000); }
   };
   $('#copyKey').onclick = async () => { try { await navigator.clipboard.writeText(st.booking_key || ''); toast('Key copied'); } catch (e) { toast('Press and hold the key to copy it.'); } };
   $('#checkTexts').onclick = async () => { try { const r = await fnCall({ action: 'check' }); toast(r.ready ? (r.testing ? 'Texting is in test mode (logged, not sent).' : 'Texting is set up.') : 'Texting is not set up: add GHL_TOKEN and GHL_LOCATION_ID in Supabase.', 6000); } catch (e) { toast(errMsg(e), 6000); } };
+  $('#alertTest').onclick = async () => {
+    try {
+      const ap = $('#sAlert').value.trim() || null;
+      if (ap !== (st.alert_phone || null)) { await run(sb.from('cb_settings').update({ alert_phone: ap }).eq('id', 1)); state.settings.alert_phone = ap; }
+      if (!ap) return toast('Add a mobile number first.', 5000);
+      const r = await fnCall({ action: 'alert_test' });
+      toast(r.ok ? ('Test alert sent to ' + r.to + '. Reply "' + r.ref + ' ignore" to test the reply.') : ('Could not send: ' + (r.error || 'check texting')), 8000);
+    } catch (e) { toast(errMsg(e), 6000); }
+  };
 }
 
 /* ---------------- Start ---------------- */
