@@ -394,6 +394,20 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   const c = ng.t.cb_calls[0];
   ok(r.body.not_grading === 1 && c && c.reason === 'not_grading' && c.for_admin === true && /don't want/.test(c.note), 'a call for an admin goes on the hub\'s list, with what they said');
   ok(Date.parse(ng.t.cb_entries[0].seq_paused_until) > Date.now() + 10 * 864e5 && ghlCalls.length === n0, 'their booking messages stop, and nothing is texted to them');
+  for (const t of ['Thank you no grading this time', "Not ready yet, maybe next time", "He's injured"]) { const T3 = tables(); T3.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const x = makeDb(T3);
+    const rr = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: t }); ok(rr.body.not_grading === 1 && x.t.cb_calls[0].for_admin, `"${t}" is a not-grading call for an admin`); }
+  // "Yes for Kim, no for Sam": only Sam is not grading (both children on the same mobile)
+  const T4 = tables(); T4.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }, { ...base, entry_id: 'e9', member_key: 'efc:9', full_name: 'Kim Lee', token: 'TOK9', invited_at: '2026-11-08T05:00:00Z' }];
+  T4.efc_members.push({ member_key: 'efc:9', full_name: 'Kim Lee', guardian_name: 'Pat Lee', phone: '0412 345 678' });
+  const fam = makeDb(T4); const rf = await call(fam, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Yes for Kim, no for Sam (he's injured)" });
+  ok(rf.body.not_grading === 1 && fam.t.cb_calls.length === 1 && fam.t.cb_calls[0].entry_id === 'e1', '"no for Sam" is a call about Sam only');
+  // "STOP - they've stopped attending": texting stops and an admin still follows up
+  const T5 = tables(); T5.cb_settings[0].seq_on = true; T5.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const sp = makeDb(T5);
+  const rs = await call(sp, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'STOP - Sam has stopped attending' });
+  ok(rs.body.stopped && sp.t.cb_entries[0].seq_stopped_at && sp.t.cb_calls.some(c => c.reason === 'not_grading' && c.for_admin), 'STOP with "stopped attending" stops texts and adds an admin call');
+  const T6 = tables(); T6.cb_settings[0].seq_on = true; T6.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const sp2 = makeDb(T6);
+  await call(sp2, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'STOP' });
+  ok(!sp2.t.cb_calls.length, 'a plain STOP adds no call');
 }
 Date.now = realNow;
 

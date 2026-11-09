@@ -53,7 +53,7 @@ export function isNotGrading(t) {
   const s = String(t || '').trim().toLowerCase().replace(/[‘’]/g, "'");
   if (!s || /\b(another|different|other)\s+(day|time|date|location|school|grading|session)\b/.test(s)) return false;
   if (/\b(don'?t|do not|doesn'?t|does not|won'?t|wont|will not|not|no longer)\s+(want(ing)?|wanna|going|planning|plan|interested|keen|doing|be doing|ready)\b[^.?!]*\b(grad(e|ing)|test(ing)?|it|this|that)\b/.test(s)) return true;
-  if (/\bnot\s+grad(e|ing)\b|\bwon'?t be grading\b|\bnot (ready|this time|this round)\b|\b(skip|sit out|pass on|miss)\s+(this|the|that)\s+(one|grading|time|round)\b|\bnext (grading|time|round|term|cycle)\b/.test(s)) return true;
+  if (/\b(not|no)\s+grad(e|ing)\b|\bno for \w+|\binjur(ed|y|ies)\b|\bstop(ped)? (attending|coming|training)\b|\bwon'?t be grading\b|\bnot (ready|this time|this round)\b|\b(skip|sit out|pass on|miss)\s+(this|the|that)\s+(one|grading|time|round)\b|\bnext (grading|time|round|term|cycle)\b/.test(s)) return true;
   return /\b(quit|quitting|stopped|stopping|leaving|left (the|ama|amaa|the club|the academy|the school|martial arts|taekwondo)\b|we'?ve left|cancel+ing|cancel+ed (her|his|their|the) (membership|enrol)|withdraw(n|ing)?|pulling (him|her|them) out|pulled (him|her|them) out)\b/.test(s);
 }
 // Replies: "That's the wrong belt, she's going for Green" / "He's a Blue Belt" / "Should be red two". ladder is the programme's
@@ -1040,7 +1040,9 @@ export async function handle(req, db, env = {}, http = fetch) {
 
       // ---- "We don't want to grade" / "Not grading this time": a call for admins on the hub, and the booking messages stop ----
       if (!stopping && !yes && isNotGrading(msg)) {
-        const e = whichKid(), list = e ? [e] : mine, nowIso = new Date().toISOString();
+        const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const saidNo = mine.filter(x => new RegExp('\\b(no|not)\\s+(for\\s+)?' + esc(firstWord(x.full_name).toLowerCase()) + '\\b').test(msg.toLowerCase()));
+        const e = saidNo.length ? null : whichKid(), list = saidNo.length ? saidNo : e ? [e] : mine, nowIso = new Date().toISOString();
         for (const x of list) {
           await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: new Date(Date.now() + 14 * 864e5).toISOString() }).eq('entry_id', x.entry_id);
           await callFor(x, 'not_grading', msg, true);
@@ -1055,6 +1057,8 @@ export async function handle(req, db, env = {}, http = fetch) {
         const nowIso = new Date().toISOString();
         if (/^\s*(stop|stopall|unsubscribe|end|quit)\b/i.test(msg)) {
           for (const e of mine) await db.from('cb_entries').update({ seq_stopped_at: nowIso, seq_stopped_why: 'Replied STOP', reply_text: msg.slice(0, 300), reply_at: nowIso }).eq('entry_id', e.entry_id);
+          // "STOP - they've stopped attending": no more texts, and an admin follows it up on the hub
+          if (isNotGrading(msg.replace(/^\s*(stop|stopall|unsubscribe|end|quit)\b[\s\-:,.!]*/i, ''))) for (const e of mine) await callFor(e, 'not_grading', msg, true);
           return json({ ok: true, matched: mine.length, stopped: true });
         }
         for (const e of mine) await db.from('cb_entries').update({ seq_paused_until: new Date(Date.now() + 2 * 864e5).toISOString() }).eq('entry_id', e.entry_id);
