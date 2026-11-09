@@ -1120,7 +1120,8 @@ function openEntry(id) {
       ${canDays() && !e.booked_at ? '<button class="btn" id="markBooked">Mark booked</button>' : ''}
       ${canPay() && e.paid && e.paid_how !== 'card' ? '<button class="btn" id="paidBtn">Mark unpaid</button>' : ''}
       ${canDays() && e.booked_at ? '<button class="btn" id="unbook">Clear booking</button>' : ''}
-      ${s && canDays() ? '<button class="btn" id="editContact">Edit mobile or email</button>' : ''}</div>
+      ${s && canDays() ? '<button class="btn" id="editContact">Edit mobile or email</button>' : ''}
+      ${canDays() && !e.result ? '<button class="btn" id="editBelt">Edit belt</button>' : ''}</div>
     <div class="section"><h3>Booking link</h3><div class="linkbox">${esc(bookingLink(e))}</div>
       <div class="row"><button class="btn sm" id="copyLink">Copy link</button>${canDays() && !e.result && !(e.booked_at && e.paid) ? '<button class="btn sm" id="newLink">Issue new link</button>' : ''}</div>
       ${e.late_ok_until && new Date(e.late_ok_until) > new Date() ? `<p class="hint">Late booking allowed until ${esc(whenText(e.late_ok_until))}.</p>` : bookingShut(d) && !e.booked_at ? '<p class="hint">Bookings have closed for this day. Issue a new link to let them book or pay late. It works for 48 hours and the old link stops working.</p>' : ''}</div>
@@ -1144,6 +1145,7 @@ function openEntry(id) {
   const cp = $('#copyPhoto'); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(photoLink(e)); toast('Link copied'); } catch (er) { toast('Press and hold the link to copy it.'); } };
   const rp = $('#recordPay'); if (rp) rp.onclick = () => recordPayment(e);
   const ec = $('#editContact'); if (ec) ec.onclick = () => editContact(e.member_key, () => openEntry(id));
+  const eb = $('#editBelt'); if (eb) eb.onclick = () => editBelt(e);
   const p = $('#paidBtn'); if (p) p.onclick = async () => { try { await run(sb.rpc('cb_set_paid', { p_entry: e.entry_id, p_paid: false }), 'Marked unpaid'); Object.assign(e, { paid: false, paid_at: null, paid_how: null }); render(); openEntry(id); } catch (er) { toast(errMsg(er), 6000); } };
   const bh = $('#byHandDone'); if (bh) bh.onclick = () => change({ efc_by_hand_done_at: new Date().toISOString() }, 'Ticked off');
   const mb = $('#markBooked'); if (mb) mb.onclick = () => change({ booked_at: new Date().toISOString(), booking_error: null }, 'Marked booked');
@@ -1163,6 +1165,30 @@ function recordPayment(e) {
       toast(r.booked ? (r.byHand ? 'Payment recorded. Book them in EFC by hand.' : 'Payment recorded and booked') : `Payment recorded. Booking failed: ${r.booking_error || 'check Settings'}`, 6000);
       dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
     } catch (er) { toast(errMsg(er), 6000); $('#rpGo').disabled = false; $('#rpGo').textContent = 'Record payment'; }
+  };
+}
+// Fix a wrong belt on an entry: the current belt (what they're graded from) and the belt they're grading for.
+// Changing it flows through to the fee, the EFC session they book into, and what the booking link and texts say.
+function editBelt(e) {
+  const belts = state.belts;
+  const opts = sel => belts.map(b => `<option value="${esc(b.belt)}"${b.belt === sel ? ' selected' : ''}>${esc(short(b.belt))}</option>`).join('');
+  openDlg(`<form id="ebForm" class="dlg"><div class="dlg-head"><div><h3>Edit belt</h3><p class="sub">${esc(e.full_name)}</p></div><button class="x" data-close>Close</button></div>
+    <div class="field"><label class="label" for="ebFrom">Current belt</label><select id="ebFrom">${opts(e.belt_from)}</select></div>
+    <div class="field"><label class="label" for="ebTo">Grading for</label><select id="ebTo">${opts(e.belt_to)}</select></div>
+    <p class="hint">Updates the fee, the EFC session they book into, and what the booking link and texts say. If they've already booked, clear the booking first, then re-book after.</p>
+    <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="ebGo" type="submit">Save</button></div></form>`);
+  // Picking a current belt suggests the usual next belt to grade for (still editable)
+  $('#ebFrom').onchange = () => { const b = beltOf($('#ebFrom').value, state.programme); if (b && b.next_belt && belts.some(x => x.belt === b.next_belt)) $('#ebTo').value = b.next_belt; };
+  $('#ebForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const from = $('#ebFrom').value, to = $('#ebTo').value;
+    if (!from || !to) { toast('Pick both belts'); return; }
+    $('#ebGo').disabled = true; $('#ebGo').textContent = 'Saving…';
+    const tb = belts.find(b => b.belt === to), toProg = (beltOf(to, state.programme).programme) || (tb && tb.programme) || null;
+    try {
+      await run(sb.from('cb_entries').update({ belt_from: from, belt_to: to, to_programme: toProg }).eq('entry_id', e.entry_id), 'Belt updated');
+      dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
+    } catch (er) { toast(errMsg(er), 6000); $('#ebGo').disabled = false; $('#ebGo').textContent = 'Save'; }
   };
 }
 // Check-in on the day (iPad): tap Here as each student arrives (tap again to undo)
