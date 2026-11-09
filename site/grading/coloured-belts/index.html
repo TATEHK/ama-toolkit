@@ -752,7 +752,7 @@ function openStudent(key, prog) {
       ${contactRows(s)}
     </dl>
     ${canGrade() ? '<div class="row"><button class="btn sm" id="editContact">Edit mobile or email</button></div>' : ''}
-    ${hist.length ? `<div class="section"><h3>Gradings</h3><ul class="list">${hist.map(x => `<li><div class="item plain"><div class="main"><div class="name">${esc(fmtDate(x.d.grading_date))}</div><div class="meta">${esc(x.d.location)}, to ${esc(toText(x.e))}</div></div><span class="tags">${x.e.result ? `<span class="tag ${x.e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[x.e.result]}</span>` : x.e.booked_at ? '<span class="tag ok">Booked</span>' : x.e.yes_at ? '<span class="tag ok">Said YES</span>' : x.e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Added</span>'}</span></div></li>`).join('')}</ul></div>` : ''}
+    ${hist.length ? `<div class="section"><h3>Gradings</h3><ul class="list">${hist.map(x => `<li><button type="button" class="item" data-gday="${esc(x.d.day_id)}"><div class="main"><div class="name">${esc(fmtDate(x.d.grading_date))}</div><div class="meta">${esc(x.d.location)}, to ${esc(toText(x.e))}</div></div><span class="tags">${x.e.result ? `<span class="tag ${x.e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[x.e.result]}</span>` : x.e.booked_at ? '<span class="tag ok">Booked</span>' : x.e.yes_at ? '<span class="tag ok">Said YES</span>' : x.e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Added</span>'}</span></button></li>`).join('')}</ul></div>` : ''}
   </div>`);
   const decide = async status => {
     const note = $('#apNote').value.trim() || null;
@@ -769,6 +769,7 @@ function openStudent(key, prog) {
   const t = $('#apText'); if (t) t.onclick = () => composeTexts('not_ready', [{ member_key: key, entry_id: null, s, e: null, d: null }]);
   const ec = $('#editContact'); if (ec) ec.onclick = () => editContact(key, open);
   wireBbcInvite($('#dlg'), () => { render(); open(); });
+  $$('#dlg [data-gday]').forEach(b => b.onclick = () => { const dg = $('#dlg'); if (dg) dg.close(); go('day', b.dataset.gday); });
 }
 // Parent, mobile and email rows for the student and grading-day screens
 function contactRows(s) {

@@ -618,6 +618,8 @@ export async function handle(req, db, env = {}, http = fetch) {
     if (!ready) return { status: 'failed', why: 'Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID)' };
     // Texting is stopped (GoHighLevel's daily limit): email the same message instead, or hold it until texting works again
     if (step.channel === 'sms' && !to && smsBlocked(st)) {
+      // The booking-link text waits for texting to work again so the family still gets the SMS (the email backup already went when they replied); other steps email instead.
+      if (step.code === 'out_send_link') return { status: 'held', why: 'Texting paused until ' + st.sms_blocked_until + ' — will send the SMS when texting works again' };
       const b = await emailBackup({ m, entry_id: e.entry_id, subject: `${v.first}'s grading at AMA`, text, why: 'texting paused' });
       return b.ok ? { status: 'sent', why: 'Emailed instead (texting paused until ' + st.sms_blocked_until + ')' } : { status: 'held', why: b.why };
     }
@@ -906,10 +908,10 @@ export async function handle(req, db, env = {}, http = fetch) {
         const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind: 'not_booked', phone, body: text, status, sent_by: 'automatic: replied YES', ...extra });
         if (testing && !ready) { await log('test'); out.push({ entry_id: e.entry_id, ok: true, test: true }); continue; }
         if (!ready) { out.push({ entry_id: e.entry_id, error: 'texting not set up' }); continue; }
-        if (smsBlocked(st)) {   // texting is stopped (GoHighLevel's daily limit): email the booking link instead, or queue the text
+        if (smsBlocked(st)) {   // texting is stopped (GoHighLevel's daily limit): email the booking link now AND queue the text to go by SMS once texting works again
           const b = await emailBackup({ m, entry_id: e.entry_id, subject: `${firstWord(m.full_name || e.full_name)}'s grading booking link`, text, why: 'texting paused' });
-          if (!b.ok) await db.from('cb_outbox').insert({ entry_id: e.entry_id, kind: 'send_link' });
-          out.push({ entry_id: e.entry_id, ok: b.ok, emailed: b.ok, queued: !b.ok }); continue;
+          await db.from('cb_outbox').insert({ entry_id: e.entry_id, kind: 'send_link' });
+          out.push({ entry_id: e.entry_id, ok: b.ok, emailed: b.ok, queued: true }); continue;
         }
         try {
           const cid = await contactFor({ ...m, email: m.email || m.guardian_email }, phone);
