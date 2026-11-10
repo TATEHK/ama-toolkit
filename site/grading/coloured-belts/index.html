@@ -1268,23 +1268,58 @@ function editBelt(e) {
   openDlg(`<form id="ebForm" class="dlg"><div class="dlg-head"><div><h3>Edit belt</h3><p class="sub">${esc(e.full_name)}</p></div><button class="x" data-close>Close</button></div>
     <div class="field"><label class="label" for="ebFrom">Current belt</label><select id="ebFrom">${opts(e.belt_from)}</select></div>
     <div class="field"><label class="label" for="ebTo">Grading for</label><select id="ebTo">${opts(e.belt_to)}</select></div>
-    <p class="hint">Updates the fee, the EFC session they book into, and what the booking link and texts say. If they've already booked, clear the booking first, then re-book after.</p>
+    <p class="hint">Updates the fee, texts and booking link. If the new belt grades on a different day we'll move them to it (asking which, when there's a choice) and re-point their EFC booking. The belt itself still needs fixing in EFC — it's flagged on Update EFC.</p>
     <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="ebGo" type="submit">Save</button></div></form>`);
   // Picking a current belt suggests the usual next belt to grade for (still editable)
   $('#ebFrom').onchange = () => { const b = beltOf($('#ebFrom').value, state.programme); if (b && b.next_belt && belts.some(x => x.belt === b.next_belt)) $('#ebTo').value = b.next_belt; };
+  const timeStr = t => { if (!t) return ''; const [h, mi] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(mi || 0).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`; };
+  // Belt edits go through efc-pull's setbelt: it moves the entry to the right grading day for the new
+  // belt (asking which when an age split means several days host it) and re-points the EFC booking.
+  const setBeltCall = async (from, to, toProg, toDay) => {
+    const { data: { session } } = await sb.auth.getSession();
+    const qs = new URLSearchParams({ op: 'setbelt', entry: e.entry_id, from, to });
+    if (toProg) qs.set('toProgramme', toProg);
+    if (toDay) qs.set('toDay', toDay);
+    const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/efc-pull?' + qs.toString(), { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, ...(session ? { Authorization: 'Bearer ' + session.access_token } : {}) }, body: '{}' });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j || j.error) throw new Error((j && j.error) || ('Update failed (' + r.status + ')'));
+    return j;
+  };
+  const finishBelt = async (res, from, to, toProg) => {
+    if (res.needsDay) return pickDay(res, from, to, toProg);
+    const s = res.summary || {}, st = res.steps || {};
+    const reb = st.bookNew === 'booked' || st.bookNew === 'already booked';
+    dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
+    toast((s.move ? 'Belt updated — moved to ' + longDate(s.to && s.to.date) : 'Belt updated') + (reb ? ', re-booked in EFC' : '') + ' — added to Update EFC', 6000);
+  };
+  const pickDay = (res, from, to, toProg) => {
+    const cand = res.candidates || [], ageHint = res.age != null ? ' · age ' + res.age : '';
+    openDlg(`<form id="pdForm" class="dlg"><div class="dlg-head"><div><h3>Which grading day?</h3><p class="sub">${esc(res.name)}${ageHint} — ${esc(short(from))} grades on more than one day here${res.bookedNow ? ' · currently booked' : ''}</p></div><button class="x" data-close>Close</button></div>
+      <div class="field"><div class="checks">${cand.map((c, i) => `<label class="check"><input type="radio" name="pd" value="${esc(c.day_id)}"${i === 0 ? ' checked' : ''}> ${esc(fmtDate(c.date))} ${esc(timeStr(c.start_time))}</label>`).join('')}</div></div>
+      <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="pdGo" type="submit">Move here</button></div></form>`);
+    $('#pdForm').onsubmit = async ev => {
+      ev.preventDefault();
+      const day = ($('#pdForm input[name=pd]:checked') || {}).value;
+      if (!day) { toast('Pick a day'); return; }
+      $('#pdGo').disabled = true; $('#pdGo').textContent = 'Saving…';
+      try { await finishBelt(await setBeltCall(from, to, toProg, day), from, to, toProg); }
+      catch (er) { toast(errMsg(er), 6000); const g = $('#pdGo'); if (g) { g.disabled = false; g.textContent = 'Move here'; } }
+    };
+  };
   $('#ebForm').onsubmit = async ev => {
     ev.preventDefault();
     const from = $('#ebFrom').value, to = $('#ebTo').value;
     if (!from || !to) { toast('Pick both belts'); return; }
-    $('#ebGo').disabled = true; $('#ebGo').textContent = 'Saving…';
-    const tb = belts.find(b => b.belt === to), toProg = (beltOf(to, state.programme).programme) || (tb && tb.programme) || null;
     const changed = from !== e.belt_from || to !== e.belt_to;
-    const upd = { belt_from: from, belt_to: to, to_programme: toProg };
-    if (changed) upd.efc_belt_fix = new Date().toISOString();   // show on Update EFC so staff fix the belt in EFC too
-    try {
-      await run(sb.from('cb_entries').update(upd).eq('entry_id', e.entry_id), changed ? 'Belt updated — added to Update EFC' : 'Belt updated');
-      dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
-    } catch (er) { toast(errMsg(er), 6000); $('#ebGo').disabled = false; $('#ebGo').textContent = 'Save'; }
+    const tb = belts.find(b => b.belt === to), toProg = (beltOf(to, state.programme).programme) || (tb && tb.programme) || null;
+    $('#ebGo').disabled = true; $('#ebGo').textContent = 'Saving…';
+    if (!changed) {   // only a programme tweak; no belt change, no EFC move
+      try { await run(sb.from('cb_entries').update({ to_programme: toProg }).eq('entry_id', e.entry_id), 'Saved'); dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id); }
+      catch (er) { toast(errMsg(er), 6000); $('#ebGo').disabled = false; $('#ebGo').textContent = 'Save'; }
+      return;
+    }
+    try { await finishBelt(await setBeltCall(from, to, toProg, null), from, to, toProg); }
+    catch (er) { toast(errMsg(er), 6000); $('#ebGo').disabled = false; $('#ebGo').textContent = 'Save'; }
   };
 }
 // Check-in on the day (iPad): tap Here as each student arrives (tap again to undo)
