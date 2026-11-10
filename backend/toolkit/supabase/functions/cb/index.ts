@@ -5,10 +5,11 @@
 // (booking links are opened by families who aren't signed in; staff actions check who is signed in).
 // Uses the same GoHighLevel secrets as Black Belt Prep's "ghl" function (Edge Functions > Secrets):
 //   GHL_TOKEN, GHL_LOCATION_ID, and optional GHL_TEST = "1" to log texts without sending them.
-// Booking: the address saved in the app's Settings (cb_settings.booking_webhook): a Google Apps Script web app that adds
-// the booking to a Google Sheet (tools/booking-sheet.gs; a Zap books from each new row), or a Zapier "Catch Hook". Pressing Book
-// sends it { member_id, efc_ref, date, session_id, location_id, location, student, belt_to, programme } and your Zap books
-// that EFC session with Zapier's "EFC Aquila: Book Session" (member = member_id, session = session_id, location = location_id, date).
+// Booking: Pressing Book (or paying) books the student straight into their EFC grading session via the EFC Aquila
+// integration API - POST /locations/{location_id}/calendar/sessions/{session_id}/{date}/bookings with { memberId } and an
+// X-API-KEY header, the key being the student's own school's Supabase secret EFC_API_KEY_<SCHOOL>. The session is chosen by
+// the member's school and belt (cb_days.efc_belt_sessions / efc_school_belt_sessions / efc_sessions / efc_session_id); a
+// student with no EFC id, no mapped session, or a school whose key isn't set is flagged to book by hand instead.
 // Emails (automatic, through GoHighLevel with the same secrets): "booked" when a family books, and "paid and booked" when
 // they pay by card or staff record a payment (with Stripe's receipt link). Each goes once per student, to their EFC email.
 // Card payments (optional): STRIPE_SECRET_KEY (the same one the polo shirts use) and a Stripe webhook to
@@ -640,10 +641,10 @@ export async function handle(req, db, env = {}, http = fetch) {
   };
   // Send the booking to the booking sheet (or a Zapier hook); a Zap then books the EFC session
   const bookEntry = async (e, d) => {
-    const { data: st } = await db.from('cb_settings').select('booking_webhook, booking_key').eq('id', 1).maybeSingle();
-    const hook = st && st.booking_webhook;
-    const sheet = !!hook && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(hook);
-    if (!hook || !(sheet || /^https:\/\/hooks\.zapier\.com\//.test(hook))) return { ok: false, notSetUp: true, why: 'Online booking is not set up (no booking sheet in Settings)' };
+    // Books the student directly into their EFC grading session via the EFC Aquila integration API
+    // (replaces the old Zapier / Google-Sheet booking webhook). Each school's key is a Supabase secret
+    // named EFC_API_KEY_<SCHOOL>, read into env; the member's own school decides the session and location.
+    const EFC_BASE = 'https://api.efcaquila.net/version/1';
     const { data: m } = await db.from('efc_members').select('efc_reference, location').eq('member_key', e.member_key).maybeSingle();
     // The student's own school decides the session: the entry's school (coloured-belts-25.sql), then EFC's, then their EFC reference.
     // A black belt student is never sent to the day's school just because EFC has no school for them (booked by hand instead);
@@ -667,25 +668,32 @@ export async function handle(req, db, env = {}, http = fetch) {
     if (d.bb) sid = schoolBelt || schoolMap[mloc] || null;
     else if (mloc === d.location) sid = beltMap[e.belt_from] || d.efc_session_id || null;
     else sid = schoolBelt || schoolMap[mloc] || null;
-    if (!sid || !locId) {
+    const memberId = e.member_key && e.member_key.startsWith('efc:') ? e.member_key.slice(4) : null;
+    const efcKey = env['EFC_API_KEY_' + String(mloc || '').toUpperCase()] || null;
+    // Need a session, a location, the member's EFC id and that school's key; otherwise flag to book by hand
+    // (e.g. a student with no EFC id, or a school whose key isn't set up yet).
+    if (!sid || !locId || !memberId || !efcKey) {
       e.booked_at = new Date().toISOString();
       await db.from('cb_entries').update({ booked_at: e.booked_at, booking_error: null, efc_by_hand: true }).eq('entry_id', e.entry_id);
       return { ok: true, byHand: true };
     }
-    const payload = { member_id: e.member_key.startsWith('efc:') ? e.member_key.slice(4) : null, efc_ref: (m && m.efc_reference) || null, date: d.grading_date, session_id: sid,
-      location_id: locId, location: mloc, student: e.full_name, belt_to: e.belt_to, programme: d.programme || 'Taekwondo', paid: !!e.paid, paid_how: e.paid_how || null,
-      ...(sheet ? { key: (st && st.booking_key) || '' } : {}) };
-    let okHook = false, why = '';
+    const regUrl = `${EFC_BASE}/locations/${locId}/calendar/sessions/${sid}/${d.grading_date}/bookings`;
+    // True when the member is already on this session's register (so a conflict/duplicate counts as booked).
+    const already = async () => { try { const r = await http(regUrl, { headers: { 'X-API-KEY': efcKey, 'Accept': 'application/json' } }); if (!r.ok) return false; const j = await r.json().catch(() => []); const arr = Array.isArray(j) ? j : (j.records || []); return arr.some(b => b && b.member && b.member.id === memberId); } catch { return false; } };
+    let okBook = false, why = '';
     try {
-      // Google answers a script with a redirect to its reply ({ ok: true } when the row was added)
-      const r = await http(hook, { method: 'POST', headers: { 'Content-Type': sheet ? 'text/plain' : 'application/json' }, body: JSON.stringify(payload), redirect: 'follow' });
-      if (!sheet) { okHook = r.ok; if (!r.ok) why = 'Zapier said ' + r.status; }
-      else { const j = await r.json().catch(() => ({})); okHook = r.ok && j.ok === true; if (!okHook) why = 'The booking sheet said ' + (j.error || r.status); }
+      const r = await http(regUrl, { method: 'POST', headers: { 'X-API-KEY': efcKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId }) });
+      if (r.ok) okBook = true;
+      else {
+        let eb = null; try { eb = await r.json(); } catch {}
+        okBook = await already();   // already booked in EFC is still a success
+        if (!okBook) why = 'EFC said ' + r.status + (eb && (eb.code || eb.message) ? ' (' + (eb.code || eb.message) + ')' : '');
+      }
     }
     catch (err) { why = String(err && err.message || err); }
-    if (!okHook) { await db.from('cb_entries').update({ booking_error: why.slice(0, 300) }).eq('entry_id', e.entry_id); return { ok: false, why }; }
+    if (!okBook) { await db.from('cb_entries').update({ booking_error: why.slice(0, 300) }).eq('entry_id', e.entry_id); return { ok: false, why }; }
     e.booked_at = new Date().toISOString();
-    await db.from('cb_entries').update({ booked_at: e.booked_at, booking_error: null }).eq('entry_id', e.entry_id);
+    await db.from('cb_entries').update({ booked_at: e.booked_at, booking_error: null, efc_by_hand: false }).eq('entry_id', e.entry_id);
     return { ok: true };
   };
   // A paid Stripe Checkout session for a grading: mark the student paid (once), then book them if they aren't yet
@@ -1429,6 +1437,7 @@ if (typeof Deno !== 'undefined') {
   const { createClient } = await import('npm:@supabase/supabase-js@2.45.4');
   const db = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
   const env = { GHL_TOKEN: Deno.env.get('GHL_TOKEN'), GHL_LOCATION_ID: Deno.env.get('GHL_LOCATION_ID'), GHL_TEST: Deno.env.get('GHL_TEST'),
-    STRIPE_SECRET_KEY: Deno.env.get('STRIPE_SECRET_KEY'), STRIPE_WEBHOOK_SECRET_GRADING: Deno.env.get('STRIPE_WEBHOOK_SECRET_GRADING') };
+    STRIPE_SECRET_KEY: Deno.env.get('STRIPE_SECRET_KEY'), STRIPE_WEBHOOK_SECRET_GRADING: Deno.env.get('STRIPE_WEBHOOK_SECRET_GRADING'),
+    EFC_API_KEY_MARRICKVILLE: Deno.env.get('EFC_API_KEY_MARRICKVILLE'), EFC_API_KEY_SYDENHAM: Deno.env.get('EFC_API_KEY_SYDENHAM'), EFC_API_KEY_CONCORD: Deno.env.get('EFC_API_KEY_CONCORD'), EFC_API_KEY_WEST: Deno.env.get('EFC_API_KEY_WEST'), EFC_API_KEY_SYLVANIA: Deno.env.get('EFC_API_KEY_SYLVANIA') };
   Deno.serve(req => handle(req, db, env));
 }
