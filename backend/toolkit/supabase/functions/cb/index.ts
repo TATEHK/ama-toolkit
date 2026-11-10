@@ -1311,6 +1311,18 @@ export async function handle(req, db, env = {}, http = fetch) {
       } catch (er) { return json({ ok: false, error: String(er.message || er).slice(0, 300), ref }); }
     }
     // A payment taken by staff (cash, EFTPOS, bank transfer): mark paid, then book the EFC session like a card payment would
+    if (body.action === 'note') {
+      if (!can('readiness', 'days', 'payments', 'texts', 'text_invite', 'text_result', 'text_followup', 'calls', 'set_general', 'set_fees', 'set_wording')) return fail('Your login cannot add notes.', 403);
+      const phone = phoneE164(String(body.phone || ''));
+      const text = String(body.body || body.note || '').trim();
+      if (!phone && !body.email) return fail('Need a phone or email to find the contact.');
+      if (!text) return fail('Need the note text.');
+      let cid = null;
+      try { cid = await contactFor({ guardian_name: body.name || '', full_name: body.name || '', email: body.email || null }, phone); } catch (e) { return fail('GoHighLevel: ' + String(e && e.message || e).slice(0, 200), 502); }
+      if (!cid) return fail('Could not find or add the GoHighLevel contact.', 404);
+      try { await addNote(cid, text); } catch (e) { return fail('GoHighLevel: ' + String(e && e.message || e).slice(0, 200), 502); }
+      return json({ ok: true, contactId: cid });
+    }
     if (body.action === 'record_payment') {
       if (!can('payments')) return fail('Your login cannot record payments.', 403);
       const how = String(body.how || '');
