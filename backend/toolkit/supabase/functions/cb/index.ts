@@ -1100,7 +1100,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!mine.length) return json({ ok: true, matched: 0 });
 
       // ---- They picked another grading we offered (a reply of 1, 2 or 3): move them to it and send its booking link ----
-      const pick = msg.match(/^\s*(?:option\s*|#)?([1-9])\s*[.!)]?\s*$/i);
+      const pick = msg.match(/^\s*(?:(?:option|number|no\.?|opt|choice|the)\s+|#)?([1-9])(?=[\s.,!?)]|$)/i);   // a leading number is a pick, even with words after (e.g. '3 please')
       const offered = mine.filter(e => e.alt_offer && Array.isArray(e.alt_offer.days) && e.alt_offer.at && Date.now() - Date.parse(e.alt_offer.at) < ALT_VALID_MS);
       if (pick && offered.length) {
         const n = Number(pick[1]), out = [], nowIso = new Date().toISOString();
