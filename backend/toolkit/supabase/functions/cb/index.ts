@@ -1232,6 +1232,12 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (no) {
         const now = new Date().toISOString();
         for (const e of mine) await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: now }).eq('entry_id', e.entry_id);
+        // Already offered these alternative gradings and still waiting on a pick? A further "no / can't
+        // make it" reply is them declining the offer - record it and pause, don't send the same offer again.
+        if (mine.some(e => e.alt_offer && Array.isArray(e.alt_offer.days) && e.alt_offer.at && (Date.now() - Date.parse(e.alt_offer.at) < ALT_VALID_MS))) {
+          for (const e of mine) await db.from('cb_entries').update({ seq_paused_until: new Date(Date.now() + 14 * 864e5).toISOString() }).eq('entry_id', e.entry_id);
+          return json({ ok: true, matched: mine.length, no: true, offered: 0, alreadyOffered: true });
+        }
         const fit = mine.map(e => open.filter(d => fitsDay(d, e, ageNow(byKey[e.member_key]), open.find(x => x.day_id === e.day_id))).map(d => d.day_id));
         const common = open.filter(d => fit.every(ids => ids.includes(d.day_id)))
           .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || ''))).slice(0, ALT_DAYS);
