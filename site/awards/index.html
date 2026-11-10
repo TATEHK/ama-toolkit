@@ -187,6 +187,8 @@ if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
 if (window.AmaIdle) AmaIdle.watch({ sb });
 
 const SCHOOLS = ['Marrickville', 'Sydenham', 'Concord', 'West', 'Sylvania'];
+const SCHOOL_LABEL = { West: 'Auburn' };
+const schoolLabel = s => SCHOOL_LABEL[s] || s || '';;
 const MILESTONES = [5, 10, 15, 20, 25, 30, 35, 40];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -303,7 +305,7 @@ async function load() {
 function itemHtml(x, opts = {}) {
   const m = x.m, done = x.status === 'given', when = x.unsure ? `${whenText(x.a, x.b)}, check date` : whenText(x.a, x.b);
   const flag = m.check_flag && x.status !== 'given' && x.status !== 'skip';
-  const bits = [flag ? '<span class="flagtxt">Double check</span>' : '', esc(when), m.location ? esc(m.location) : ''].filter(Boolean).join(' · ');
+  const bits = [flag ? '<span class="flagtxt">Double check</span>' : '', esc(when), m.location ? esc(schoolLabel(m.location)) : ''].filter(Boolean).join(' · ');
   let tag = '';
   if (flag) tag = '<span class="tag bad">Double check</span>';
   else if (x.status === 'ordered') tag = '<span class="tag warn">Ordered</span>';
@@ -332,7 +334,7 @@ function draw() {
   const next = xs.filter(x => x.round === r + 1 && x.mid <= addMonths(cut, 6));
   const flaggedNow = now.filter(x => x.m.check_flag && x.status !== 'given' && x.status !== 'skip').length;
   const last = state.lastRun ? `EFC last checked ${dayText(new Date(state.lastRun.ran_at))}.` : 'EFC has not been checked yet: the weekly check fills this in.';
-  const schoolOpts = SCHOOLS.map(s => `<option ${state.school === s ? 'selected' : ''}>${s}</option>`).join('');
+  const schoolOpts = SCHOOLS.map(s => `<option value="${s}" ${state.school === s ? 'selected' : ''}>${schoolLabel(s)}</option>`).join('');
   const yearOpts = MILESTONES.map(y => `<option value="${y}" ${String(state.years) === String(y) ? 'selected' : ''}>${y} years</option>`).join('');
   $('#app').innerHTML = `
     <div>
@@ -616,7 +618,7 @@ function addSomeone() {
     <div class="dlg-head"><div><h3>Add someone</h3><p class="sub">For a member EFC doesn't have the right date for, like someone who started before EFC.</p></div><button class="x" type="button" data-close>Close</button></div>
     <div class="field"><label for="aName">Name</label><input type="text" id="aName" required autocomplete="off"></div>
     <div class="grid2">
-      <div class="field"><label for="aSchool">School</label><select id="aSchool">${SCHOOLS.map(s => `<option>${s}</option>`).join('')}</select></div>
+      <div class="field"><label for="aSchool">School</label><select id="aSchool">${SCHOOLS.map(s => `<option value="${s}">${schoolLabel(s)}</option>`).join('')}</select></div>
       <div class="field"><label for="aStart">Started at AMA</label><input type="date" id="aStart" required></div>
     </div>
     <div class="field"><label for="aBreak">Time away (months)</label><input type="number" id="aBreak" min="0" max="600" value="0"></div>

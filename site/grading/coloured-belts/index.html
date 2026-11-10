@@ -421,6 +421,8 @@ if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
 if (window.AmaIdle) AmaIdle.watch({ sb });
 
 const SCHOOLS = ['Marrickville', 'Sydenham', 'Concord', 'West', 'Sylvania'];
+const SCHOOL_LABEL = { West: 'Auburn' };   // display-only rename; the stored school key stays 'West'
+const schoolLabel = s => SCHOOL_LABEL[s] || s || '';
 const APP_BASE = '/grading/coloured-belts/';
 const PAID_HOW = { card: 'by card', cash: '(cash)', eftpos: '(EFTPOS)', transfer: '(bank transfer)', other: '(other)', desk: 'at the desk' };
 // Results are pass or fail (stored as 'retest'); older 'distinction' results show as a pass
@@ -719,7 +721,7 @@ function renderReady() {
         <button type="button" class="btn filters-toggle" id="fMore" aria-expanded="false" aria-controls="fMoreBox">Filters</button>
       </div>
       <div class="more-filters shut" id="fMoreBox">
-        <select id="fSchool" aria-label="School"><option value="">All schools</option>${SCHOOLS.map(s => `<option>${s}</option>`).join('')}</select>
+        <select id="fSchool" aria-label="School"><option value="">All schools</option>${SCHOOLS.map(s => `<option value="${s}">${schoolLabel(s)}</option>`).join('')}</select>
         <select id="fBelt" aria-label="Belt"><option value="">All belts</option></select>
         <select id="fBbc" aria-label="Black Belt Club"><option value="">Black Belt Club or not</option><option value="yes">In Black Belt Club</option><option value="no">Not in Black Belt Club</option><option value="invited">BBC card asked for, not joined</option></select>
         <select id="fSort" aria-label="Order">${Object.entries(SORTS).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select>
@@ -757,7 +759,7 @@ function drawReady() {
       <button type="button" class="btn go qbtn" data-mark="ready" aria-pressed="${s.approval === 'ready'}">Ready</button>
       <button type="button" class="btn stop qbtn" data-mark="not_yet" aria-pressed="${s.approval === 'not_yet'}">Not yet</button></div>` : '';
   const mk = s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}">
-      <div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${isAll() ? esc(progLabel(s.programme)) + ', ' : ''}${esc(short(s.belt))} to ${esc(short(sNext(s)))}</div><div class="meta">${esc(ageText(s))}, ${esc(s.location)}</div></div>
+      <div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${isAll() ? esc(progLabel(s.programme)) + ', ' : ''}${esc(short(s.belt))} to ${esc(short(sNext(s)))}</div><div class="meta">${esc(ageText(s))}, ${esc(schoolLabel(s.location))}</div></div>
       <div class="side"><span class="classes${s.enough_classes ? '' : ' short'}">${s.classes}/${s.classes_needed}<small> classes</small></span><span class="tags">${readyTags(s)}</span></div></button>${qbtns(s)}</li>`;
   let html;
   if (!list.length) html = '<li class="empty">No one matches.</li>';
@@ -809,11 +811,11 @@ function openStudent(key, prog) {
       <dt>Classes</dt><dd><b>${s.classes}</b> of ${s.classes_needed} since their last grading ${s.enough_classes ? '<span class="tag ok">Enough classes</span>' : `<span class="tag warn">Not enough classes: ${Math.max(0, s.classes_needed - s.classes)} to go</span>`}</dd>
       <dt>Last grading</dt><dd>${s.promoted_on ? `${esc(fmtDate(s.promoted_on))}, ${s.weeks_at_belt} weeks ago` : 'Not in EFC'}${overdue(s) ? ' <span class="tag bad">On belt too long</span>' : ''}</dd>
       <dt>Age</dt><dd>${esc(ageText(s))}</dd>
-      <dt>School</dt><dd>${esc(s.location)}${isAll() ? ', ' + esc(progLabel(P)) : ''}${s.efc_reference ? ` <span class="hint">${esc(s.efc_reference)}</span>` : ''}</dd>
+      <dt>School</dt><dd>${esc(schoolLabel(s.location))}${isAll() ? ', ' + esc(progLabel(P)) : ''}${s.efc_reference ? ` <span class="hint">${esc(s.efc_reference)}</span>` : ''}</dd>
       ${contactRows(s)}
     </dl>
     ${canDays() ? '<div class="row"><button class="btn sm" id="editContact">Edit mobile or email</button></div>' : ''}
-    ${hist.length ? `<div class="section"><h3>Gradings</h3><ul class="list">${hist.map(x => `<li><button type="button" class="item" data-gday="${esc(x.d.day_id)}"><div class="main"><div class="name">${esc(fmtDate(x.d.grading_date))}</div><div class="meta">${esc(x.d.location)}, to ${esc(toText(x.e))}</div></div><span class="tags">${x.e.result ? `<span class="tag ${x.e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[x.e.result]}</span>` : x.e.booked_at ? '<span class="tag ok">Booked</span>' : x.e.yes_at ? '<span class="tag ok">Said YES</span>' : x.e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Added</span>'}</span></button></li>`).join('')}</ul></div>` : ''}
+    ${hist.length ? `<div class="section"><h3>Gradings</h3><ul class="list">${hist.map(x => `<li><button type="button" class="item" data-gday="${esc(x.d.day_id)}"><div class="main"><div class="name">${esc(fmtDate(x.d.grading_date))}</div><div class="meta">${esc(schoolLabel(x.d.location))}, to ${esc(toText(x.e))}</div></div><span class="tags">${x.e.result ? `<span class="tag ${x.e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[x.e.result]}</span>` : x.e.booked_at ? '<span class="tag ok">Booked</span>' : x.e.yes_at ? '<span class="tag ok">Said YES</span>' : x.e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Added</span>'}</span></button></li>`).join('')}</ul></div>` : ''}
   </div>`);
   const decide = async status => {
     try { await setApproval(key, P, status, $('#apNote').value.trim() || null); render(); open(); }
@@ -949,7 +951,7 @@ function renderDays() {
     const booked = n(e => e.booked_at), notBooked = notBookedOf(d).length, coming = !d.closed && d.grading_date >= today();
     const status = d.closed ? '<span class="tag plain">Finished</span>' : n(e => e.result) ? `<span class="tag ok">${n(e => e.result)} results</span>` : es.length ? `<span class="tag ${notBooked ? 'info' : 'ok'}">${booked} booked${notBooked ? ` · ${notBooked} to book` : ''}</span>` : '';
     return `<li><button class="item" data-day="${d.day_id}"><div class="main"><div class="name">${isAll() ? esc(progLabel(d.programme || 'Taekwondo')) + ': ' : ''}${esc(fmtDate(d.grading_date))}${d.start_time ? ', ' + fmtTime(d.start_time) : ''}</div>
-      <div class="meta">${esc(d.location)}, ${esc(beltsText(d))}${d.move_up ? ', moving up to Taekwondo' : ''}</div>${fromText(d) ? `<div class="meta">${esc(fromText(d))}</div>` : ''}
+      <div class="meta">${esc(schoolLabel(d.location))}, ${esc(beltsText(d))}${d.move_up ? ', moving up to Taekwondo' : ''}</div>${fromText(d) ? `<div class="meta">${esc(fromText(d))}</div>` : ''}
       ${es.length && !d.closed && !n(e => e.result) ? `<div class="progress" title="${booked} of ${es.length} booked"><i style="width:${Math.round(100 * booked / es.length)}%"></i></div>` : ''}</div>
       <div class="side"><span class="classes">${es.length} student${es.length === 1 ? '' : 's'}</span>${status}</div></button>${coming && notBooked && canDays() ? `<div class="qacts"><button type="button" class="btn go callnb" data-callday="${d.day_id}">Call ${notBooked} not booked</button></div>` : ''}</li>`; };
   v.innerHTML = `<div class="view-head"><h2>Grading days</h2>${canGrade() && !isAll() ? '<button class="btn primary" id="newDay">New grading day</button>' : ''}</div>
@@ -974,13 +976,13 @@ function renderDays() {
 function openDayForm(d = null) {
   openDlg(`<form id="dayForm" class="dlg">
     <div class="dlg-head"><h3>${d ? 'Edit grading day' : 'New grading day'}</h3><button class="x" data-close>Close</button></div>
-    <div class="grid2"><div class="field"><label for="dSchool">School</label><select id="dSchool">${SCHOOLS.map(s => `<option${d && d.location === s ? ' selected' : ''}>${s}</option>`).join('')}</select></div>
+    <div class="grid2"><div class="field"><label for="dSchool">School</label><select id="dSchool">${SCHOOLS.map(s => `<option value="${s}"${d && d.location === s ? ' selected' : ''}>${schoolLabel(s)}</option>`).join('')}</select></div>
       <div class="field"><label for="dDate">Date</label><input type="date" id="dDate" required value="${esc(d ? d.grading_date : '')}"></div>
       <div class="field"><label for="dTime">Starts</label><input type="time" id="dTime" value="${esc(d && d.start_time ? String(d.start_time).slice(0, 5) : '')}"></div>
       <div class="field"><label for="dBookBy">Bookings close</label><input type="datetime-local" id="dBookBy" value="${esc(d && d.book_by ? localInput(d.book_by) : '')}"></div></div>
     <p class="hint">After bookings close, links tell families to call ${esc(state.settings.contact_phone || '(02) 9569 1943')}. Leave it blank to keep bookings open until the day.</p>
     <div class="field" id="dFromField"><span class="label">Students from</span>
-      <div class="checks" id="dFrom">${SCHOOLS.map(x => `<label class="check"><input type="checkbox" value="${x}" ${(d ? daySchools(d) : defaultFrom(SCHOOLS[0])).includes(x) ? 'checked' : ''}> ${x}</label>`).join('')}</div>
+      <div class="checks" id="dFrom">${SCHOOLS.map(x => `<label class="check"><input type="checkbox" value="${x}" ${(d ? daySchools(d) : defaultFrom(SCHOOLS[0])).includes(x) ? 'checked' : ''}> ${schoolLabel(x)}</label>`).join('')}</div>
       <p class="hint">Sydenham members grade at Marrickville, so it's ticked for Marrickville days.</p></div>
     <div class="field"><div class="row" style="justify-content:space-between"><span class="label">Belts (their belt now)</span><span class="row"><button type="button" class="btn link" id="dAll">All</button><button type="button" class="btn link" id="dNone">None</button></span></div>
       <div class="checks" id="dBelts">${state.belts.map(b => `<label class="check"><input type="checkbox" value="${esc(b.belt)}" ${!d || !dayBelts(d) || dayBelts(d).includes(b.belt) ? 'checked' : ''}> ${swatch(b.belt)} ${esc(short(b.belt))}</label>`).join('')}</div></div>
@@ -1115,7 +1117,7 @@ function renderDay() {
     d.book_by ? (bookingShut(d) ? 'Bookings closed' : 'Bookings close ' + whenText(d.book_by)) : '', d.efc_session ? 'EFC: ' + d.efc_session : efcLinked(d) ? 'EFC sessions linked (' + efcLinked(d) + ')' : 'No EFC session linked'].filter(Boolean);
   v.innerHTML = `<div><button class="back" id="backDays">‹ Grading days</button></div>
     <div class="day-card">
-      <div class="view-head"><div><p class="sub">${esc(d.location)}${isAll() || state.programmes.length > 1 ? ', ' + esc(progLabel(d.programme || state.programme)) : ''}</p><h2 class="day-date">${esc(fmtDate(d.grading_date))}</h2></div>${canGrade() ? '<button class="btn sm" id="editDay">Edit</button>' : ''}</div>
+      <div class="view-head"><div><p class="sub">${esc(schoolLabel(d.location))}${isAll() || state.programmes.length > 1 ? ', ' + esc(progLabel(d.programme || state.programme)) : ''}</p><h2 class="day-date">${esc(fmtDate(d.grading_date))}</h2></div>${canGrade() ? '<button class="btn sm" id="editDay">Edit</button>' : ''}</div>
       <ul class="facts">${facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul>${d.notes ? `<p class="hint">${esc(d.notes)}</p>` : ''}</div>
     <div class="kpis">${[['students', es.length, null], ['invited', n(e => e.invited_at)], ['booked', n(e => e.booked_at)], ['paid', n(e => e.paid)], ['here', n(e => e.checked_in_at)], ['passed', passed.length]]
       .map(([l, v, bar]) => `<div class="kpi"><b>${v}</b><span>${l}</span>${bar === null ? '' : `<i><em style="width:${es.length ? Math.round(100 * v / es.length) : 0}%"></em></i>`}</div>`).join('')}</div>
@@ -1129,7 +1131,7 @@ function renderDay() {
       const warn = e.booking_error ? 'Booking failed' : e.efc_by_hand && !e.efc_by_hand_done_at ? 'Book in EFC by hand' : '';
       const tags = e.result ? `<span class="tag ${e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[e.result]}</span>` : `${e.checked_in_at ? '<span class="tag ok">Here</span>' : ''}${e.booked_at ? '<span class="tag ok">Booked</span>' : e.yes_at ? '<span class="tag ok">Said YES</span>' : e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Not invited</span>'}${e.paid ? `<span class="tag ok">Paid${e.paid_how === 'card' ? ' by card' : ''}</span>` : e.booked_at ? '<span class="tag warn">Unpaid</span>' : ''}`;
       return `<li data-name="${esc(String(e.full_name || '').toLowerCase())}"><button class="item" style="${beltVar(e.belt_from)}" data-entry="${e.entry_id}"><div class="main"><div class="name">${esc(e.full_name)}</div>
-        <div class="meta">${esc(short(e.belt_from))} to ${esc(short(toText(e)))}, ${esc(ageText(s))}${s.location && s.location !== d.location ? ', from ' + esc(s.location) : ''}</div>${warn ? `<div class="meta bad-text">${warn}</div>` : ''}</div>
+        <div class="meta">${esc(short(e.belt_from))} to ${esc(short(toText(e)))}, ${esc(ageText(s))}${s.location && s.location !== d.location ? ', from ' + esc(schoolLabel(s.location)) : ''}</div>${warn ? `<div class="meta bad-text">${warn}</div>` : ''}</div>
         <div class="side"><span class="tags">${tags}</span>${s.black_belt_club ? '<span class="tag bbc">BBC</span>' : s.bbc_invited_at ? `<span class="tag bbcinv">${s.bbc_written_at ? 'BBC card written' : 'BBC card to write'}</span>` : ''}</div></button></li>`; }).join('') : '<li class="empty">No students on this day yet.</li>'}</ul>
     ${es.length ? `<details class="fold"><summary>Getting ready: belts and certificates</summary><div class="fold-body">
       <table class="grid"><thead><tr><th>New belt</th><th>Belts</th><th>Certificates</th></tr></thead><tbody>${Object.entries(needs).sort((a, b) => (beltOf(a[0]).sort || 99) - (beltOf(b[0]).sort || 99)).map(([b, c]) => `<tr><td>${esc(b)}</td><td>${c}</td><td>${c}</td></tr>`).join('')}</tbody></table>
@@ -1179,13 +1181,13 @@ async function addStudents(d, list) {
   } catch (e) { toast(errMsg(e), 6000); }
 }
 function pickStudent(d) {
-  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Add a student</h3><p class="sub">${esc(d.location)}, ${esc(beltsText(d))}</p></div><button class="x" data-close>Close</button></div>
+  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Add a student</h3><p class="sub">${esc(schoolLabel(d.location))}, ${esc(beltsText(d))}</p></div><button class="x" data-close>Close</button></div>
     <input type="search" id="psQ" placeholder="Find a student" aria-label="Find a student">
     <label class="check"><input type="checkbox" id="psAny"> Include other schools</label>
     <ul class="list" id="psList" style="max-height:50vh;overflow:auto"></ul></div>`);
   const draw = () => { const q = $('#psQ').value.trim().toLowerCase(), any = $('#psAny').checked;
     const l = state.students.filter(s => (any ? (!dayBelts(d) || dayBelts(d).includes(s.belt)) : forDay(d, s)) && (!q || s.full_name.toLowerCase().includes(q))).slice(0, 60);
-    $('#psList').innerHTML = l.map(s => `<li><button class="item" style="${beltVar(s.belt)}" data-key="${esc(s.member_key)}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(short(s.belt))} to ${esc(short(d.move_up && s.up_belt ? withProg(s.up_belt, s.up_programme) : sNext(s)))}, ${esc(s.location)}, ${esc(ageText(s))}</div></div><div class="side"><span class="tags">${readyTags(s)}</span></div></button></li>`).join('') || '<li class="empty">No one matches.</li>';
+    $('#psList').innerHTML = l.map(s => `<li><button class="item" style="${beltVar(s.belt)}" data-key="${esc(s.member_key)}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(short(s.belt))} to ${esc(short(d.move_up && s.up_belt ? withProg(s.up_belt, s.up_programme) : sNext(s)))}, ${esc(schoolLabel(s.location))}, ${esc(ageText(s))}</div></div><div class="side"><span class="tags">${readyTags(s)}</span></div></button></li>`).join('') || '<li class="empty">No one matches.</li>';
     $$('#psList [data-key]').forEach(b => b.onclick = () => addStudents(d, [student(b.dataset.key)])); };
   $('#psQ').oninput = draw; $('#psAny').onchange = draw; draw(); $('#psQ').focus();
 }
@@ -1193,7 +1195,7 @@ function openEntry(id) {
   const e = state.entries.find(x => x.entry_id === id); if (!e) return;
   const d = dayOf(e.day_id), s = student(e.member_key);
   const at = iso => new Date(iso).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' });
-  const booking = e.efc_by_hand && e.booked_at ? (e.efc_by_hand_done_at ? `Booked by hand in EFC, ${at(e.efc_by_hand_done_at)}` : `<span class="bad-text">Booked here, but they're from ${esc(s ? s.location : 'another school')}, so EFC can't book them automatically. Book them in EFC by hand, then press Done in EFC.</span>`)
+  const booking = e.efc_by_hand && e.booked_at ? (e.efc_by_hand_done_at ? `Booked by hand in EFC, ${at(e.efc_by_hand_done_at)}` : `<span class="bad-text">Booked here, but they're from ${esc(s ? schoolLabel(s.location) : 'another school')}, so EFC can't book them automatically. Book them in EFC by hand, then press Done in EFC.</span>`)
     : e.booked_at ? `Booked ${at(e.booked_at)}` : e.booking_error ? `<span class="bad-text">Failed: ${esc(e.booking_error)}${e.paid ? '. They have paid, so book them in EFC by hand, then press Mark booked.' : ''}</span>` : e.yes_at ? `Said YES ${at(e.yes_at)}, booking link sent, not booked yet` : e.invited_at ? `Invited ${at(e.invited_at)}, not booked yet${e.reply_text ? '. Replied: “' + esc(e.reply_text) + '”' : ''}` : 'Not invited yet';
   openDlg(`<div class="dlg">
     <div class="dlg-head"><div><h3>${esc(e.full_name)}</h3><p class="sub">${swatch(e.belt_from)} ${esc(e.belt_from)} to <b>${esc(toText(e))}</b></p></div><button class="x" data-close>Close</button></div>
@@ -1294,7 +1296,7 @@ function renderCheckIn(d, shown) {
       <div><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to ${esc(short(toText(e)))}, ${esc(ageText(student(e.member_key)))}${e.checked_in_at ? ', in at ' + esc(new Date(e.checked_in_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })) : ''}</div>
       ${!e.booked_at || !e.paid ? `<div class="meta bad-text">${[!e.booked_at ? 'Not booked' : '', !e.paid ? 'Unpaid' : ''].filter(Boolean).join(', ')}</div>` : ''}</div>
       <div class="res" data-entry="${e.entry_id}"><button type="button" data-r="in" aria-pressed="${!!e.checked_in_at}">${e.checked_in_at ? 'Here' : 'Tap when here'}</button></div></div>`;
-  v.innerHTML = `<div><button class="back" id="backDay">‹ ${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</button>
+  v.innerHTML = `<div><button class="back" id="backDay">‹ ${esc(schoolLabel(d.location))}, ${esc(fmtDate(d.grading_date))}</button>
       <div class="view-head"><h2>Check-in</h2><span class="sub" id="ciCount"></span></div></div>
     <div class="progress"><i id="ciBar"></i></div>
     <input type="search" class="bigsearch" id="ciQ" placeholder="Find a name" aria-label="Find a name">
@@ -1321,11 +1323,11 @@ function printLineup(d, shown) {
   const es = sortEntries(shown, 'age');
   const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print.');
   const box = '<span style="display:inline-block;width:14px;height:14px;border:1.5px solid #333;vertical-align:middle"></span>';
-  w.document.write(`<!doctype html><title>Line-up ${esc(d.location)} ${esc(d.grading_date)}</title><style>body{font:13px Arial,sans-serif;margin:20px;color:#111}h2{margin:0 0 4px}p{margin:0 0 10px;color:#444}table{width:100%;border-collapse:collapse}td,th{border:1px solid #888;padding:6px;text-align:left;vertical-align:middle}th{background:#eee}td.c{text-align:center;white-space:nowrap}small{color:#555}@media print{body{margin:10mm}tr{page-break-inside:avoid}}</style>
-    <h2>Line-up · ${esc(d.location)} ${esc(progLabel(d.programme || state.programme))} grading</h2>
+  w.document.write(`<!doctype html><title>Line-up ${esc(schoolLabel(d.location))} ${esc(d.grading_date)}</title><style>body{font:13px Arial,sans-serif;margin:20px;color:#111}h2{margin:0 0 4px}p{margin:0 0 10px;color:#444}table{width:100%;border-collapse:collapse}td,th{border:1px solid #888;padding:6px;text-align:left;vertical-align:middle}th{background:#eee}td.c{text-align:center;white-space:nowrap}small{color:#555}@media print{body{margin:10mm}tr{page-break-inside:avoid}}</style>
+    <h2>Line-up · ${esc(schoolLabel(d.location))} ${esc(progLabel(d.programme || state.programme))} grading</h2>
     <p>${esc(fmtDate(d.grading_date))}${d.start_time ? ' · ' + esc(fmtTime(d.start_time)) : ''}${dayFilt.belt ? ' · ' + esc(dayFilt.belt) : ''} · ${es.length} student${es.length === 1 ? '' : 's'}, youngest first · ${es.filter(e => e.checked_in_at).length} here</p>
     <table><tr><th>#</th><th>Name</th><th>Age</th><th>From</th><th>To</th><th>Here</th><th>Pass</th><th>Fail</th><th style="width:26%">Examiner notes</th></tr>
-    ${es.map((e, i) => { const s = student(e.member_key); return `<tr${e.checked_in_at ? '' : ' style="color:#666"'}><td>${i + 1}</td><td><b>${esc(e.full_name)}</b>${s && s.location !== d.location ? `<br><small>${esc(s.location)}</small>` : ''}</td><td>${yrs(s) ?? ''}</td><td>${esc(short(e.belt_from))}</td><td>${esc(short(toText(e)))}</td><td class="c">${e.checked_in_at ? '&#10003;' : box}</td><td class="c">${resultIs(e, 'pass') ? '&#10003;' : box}</td><td class="c">${e.result === 'retest' ? '&#10003;' : box}</td><td></td></tr>`; }).join('')}</table>`);
+    ${es.map((e, i) => { const s = student(e.member_key); return `<tr${e.checked_in_at ? '' : ' style="color:#666"'}><td>${i + 1}</td><td><b>${esc(e.full_name)}</b>${s && s.location !== d.location ? `<br><small>${esc(schoolLabel(s.location))}</small>` : ''}</td><td>${yrs(s) ?? ''}</td><td>${esc(short(e.belt_from))}</td><td>${esc(short(toText(e)))}</td><td class="c">${e.checked_in_at ? '&#10003;' : box}</td><td class="c">${resultIs(e, 'pass') ? '&#10003;' : box}</td><td class="c">${e.result === 'retest' ? '&#10003;' : box}</td><td></td></tr>`; }).join('')}</table>`);
   w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
 }
 const resultIs = (e, k) => k === 'pass' ? e.result === 'pass' || e.result === 'distinction' : e.result === k;
@@ -1346,7 +1348,7 @@ function wireBbcInvite(root, after) {
 // Results on a tablet: one card per student, two big buttons (pass or fail)
 function renderResults(d, es) {
   const v = $('#view-day');
-  v.innerHTML = `<div><button class="back" id="backDay">‹ ${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</button>
+  v.innerHTML = `<div><button class="back" id="backDay">‹ ${esc(schoolLabel(d.location))}, ${esc(fmtDate(d.grading_date))}</button>
       <div class="view-head"><h2>Results</h2><span class="sub" id="resCount"></span></div></div>
     <p class="hint">Saves as you tap. Tap again to clear.</p>
     <div class="bigcards">${es.map(e => `<div class="rescard" style="${beltVar(e.belt_from)}"><div><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to ${esc(short(toText(e)))}, ${esc(ageText(student(e.member_key)))}</div>${!e.checked_in_at && es.some(x => x.checked_in_at) ? '<div class="meta bad-text">Not checked in</div>' : ''}</div>
@@ -1390,7 +1392,7 @@ function renderPhotos(d, shown) {
   const draw = () => {
     const done = es.filter(e => e.photo_path).length, nx = nextUp();
     const unsent = es.filter(e => e.photo_path && !sentTo('photo', e.entry_id));
-    v.innerHTML = `<div><button class="back" id="backDay">‹ ${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</button>
+    v.innerHTML = `<div><button class="back" id="backDay">‹ ${esc(schoolLabel(d.location))}, ${esc(fmtDate(d.grading_date))}</button>
         <div class="view-head"><h2>Photos with the Grandmaster</h2><span class="sub">${done} of ${es.length} taken</span></div></div>
       <p class="hint">Tap Take photo and it saves straight away. The next student is outlined in gold. Photos are removed after 30 days.</p>
       <div class="row"><button class="btn primary" id="phSend" ${unsent.length ? '' : 'disabled'}>Text photos${unsent.length ? ' (' + unsent.length + ')' : ''}</button></div>
@@ -1447,9 +1449,9 @@ function certCsv(d, list) {
 }
 function printDay(d, es) {
   const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print.');
-  w.document.write(`<!doctype html><title>${esc(d.location)} grading ${esc(d.grading_date)}</title><style>body{font:14px Arial,sans-serif;margin:24px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:6px;text-align:left}</style>
-    <h2>${esc(d.location)} ${esc(progLabel(state.programme))} grading${d.move_up ? ' (moving up)' : ''} · ${esc(fmtDate(d.grading_date))} ${esc(fmtTime(d.start_time))}${dayFilt.belt ? ' · ' + esc(dayFilt.belt) : ''}</h2>
-    <table class="grid"><tr><th>#</th><th>Name</th><th>Age</th><th>School</th><th>From</th><th>To</th><th>Booked</th><th>Paid</th><th>Result</th></tr>${es.map((e, i) => { const s = student(e.member_key); return `<tr><td>${i + 1}</td><td>${esc(e.full_name)}</td><td>${yrs(s) ?? ''}</td><td>${esc(s ? s.location : '')}</td><td>${esc(e.belt_from)}</td><td>${esc(toText(e))}</td><td>${e.booked_at ? 'Yes' : ''}</td><td>${e.paid ? 'Yes' : ''}</td><td>${e.result ? RESULT[e.result] : ''}</td></tr>`; }).join('')}</table>`);
+  w.document.write(`<!doctype html><title>${esc(schoolLabel(d.location))} grading ${esc(d.grading_date)}</title><style>body{font:14px Arial,sans-serif;margin:24px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:6px;text-align:left}</style>
+    <h2>${esc(schoolLabel(d.location))} ${esc(progLabel(state.programme))} grading${d.move_up ? ' (moving up)' : ''} · ${esc(fmtDate(d.grading_date))} ${esc(fmtTime(d.start_time))}${dayFilt.belt ? ' · ' + esc(dayFilt.belt) : ''}</h2>
+    <table class="grid"><tr><th>#</th><th>Name</th><th>Age</th><th>School</th><th>From</th><th>To</th><th>Booked</th><th>Paid</th><th>Result</th></tr>${es.map((e, i) => { const s = student(e.member_key); return `<tr><td>${i + 1}</td><td>${esc(e.full_name)}</td><td>${yrs(s) ?? ''}</td><td>${esc(s ? schoolLabel(s.location) : '')}</td><td>${esc(e.belt_from)}</td><td>${esc(toText(e))}</td><td>${e.booked_at ? 'Yes' : ''}</td><td>${e.paid ? 'Yes' : ''}</td><td>${e.result ? RESULT[e.result] : ''}</td></tr>`; }).join('')}</table>`);
   w.document.close(); w.focus(); w.print();
 }
 
@@ -1470,10 +1472,10 @@ function renderBbc() {
   const progs = key => [...new Set(state.all.students.filter(x => x.member_key === key).map(x => progLabel(x.programme)))].join(', ');
   v.innerHTML = `<div class="view-head"><div><h2>Cards to write</h2><p class="sub">Black Belt Club invitation cards teachers have asked for. Tick each one once it's written.</p></div></div>
     <ul class="list">${todo.length ? todo.map(s => `<li><label class="item" style="${beltVar(s.belt, s.programme)}"><input type="checkbox" data-written="${esc(s.member_key)}" ${canApprove() ? '' : 'disabled'}>
-      <div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(s.location)}, ${esc(ageText(s))}, ${esc(progs(s.member_key))}${s.guardian_name ? ', parent ' + esc(s.guardian_name) : ''}</div><div class="meta">Asked for by ${esc(s.bbc_invited_by || 'staff')}, ${esc(when(s.bbc_invited_at))}</div></div></label></li>`).join('') : '<li class="empty">No invitations to write.</li>'}</ul>
+      <div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(schoolLabel(s.location))}, ${esc(ageText(s))}, ${esc(progs(s.member_key))}${s.guardian_name ? ', parent ' + esc(s.guardian_name) : ''}</div><div class="meta">Asked for by ${esc(s.bbc_invited_by || 'staff')}, ${esc(when(s.bbc_invited_at))}</div></div></label></li>`).join('') : '<li class="empty">No invitations to write.</li>'}</ul>
     ${follow.length ? `<div class="section-title"><div><h3>Follow up</h3><p class="hint">Cards written ${FOLLOW_DAYS} or more days ago, not joined yet.</p></div>${canApprove() ? `<button class="btn primary" id="bbcFollow">Text ${follow.length} parent${follow.length === 1 ? '' : 's'}</button>` : ''}</div>
-      <ul class="list">${follow.map(s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(s.location)}${s.guardian_name ? ', parent ' + esc(s.guardian_name) : ''}${s.phone ? '' : ', <span class="bad-text">no mobile</span>'}</div></div><div class="side"><span class="classes">${Math.floor((Date.now() - Date.parse(s.bbc_written_at)) / 86400000)}<small> days</small></span></div></button></li>`).join('')}</ul>` : ''}
-    ${done.length ? `<h3>Written</h3><ul class="list">${done.map(s => `<li><div class="item plain"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(s.location)}, written ${esc(when(s.bbc_written_at))} by ${esc(s.bbc_written_by || 'staff')}${bbcFollowedUp(s) && !s.black_belt_club ? ', followed up' : ''}</div></div><div class="side">${s.black_belt_club ? '<span class="tag bbc">Joined</span>' : ''}${canApprove() ? `<button class="btn sm" data-unwritten="${esc(s.member_key)}">Undo</button>` : ''}</div></div></li>`).join('')}</ul>` : ''}`;
+      <ul class="list">${follow.map(s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(schoolLabel(s.location))}${s.guardian_name ? ', parent ' + esc(s.guardian_name) : ''}${s.phone ? '' : ', <span class="bad-text">no mobile</span>'}</div></div><div class="side"><span class="classes">${Math.floor((Date.now() - Date.parse(s.bbc_written_at)) / 86400000)}<small> days</small></span></div></button></li>`).join('')}</ul>` : ''}
+    ${done.length ? `<h3>Written</h3><ul class="list">${done.map(s => `<li><div class="item plain"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(schoolLabel(s.location))}, written ${esc(when(s.bbc_written_at))} by ${esc(s.bbc_written_by || 'staff')}${bbcFollowedUp(s) && !s.black_belt_club ? ', followed up' : ''}</div></div><div class="side">${s.black_belt_club ? '<span class="tag bbc">Joined</span>' : ''}${canApprove() ? `<button class="btn sm" data-unwritten="${esc(s.member_key)}">Undo</button>` : ''}</div></div></li>`).join('')}</ul>` : ''}`;
   $$('[data-written]').forEach(c => c.onchange = async () => {
     const key = c.dataset.written;
     patchStudent(key, { bbc_written_at: new Date().toISOString(), bbc_written_by: state.me }); render();
@@ -1500,17 +1502,17 @@ function renderEfc() {
     <p class="hint" id="efcAt">${state.efcAt ? `Belts and classes last came from EFC ${esc(new Date(state.efcAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' }))}. New belts come back with the nightly update.` : 'Belts and classes come from EFC every night.'}</p>
     ${has('admin') ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:2px 0 12px"><button class="btn" id="efcSyncNow">Update from EFC now</button><span class="hint" id="efcSyncMsg" style="margin:0">Pull the latest belts, classes and ready-to-grade straight from EFC.</span></div>` : ''}
     <ul class="list">${todo.length ? todo.map(({ e, d, kind }) => `<li><label class="item" style="${beltVar(kind === 'belt' ? e.belt_from : e.belt_to)}"><input type="checkbox" data-efc="${e.entry_id}" data-efckind="${kind}" ${canGrade() ? '' : 'disabled'}>
-      <div class="main"><div class="name">${esc(e.full_name)}</div>${kind === 'belt' ? `<div class="meta"><b>Fix belt in EFC</b> — should be ${esc(short(e.belt_from))} (grading for ${esc(short(toText(e)))})</div>${(() => { const eb = (student(e.member_key) || {}).belt; if (!eb) return ''; const ok = short(eb) === short(e.belt_from); return `<div class="meta" style="color:${ok ? 'var(--green-text)' : 'var(--red)'}">${ok ? 'EFC now matches — safe to tick off' : 'EFC still says ' + esc(short(eb))}</div>`; })()}` : `<div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div>`}<div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></label></li>`).join('') : '<li class="empty">Nothing to update in EFC.</li>'}</ul>
+      <div class="main"><div class="name">${esc(e.full_name)}</div>${kind === 'belt' ? `<div class="meta"><b>Fix belt in EFC</b> — should be ${esc(short(e.belt_from))} (grading for ${esc(short(toText(e)))})</div>${(() => { const eb = (student(e.member_key) || {}).belt; if (!eb) return ''; const ok = short(eb) === short(e.belt_from); return `<div class="meta" style="color:${ok ? 'var(--green-text)' : 'var(--red)'}">${ok ? 'EFC now matches — safe to tick off' : 'EFC still says ' + esc(short(eb))}</div>`; })()}` : `<div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div>`}<div class="meta">${esc(schoolLabel(d.location))}, ${esc(fmtDate(d.grading_date))}</div></div></label></li>`).join('') : '<li class="empty">Nothing to update in EFC.</li>'}</ul>
     ${(state.beltChanges || []).length ? `<h3>Belt changes from EFC</h3><p class="hint">The last EFC update moved these belts. Tick to clear once you've seen them.</p>
       <ul class="list">${state.beltChanges.slice(0, 80).map(c => `<li><label class="item" style="${beltVar(c.to_belt)}"><input type="checkbox" data-bcseen="${c.id}" ${canGrade() ? '' : 'disabled'}>
         <div class="main"><div class="name">${esc(c.full_name || 'Unknown')}</div><div class="meta">${esc(short(c.from_belt))} → <b>${esc(short(c.to_belt))}</b>${c.programme && c.programme !== 'Taekwondo' ? ` · ${esc(c.programme)}` : ''}</div><div class="meta">${esc(new Date(c.changed_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }))}</div></div></label></li>`).join('')}</ul>` : ''}
     ${noContact.length ? `<h3>No contact details</h3><p class="hint">No mobile and no email, so they can't be sent invitations, booking links or payment emails. Tap to add details (also fix EFC).</p>
-      <ul class="list">${noContact.map(({ e, d }) => `<li><button class="item" data-open="${e.entry_id}"><div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div><div class="meta">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</div></div></button></li>`).join('')}</ul>` : ''}
+      <ul class="list">${noContact.map(({ e, d }) => `<li><button class="item" data-open="${e.entry_id}"><div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to <b>${esc(toText(e))}</b></div><div class="meta">${esc(schoolLabel(d.location))}, ${esc(fmtDate(d.grading_date))}</div></div></button></li>`).join('')}</ul>` : ''}
     ${done.length ? `<h3>Recently done</h3><ul class="list">${done.map(e => `<li><div class="item plain"><div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(toText(e))}, by ${esc(e.efc_done_by || 'staff')}</div></div>${canGrade() ? `<button class="btn sm" data-undo="${e.entry_id}">Undo</button>` : ''}</div></li>`).join('')}</ul>` : ''}
     ${canGrade() ? `<details class="fold" id="importCard"><summary>Import an EFC list</summary><div class="fold-body">
       <p class="hint">Export students from EFC as CSV or Excel. Belts, last grading dates, classes, birthdays and contacts are updated, and new students are added. Blank cells keep what's saved. Medical notes and balances are never stored.</p>
       <div class="grid2"><div class="field"><label for="impFile">EFC file</label><input type="file" id="impFile" accept=".csv,.xlsx,.xls,.json,text/csv"></div>
-        <div class="field"><label for="impSchool">School, for rows with none</label><select id="impSchool"><option value="">Keep what's saved</option>${SCHOOLS.map(x => `<option>${x}</option>`).join('')}</select></div></div>
+        <div class="field"><label for="impSchool">School, for rows with none</label><select id="impSchool"><option value="">Keep what's saved</option>${SCHOOLS.map(x => `<option value="${x}">${schoolLabel(x)}</option>`).join('')}</select></div></div>
       <div id="impPrev"></div></div></details>` : ''}`;
   if (canGrade()) wireImport();
   { const sync = $('#efcSyncNow'), msg = $('#efcSyncMsg'); if (sync) sync.onclick = async () => {
@@ -1716,7 +1718,7 @@ function renderDash() {
   // Black Belt Club cards written (every program, each student once) and how many joined
   const cards = bbcPeople().filter(s => s.bbc_written_at && inSchool(s.location)), joined = cards.filter(s => s.black_belt_club);
   const mname = k => new Date(k + '-01T00:00:00').toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-  v.innerHTML = `<div class="view-head"><h2>Dashboard</h2><select id="dashSchool" aria-label="School" style="width:auto">${['', ...SCHOOLS].map(s => `<option value="${s}"${s === school ? ' selected' : ''}>${s || 'All schools'}</option>`).join('')}</select></div>
+  v.innerHTML = `<div class="view-head"><h2>Dashboard</h2><select id="dashSchool" aria-label="School" style="width:auto">${['', ...SCHOOLS].map(s => `<option value="${s}"${s === school ? ' selected' : ''}>${s ? schoolLabel(s) : 'All schools'}</option>`).join('')}</select></div>
     <div class="figures">
       <div><b>${st.filter(eligible).length}</b><span>have enough classes</span></div>
       <div><b>${ready.length}</b><span>marked ready, not on a grading day</span></div>
@@ -1726,7 +1728,7 @@ function renderDash() {
       <div><b>${cards.length ? Math.round(joined.length / cards.length * 100) + '%' : '0'}</b><span>Black Belt Club cards that joined (${joined.length} of ${cards.length})</span></div></div>
     <h3>Each month</h3>${Object.keys(months).length ? `<div class="scroll"><table class="grid"><thead><tr><th>Month</th><th>Graded</th><th>Passed</th><th>Pass rate</th><th>Fees paid</th></tr></thead><tbody>${Object.keys(months).sort().reverse().map(k => `<tr><td>${esc(mname(k))}</td><td>${months[k].n}</td><td>${months[k].p}</td><td>${months[k].n ? Math.round(months[k].p / months[k].n * 100) + '%' : ''}</td><td>${money(months[k].r)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="hint">No results yet.</p>'}
     <div><h3>Overdue for a grading</h3><p class="hint" style="margin-top:4px">On their belt at least twice as long as usual and not on a grading day. A long gap often means a student is about to drop off.</p></div>
-    ${od.length ? `<ul class="list">${od.sort((a, b) => b.weeks_at_belt - a.weeks_at_belt).slice(0, 50).map(s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${isAll() ? esc(progLabel(s.programme)) + ', ' : ''}${esc(short(s.belt))}, ${esc(s.location)}</div></div><div class="side"><span class="classes">${s.weeks_at_belt} weeks</span><span class="hint">${s.classes} classes</span></div></button></li>`).join('')}</ul>` : '<p class="hint">No one is overdue.</p>'}`;
+    ${od.length ? `<ul class="list">${od.sort((a, b) => b.weeks_at_belt - a.weeks_at_belt).slice(0, 50).map(s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${isAll() ? esc(progLabel(s.programme)) + ', ' : ''}${esc(short(s.belt))}, ${esc(schoolLabel(s.location))}</div></div><div class="side"><span class="classes">${s.weeks_at_belt} weeks</span><span class="hint">${s.classes} classes</span></div></button></li>`).join('')}</ul>` : '<p class="hint">No one is overdue.</p>'}`;
   $('#dashSchool').onchange = () => { v.dataset.school = $('#dashSchool').value; renderDash(); };
   $$('#view-dash [data-key]').forEach(b => b.onclick = () => openStudent(b.dataset.key, b.dataset.prog));
 }
@@ -1765,7 +1767,7 @@ async function openSequence(d) {
       <td>${c ? esc(c.outcome ? CALL_OUT[c.outcome] || c.outcome : c.reason === 'not_grading' ? 'Not grading: admin to call' : c.reason === 'concern' ? 'Concern: to call' : 'To call') : ''}</td>
       ${canText('not_booked') ? `<td class="seq-acts">${e.seq_stopped_at || (e.seq_paused_until && new Date(e.seq_paused_until) > new Date()) ? `<button class="btn sm" data-seq="resume">Resume</button>` : `<button class="btn sm" data-seq="pause">Pause</button><button class="btn sm" data-seq="skip">Skip</button>`}</td>` : ''}</tr>`;
   }).join('');
-  openDlg(`<div class="dlg-body seq-dlg"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>Booking sequence</h3><p class="sub">${esc(d.location)}, ${esc(fmtDate(d.grading_date))}</p></div><button class="btn ghost" data-close>Close</button></div>
+  openDlg(`<div class="dlg-body seq-dlg"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>Booking sequence</h3><p class="sub">${esc(schoolLabel(d.location))}, ${esc(fmtDate(d.grading_date))}</p></div><button class="btn ghost" data-close>Close</button></div>
     <p class="hint">${on ? 'On: invitations and follow-ups go automatically. Pause stops it for 2 days; Skip stops it for this student.' : 'Off: nothing goes automatically yet. Switch it on in Settings once Mark has approved the wording.'}</p>
     ${es.length ? `<div class="scroll"><table class="grid seq-grid"><thead><tr><th>Student</th>${SEQ_GRID.map(([, t]) => `<th>${t}</th>`).join('')}<th>Booked</th><th>Paid</th><th>Call</th>${canText('not_booked') ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
       <p class="hint">✓ sent · – skipped (already done) · · too late, not sent · ! failed. Hover or long-press a mark for details.</p>` : '<p class="hint">No students on this day yet. Adding them starts the sequence.</p>'}</div>`);

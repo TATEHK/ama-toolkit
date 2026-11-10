@@ -2025,7 +2025,7 @@ function openEfcLink(s) {
     if (error) { box.innerHTML = `<li><div class="empty">${esc(/permission|denied/i.test(error.message) ? 'Your login cannot search EFC.' : error.message)}</div></li>`; return; }
     const rows = (data || []).filter(m => m.efc_reference);
     box.innerHTML = rows.length ? rows.map(m => `<li><button class="item" data-ref="${esc(m.efc_reference)}">
-      <div class="main"><div class="name">${esc(m.full_name)}</div><div class="meta">${esc([m.efc_reference, m.location, m.belt, m.guardian_name, m.phone || m.guardian_phone].filter(Boolean).join(' · '))}</div></div>
+      <div class="main"><div class="name">${esc(m.full_name)}</div><div class="meta">${esc([m.efc_reference, schoolLabel(m.location), m.belt, m.guardian_name, m.phone || m.guardian_phone].filter(Boolean).join(' · '))}</div></div>
       ${m.efc_reference === s.efc_ref ? '<span class="tag ok">Linked</span>' : ''}</button></li>`).join('') : '<li><div class="empty">No EFC members match.</div></li>';
     box.querySelectorAll('[data-ref]').forEach(b => b.onclick = async () => {
       const m = rows.find(x => x.efc_reference === b.dataset.ref);
@@ -3068,6 +3068,8 @@ function grRows() {
 // EFC splits a grading by rank and by venue, so a black belt grading needs a $0 EFC session for each rank at each school.
 // A candidate books their own school's session for the rank they're grading to (efc_school_belt_sessions: school -> { rank -> id }).
 const BB_SCHOOLS = ['Marrickville', 'Sydenham', 'Concord', 'West', 'Sylvania'];
+const SCHOOL_LABEL = { West: 'Auburn' };
+const schoolLabel = s => SCHOOL_LABEL[s] || s || '';;
 const bbLink = tok => 'https://app.train-ama.com/b#' + tok;
 const BB_PAY_HOW = { cash: 'Cash', eftpos: 'EFTPOS', transfer: 'Bank transfer', other: 'Other' };
 const BB_RANKS = ['Probationary Black Belt', '1st Dan Black Belt', '1st Dan Level 1', '2nd Dan', '2nd Dan Level 1', '2nd Dan Level 2', '3rd Dan', '3rd Dan Level 1', '3rd Dan Level 2', '3rd Dan Level 3', '4th Dan', '4th Dan Level 1', '4th Dan Level 2', '4th Dan Level 3', '4th Dan Level 4', '5th Dan'];
@@ -3083,7 +3085,7 @@ function bbDetailFields(c, day) {
       <div class="field"><label for="bbDate">Date</label><input type="date" id="bbDate" value="${esc(date)}"></div>
       <div class="field"><label for="bbTime">Starts</label><input type="time" id="bbTime" value="${esc(time)}"></div></div>
     <div class="field"><span class="label">Schools / venues</span>
-      <div class="checklist">${BB_SCHOOLS.map(s => `<label class="check"><input type="checkbox" class="bbSchool" value="${esc(s)}" ${schools.includes(s) ? 'checked' : ''}> ${esc(s)}</label>`).join('')}</div>
+      <div class="checklist">${BB_SCHOOLS.map(s => `<label class="check"><input type="checkbox" class="bbSchool" value="${esc(s)}" ${schools.includes(s) ? 'checked' : ''}> ${esc(schoolLabel(s))}</label>`).join('')}</div>
       <p class="hint">Where the grading runs. Each school you tick gets its own session (and the candidates book their own school's).</p></div>
     <div class="field"><span class="label">Belts it's for</span>
       <div class="checklist" style="max-height:230px;overflow:auto">${[...BB_RANKS, ...defBelts.filter(b => !BB_RANKS.includes(b))].map(r => `<label class="check"><input type="checkbox" class="bbBelt" value="${esc(r)}" ${defBelts.includes(r) ? 'checked' : ''}> ${esc(r)}</label>`).join('')}</div></div>`;

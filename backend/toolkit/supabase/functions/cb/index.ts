@@ -177,7 +177,10 @@ export const refSchool = ref => REF_SCHOOL[String(ref || '').split('-')[1]] || n
 // Where a school's students grade, when it isn't their own school. Sydenham students grade at AMA Marrickville, but are
 // still booked into EFC under Sydenham (their own school's session and EFC location); this only changes what families are told.
 export const GRADING_VENUE = { Sydenham: 'Marrickville' };
-export const venueOf = school => GRADING_VENUE[school] || school || '';
+// Display-only rename: families and staff see this name; the stored school key stays the same (EFC mapping, references).
+export const SCHOOL_LABEL = { West: 'Auburn' };
+export const schoolLabel = s => SCHOOL_LABEL[s] || s || '';
+export const venueOf = school => { const v = GRADING_VENUE[school] || school || ''; return SCHOOL_LABEL[v] || v; };
 // Replies: "I normally do Leon's grading at Sylvania" / "Can she grade at Concord instead?". Returns the school they want to grade
 // at (as a grading venue), or null. A school after "not" / "don't attend" / "no longer" is one they don't want.
 const SCHOOL_WORDS = [['Marrickville', /\bmarrickville\b/g], ['Sydenham', /\bsydenham\b/g], ['Concord', /\bconcord\b/g], ['Sylvania', /\bsylvania\b/g],
@@ -468,7 +471,7 @@ export function seqVars(e, d, m, o = {}) {
   const video = videoForBelt(d.programme, e.belt_from);
   const dl = addDaysYmd(d.grading_date, -(o.deadlineDays ?? 7));
   const deadline = new Date(dl + 'T00:00:00Z').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '');
-  return { parent: firstWord(m && m.guardian_name) || 'there', first: firstWord((m && m.full_name) || e.full_name), next: e.belt_to, school: d.location,
+  return { parent: firstWord(m && m.guardian_name) || 'there', first: firstWord((m && m.full_name) || e.full_name), next: e.belt_to, school: venueOf(d.location),
     date: longDay(d.grading_date), time: t ? ' at ' + t : '', time_only: t || 'to be confirmed', link: SITE + 'b#' + e.token,
     video: video ? 'Grading video: ' + video : '', video_link: video || 'ask your instructor',
     prep: prepOpen ? (o.channel === 'email' ? PREP.text + ' Book a place: ' + prepUrl : 'Optional extra: our Colour Belt Prep Session is a 2-hour workshop with Mr Mark and Master Hakan covering only grading material, on Sunday 22 November at AMA Marrickville. Students from every AMA school are welcome. Book a place: ' + prepUrl) : '',
@@ -944,7 +947,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: e } = await db.from('cb_entries').select('entry_id, day_id, full_name, belt_to, photo_path, photo_removed_at').eq(byCode ? 'photo_code' : 'token', byCode ? body.code : body.token).maybeSingle();
       if (!e) return json({ ok: false, error: 'This link isn\'t valid. Ask the front desk for a new one.' }, 404);
       const { data: d } = await db.from('cb_days').select('location, grading_date').eq('day_id', e.day_id).maybeSingle();
-      const info = { ok: true, first: first(e.full_name), belt_to: e.belt_to, school: d ? d.location : null, date: d ? d.grading_date : null, photo: false };
+      const info = { ok: true, first: first(e.full_name), belt_to: e.belt_to, school: d ? venueOf(d.location) : null, date: d ? d.grading_date : null, photo: false };
       if (!e.photo_path) return json({ ...info, removed: !!e.photo_removed_at, error: e.photo_removed_at ? 'Grading photos are kept for 30 days, and this one has been removed. Please ask the front desk if you need it.' : 'The photo isn\'t ready yet. Please check again soon.' });
       const name = `${String(e.full_name || 'grading').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}-AMA-grading.${(String(e.photo_path).match(/\.(jpe?g|png|webp)$/i) || [, 'jpg'])[1].toLowerCase()}`;
       const bucket = db.storage.from('grading-photos');
