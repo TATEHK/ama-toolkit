@@ -9,7 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const tmp = join(mkdtempSync(join(tmpdir(), 'nur-')), 'nur.mjs');
 writeFileSync(tmp, readFileSync(join(here, '../supabase/functions/nurture/index.ts'), 'utf8'));
 const mod = await import(pathToFileURL(tmp).href);
-const { handle, render, addDays, longDate, emailHtml } = mod;
+const { handle, render, addDays, longDate, emailHtml, isAdult } = mod;
 
 let passed = 0, failed = 0;
 const ok = (c, m) => { if (c) { passed++; console.log('  pass  ' + m); } else { failed++; console.log('  FAIL  ' + m); } };
@@ -98,6 +98,15 @@ console.log('render()');
 ok(render('Hi {first_name}, {belt} on {grading_date}', { first_name: 'Sam', belt: '1st Dan', grading_date: 'Saturday 5 December' }, false) === 'Hi Sam, 1st Dan on Saturday 5 December', 'fields fill in');
 ok(render('Ready.{essay_bullet}\nEnd', { first_name: 'Sam', essay_link: 'https://x/e/#tok' }, true).includes('https://x/e/#tok'), 'essay bullet shows their essay link when they need an essay');
 ok(!render('Ready.{essay_bullet}\nEnd', { first_name: 'Sam' }, false).includes('Essay'), 'essay bullet hidden when no essay needed');
+// Adults get the messages addressed to them
+{ const A = { first_name: 'Kathy', belt: '4th Dan Level 1', grading_date: 'Saturday 28 November', link: 'L', prep_time: '3:30 to 5:30pm', essay_link: 'E', adult: true };
+  ok(render("Hi! {first_name} has been marked on track for {belt} and is invited to grade on {grading_date}. Please enrol by Sat 21 Nov using {first_name}'s personal link: {link} - AMA", A, false)
+    === "Hi Kathy! You've been marked on track for 4th Dan Level 1 and are invited to grade on Saturday 28 November. Please enrol by Sat 21 Nov using your personal link: L - AMA", 'an adult\'s invitation text speaks to them');
+  ok(render('Hi,\n\nThank you. {first_name} is booked in to grade for {belt}. Their session time is on {first_name}\'s personal link: {link}\n\n{essay}Good luck, {first_name}!', A, true)
+    === "Hi Kathy,\n\nThank you. You're booked in to grade for 4th Dan Level 1. Your session time is on your personal link: L\n\nYour black belt essay is also due before grading. Submit it here: E\n\nGood luck!", 'an adult\'s email: greeting by name, then "you", essay line too');
+  ok(render('{first_name} is invited to grade for {belt}', A, false) === "You're invited to grade for 4th Dan Level 1", 'an adult\'s subject line');
+  ok(render('Hi! {first_name} has been marked on track for {belt}', { ...A, first_name: 'Sam', adult: false }, false) === 'Hi! Sam has been marked on track for 4th Dan Level 1', 'a child\'s stays written to the parent');
+  ok(isAdult({ dob: '1979-12-11' }) && !isAdult({ dob: '2012-01-01' }) && isAdult({ full_name: 'Kathy Galanis', contact_name: 'Kathy Galanis' }) && !isAdult({ full_name: 'Sam Lee', contact_name: 'Alex Lee' }), 'adult: 18 or over, or their own contact'); }
 ok(addDays('2026-12-05', -2) === '2026-12-03', 'addDays works');
 ok(longDate('2026-12-05') === 'Saturday 5 December', 'longDate reads nicely');
 const eh = emailHtml('Booked in', 'Hi,\n\nEnrol here: https://app.train-ama.com/b#tok\n\n- One\n- Two');

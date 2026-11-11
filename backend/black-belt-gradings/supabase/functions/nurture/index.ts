@@ -34,12 +34,50 @@ export function phoneE164(p) { let s = String(p || '').replace(/[^\d+]/g, ''); i
 // A short url-safe essay token, the same shape as prep_essay_links makes (12 chars).
 export const essayToken = () => { const b = crypto.getRandomValues(new Uint8Array(9)); let s = ''; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').slice(0, 12); };
 
+// An adult (18 or over, or their own contact) gets the messages addressed to them, not written to a parent about them.
+export function isAdult(s, now = Date.now()) {
+  if (!s) return false;
+  const dob = String(s.dob || s.date_of_birth || '');
+  if (/^\d{4}-\d{2}-\d{2}/.test(dob)) return (now - Date.parse(dob.slice(0, 10))) / 31557600000 >= 18;
+  const c = String(s.contact_name || '').trim().toLowerCase().replace(/\s+/g, ' '), f = String(s.full_name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return !!c && !!f && c === f;
+}
+// Rewrite a parent-facing black belt template into second person ("you"), before the fields are filled in.
+export function adultBB(t) {
+  const F = '{first_name}';
+  const rules = [
+    [/^Hi,$/m, 'Hi \u0000,'], [/^Hi! /, 'Hi \u0000! '], [/^Thanks! \{first_name\} is booked in/, "Thanks \u0000! You're booked in"],
+    [/\{first_name\} has been marked on track for (\{belt\}) and is invited/g, "you've been marked on track for $1 and are invited"],
+    [/\{first_name\} is invited to grade/g, "you're invited to grade"], [/\{first_name\} is booked in/g, "you're booked in"],
+    [/Enrol \{first_name\} now:/g, 'Enrol now:'], [/Enrol \{first_name\}:/g, 'Enrol:'], [/Getting \{first_name\} ready for/g, 'Getting ready for'],
+    [/the best preparation \{first_name\} can get, so please make sure they're there/g, "the best preparation you can get, so please make sure you're there"],
+    [/\{first_name\} must attend — it's the best preparation they can get/g, "you must attend — it's the best preparation you can get"],
+    [/\{first_name\} must be there/g, 'you must be there'], [/If \{first_name\} isn't enrolled yet/g, "If you're not enrolled yet"],
+    [/How is \{first_name\} feeling/g, 'How are you feeling'], [/If you or \{first_name\} have any worries/g, 'If you have any worries'],
+    [/What if \{first_name\} doesn't pass\?/g, "What if I don't pass?"], [/and \{first_name\} can grade again/g, 'and you can grade again'],
+    [/Worried \{first_name\} isn't quite ready/g, "Worried you're not quite ready"], [/When do we need to enrol\?/g, 'When do I need to enrol?'],
+    [/Can parents come\? Yes, parents are welcome to watch\./g, 'Can family come? Yes, family and friends are welcome to watch.'],
+    [/Parents are welcome/g, 'Family and friends are welcome'], [/Parents: welcome/g, 'Family and friends: welcome'],
+    [/\bTheir session time\b/g, 'Your session time'], [/\bThe session time\b/g, 'Your session time'],
+    [/Good luck, \{first_name\}!/g, 'Good luck!'],
+    [/\{first_name\}'s/g, 'your'], [/\{first_name\} is\b/g, 'you are'], [/\{first_name\} has\b/g, 'you have'],
+  ];
+  let out = String(t || '');
+  // keep the greeting's {first_name}, rewrite the rest
+  out = out.replace(/^(Hi \{first_name\}[,!]|Thanks \{first_name\}!)/, m => m.replace('{first_name}', '\u0000'));
+  for (const [re, to] of rules) out = out.replace(re, to);
+  out = out.replace(/\{first_name\}/g, 'you').replace(/\u0000/g, F);
+  return out.replace(/(^|[.!?]\s+|\n-?\s*)(you|your)\b/g, (m, p, w) => p + w[0].toUpperCase() + w.slice(1));
+}
+
 // Fill a template. {essay} / {essay_bullet} appear only when the belt still needs an essay; the rest are plain fields.
+// v.adult: the student is an adult, so the wording speaks to them ("you") rather than to a parent about them.
 export function render(tpl, v, needsEssay) {
-  const where = v.essay_link || 'their personal link';
-  const essay = needsEssay ? `${v.first_name}'s black belt essay is also due before grading. Submit it here: ${where}\n\n` : '';
-  const bullet = needsEssay ? `\n- Essay: submit ${v.first_name}'s black belt essay before grading — ${where}` : '';
-  let out = String(tpl || '').replace(/\{essay\}/g, essay).replace(/\{essay_bullet\}/g, bullet);
+  const where = v.essay_link || (v.adult ? 'your personal link' : 'their personal link');
+  const whose = v.adult ? 'your' : `${v.first_name}'s`;
+  const essay = needsEssay ? `${v.adult ? 'Your' : whose} black belt essay is also due before grading. Submit it here: ${where}\n\n` : '';
+  const bullet = needsEssay ? `\n- Essay: submit ${whose} black belt essay before grading — ${where}` : '';
+  let out = (v.adult ? adultBB(tpl) : String(tpl || '')).replace(/\{essay\}/g, essay).replace(/\{essay_bullet\}/g, bullet);
   out = out.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : ''));
   return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
@@ -200,7 +238,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       }
       if (!cycle) return fail('Missing cycle.');
       if (!student_id) return fail('No linked student profile for this person.', 404);
-      const { data: s } = await db.from('prep_students').select('student_id, full_name, belt_rank, efc_ref, contact_email, contact_phone').eq('student_id', student_id).maybeSingle();
+      const { data: s } = await db.from('prep_students').select('student_id, full_name, belt_rank, efc_ref, contact_email, contact_phone, dob, contact_name').eq('student_id', student_id).maybeSingle();
       if (!s) return fail('Student not found.', 404);
       const { data: ov } = await db.from('prep_overview').select('grading_to').eq('cycle_id', cycle).eq('student_id', student_id).maybeSingle();
       const target = (ov && ov.grading_to) || s.belt_rank || '';
@@ -210,7 +248,8 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: bdays } = await db.from('cb_days').select('day_id, grading_date').eq('prep_cycle_id', cycle).eq('bb', true);
       // The booking entry's member_key equals efc_members.member_key (which already includes the "efc:" prefix); the student's efc_ref is the EFC reference code, so map via efc_members.
       let efcMemberKey = null;
-      if (s.efc_ref) { const { data: m } = await db.from('efc_members').select('member_key').eq('efc_reference', s.efc_ref).maybeSingle(); efcMemberKey = m && m.member_key; }
+      let efcDob = null;
+      if (s.efc_ref) { const { data: m } = await db.from('efc_members').select('member_key, date_of_birth').eq('efc_reference', s.efc_ref).maybeSingle(); efcMemberKey = m && m.member_key; efcDob = m && m.date_of_birth; }
       let ent = null, gradingYmd = null;
       if (bdays && bdays.length && efcMemberKey) {
         const { data: ers } = await db.from('cb_entries').select('belt_to, token, day_id').in('day_id', bdays.map(d => d.day_id)).eq('member_key', efcMemberKey);
@@ -230,20 +269,21 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (!tok) { tok = essayToken(); await db.from('prep_essays').insert({ cycle_id: cycle, student_id, target_rank: target, token: tok }); }
         essayLink = SITE + 'e/#' + tok;
       }
-      const vars = { first_name: first(s.full_name), name: s.full_name, belt: target, current_belt: s.belt_rank || '', grading_date: longDate(gradingYmd), link, prep_time: prepTime, essay_link: essayLink };
+      const vars = { first_name: first(s.full_name), name: s.full_name, belt: target, current_belt: s.belt_rank || '', grading_date: longDate(gradingYmd), link, prep_time: prepTime, essay_link: essayLink, adult: isAdult({ ...s, dob: s.dob || efcDob }) };
       // Essay-only resend: for someone already booked and paid, the only thing outstanding is the essay.
       // Send just the essay link (no enrolment/booking link). If their essay is already in, there is nothing to send.
       if (body.essay_only) {
         if (!needsEssay) return json({ ok: true, essay: false, skipped: 'No essay outstanding.' });
         const phone = phoneE164(s.contact_phone), email = s.contact_email;
         const cid = await contactFor({ full_name: s.full_name, email, phone });
-        const smsText = `Hi ${vars.first_name}, ${vars.first_name}'s black belt essay is still to come before grading${target ? ' for ' + target : ''}. Submit it here: ${essayLink} - AMA`;
-        const emailBody = `${vars.first_name}'s black belt essay is still to come before grading${gradingYmd ? ' on ' + longDate(gradingYmd) : ''}.\n\nSubmit it here: ${essayLink}\n\nIf it's already on the way, you can ignore this.\n\nThanks,\nAustralian Martial Arts Academy`;
+        const whose = vars.adult ? 'your' : `${vars.first_name}'s`;
+        const smsText = `Hi ${vars.first_name}, ${whose} black belt essay is still to come before grading${target ? ' for ' + target : ''}. Submit it here: ${essayLink} - AMA`;
+        const emailBody = `${vars.adult ? 'Your' : vars.first_name + "'s"} black belt essay is still to come before grading${gradingYmd ? ' on ' + longDate(gradingYmd) : ''}.\n\nSubmit it here: ${essayLink}\n\nIf it's already on the way, you can ignore this.\n\nThanks,\nAustralian Martial Arts Academy`;
         const out = { sms: null, email: null, essay: true };
         if (!phone) out.sms = 'no mobile on file';
         else { try { if (!(testing && !ready)) await sendSms(cid, smsText); out.sms = 'sent'; } catch (e) { out.sms = String(e.message || e); } }
         if (!email) out.email = 'no email on file';
-        else { try { if (!(testing && !ready)) await sendEmail(cid, `${vars.first_name}'s black belt essay`, emailBody); out.email = 'sent'; } catch (e) { out.email = String(e.message || e); } }
+        else { try { if (!(testing && !ready)) await sendEmail(cid, vars.adult ? 'Your black belt essay' : `${vars.first_name}'s black belt essay`, emailBody); out.email = 'sent'; } catch (e) { out.email = String(e.message || e); } }
         return json({ ok: true, ...out });
       }
       const { data: steps } = await db.from('prep_nurture_steps').select('*').in('code', ['enrol_d1_sms', 'enrol_d1_email']);
@@ -349,7 +389,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: cands } = await db.from('prep_overview').select('student_id, full_name, belt_rank, is_grading, grading_to, grading_fee_status').eq('cycle_id', cycle).eq('is_grading', true);
       if (!cands || !cands.length) continue;
       const ids = cands.map(c => c.student_id);
-      const { data: studs } = await db.from('prep_students').select('student_id, full_name, belt_rank, efc_ref, contact_email, contact_phone').in('student_id', ids);
+      const { data: studs } = await db.from('prep_students').select('student_id, full_name, belt_rank, efc_ref, contact_email, contact_phone, dob, contact_name').in('student_id', ids);
       const studBy = Object.fromEntries((studs || []).map(s => [s.student_id, s]));
       const { data: states } = await db.from('prep_nurture_state').select('*').eq('cycle_id', cycle);
       const stateBy = Object.fromEntries((states || []).map(s => [s.student_id, s]));
@@ -367,8 +407,9 @@ export async function handle(req, db, env = {}, http = fetch) {
       for (const e of er.data || []) if (e.member_key && String(e.member_key).startsWith('efc:')) entByRefRank[e.member_key + '|' + e.belt_to] = e;
       // Students link to EFC by reference code; booking entries are keyed by efc_members.member_key — map one to the other.
       const refs = (studs || []).map(x => x.efc_ref).filter(Boolean);
-      const { data: ems } = refs.length ? await db.from('efc_members').select('member_key, efc_reference').in('efc_reference', refs) : { data: [] };
+      const { data: ems } = refs.length ? await db.from('efc_members').select('member_key, efc_reference, date_of_birth').in('efc_reference', refs) : { data: [] };
       const mkByRef = Object.fromEntries((ems || []).map(m => [m.efc_reference, m.member_key]));
+      const dobByRef = Object.fromEntries((ems || []).map(m => [m.efc_reference, m.date_of_birth]));
 
       for (const c of cands) {
         const s = studBy[c.student_id] || {};
@@ -391,7 +432,7 @@ export async function handle(req, db, env = {}, http = fetch) {
           if (!tok) { tok = essayToken(); await db.from('prep_essays').insert({ cycle_id: cycle, student_id: c.student_id, target_rank: target, token: tok }); essayTok[c.student_id + '|' + target] = tok; }
           essayLink = SITE + 'e/#' + tok;
         }
-        const vars = { first_name: first(s.full_name || c.full_name), name: s.full_name || c.full_name, belt: target || '', current_belt: s.belt_rank || c.belt_rank || '', grading_date: longDate(gradingYmd), link, prep_time: prepTime, essay_link: essayLink };
+        const vars = { first_name: first(s.full_name || c.full_name), name: s.full_name || c.full_name, belt: target || '', current_belt: s.belt_rank || c.belt_rank || '', grading_date: longDate(gradingYmd), link, prep_time: prepTime, essay_link: essayLink, adult: isAdult({ ...s, dob: s.dob || dobByRef[s.efc_ref] }) };
         const phone = s.contact_phone, email = s.contact_email;
 
         if (!paid) {
