@@ -1263,7 +1263,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       for (const e of mine) {
         const now = new Date().toISOString(), had = e.yes_at;
         await db.from('cb_entries').update({ yes_at: had || now, reply_text: msg.slice(0, 300), reply_at: now }).eq('entry_id', e.entry_id);
-        if (had) { out.push({ entry_id: e.entry_id, already: true }); continue; }   // the link went the first time they said yes
+        if (had || e.booked_at || e.paid) { out.push({ entry_id: e.entry_id, already: true }); continue; }   // the link went the first time they said yes, or they've already booked/paid — don't resend it
         let skip = null; try { ({ data: skip } = await db.from('cb_skip').select('reason, until').eq('member_key', e.member_key).maybeSingle()); } catch (_) { /* no skip list */ }
         if (skip && (!skip.until || String(skip.until) >= today)) { out.push({ entry_id: e.entry_id, skipped: true }); continue; }
         const m = byKey[e.member_key], d = open.find(x => x.day_id === e.day_id);
