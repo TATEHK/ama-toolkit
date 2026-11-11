@@ -990,7 +990,10 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: st } = await db.from('cb_settings').select('*').eq('id', 1).maybeSingle();
       if (!st || !st.reply_key || String(body.key || '') !== st.reply_key) return fail('Not allowed.', 403);
       const msg = String(body.message || '').trim(), p9 = String(body.phone || '').replace(/\D/g, '').slice(-9);
-      if (p9.length !== 9) return json({ ok: true, matched: 0, why: 'no mobile' });
+      // Which channel did they reply on? GoHighLevel sends "channel" (or "type") = "Email"/"SMS"; default to SMS when it's absent.
+      const chRaw = String(body.channel || body.type || '').toLowerCase(), viaEmail = /mail/.test(chRaw);
+      const bodyEmail = String(body.email || '').trim().toLowerCase(), okBodyEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(bodyEmail);
+      if (p9.length !== 9 && !okBodyEmail) return json({ ok: true, matched: 0, why: 'no mobile or email' });
       const yes = isYes(msg);
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
       const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by').gte('grading_date', today);
@@ -1001,7 +1004,12 @@ export async function handle(req, db, env = {}, http = fetch) {
       const mems = await selectIn('efc_members', 'member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth', 'member_key', waiting.map(e => e.member_key));
       const byKey = Object.fromEntries((mems || []).map(m => [m.member_key, m]));
       const last9 = x => String(x || '').replace(/\D/g, '').slice(-9);
-      const mine = waiting.filter(e => { const m = byKey[e.member_key]; return m && (last9(m.phone) === p9 || last9(m.guardian_phone) === p9); });
+      const mine = waiting.filter(e => {
+        const m = byKey[e.member_key]; if (!m) return false;
+        if (p9.length === 9 && (last9(m.phone) === p9 || last9(m.guardian_phone) === p9)) return true;
+        if (okBodyEmail && (String(m.email || '').toLowerCase() === bodyEmail || String(m.guardian_email || '').toLowerCase() === bodyEmail)) return true;
+        return false;
+      });
       const ready0 = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing0 = env.GHL_TEST === '1';
       // A text (or, while GoHighLevel's daily limit has stopped texting, the same words by email) to this family
       const familyText = async (m, e, text, kind, sentBy, subject) => {
@@ -1009,6 +1017,15 @@ export async function handle(req, db, env = {}, http = fetch) {
         const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind, phone, body: text, status, sent_by: sentBy, ...extra });
         if (testing0 && !ready0) { await log('test'); return { ok: true, test: true }; }
         if (!ready0) return { ok: false, error: 'texting not set up' };
+        // They replied by email: answer by email too, the same channel they used
+        if (viaEmail) {
+          const email = goodEmail(m) || (okBodyEmail ? bodyEmail : null);
+          if (email) {
+            const elog = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind, email, body: text, status, sent_by: sentBy + ' (email reply)', ...extra });
+            try { const cid = await contactFor({ ...m, email }, phone); await sendEmailTo(cid, buildSeqEmail(subject || `${firstWord(m.full_name || e.full_name)}'s grading`, text)); await elog('sent'); return { ok: true, emailed: true }; }
+            catch (er) { const w = String(er.message || er).slice(0, 500); await elog('failed', { error: w }); return { ok: false, error: w }; }
+          }
+        }
         if (smsBlocked(st)) { const b = await emailBackup({ m, entry_id: e.entry_id, subject, text, why: 'texting paused' }); return { ok: b.ok, emailed: b.ok, error: b.why }; }
         try { const cid = await contactFor({ ...m, email: m.email || m.guardian_email }, phone); const gid = await sendSms(cid, text); await log('sent', gid ? { ghl_id: gid } : {}); return { ok: true }; }
         catch (er) { const w = String(er.message || er).slice(0, 500); await log('failed', { error: w }); return { ok: false, error: w }; }
@@ -1290,6 +1307,15 @@ export async function handle(req, db, env = {}, http = fetch) {
         const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind: 'not_booked', phone, body: text, status, sent_by: 'automatic: replied YES', ...extra });
         if (testing && !ready) { await log('test'); out.push({ entry_id: e.entry_id, ok: true, test: true }); continue; }
         if (!ready) { out.push({ entry_id: e.entry_id, error: 'texting not set up' }); continue; }
+        if (viaEmail) {   // they said YES by email: send the booking link back by email, the same channel they used
+          const email = goodEmail(m) || (okBodyEmail ? bodyEmail : null);
+          if (email) {
+            const elog = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind: 'not_booked', email, body: text, status, sent_by: 'automatic: replied YES (email reply)', ...extra });
+            try { const cid = await contactFor({ ...m, email }, phone); await sendEmailTo(cid, buildSeqEmail(`${firstWord(m.full_name || e.full_name)}'s grading booking link`, text)); await elog('sent'); out.push({ entry_id: e.entry_id, ok: true, emailed: true }); }
+            catch (er) { const w = String(er.message || er).slice(0, 500); await elog('failed', { error: w }); out.push({ entry_id: e.entry_id, error: w }); }
+            continue;
+          }
+        }
         if (smsBlocked(st)) {   // texting is stopped (GoHighLevel's daily limit): email the booking link now AND queue the text to go by SMS once texting works again
           const b = await emailBackup({ m, entry_id: e.entry_id, subject: `${firstWord(m.full_name || e.full_name)}'s grading booking link`, text, why: 'texting paused' });
           await db.from('cb_outbox').insert({ entry_id: e.entry_id, kind: 'send_link' });
