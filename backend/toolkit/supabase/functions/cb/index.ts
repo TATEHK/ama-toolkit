@@ -1059,6 +1059,23 @@ export async function handle(req, db, env = {}, http = fetch) {
           await alertAdmin(f && t ? `TEST #${q.ref}: read as "${f} to ${t}". The reply path works - nothing was changed.` : `TEST #${q.ref}: couldn't read a belt from that. Try "${q.ref} green to blue".`);
           return json({ ok: true, admin: true, test: true, from: f, to: t });
         }
+        if (q.kind === 'question') {   // a "yes but also asked something" alert: "<ref> call" adds them to the team call list
+          const ids = q.entry_id ? [q.entry_id] : (q.entry_ids || []);
+          if (/\bcall\b/i.test(rest)) {
+            const { data: ents } = await db.from('cb_entries').select('entry_id').in('entry_id', ids);
+            for (const en of (ents || [])) {
+              const { data: oc } = await db.from('cb_calls').select('call_id').eq('entry_id', en.entry_id).eq('done', false);
+              const note = ('Replied yes with a question: ' + (q.body || '')).slice(0, 300);
+              if ((oc || []).length) await db.from('cb_calls').update({ reason: 'concern', note, for_admin: false, callback_on: today, updated_at: new Date().toISOString() }).eq('entry_id', en.entry_id).eq('done', false);
+              else await db.from('cb_calls').insert({ entry_id: en.entry_id, reason: 'concern', note, for_admin: false, callback_on: today });
+            }
+            await resolveQ('added to the call list');
+            await alertAdmin('Done #' + q.ref + ': added to the call list for the team.');
+            return json({ ok: true, admin: true, called: ids.length });
+          }
+          await alertAdmin('#' + q.ref + ': reply "' + q.ref + ' call" to add them to the call list, or "' + q.ref + ' ignore" to leave it.');
+          return json({ ok: true, admin: true, need_action: true });
+        }
         let entryId = q.entry_id;
         if (!entryId) {
           const { data: cand } = await db.from('cb_entries').select('entry_id, member_key, full_name').in('entry_id', q.entry_ids || []);
@@ -1283,6 +1300,14 @@ export async function handle(req, db, env = {}, http = fetch) {
           const gid = await sendSms(cid, text);
           await log('sent', gid ? { ghl_id: gid } : {}); out.push({ entry_id: e.entry_id, ok: true });
         } catch (er) { const msg2 = String(er.message || er).slice(0, 500); await log('failed', { error: msg2 }); out.push({ entry_id: e.entry_id, error: msg2 }); }
+      }
+      // They said YES but also asked something (a question mark, or asked for a call): text the admin so a
+      // person can answer, with the option to reply "<ref> call" and drop them onto the team's call list.
+      if (/\?/.test(msg) || wantsCall(msg)) {
+        const who = byKey[mine[0].member_key] || {};
+        const fam = firstWord(who.guardian_name || who.full_name) || 'A family';
+        const kids = [...new Set(mine.map(e => firstWord(e.full_name)))].join(' and ');
+        await askAdmin({ kind: 'question', entries: mine, text: ref => `#${ref} ${fam} (${kids}) replied yes but also asked: "${String(msg).slice(0, 160)}". Reply "${ref} call" to put them on the call list, or "${ref} ignore".` });
       }
       return json({ ok: true, matched: mine.length, yes: true, results: out });
     }
