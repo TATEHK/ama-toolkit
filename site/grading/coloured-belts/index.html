@@ -994,6 +994,7 @@ function openDayForm(d = null) {
     <p class="hint" id="dSessHintSingle">Online bookings go into this EFC session, so it needs the ID. Set the session to $0 in EFC: the fee is paid here.</p>
     <div class="field" id="dSessExtra"></div>
     <div class="field" id="dSessBelt"></div>
+    <label class="check" id="dMakeupField"><input type="checkbox" id="dMakeup" ${d && d.makeup ? 'checked' : ''}> Makeup grading day (shown as a makeup option for students who can't make their grading)</label>
     <div class="field"><label for="dNotes">Notes</label><textarea id="dNotes" rows="2">${esc(d ? d.notes || '' : '')}</textarea></div>
     <div class="dlg-actions">${d ? '<button type="button" class="btn danger" id="dDel" style="margin-right:auto">Delete</button>' : ''}<button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="dGo">${d ? 'Save' : 'Add grading day'}</button></div>
   </form>`);
@@ -1052,7 +1053,7 @@ function openDayForm(d = null) {
     const beltBox = $('#dSessBelt');
     const sessByBelt = () => { const o = {}; if (beltBox) beltBox.querySelectorAll('.dSessBeltInput').forEach(i => { const v = i.value.trim(); if (v) o[i.dataset.belt] = v; }); return o; };
     const mu = $('#dMoveUp');
-    const rec = { ...(d ? {} : { programme: state.programme }), move_up: !!(mu && mu.checked), schools: from.length === 1 ? null : SCHOOLS.filter(x => from.includes(x)), belts: picked.length === state.belts.length ? null : picked, location: $('#dSchool').value, grading_date: $('#dDate').value, start_time: $('#dTime').value || null, efc_session: $('#dSess').value.trim() || null, efc_session_id: $('#dSessId').value.trim() || null, efc_belt_sessions: sessByBelt(), efc_school_belt_sessions: sessBySchoolBelt(), notes: $('#dNotes').value.trim() || null, book_by: $('#dBookBy').value ? new Date($('#dBookBy').value).toISOString() : null };
+    const rec = { ...(d ? {} : { programme: state.programme }), move_up: !!(mu && mu.checked), makeup: !!($('#dMakeup') && $('#dMakeup').checked), schools: from.length === 1 ? null : SCHOOLS.filter(x => from.includes(x)), belts: picked.length === state.belts.length ? null : picked, location: $('#dSchool').value, grading_date: $('#dDate').value, start_time: $('#dTime').value || null, efc_session: $('#dSess').value.trim() || null, efc_session_id: $('#dSessId').value.trim() || null, efc_belt_sessions: sessByBelt(), efc_school_belt_sessions: sessBySchoolBelt(), notes: $('#dNotes').value.trim() || null, book_by: $('#dBookBy').value ? new Date($('#dBookBy').value).toISOString() : null };
     try {
       let id = d && d.day_id;
       if (d) await run(sb.from('cb_days').update(rec).eq('day_id', id), 'Saved');
@@ -1782,7 +1783,7 @@ function renderCantMake() {
   const v = $('#view-cantmake'), rows = cantMakeRows();
   const REASON = { not_grading: 'Not grading this time', declined_offer: 'Declined the other dates offered', by_hand: 'Marked by staff' };
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-  const makeupDays = state.days.filter(d => !d.closed && String(d.grading_date) >= today)
+  const makeupDays = state.days.filter(d => d.makeup && !d.closed && String(d.grading_date) >= today)
     .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || (a.location || '').localeCompare(b.location || ''));
   if (!rows.length) { v.innerHTML = `<div class="view-head"><div><h2>Can't make grading</h2><p class="sub">Families who can't attend their grading, ready to move to a makeup session.</p></div></div><p class="empty">No one has said they can't make their grading.</p>`; cantMakeBadge(); return; }
   const bySchool = {}; for (const r of rows) (bySchool[r.d.location] = bySchool[r.d.location] || []).push(r);
@@ -1794,10 +1795,10 @@ function renderCantMake() {
           <div class="meta">${esc(short(e.belt_from))} to <b>${esc(short(toText(e)))}</b>${s ? ', ' + esc(ageText(s)) : ''} · was ${esc(fmtDate(d.grading_date))}</div>
           <div class="meta">${esc(REASON[e.cant_make_reason] || "Can't make it")}${e.reply_text ? ' — &ldquo;' + esc(e.reply_text) + '&rdquo;' : ''}</div>
         </div></label></li>`).join('')}</ul>`).join('')}
-    ${canDays() ? `<div class="row" style="position:sticky;bottom:72px;background:var(--panel,#13201a);padding:12px;border-radius:12px;margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    ${canDays() ? (makeupDays.length ? `<div class="row" style="background:var(--panel,#13201a);padding:12px;border-radius:12px;margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <select id="cmDay" aria-label="Makeup grading day" style="flex:1 1 220px"><option value="">Choose a makeup session&hellip;</option>${makeupDays.map(d => `<option value="${esc(d.day_id)}">${esc(fmtDate(d.grading_date))} &mdash; ${esc(schoolLabel(d.location))}, ${esc(beltsText(d))}</option>`).join('')}</select>
       <button class="btn primary" id="cmAdd">Add ticked students</button>
-    </div>` : '<p class="hint">You need grading-day access to move students to a makeup session.</p>'}`;
+    </div>` : '<p class="hint" style="margin-top:16px">No makeup gradings set up yet. Add a grading day and tick <b>Makeup grading day</b>, then it\'ll show here to move students into.</p>') : '<p class="hint">You need grading-day access to move students to a makeup session.</p>'}`;
   cantMakeBadge();
   const add = $('#cmAdd'); if (add) add.onclick = cantMakeAdd;
 }
