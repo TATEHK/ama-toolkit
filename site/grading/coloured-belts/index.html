@@ -383,6 +383,7 @@
   <button class="tab" role="tab" data-view="days" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 2.5v3M15 2.5v3M4 9.5h16"/></svg><span class="wide-only">Grading days</span><span class="phone-only">Days</span></button>
   <button class="tab" role="tab" data-view="efc" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Update EFC</span></button>
   <button class="tab" role="tab" data-view="bbc" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span class="wide-only">Cards to write</span><span class="phone-only">Cards</span><span class="tabcount" id="bbcCount" hidden></span></button>
+  <button class="tab" role="tab" data-view="cantmake" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg><span class="wide-only">Can't make it</span><span class="phone-only">Can't</span><span class="tabcount" id="cantmakeCount" hidden></span></button>
   <button class="tab" role="tab" data-view="dash" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Dashboard</span></button>
 </nav>
 
@@ -404,6 +405,7 @@
   <section id="view-day" class="view" hidden></section>
   <section id="view-efc" class="view" hidden></section>
   <section id="view-bbc" class="view" hidden></section>
+  <section id="view-cantmake" class="view" hidden></section>
   <section id="view-dash" class="view" hidden></section>
   <section id="view-settings" class="view" hidden></section>
 </main>
@@ -672,17 +674,17 @@ function render() {
   const pb = $('#progBar'); pb.hidden = state.programmes.length < 2;
   $('#progSel').innerHTML = `<option value="${ALL}"${isAll() ? ' selected' : ''}>All programs</option>` + state.programmes.map(x => `<option value="${esc(x.programme)}"${x.programme === state.programme ? ' selected' : ''}>${esc(x.label)}</option>`).join('');
   $('#progSel').onchange = e => setProgramme(e.target.value);
-  bbcBadge();
+  bbcBadge(); cantMakeBadge();
   const here = state.view === 'day' ? 'days' : state.view;
   $$('#tabs .tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === here)));
   $('#settingsBtn').hidden = !isAdmin(); $('#settingsBtn').setAttribute('aria-selected', String(here === 'settings'));
   $('#tabs').style.setProperty('--tabs', $$('#tabs .tab:not([hidden])').length);
-  document.title = ({ ready: "Who's ready", days: 'Grading days', day: 'Grading day', efc: 'Update EFC', bbc: 'Cards to write', dash: 'Dashboard', settings: 'Settings' }[state.view] || '') + ' | ' + progLabel(state.programme) + ' Gradings';
+  document.title = ({ ready: "Who's ready", days: 'Grading days', day: 'Grading day', efc: 'Update EFC', bbc: 'Cards to write', cantmake: "Can't make grading", dash: 'Dashboard', settings: 'Settings' }[state.view] || '') + ' | ' + progLabel(state.programme) + ' Gradings';
   $$('.view').forEach(v => v.hidden = v.id !== 'view-' + state.view);
-  ({ ready: renderReady, days: renderDays, day: renderDay, efc: renderEfc, bbc: renderBbc, dash: renderDash, settings: renderSettings })[state.view]();
+  ({ ready: renderReady, days: renderDays, day: renderDay, efc: renderEfc, bbc: renderBbc, cantmake: renderCantMake, dash: renderDash, settings: renderSettings })[state.view]();
 }
 /* Addresses: /grading/coloured-belts/ready, /grading-days, /grading-days/<id>, /grading-days/<id>/results, /update-efc, /dashboard, /settings */
-const PATHS = { ready: 'ready', days: 'grading-days', efc: 'update-efc', bbc: 'black-belt-club', dash: 'dashboard', settings: 'settings' };
+const PATHS = { ready: 'ready', days: 'grading-days', efc: 'update-efc', bbc: 'black-belt-club', cantmake: 'cant-make-grading', dash: 'dashboard', settings: 'settings' };
 function pathOf() { return state.view === 'day' ? `grading-days/${state.day}${state.resultsMode ? '/results' : state.photosMode ? '/photos' : state.checkinMode ? '/check-in' : ''}` : PATHS[state.view]; }
 function fromPath(p) {
   const seg = String(p || '').replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
@@ -1213,7 +1215,8 @@ function openEntry(id) {
       ${canPay() && e.paid && e.paid_how !== 'card' ? '<button class="btn" id="paidBtn">Mark unpaid</button>' : ''}
       ${canDays() && e.booked_at ? '<button class="btn" id="unbook">Clear booking</button>' : ''}
       ${s && canDays() ? '<button class="btn" id="editContact">Edit mobile or email</button>' : ''}
-      ${canBelts() && !e.result ? '<button class="btn" id="editBelt">Edit belt</button>' : ''}</div>
+      ${canBelts() && !e.result ? '<button class="btn" id="editBelt">Edit belt</button>' : ''}
+      ${canDays() && !e.result ? (e.cant_make_at ? '<button class="btn" id="backOnGrading">Back on grading</button>' : '<button class="btn" id="cantMake">Can\'t make grading</button>') : ''}</div>
     <div class="section"><h3>Booking link</h3><div class="linkbox">${esc(bookingLink(e))}</div>
       <div class="row"><button class="btn sm" id="copyLink">Copy link</button>${canText('not_booked') && !e.result ? '<button class="btn sm" id="resendLink">Resend link</button>' : ''}${canDays() && !e.result && !(e.booked_at && e.paid) ? '<button class="btn sm" id="newLink">Issue new link</button>' : ''}</div>
       ${e.late_ok_until && new Date(e.late_ok_until) > new Date() ? `<p class="hint">Late booking allowed until ${esc(whenText(e.late_ok_until))}.</p>` : bookingShut(d) && !e.booked_at ? '<p class="hint">Bookings have closed for this day. Issue a new link to let them book or pay late. It works for 48 hours and the old link stops working.</p>' : ''}</div>
@@ -1239,6 +1242,8 @@ function openEntry(id) {
   const rp = $('#recordPay'); if (rp) rp.onclick = () => recordPayment(e);
   const ec = $('#editContact'); if (ec) ec.onclick = () => editContact(e.member_key, () => openEntry(id));
   const eb = $('#editBelt'); if (eb) eb.onclick = () => editBelt(e);
+  const cm = $('#cantMake'); if (cm) cm.onclick = () => change({ cant_make_at: new Date().toISOString(), cant_make_reason: 'by_hand' }, 'Added to Can\'t make grading');
+  const bg = $('#backOnGrading'); if (bg) bg.onclick = () => change({ cant_make_at: null, cant_make_reason: null }, 'Back on grading');
   const p = $('#paidBtn'); if (p) p.onclick = async () => { try { await run(sb.rpc('cb_set_paid', { p_entry: e.entry_id, p_paid: false }), 'Marked unpaid'); Object.assign(e, { paid: false, paid_at: null, paid_how: null }); render(); openEntry(id); } catch (er) { toast(errMsg(er), 6000); } };
   const bh = $('#byHandDone'); if (bh) bh.onclick = () => change({ efc_by_hand_done_at: new Date().toISOString() }, 'Ticked off');
   const mb = $('#markBooked'); if (mb) mb.onclick = () => change({ booked_at: new Date().toISOString(), booking_error: null }, 'Marked booked');
@@ -1736,6 +1741,60 @@ function wireImport() {
 }
 
 /* ---------------- Dashboard ---------------- */
+// ---- Can't make grading: families who can't attend, ready to move to a makeup session ----
+function cantMakeRows() {
+  return state.entries.map(e => ({ e, d: dayOf(e.day_id), s: student(e.member_key) }))
+    .filter(x => x.e.cant_make_at && !x.e.booked_at && !x.e.result && x.d)
+    .sort((a, b) => (a.d.location || '').localeCompare(b.d.location || '') || a.e.full_name.localeCompare(b.e.full_name));
+}
+function cantMakeBadge() {
+  const el = $('#cantmakeCount'); if (!el) return;
+  const n = cantMakeRows().length; el.hidden = !n; el.textContent = n || '';
+}
+function renderCantMake() {
+  const v = $('#view-cantmake'), rows = cantMakeRows();
+  const REASON = { not_grading: 'Not grading this time', declined_offer: 'Declined the other dates offered', by_hand: 'Marked by staff' };
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  const makeupDays = state.days.filter(d => !d.closed && String(d.grading_date) >= today)
+    .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || (a.location || '').localeCompare(b.location || ''));
+  if (!rows.length) { v.innerHTML = `<div class="view-head"><div><h2>Can't make grading</h2><p class="sub">Families who can't attend their grading, ready to move to a makeup session.</p></div></div><p class="empty">No one has said they can't make their grading.</p>`; cantMakeBadge(); return; }
+  const bySchool = {}; for (const r of rows) (bySchool[r.d.location] = bySchool[r.d.location] || []).push(r);
+  v.innerHTML = `<div class="view-head"><div><h2>Can't make grading</h2><p class="sub">${rows.length} ${rows.length === 1 ? 'student' : 'students'} who can't attend. Tick who you're approving, pick a makeup session, then add them.</p></div></div>
+    ${Object.entries(bySchool).map(([school, list]) => `<h3>${esc(schoolLabel(school))}</h3>
+      <ul class="list">${list.map(({ e, d, s }) => `<li><label class="item" style="${beltVar(e.belt_from)}">
+        <input type="checkbox" class="cmChk" data-entry="${esc(e.entry_id)}" ${canDays() ? '' : 'disabled'}>
+        <div class="main"><div class="name">${esc(e.full_name)}</div>
+          <div class="meta">${esc(short(e.belt_from))} to <b>${esc(short(toText(e)))}</b>${s ? ', ' + esc(ageText(s)) : ''} · was ${esc(fmtDate(d.grading_date))}</div>
+          <div class="meta">${esc(REASON[e.cant_make_reason] || "Can't make it")}${e.reply_text ? ' — &ldquo;' + esc(e.reply_text) + '&rdquo;' : ''}</div>
+        </div></label></li>`).join('')}</ul>`).join('')}
+    ${canDays() ? `<div class="row" style="position:sticky;bottom:72px;background:var(--panel,#13201a);padding:12px;border-radius:12px;margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <select id="cmDay" aria-label="Makeup grading day" style="flex:1 1 220px"><option value="">Choose a makeup session&hellip;</option>${makeupDays.map(d => `<option value="${esc(d.day_id)}">${esc(fmtDate(d.grading_date))} &mdash; ${esc(schoolLabel(d.location))}, ${esc(beltsText(d))}</option>`).join('')}</select>
+      <button class="btn primary" id="cmAdd">Add ticked students</button>
+    </div>` : '<p class="hint">You need grading-day access to move students to a makeup session.</p>'}`;
+  cantMakeBadge();
+  const add = $('#cmAdd'); if (add) add.onclick = cantMakeAdd;
+}
+async function cantMakeAdd() {
+  const sel = $('#cmDay'), dayId = sel ? sel.value : '';
+  if (!dayId) return toast('Choose a makeup session first.');
+  const ids = $$('.cmChk:checked').map(c => c.dataset.entry);
+  if (!ids.length) return toast('Tick at least one student.');
+  const d = dayOf(dayId); if (!d) return toast('That session is gone.');
+  const nowIso = new Date().toISOString(), moved = [];
+  try {
+    for (const id of ids) {
+      const e = state.all.entries.find(x => x.entry_id === id); if (!e) continue;
+      if (state.all.entries.some(x => x.day_id === dayId && x.member_key === e.member_key && x.entry_id !== id)) { toast(`${e.full_name} is already on that day — skipped`, 5000); continue; }
+      await run(sb.from('cb_entries').update({ day_id: dayId, moved_from_day: e.day_id, cant_make_at: null, cant_make_reason: null, alt_offer: null, seq_paused_until: null, invited_at: nowIso, yes_at: null }).eq('entry_id', id));
+      Object.assign(e, { day_id: dayId, moved_from_day: e.day_id, cant_make_at: null, cant_make_reason: null, invited_at: nowIso, yes_at: null });
+      moved.push(e);
+    }
+    applyProgramme();
+    if (!moved.length) return render();
+    toast(`Moved ${moved.length} to ${fmtDate(d.grading_date)} at ${schoolLabel(d.location)}`, 5000); render();
+    composeTexts('not_booked', moved.map(e => ({ member_key: e.member_key, entry_id: e.entry_id, s: student(e.member_key), e, d })));   // send each their booking link for the makeup day
+  } catch (er) { toast(errMsg(er), 6000); }
+}
 function renderDash() {
   const v = $('#view-dash');
   const school = v.dataset.school || '';
