@@ -122,7 +122,7 @@ const bulletLink = l => esc(l).replace(/[\s:—–-]*(https?:\/\/[^\s<]+)/g, (m,
   return ` <a href="${u}" target="_blank" style="color:#0B6A35;font-weight:bold;text-decoration:none;white-space:nowrap;">${t}&nbsp;&rsaquo;</a>`;
 });
 // A branded AMA email: black header with the logo, the hero image, the message body, and the schools footer.
-export function emailHtml(subject, body) {
+export function emailHtml(subject, body, adult = false) {
   const blocks = String(body || '').split(/\n{2,}/).map(block => {
     const lines = block.split('\n');
     if (lines.length && lines.every(l => /^\s*-\s+/.test(l))) {
@@ -149,7 +149,7 @@ export function emailHtml(subject, body) {
   <tr><td class="pad" style="background:#0E0E0E;padding:30px 40px;font-family:Arial,Helvetica,sans-serif;">
     <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:13px;letter-spacing:3px;color:#FFD200;">MARRICKVILLE &middot; SYDENHAM &middot; CONCORD &middot; AUBURN &middot; SYLVANIA</div>
     <div style="height:1px;background:#2A2A2A;margin:16px 0;line-height:1px;font-size:1px;">&nbsp;</div>
-    <div style="font-size:11px;line-height:1.6;color:#8A8A8A;"><a href="https://www.australianmartialarts.com.au" style="color:#8A8A8A;">australianmartialarts.com.au</a> &middot; 02 9569 1943<br>You're receiving this about your child's black belt grading at Australian Martial Arts Academy.</div></td></tr>
+    <div style="font-size:11px;line-height:1.6;color:#8A8A8A;"><a href="https://www.australianmartialarts.com.au" style="color:#8A8A8A;">australianmartialarts.com.au</a> &middot; 02 9569 1943<br>You're receiving this about ${adult ? 'your' : "your child's"} black belt grading at Australian Martial Arts Academy.</div></td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -283,7 +283,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (!phone) out.sms = 'no mobile on file';
         else { try { if (!(testing && !ready)) await sendSms(cid, smsText); out.sms = 'sent'; } catch (e) { out.sms = String(e.message || e); } }
         if (!email) out.email = 'no email on file';
-        else { try { if (!(testing && !ready)) await sendEmail(cid, vars.adult ? 'Your black belt essay' : `${vars.first_name}'s black belt essay`, emailBody); out.email = 'sent'; } catch (e) { out.email = String(e.message || e); } }
+        else { try { if (!(testing && !ready)) await sendEmail(cid, vars.adult ? 'Your black belt essay' : `${vars.first_name}'s black belt essay`, emailBody, emailHtml(vars.adult ? 'Your black belt essay' : `${vars.first_name}'s black belt essay`, emailBody, vars.adult)); out.email = 'sent'; } catch (e) { out.email = String(e.message || e); } }
         return json({ ok: true, ...out });
       }
       const { data: steps } = await db.from('prep_nurture_steps').select('*').in('code', ['enrol_d1_sms', 'enrol_d1_email']);
@@ -298,7 +298,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       }
       if (byEmail) {
         if (!email) out.email = 'no email on file';
-        else { try { const t = render(byEmail.body, vars, needsEssay); const subj = byEmail.subject ? render(byEmail.subject, vars, needsEssay) : 'Grading invitation'; if (!(testing && !ready)) await sendEmail(cid, subj, t); out.email = 'sent'; await logOne('enrol_d1_email', 'email'); } catch (e) { out.email = String(e.message || e); } }
+        else { try { const t = render(byEmail.body, vars, needsEssay); const subj = byEmail.subject ? render(byEmail.subject, vars, needsEssay) : 'Grading invitation'; if (!(testing && !ready)) await sendEmail(cid, subj, t, emailHtml(subj, t, vars.adult)); out.email = 'sent'; await logOne('enrol_d1_email', 'email'); } catch (e) { out.email = String(e.message || e); } }
       }
       return json({ ok: true, ...out });
     }
@@ -372,7 +372,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (testing && !ready) { await logRow('sent', { ghl_message_id: 'test' }); out.sent++; return; }
       try {
         const cid = await contactFor({ full_name: vars.name, email, phone });
-        const id = step.channel === 'email' ? await sendEmail(cid, subject, text, html) : await sendSms(cid, text);
+        const id = step.channel === 'email' ? await sendEmail(cid, subject, text, html || emailHtml(subject, text, vars.adult)) : await sendSms(cid, text);
         await logRow('sent', { ghl_message_id: id }); out.sent++;
       } catch (e) { await logRow('failed', { error: String(e.message || e).slice(0, 500) }); out.failed++; }
     };
