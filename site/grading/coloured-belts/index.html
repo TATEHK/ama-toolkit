@@ -1781,7 +1781,7 @@ function cantMakeBadge() {
 }
 function renderCantMake() {
   const v = $('#view-cantmake'), rows = cantMakeRows();
-  const REASON = { not_grading: 'Not grading this time', declined_offer: 'Declined the other dates offered', by_hand: 'Marked by staff' };
+  const REASON = { cant_make_date: "Can't make the date", declined_offer: 'Declined the other dates offered', not_grading: 'Not grading this time', by_hand: 'Marked by staff' };
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
   const makeupDays = state.days.filter(d => d.makeup && !d.closed && String(d.grading_date) >= today)
     .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || (a.location || '').localeCompare(b.location || ''));

@@ -1260,7 +1260,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         const saidNo = mine.filter(x => new RegExp('\\b(no|not)\\s+(for\\s+)?' + esc(firstWord(x.full_name).toLowerCase()) + '\\b').test(msg.toLowerCase()));
         const e = saidNo.length ? null : whichKid(), list = saidNo.length ? saidNo : e ? [e] : mine, nowIso = new Date().toISOString();
         for (const x of list) {
-          await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: new Date(Date.now() + 14 * 864e5).toISOString(), cant_make_at: nowIso, cant_make_reason: 'not_grading' }).eq('entry_id', x.entry_id);
+          await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: new Date(Date.now() + 14 * 864e5).toISOString() }).eq('entry_id', x.entry_id);   // opting out of grading — NOT a "can't make the date", so not on the Can't-make list
           await callFor(x, 'not_grading', msg, true);
         }
         return json({ ok: true, matched: mine.length, not_grading: list.length });
@@ -1289,7 +1289,8 @@ export async function handle(req, db, env = {}, http = fetch) {
       // ---- "No" or "can't make it": offer the other gradings that suit every student in the family (belt and age) ----
       if (no) {
         const now = new Date().toISOString();
-        for (const e of mine) await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: now }).eq('entry_id', e.entry_id);
+        // Can't make this grading's date (away / "can't make any of those") but still wants to grade: on the Can't-make list and offered other dates
+        for (const e of mine) await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: now, cant_make_at: now, cant_make_reason: 'cant_make_date' }).eq('entry_id', e.entry_id);
         // Already offered these alternative gradings and still waiting on a pick? A further "no / can't
         // make it" reply is them declining the offer - record it and pause, don't send the same offer again.
         if (mine.some(e => e.alt_offer && Array.isArray(e.alt_offer.days) && e.alt_offer.at && (Date.now() - Date.parse(e.alt_offer.at) < ALT_VALID_MS))) {
