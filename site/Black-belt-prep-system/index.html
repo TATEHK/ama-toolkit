@@ -796,6 +796,29 @@ const nextDan = rank => (state.danCounters.find(c => c.target_rank === rank) || 
 const feeInfo = (cid, sid) => state.sessionFees.find(f => f.cycle_id === cid && f.student_id === sid) || null;
 const paidAt = (cid, sid, sessionId) => { const f = feeInfo(cid, sid); return !!f && (!!f.prepaid || (f.paid_sessions || []).includes(sessionId)); };
 const nextBelt = b => { const i = BELTS.indexOf(b); return i >= 0 && i < BELTS.length - 1 ? BELTS[i + 1] : null; };
+// A prep student's Belt rank changed -> keep their black-belt grading-day entry in step so the
+// grading session and time follow the new rank. An unbooked entry just updates; a booked one is
+// flagged so staff re-point its EFC session (the app doesn't call EFC itself). Best-effort.
+async function syncGradingEntryBelt(student, oldRank, newRank) {
+  try {
+    if (!student || !student.efc_ref || !newRank || oldRank === newRank) return;
+    const target = nextBelt(newRank);
+    const { data: mem } = await sb.from('efc_members').select('member_key').eq('efc_reference', student.efc_ref).maybeSingle();
+    if (!mem) return;
+    const { data: ents } = await sb.from('cb_entries')
+      .select('entry_id, belt_from, belt_to, booked_at, result, day_id')
+      .eq('member_key', mem.member_key).is('result', null).eq('belt_from', oldRank);
+    if (!ents || !ents.length) return;
+    const { data: days } = await sb.from('cb_days').select('day_id, bb, closed').in('day_id', [...new Set(ents.map(e => e.day_id))]);
+    const bbOpen = new Set((days || []).filter(d => d.bb && !d.closed).map(d => d.day_id));
+    for (const e of ents) {
+      if (!bbOpen.has(e.day_id) || e.belt_to === target) continue;
+      await run(sb.from('cb_entries').update({ belt_from: newRank, belt_to: target,
+        belt_changed_from: `${e.belt_from} to ${e.belt_to}`, belt_changed_at: new Date().toISOString() }).eq('entry_id', e.entry_id));
+      if (e.booked_at) toast(`${student.full_name} is already booked in for grading — re-point their EFC session to ${target}.`, 8000);
+    }
+  } catch (err) { console.warn('syncGradingEntryBelt', err); }
+}
 const gradingRate = rank => { const r = state.gradingRates.find(x => x.target_rank === rank); return r ? Number(r.fee) : null; };
 const enrolment = (cid, sid) => state.enrolments.find(e => e.cycle_id === cid && e.student_id === sid) || {};
 const sessionPay = (cid, sid) => state.payments.find(x => x.cycle_id === cid && x.student_id === sid && (x.kind || 'sessions') === 'sessions');
@@ -2001,6 +2024,7 @@ function openStudentForm(s = null) {
       let id = s && s.student_id;
       if (s) await run(sb.from('prep_students').update(rec).eq('student_id', s.student_id), 'Saved');
       else { const d = await run(sb.from('prep_students').insert(rec).select()); id = d[0].student_id; toast(`Added ${rec.full_name} as ${id}`); }
+      if (s) await syncGradingEntryBelt(s, s.belt_rank || null, rec.belt_rank);   // keep their grading entry's session/time in step
       await loadAll(); render(); openStudent(id);
     } catch (err) { $('#fSave').disabled = false; toast('Could not save: ' + errMsg(err), 6000); }
   };
