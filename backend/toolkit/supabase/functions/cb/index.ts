@@ -713,11 +713,18 @@ export async function handle(req, db, env = {}, http = fetch) {
     else await db.from('cb_payments').insert({ entry_id: entryId, stripe_session: s.id, status: 'paid', paid_at: now, amount: (s.amount_total || 0) / 100, stripe_payment: payment, receipt_url: receipt });
     if (!entryId) return true;
     await db.from('cb_entries').update({ paid: true, paid_at: now, paid_how: 'card' }).eq('entry_id', entryId);
-    const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school').eq('entry_id', entryId).maybeSingle();
+    const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school, notify_paid_to, notify_paid_sent_at').eq('entry_id', entryId).maybeSingle();
     if (e) {
       const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb').eq('day_id', e.day_id).maybeSingle();
       if (d && !e.booked_at) await bookEntry(e, d);
       if (d) await confirmEmail(e, d, 'email_paid', { amount: (s.amount_total || 0) / 100, receipt });
+      // Staff alert: text a set number once this entry's fee is paid (one-off payment links), sent only once
+      if (e.notify_paid_to && !e.notify_paid_sent_at) {
+        try {
+          const cid = await contactFor({ guardian_name: 'AMA grading', full_name: 'AMA grading' }, phoneE164(e.notify_paid_to));
+          if (cid) { await sendSms(cid, `${e.full_name} has paid the $${((s.amount_total || 0) / 100).toFixed(2)} grading fee (${e.belt_from} to ${e.belt_to}).`); await db.from('cb_entries').update({ notify_paid_sent_at: now }).eq('entry_id', e.entry_id); }
+        } catch (er) { console.error('notify_paid', er); }
+      }
     }
     return true;
   };
