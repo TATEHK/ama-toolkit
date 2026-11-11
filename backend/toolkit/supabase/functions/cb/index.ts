@@ -1141,23 +1141,37 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!mine.length) return json({ ok: true, matched: 0 });
 
       // ---- They picked another grading we offered (a reply of 1, 2 or 3): move them to it and send its booking link ----
-      const pick = msg.match(/^\s*(?:(?:option|number|no\.?|opt|choice|the)\s+|#)?([1-9])(?=[\s.,!?)]|$)/i);   // a leading number is a pick, even with words after (e.g. '3 please')
+      // ---- They picked a grading we offered. Shared/one-kid offers take a plain number; a split (per-child)
+      //      offer takes the child's name + their number, e.g. "Avery 1, Yash 2". A reply can pick for one kid
+      //      or several at once; a kid not named yet stays on offer. ----
       const offered = mine.filter(e => e.alt_offer && Array.isArray(e.alt_offer.days) && e.alt_offer.at && Date.now() - Date.parse(e.alt_offer.at) < ALT_VALID_MS);
-      if (pick && offered.length) {
-        const n = Number(pick[1]), out = [], nowIso = new Date().toISOString();
-        for (const e of offered) {
-          const nd = open.find(x => x.day_id === e.alt_offer.days[n - 1]), m = byKey[e.member_key];
-          if (!nd) { out.push({ entry_id: e.entry_id, error: 'not one of the choices' }); continue; }
-          const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', nd.day_id).eq('member_key', e.member_key).maybeSingle();
-          if (clash) { out.push({ entry_id: e.entry_id, error: 'already on that day' }); continue; }
-          await db.from('cb_entries').update({ day_id: nd.day_id, moved_from_day: e.day_id, alt_offer: null, yes_at: e.yes_at || nowIso, reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: null }).eq('entry_id', e.entry_id);
-          // The "can't make it" call isn't needed any more
-          await db.from('cb_calls').update({ done: true, outcome: 'moved', outcome_note: 'Moved to another grading by text', updated_at: nowIso }).eq('entry_id', e.entry_id).eq('done', false).then(() => {}, () => {});
-          const moved = { ...e, day_id: nd.day_id };
-          const r = await familyText(m, moved, bookText(m, moved, nd), 'not_booked', 'automatic: moved to another grading', `${firstWord(m.full_name || e.full_name)}'s grading booking link`);
-          out.push({ entry_id: e.entry_id, moved_to: nd.day_id, ...r });
+      if (offered.length) {
+        const low = ' ' + msg.toLowerCase() + ' ', picks = {};
+        for (const e of offered) {   // per child: their first name, then a number within a few characters
+          const fn = firstWord(e.full_name).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const mm = low.match(new RegExp('\\b' + fn + '\\b[^0-9]{0,8}([1-9])'));
+          if (mm) picks[e.entry_id] = Number(mm[1]);
         }
-        return json({ ok: true, matched: mine.length, moved: out.filter(x => x.moved_to).length, results: out });
+        if (!Object.keys(picks).length) {   // no names: a plain number picks for every shared/one-kid offer
+          const lone = msg.match(/^\s*(?:(?:option|number|no\.?|opt|choice|the)\s+|#)?([1-9])(?=[\s.,!?)]|$)/i);
+          if (lone) for (const e of offered) if (!(e.alt_offer && e.alt_offer.split)) picks[e.entry_id] = Number(lone[1]);
+        }
+        if (Object.keys(picks).length) {
+          const out = [], nowIso = new Date().toISOString();
+          for (const e of offered) {
+            const n = picks[e.entry_id]; if (!n) continue;
+            const nd = open.find(x => x.day_id === e.alt_offer.days[n - 1]), m = byKey[e.member_key];
+            if (!nd) { out.push({ entry_id: e.entry_id, error: 'not one of the choices' }); continue; }
+            const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', nd.day_id).eq('member_key', e.member_key).maybeSingle();
+            if (clash) { out.push({ entry_id: e.entry_id, error: 'already on that day' }); continue; }
+            await db.from('cb_entries').update({ day_id: nd.day_id, moved_from_day: e.day_id, alt_offer: null, yes_at: e.yes_at || nowIso, reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: null, cant_make_at: null, cant_make_reason: null }).eq('entry_id', e.entry_id);
+            await db.from('cb_calls').update({ done: true, outcome: 'moved', outcome_note: 'Moved to another grading by text', updated_at: nowIso }).eq('entry_id', e.entry_id).eq('done', false).then(() => {}, () => {});
+            const moved = { ...e, day_id: nd.day_id };
+            const r = await familyText(m, moved, bookText(m, moved, nd), 'not_booked', 'automatic: moved to another grading', `${firstWord(m.full_name || e.full_name)}'s grading booking link`);
+            out.push({ entry_id: e.entry_id, moved_to: nd.day_id, ...r });
+          }
+          if (out.length) return json({ ok: true, matched: mine.length, moved: out.filter(x => x.moved_to).length, results: out });
+        }
       }
       const stopping = /^\s*(stop|stopall|unsubscribe|end|quit)\b/i.test(msg);
       // Whose entry a reply is about: the only one waiting, or the child named in it
@@ -1282,21 +1296,32 @@ export async function handle(req, db, env = {}, http = fetch) {
           for (const e of mine) await db.from('cb_entries').update({ seq_paused_until: new Date(Date.now() + 14 * 864e5).toISOString(), cant_make_at: now, cant_make_reason: 'declined_offer' }).eq('entry_id', e.entry_id);
           return json({ ok: true, matched: mine.length, no: true, offered: 0, alreadyOffered: true });
         }
-        const fit = mine.map(e => open.filter(d => fitsDay(d, e, ageNow(byKey[e.member_key]), open.find(x => x.day_id === e.day_id))).map(d => d.day_id));
-        const common = open.filter(d => fit.every(ids => ids.includes(d.day_id)))
+        // Each child's own options across EVERY location (belt + age), nearest date first, up to ALT_DAYS
+        const optsFor = e => open.filter(d => fitsDay(d, e, ageNow(byKey[e.member_key]), open.find(x => x.day_id === e.day_id)))
           .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || ''))).slice(0, ALT_DAYS);
-        if (!common.length) return json({ ok: true, matched: mine.length, yes: false, no: true, offered: 0 });
-        const e0 = mine[0], m0 = byKey[e0.member_key], d0 = open.find(x => x.day_id === e0.day_id);
-        const names = [...new Set(mine.map(e => firstWord(e.full_name)))].join(' and ');
-        const nums = common.length === 1 ? 'Reply 1' : `Reply ${common.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${common.length}`;
-        const offSelf = selfOf(m0) && mine.length === 1, offGreet = offSelf ? firstWord(m0.full_name || e0.full_name) : (firstWord(m0.guardian_name) || 'there'), offWho = offSelf ? 'You' : names;
-        const text = `Hi ${offGreet}, no worries. ${offWho} can grade on another day instead:\n${common.map((d, i) => `${i + 1}. ${dayLine(d, e0)}`).join('\n')}\n${nums} to switch and we'll send the booking link, or call us if none of these suit. AMA ${whereOf(e0, d0)}`;
-        const r = await familyText(m0, e0, text, 'alt_offer', 'automatic: offered another grading', `Another grading day for ${names}`);
-        if (r.ok) {
-          for (const e of mine) await db.from('cb_entries').update({ alt_offer: { days: common.map(d => d.day_id), at: now } }).eq('entry_id', e.entry_id);
-          await db.from('cb_calls').update({ note: (msg.slice(0, 240) + ' [Offered ' + common.length + ' other grading' + (common.length === 1 ? '' : 's') + ' by text]') }).in('entry_id', mine.map(e => e.entry_id)).eq('done', false).then(() => {}, () => {});
+        const kidOpts = mine.map(e => ({ e, days: optsFor(e) })).filter(k => k.days.length);
+        if (!kidOpts.length) return json({ ok: true, matched: mine.length, yes: false, no: true, offered: 0 });
+        const m0 = byKey[mine[0].member_key], greet = (selfOf(m0) && kidOpts.length === 1 ? firstWord(m0.full_name || kidOpts[0].e.full_name) : firstWord(m0 && m0.guardian_name)) || 'there';
+        const keyOf = k => k.days.map(d => d.day_id).join('|');
+        const shared = kidOpts.length > 1 && kidOpts.every(k => keyOf(k) === keyOf(kidOpts[0]));
+        const split = !(kidOpts.length === 1 || shared);
+        let text;
+        if (!split) {   // one kid, or every kid shares the same options: a single numbered list
+          const days = kidOpts[0].days, e0 = kidOpts[0].e;
+          const who = kidOpts.length === 1 ? (selfOf(m0) ? 'You' : firstWord(e0.full_name)) : [...new Set(kidOpts.map(k => firstWord(k.e.full_name)))].join(' and ');
+          const nums = days.length === 1 ? 'Reply 1' : `Reply ${days.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${days.length}`;
+          text = `Hi ${greet}, no worries. ${who} can grade on another day instead:\n${days.map((d, i) => `${i + 1}. ${dayLine(d, e0)}`).join('\n')}\n${nums} to switch and we'll send the booking link, or call us if none suit. AMA`;
+        } else {   // kids suit different days: list each child's own options, reply with name + number
+          const blocks = kidOpts.map(k => `${firstWord(k.e.full_name)} can grade:\n${k.days.map((d, i) => `${i + 1}. ${dayLine(d, k.e)}`).join('\n')}`).join('\n\n');
+          const eg = kidOpts[1] ? `e.g. "${firstWord(kidOpts[0].e.full_name)} 1, ${firstWord(kidOpts[1].e.full_name)} 2"` : `e.g. "${firstWord(kidOpts[0].e.full_name)} 1"`;
+          text = `Hi ${greet}, no worries - here are the days that suit each of them:\n\n${blocks}\n\nReply with the name and number (${eg}) and we'll send the booking links, or call us if none suit. AMA`;
         }
-        return json({ ok: true, matched: mine.length, yes: false, no: true, offered: r.ok ? common.length : 0, days: common.map(d => d.day_id) });
+        const r = await familyText(m0, kidOpts[0].e, text, 'alt_offer', 'automatic: offered another grading' + (split ? ' (per child)' : ''), `Another grading day for your family`);
+        if (r.ok) {
+          for (const k of kidOpts) await db.from('cb_entries').update({ alt_offer: { days: k.days.map(d => d.day_id), at: now, split } }).eq('entry_id', k.e.entry_id);
+          await db.from('cb_calls').update({ note: (msg.slice(0, 220) + ' [Offered other gradings by text]') }).in('entry_id', mine.map(e => e.entry_id)).eq('done', false).then(() => {}, () => {});
+        }
+        return json({ ok: true, matched: mine.length, yes: false, no: true, offered: r.ok ? kidOpts.length : 0, split });
       }
       if (!yes) { for (const e of mine) await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: new Date().toISOString() }).eq('entry_id', e.entry_id); return json({ ok: true, matched: mine.length, yes: false }); }
       const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';
