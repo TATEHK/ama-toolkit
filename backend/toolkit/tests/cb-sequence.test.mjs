@@ -140,11 +140,11 @@ function makeDb(tables) {
     auth: { getUser: async tok => ({ data: { user: tok === 'grader' ? { email: 'grader@ama.test' } : tok === 'boss' ? { email: 'boss@ama.test' } : null } }) },
     from(table) {
       const T = tables[table] = tables[table] || [];
-      let f = [], op = 'select', payload = null, single = false, tooLong = false, countOnly = false;   // like the real API: a very long in(...) list fails
+      let f = [], op = 'select', payload = null, single = false, tooLong = false, countOnly = false, rng = null;   // like the real API: a very long in(...) list fails
       const q = {
         select(c, o) { if (o && o.count) countOnly = true; return q; }, not(c, op, v) { f.push(r => (r[c] ?? null) !== v); return q; }, lte(c, v) { f.push(r => String(r[c]) <= String(v)); return q; }, eq(c, v) { f.push(r => r[c] === v); return q; }, in(c, vs) { if (vs.length > 150) tooLong = true; f.push(r => vs.includes(r[c])); return q; },
         gte(c, v) { f.push(r => String(r[c]) >= String(v)); return q; }, is(c, v) { f.push(r => (r[c] ?? null) === v); return q; }, match(o) { Object.entries(o).forEach(([c, v]) => f.push(r => r[c] === v)); return q; },
-        maybeSingle() { single = true; return q; }, order() { return q; }, limit() { return q; }, lt(c, v) { f.push(r => String(r[c]) < String(v)); return q; },
+        maybeSingle() { single = true; return q; }, order() { return q; }, limit() { return q; }, range(a, b) { rng = [a, b]; return q; }, lt(c, v) { f.push(r => String(r[c]) < String(v)); return q; },
         update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; }, delete() { op = 'delete'; return q; },
         then(res, rej) {
           return Promise.resolve().then(() => {
@@ -160,7 +160,7 @@ function makeDb(tables) {
             if (op === 'update') { rows.forEach(r => Object.assign(r, payload)); return { data: null, error: null }; }
             if (op === 'delete') { tables[table] = T.filter(r => !rows.includes(r)); return { data: null, error: null }; }
             if (countOnly) return { data: null, count: rows.length, error: null };
-            return { data: single ? (rows[0] || null) : rows, error: null };
+            return { data: single ? (rows[0] || null) : (rng ? rows.slice(rng[0], rng[1] + 1) : rows.slice(0, 1000)), error: null };   // like Supabase: at most 1,000 rows a request
           }).then(res, rej);
         }
       };
@@ -379,6 +379,16 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   const none = makeDb(T2), n2 = ghlCalls.length;
   const r4 = await call(none, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'No' });
   ok(r4.body.no && r4.body.offered === 0 && ghlCalls.length === n2, 'when no other grading suits, nothing is texted');
+}
+// More than 1,000 students on coming gradings: a family listed past row 1,000 is still found and planned
+{
+  console.log('\nOver 1,000 students');
+  const T = tables(); T.cb_settings[0].seq_on = true;
+  const filler = Array.from({ length: 1100 }, (_, i) => ({ ...base, entry_id: 'f' + i, member_key: 'efc:f' + i, full_name: 'Filler ' + i, token: 'T' + i, invited_at: '2026-11-08T05:00:00Z', result: 'passed' }));
+  T.cb_entries = [...filler, { ...base, invited_at: '2026-11-08T05:00:00Z' }];
+  const big = makeDb(T); Date.now = () => at('2026-11-10', '12:00');
+  const r = await call(big, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Yes please' });
+  ok(r.body.matched === 1 && big.t.cb_entries.find(e => e.entry_id === 'e1').yes_at, "a family's YES is matched even when they are student 1,101");
 }
 // "That's the wrong belt": the belt is fixed, they're moved to a grading for it, and the booking link goes
 {

@@ -32,16 +32,16 @@ const t = {
 };
 const db = {
   from(table) {
-    let filters = [], op = 'select', payload = null, single = false;
+    let filters = [], op = 'select', payload = null, single = false, rng = null;
     const q = {
-      select() { return q; }, eq(c, v) { filters.push(r => r[c] === v); return q; }, in(c, vs) { filters.push(r => vs.includes(r[c])); return q; }, gte(c, v) { filters.push(r => String(r[c]) >= String(v)); return q; }, maybeSingle() { single = true; return q; },
+      select() { return q; }, order() { return q; }, range(a, b) { rng = [a, b]; return q; }, is(c, v) { filters.push(r => (r[c] ?? null) === v); return q; }, eq(c, v) { filters.push(r => r[c] === v); return q; }, in(c, vs) { filters.push(r => vs.includes(r[c])); return q; }, gte(c, v) { filters.push(r => String(r[c]) >= String(v)); return q; }, maybeSingle() { single = true; return q; },
       update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; },
       then(res, rej) {
         return Promise.resolve().then(() => {
           const rows = t[table].filter(r => filters.every(f => f(r)));
           if (op === 'update') { rows.forEach(r => Object.assign(r, payload)); return { data: null, error: null }; }
           if (op === 'insert') { t[table].push({ ...payload }); return { data: null, error: null }; }
-          return { data: single ? rows[0] || null : rows, error: null };
+          return { data: single ? rows[0] || null : (rng ? rows.slice(rng[0], rng[1] + 1) : rows.slice(0, 1000)), error: null };
         }).then(res, rej);
       }
     };

@@ -769,13 +769,24 @@ export async function handle(req, db, env = {}, http = fetch) {
       await log('sent', gid ? { ghl_id: gid } : {}); return { status: 'sent' };
     } catch (er) { const why = String(er.message || er).slice(0, 500); await log('failed', { error: why }); return { status: 'failed', why }; }
   };
-  // Long "in (...)" lists go in batches: hundreds of ids in one request is too long an address and the lookup fails
+  // Supabase returns at most 1,000 rows per request: anything that can be longer is read in pages, or rows past 1,000
+  // would be silently missing (students not planned, replies not matched, sent messages looking unsent).
+  const allRows = async (build, size = 1000) => {
+    const out = [];
+    for (let from = 0; ; from += size) {
+      const { data, error } = await build().range(from, from + size - 1);
+      if (error) throw new Error(error.message || String(error));
+      out.push(...(data || []));
+      if (!data || data.length < size) return out;
+    }
+  };
+  // Long "in (...)" lists go in batches: hundreds of ids in one request is too long an address and the lookup fails.
+  // Each batch is itself read in pages (100 students can have well over 1,000 log rows).
   const selectIn = async (table, cols, col, values, size = 100) => {
     const vals = [...new Set(values)], rows = [];
     for (let i = 0; i < vals.length; i += size) {
-      const { data, error } = await db.from(table).select(cols).in(col, vals.slice(i, i + size));
-      if (error) throw new Error(`${table}: ${error.message || error}`);
-      rows.push(...(data || []));
+      try { rows.push(...await allRows(() => db.from(table).select(cols).in(col, vals.slice(i, i + size)))); }
+      catch (er) { throw new Error(`${table}: ${er.message || er}`); }
     }
     return rows;
   };
@@ -788,7 +799,7 @@ export async function handle(req, db, env = {}, http = fetch) {
   const ENT_COLS = 'entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, paid, paid_at, result, seq_paused_until, seq_stopped_at';
   // Texts a staff call outcome asked for ("Send link", "No answer"): sent on the next run, whether or not the sequence is on
   const runOutbox = async (st, steps, res) => {
-    const { data: rows } = await db.from('cb_outbox').select('out_id, entry_id, kind, sent_at').is('sent_at', null);
+    const rows = await allRows(() => db.from('cb_outbox').select('out_id, entry_id, kind, sent_at').is('sent_at', null).order('out_id'));
     for (const o of rows || []) {
       const step = steps.find(s => s.code === (o.kind === 'send_link' ? 'out_send_link' : 'out_no_answer'));
       const { data: e } = await db.from('cb_entries').select(ENT_COLS).eq('entry_id', o.entry_id).maybeSingle();
@@ -815,20 +826,20 @@ export async function handle(req, db, env = {}, http = fetch) {
     const { data: days } = await db.from('cb_days').select(DAY_COLS).gte('grading_date', today);
     const coloured = (days || []).filter(d => !d.bb && !d.closed);
     if (!coloured.length) return res;
-    const { data: ents } = await db.from('cb_entries').select(ENT_COLS).in('day_id', coloured.map(d => d.day_id));
+    const ents = await allRows(() => db.from('cb_entries').select(ENT_COLS).in('day_id', coloured.map(d => d.day_id)).order('entry_id'));
     const ids = (ents || []).map(e => e.entry_id);
     if (!ids.length) return res;
     // A run that was cut off mid-send leaves its claim 'sending'. After 15 minutes: if the message was logged as sent it was, otherwise let it go again.
     const staleAt = new Date(nowMs - 15 * 60e3).toISOString();
-    const { data: stale } = await db.from('cb_seq_log').select('entry_id, step_code').eq('status', 'sending').lt('at', staleAt);
+    const stale = await allRows(() => db.from('cb_seq_log').select('entry_id, step_code').eq('status', 'sending').lt('at', staleAt).order('entry_id'));
     for (const l of stale || []) {
       const { data: msg } = await db.from('cb_messages').select('status').eq('entry_id', l.entry_id).eq('sent_by', 'automatic: ' + l.step_code).eq('status', 'sent').limit(1);
       if ((msg || []).length) await db.from('cb_seq_log').update({ status: 'sent', why: 'Recovered after a cut-off run' }).eq('entry_id', l.entry_id).eq('step_code', l.step_code);
       else await db.from('cb_seq_log').delete().eq('entry_id', l.entry_id).eq('step_code', l.step_code).eq('status', 'sending');
     }
     const logs = await selectIn('cb_seq_log', 'entry_id, step_code', 'entry_id', ids);
-    let skips = []; try { ({ data: skips } = await db.from('cb_skip').select('member_key, until')); } catch (_) { /* no skip list */ }
-    const { data: prep } = await db.from('cb_prep_bookings').select('member_key, session_time');
+    let skips = []; try { skips = await allRows(() => db.from('cb_skip').select('member_key, until').order('member_key')); } catch (_) { /* no skip list */ }
+    const prep = await allRows(() => db.from('cb_prep_bookings').select('member_key, session_time').order('member_key')).catch(() => []);
     const prepBy = Object.fromEntries((prep || []).map(p => [p.member_key, p.session_time]));
     const plan = planSequence({ now: nowMs, steps, days: coloured, entries: ents || [], logs: new Set((logs || []).map(l => l.entry_id + '|' + l.step_code)),
       skipped: new Set((skips || []).filter(s => !s.until || String(s.until) >= today).map(s => s.member_key)), prepBooked: new Set(Object.keys(prepBy)) });
@@ -1005,7 +1016,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
       const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by').gte('grading_date', today);
       const open = (days || []).filter(d => !d.closed); if (!open.length) return json({ ok: true, matched: 0, why: 'no grading days coming up' });
-      const { data: ents } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school, alt_offer').in('day_id', open.map(d => d.day_id));
+      const ents = await allRows(() => db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school, alt_offer').in('day_id', open.map(d => d.day_id)).order('entry_id'));
       const waiting = (ents || []).filter(e => e.invited_at && !e.booked_at && !e.result);
       if (!waiting.length) return json({ ok: true, matched: 0 });
       const mems = await selectIn('efc_members', 'member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth', 'member_key', waiting.map(e => e.member_key));

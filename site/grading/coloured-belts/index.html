@@ -617,7 +617,7 @@ async function loadAll() {
   const q = (t, order) => { let x = sb.from(t).select('*'); if (order) x = x.order(order[0], { ascending: order[1] !== false }); return x; };
   const [st, be, se, da, en, me, pr, lr, bc] = await Promise.all([
     fetchAll('cb_students', ['full_name', 'member_key', 'programme']), q('cb_belts', ['sort']), q('cb_settings'), q('cb_days', ['grading_date', false]), fetchAll('cb_entries', ['full_name', 'entry_id']),
-    sb.from('cb_messages').select('entry_id, member_key, kind, status, sent_at').order('sent_at', { ascending: false }).limit(5000), q('cb_programmes', ['sort']),
+    fetchMessages(), q('cb_programmes', ['sort']),
     sb.from('cb_efc_runs').select('ran_at').order('ran_at', { ascending: false }).limit(1),
     sb.from('cb_belt_changes').select('*').is('reviewed_at', null).order('changed_at', { ascending: false }).limit(200)]);
   // When EFC last updated (the nightly update); missing before coloured-belts-6.sql
@@ -647,10 +647,21 @@ async function fetchAll(t, orders) {
   }
   return { data: rows, error: null };
 }
+// The latest 5,000 texts and emails, newest first, in pages of 1,000 (one request only ever returns 1,000)
+async function fetchMessages(max = 5000) {
+  const rows = [];
+  for (let from = 0; from < max; from += 1000) {
+    const r = await sb.from('cb_messages').select('entry_id, member_key, kind, status, sent_at').order('sent_at', { ascending: false }).order('message_id', { ascending: true }).range(from, Math.min(from + 999, max - 1));
+    if (r.error) return r;
+    rows.push(...(r.data || []));
+    if ((r.data || []).length < 1000) break;
+  }
+  return { data: rows, error: null };
+}
 // After a change to grading days, entries or texts: fetch just those (not all 1,400 students again)
 async function refreshEntries() {
   const [da, en, me] = await Promise.all([sb.from('cb_days').select('*').order('grading_date', { ascending: false }), fetchAll('cb_entries', ['full_name', 'entry_id']),
-    sb.from('cb_messages').select('entry_id, member_key, kind, status, sent_at').order('sent_at', { ascending: false }).limit(5000)]);
+    fetchMessages()]);
   for (const r of [da, en]) if (r.error) throw r.error;
   state.all.days = da.data || []; state.all.entries = en.data || [];
   if (!me.error) state.messages = me.data || [];
@@ -1870,10 +1881,25 @@ function seqWhen(s) {
   if (s.anchor === 'date') return s.send_date ? fmtDate(s.send_date) + t : 'When a staff call outcome asks for it';
   return 'As soon as they are booked and paid';
 }
+// Rows for many students: 100 ids per request (a long list makes too long an address), each read in pages of 1,000
+async function inPages(table, ids, order) {
+  const rows = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    for (let from = 0; ; from += 1000) {
+      let x = sb.from(table).select('*').in('entry_id', ids.slice(i, i + 100)); if (order) x = x.order(order); x = x.order('entry_id');
+      const r = await x.range(from, from + 999);
+      if (r.error) return r;
+      rows.push(...(r.data || []));
+      if ((r.data || []).length < 1000) break;
+    }
+  }
+  if (order) rows.sort((a, b) => String(a[order]).localeCompare(String(b[order])));
+  return { data: rows, error: null };
+}
 async function openSequence(d) {
   openDlg(`<div class="dlg-body seq-dlg"><div class="row" style="justify-content:space-between"><h3>Booking sequence</h3><button class="btn ghost" data-close>Close</button></div><p class="hint">Loading…</p></div>`);
   const es = entriesOf(d.day_id), ids = es.map(e => e.entry_id);
-  const [lg, ca] = await Promise.all([ids.length ? sb.from('cb_seq_log').select('*').in('entry_id', ids) : { data: [] }, ids.length ? sb.from('cb_calls').select('*').in('entry_id', ids).order('created_at') : { data: [] }]);
+  const [lg, ca] = await Promise.all([inPages('cb_seq_log', ids), inPages('cb_calls', ids, 'created_at')]);
   if (lg.error) return openDlg(`<div class="dlg-body"><h3>Booking sequence</h3><p class="hint">${esc(errMsg(lg.error))}</p><button class="btn" data-close>Close</button></div>`);
   const logOf = (id, c) => (lg.data || []).find(l => l.entry_id === id && l.step_code === c);
   const callOf = id => (ca.data || []).filter(c => c.entry_id === id).pop();
