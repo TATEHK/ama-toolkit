@@ -862,7 +862,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const { count: sms24 } = await db.from('cb_messages').select('message_id', { count: 'exact', head: true }).not('phone', 'is', null).eq('status', 'sent').gte('sent_at', new Date(nowMs - 864e5).toISOString());
     // The black belt sequence (nurture) texts through the same GoHighLevel number, so its texts count towards the same daily limit
     let bb24 = 0;
-    try { const { count } = await db.from('prep_nurture_log').select('log_id', { count: 'exact', head: true }).eq('channel', 'sms').eq('status', 'sent').gte('created_at', new Date(nowMs - 864e5).toISOString()); bb24 = count || 0; } catch (_) { /* no black belt tables */ }
+    try { const { count } = await db.from('prep_nurture_log').select('log_id', { count: 'exact', head: true }).eq('channel', 'sms').eq('status', 'sent').gte('sent_at', new Date(nowMs - 864e5).toISOString()); bb24 = count || 0; } catch (_) { /* no black belt tables */ }
     let smsLeft = Math.max(0, (st.sms_daily_cap ?? 450) - (sms24 || 0) - bb24);
     // A run has limited time and memory: send at most SEQ_MAX_SENDS messages, and leave the rest for the next run (every few minutes)
     let sends = 0;

@@ -378,7 +378,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (cbs) {
         const since = new Date(now.getTime() - 864e5).toISOString();
         const { count: cb24 } = await db.from('cb_messages').select('message_id', { count: 'exact', head: true }).not('phone', 'is', null).eq('status', 'sent').gte('sent_at', since);
-        const { count: bb24 } = await db.from('prep_nurture_log').select('log_id', { count: 'exact', head: true }).eq('channel', 'sms').eq('status', 'sent').gte('created_at', since);
+        const { count: bb24 } = await db.from('prep_nurture_log').select('log_id', { count: 'exact', head: true }).eq('channel', 'sms').eq('status', 'sent').gte('sent_at', since);
         smsLeft = Math.max(0, (cbs.sms_daily_cap ?? 450) - (cb24 || 0) - (bb24 || 0));
       }
     } catch (_) { /* no coloured belt settings: no shared limit to respect */ }

@@ -486,7 +486,7 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
     ok(r1.body.results[0].ok && r2.body.results[0].duplicate && smsN() - before === 1, 'pressing Send twice only texts them once'); }
   // Black belt texts use the same GoHighLevel number, so they count towards the coloured belt daily cap
   { const x = makeDb(tables()); x.t.cb_settings[0].seq_on = true; x.t.cb_settings[0].sms_daily_cap = 2; Date.now = () => at('2026-11-09', '14:00');
-    x.t.prep_nurture_log = [{ log_id: 1, channel: 'sms', status: 'sent', created_at: new Date(Date.now() - 3600e3).toISOString() }];
+    x.t.prep_nurture_log = [{ log_id: 1, channel: 'sms', status: 'sent', sent_at: new Date(Date.now() - 3600e3).toISOString() }];
     const before = smsN();
     const r = await handle(new Request('https://x.test/functions/v1/cb', { method: 'POST', headers: { 'content-type': 'application/json', 'x-cb-cron': 'cron-secret' }, body: JSON.stringify({ action: 'sequence' }) }), x, env, http).then(r => r.json());
     ok(smsN() - before === 1 && r.waiting === 1, 'black belt texts sent today count towards the daily text limit'); }
