@@ -132,7 +132,7 @@ const empty = buildSeqEmail('S', 'Hi\n• Colour Belt Prep Session:\n• Date: T
 ok(!empty.html.includes('Prep Session') && !empty.text.includes('Prep Session') && empty.text.includes('Date: Tuesday'), 'emails: a point left empty (prep session after bookings close) is dropped');
 console.log('\nThe function');
 function makeDb(tables) {
-  const pk = { cb_seq_log: r => r.entry_id + '|' + r.step_code };
+  const pk = { cb_seq_log: r => r.entry_id + '|' + r.step_code, cb_reply_seen: r => r.who + '|' + r.h };
   let n = 0;
   return {
     t: tables,
@@ -140,9 +140,9 @@ function makeDb(tables) {
     auth: { getUser: async tok => ({ data: { user: tok === 'grader' ? { email: 'grader@ama.test' } : tok === 'boss' ? { email: 'boss@ama.test' } : null } }) },
     from(table) {
       const T = tables[table] = tables[table] || [];
-      let f = [], op = 'select', payload = null, single = false, tooLong = false, countOnly = false, rng = null;   // like the real API: a very long in(...) list fails
+      let f = [], op = 'select', payload = null, single = false, tooLong = false, countOnly = false, rng = null, ret = false;   // like the real API: a very long in(...) list fails
       const q = {
-        select(c, o) { if (o && o.count) countOnly = true; return q; }, not(c, op, v) { f.push(r => (r[c] ?? null) !== v); return q; }, lte(c, v) { f.push(r => String(r[c]) <= String(v)); return q; }, eq(c, v) { f.push(r => r[c] === v); return q; }, in(c, vs) { if (vs.length > 150) tooLong = true; f.push(r => vs.includes(r[c])); return q; },
+        select(c, o) { if (op !== 'select') ret = true; if (o && o.count) countOnly = true; return q; }, or(s) { const parts = String(s).split(',').map(p => { const [c, o, ...v] = p.split('.'); const val = v.join('.'); return r => o === 'is' ? (r[c] ?? null) === (val === 'null' ? null : val) : o === 'neq' ? (r[c] ?? null) !== null && r[c] !== val : o === 'lt' ? (r[c] ?? null) !== null && String(r[c]) < val : o === 'eq' ? r[c] === val : false; }); f.push(r => parts.some(fn => fn(r))); return q; }, neq(c, v) { f.push(r => (r[c] ?? null) !== null && r[c] !== v); return q; },  not(c, op, v) { f.push(r => (r[c] ?? null) !== v); return q; }, lte(c, v) { f.push(r => String(r[c]) <= String(v)); return q; }, eq(c, v) { f.push(r => r[c] === v); return q; }, in(c, vs) { if (vs.length > 150) tooLong = true; f.push(r => vs.includes(r[c])); return q; },
         gte(c, v) { f.push(r => String(r[c]) >= String(v)); return q; }, is(c, v) { f.push(r => (r[c] ?? null) === v); return q; }, match(o) { Object.entries(o).forEach(([c, v]) => f.push(r => r[c] === v)); return q; },
         maybeSingle() { single = true; return q; }, order() { return q; }, limit() { return q; }, range(a, b) { rng = [a, b]; return q; }, lt(c, v) { f.push(r => String(r[c]) < String(v)); return q; },
         update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; }, delete() { op = 'delete'; return q; },
@@ -157,7 +157,7 @@ function makeDb(tables) {
             }
             if (tooLong) return { data: null, error: { message: 'URI too long' } };
             const rows = T.filter(r => f.every(fn => fn(r)));
-            if (op === 'update') { rows.forEach(r => Object.assign(r, payload)); return { data: null, error: null }; }
+            if (op === 'update') { rows.forEach(r => Object.assign(r, payload)); return { data: ret ? rows.map(r => ({ ...r })) : null, error: null }; }
             if (op === 'delete') { tables[table] = T.filter(r => !rows.includes(r)); return { data: null, error: null }; }
             if (countOnly) return { data: null, count: rows.length, error: null };
             return { data: single ? (rows[0] || null) : (rng ? rows.slice(rng[0], rng[1] + 1) : rows.slice(0, 1000)), error: null };   // like Supabase: at most 1,000 rows a request
@@ -457,6 +457,39 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   const T6 = tables(); T6.cb_settings[0].seq_on = true; T6.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const sp2 = makeDb(T6);
   await call(sp2, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'STOP' });
   ok(!sp2.t.cb_calls.length, 'a plain STOP adds no call');
+}
+// ---- Audit fixes: no double answers, no double sends, one shared text limit ----
+{
+  console.log('\nNo doubles');
+  const smsN = () => ghlCalls.filter(c => c.body && c.body.type === 'SMS').length;
+  // GoHighLevel delivering the same reply twice: handled once
+  { const T = tables(); T.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z' }]; const x = makeDb(T);
+    const a = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'What time does it finish?' });
+    const b = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'What time does it  finish? ' });
+    ok(!a.body.duplicate && b.body.duplicate === true && x.t.cb_reply_seen.length === 1, 'the same reply delivered twice is only handled once');
+    const c = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: 'Also, what should she bring?' });
+    ok(!c.body.duplicate, '...but a different reply from them is still handled'); }
+  // "Can't make those either" after the other days were offered: an admin call
+  { const T = tables(); T.cb_entries = [{ ...base, invited_at: '2026-11-08T05:00:00Z', alt_offer: { days: ['d2'], at: new Date(Date.now() - 3600e3).toISOString() } }]; const x = makeDb(T);
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Sorry we can't make any of those either" });
+    ok(r.body.alreadyOffered && x.t.cb_calls.some(c => c.for_admin === true && /other days offered/.test(c.note)), "can't make the other days offered either: a call for an admin"); }
+  // The outbox: a row another run is already sending is left alone; one whose run died 10+ minutes ago is sent
+  { const x = makeDb(tables()); Date.now = () => at('2026-11-09', '14:00');
+    x.t.cb_outbox.push({ out_id: 'b1', entry_id: 'e1', kind: 'send_link', sent_at: null, status: 'sending', claimed_at: new Date(Date.now() - 60e3).toISOString() },
+                       { out_id: 'b2', entry_id: 'e2', kind: 'send_link', sent_at: null, status: 'sending', claimed_at: new Date(Date.now() - 20 * 60e3).toISOString() });
+    await cron(x);
+    ok(!x.t.cb_outbox[0].sent_at && x.t.cb_outbox[1].sent_at, 'an outbox text another run is sending is not sent twice; a stuck one is retried'); }
+  // The hub's Send pressed twice: the second is skipped
+  { const x = makeDb(tables()); Date.now = realNow; const before = smsN();
+    const send = () => call(x, { action: 'send', kind: 'reminder', items: [{ member_key: 'efc:1', entry_id: 'e1', body: 'See you Saturday at 10' }] }, { authorization: 'Bearer grader' });
+    const r1 = await send(), r2 = await send();
+    ok(r1.body.results[0].ok && r2.body.results[0].duplicate && smsN() - before === 1, 'pressing Send twice only texts them once'); }
+  // Black belt texts use the same GoHighLevel number, so they count towards the coloured belt daily cap
+  { const x = makeDb(tables()); x.t.cb_settings[0].seq_on = true; x.t.cb_settings[0].sms_daily_cap = 2; Date.now = () => at('2026-11-09', '14:00');
+    x.t.prep_nurture_log = [{ log_id: 1, channel: 'sms', status: 'sent', created_at: new Date(Date.now() - 3600e3).toISOString() }];
+    const before = smsN();
+    const r = await handle(new Request('https://x.test/functions/v1/cb', { method: 'POST', headers: { 'content-type': 'application/json', 'x-cb-cron': 'cron-secret' }, body: JSON.stringify({ action: 'sequence' }) }), x, env, http).then(r => r.json());
+    ok(smsN() - before === 1 && r.waiting === 1, 'black belt texts sent today count towards the daily text limit'); }
 }
 Date.now = realNow;
 

@@ -62,9 +62,9 @@ function reset() {
 
 const db = {
   from(table) {
-    let flt = [], op = 'select', payload = null, single = false, rng = null;
+    let flt = [], op = 'select', payload = null, single = false, rng = null, countOnly = false;
     const q = {
-      select() { return q; }, eq(c, v) { flt.push(r => r[c] === v); return q; }, in(c, vs) { flt.push(r => vs.includes(r[c])); return q; },
+      select(c, o) { if (o && o.count) countOnly = true; return q; }, eq(c, v) { flt.push(r => r[c] === v); return q; }, in(c, vs) { flt.push(r => vs.includes(r[c])); return q; },
       gte(c, v) { flt.push(r => String(r[c]) >= String(v)); return q; }, not(c, _o, v) { flt.push(r => !(v === null ? r[c] == null : r[c] === v)); return q; },
       maybeSingle() { single = true; return q; }, order() { return q; }, range(a, b) { rng = [a, b]; return q; }, update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; },
       then(res, rej) {
@@ -78,6 +78,7 @@ const db = {
             }
             return { data: null, error: null };
           }
+          if (countOnly) return { data: null, count: rows.length, error: null };
           const capped = rng ? rows.slice(rng[0], rng[1] + 1) : rows.slice(0, 1000);   // like Supabase: at most 1,000 rows a request
           return { data: single ? (rows[0] || null) : capped, error: null };
         }).then(res, rej);
@@ -208,5 +209,30 @@ ok(eo3.ok && eo3.essay === true, 'essay-only works when called with a booking me
   await run('2026-11-12T00:00:00Z'); await run('2026-11-12T00:15:00Z');
   ok(!ghlCalls.some(c => c.body && /Pat/.test(c.body.message || c.body.subject || '') && /booked/i.test(c.body.message || c.body.subject || '')), 'a booked message already logged past row 1,000 is not sent again');
   ok(t.prep_nurture_log.filter(l => l.student_id === 'S2' && l.step_code === 'booked_pay_sms').length === 1, '...and there is still just one log row for it'); }
+// No booking entry yet: a step with {link} waits rather than going out with a blank link
+{ console.log('\nHeld messages');
+  reset();
+  t.cb_entries = t.cb_entries.filter(e => e.member_key !== 'efc:M1');
+  ghlCalls = [];
+  const r1 = await (await run('2026-11-07T23:30:00Z')).json();
+  ok(!logFor('S1', 'enrol_d1_sms') && !sentSms().some(c => /Sam/.test(c.body.message)) && r1.held >= 1, 'no booking entry: the enrolment text waits instead of going with a blank link');
+  t.cb_entries.push({ member_key: 'efc:M1', belt_to: '1st Dan Black Belt', token: 'tok1', day_id: 'D1' });
+  await run('2026-11-07T23:45:00Z');
+  ok(logFor('S1', 'enrol_d1_sms') && sentSms().some(c => c.body.message.includes('b#tok1')), '...and goes, with the link, once the entry exists');
+  // The coloured belt side has texting stopped (GoHighLevel's daily limit): texts wait, emails still go
+  reset();
+  t.cb_settings = [{ id: 1, sms_blocked_until: '2026-11-08T13:00:00Z', sms_daily_cap: 450 }]; t.cb_messages = [];
+  ghlCalls = [];
+  await run('2026-11-07T23:30:00Z');
+  ok(!logFor('S1', 'enrol_d1_sms') && !sentSms().length, 'while texting is paused for the daily limit, black belt texts wait (nothing logged)');
+  t.cb_settings[0].sms_blocked_until = '2026-11-07T23:40:00Z';
+  await run('2026-11-07T23:45:00Z');
+  ok(logFor('S1', 'enrol_d1_sms') && logFor('S1', 'enrol_d1_sms').status === 'sent', '...and are sent once the pause is over');
+  // The shared daily cap is used up by coloured belt texts
+  reset();
+  t.cb_settings = [{ id: 1, sms_blocked_until: null, sms_daily_cap: 1 }]; t.cb_messages = [{ message_id: 'm', phone: '+61400000000', status: 'sent', sent_at: '2026-11-07T22:00:00Z' }];
+  ghlCalls = [];
+  await run('2026-11-07T23:30:00Z');
+  ok(!logFor('S1', 'enrol_d1_sms') && !sentSms().length, 'when the shared daily text cap is used up, black belt texts wait'); }
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

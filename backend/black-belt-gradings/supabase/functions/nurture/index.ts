@@ -368,8 +368,29 @@ export async function handle(req, db, env = {}, http = fetch) {
     // The bespoke 4th Dan & Beyond invitation email (active:false, fetched on its own so the generic loop ignores it).
     const { data: inv4 } = await db.from('prep_nurture_steps').select('subject, body').eq('code', 'enrol_invite_4dan').maybeSingle();
 
-    const out = { sent: 0, skipped: 0, failed: 0, calls: 0 };
+    const out = { sent: 0, skipped: 0, failed: 0, calls: 0, held: 0, held_why: [] };
+    // Texts share one GoHighLevel number (and its daily limit) with the coloured belt sequence. While the coloured belt
+    // side has texting stopped (the limit was hit), or the shared daily cap is used up, SMS steps wait for a later run.
+    let smsLeft = Infinity, smsStop = null;
+    try {
+      const { data: cbs } = await db.from('cb_settings').select('sms_blocked_until, sms_daily_cap').eq('id', 1).maybeSingle();
+      if (cbs && cbs.sms_blocked_until && Date.parse(cbs.sms_blocked_until) > now.getTime()) smsStop = 'Texting paused (GoHighLevel daily limit) until ' + cbs.sms_blocked_until;
+      if (cbs) {
+        const since = new Date(now.getTime() - 864e5).toISOString();
+        const { count: cb24 } = await db.from('cb_messages').select('message_id', { count: 'exact', head: true }).not('phone', 'is', null).eq('status', 'sent').gte('sent_at', since);
+        const { count: bb24 } = await db.from('prep_nurture_log').select('log_id', { count: 'exact', head: true }).eq('channel', 'sms').eq('status', 'sent').gte('created_at', since);
+        smsLeft = Math.max(0, (cbs.sms_daily_cap ?? 450) - (cb24 || 0) - (bb24 || 0));
+      }
+    } catch (_) { /* no coloured belt settings: no shared limit to respect */ }
+    const hold = (step, student_id, why) => { out.held++; if (out.held_why.length < 50) out.held_why.push(student_id + ' ' + step.code + ': ' + why); };
     const sendStep = async (step, cycle, student_id, vars, phone, email, needsEssay) => {
+      // A step that gives them their enrolment/booking link must never go out with a blank one: wait until they have a booking entry
+      const fourDanStep = step.channel === 'email' && step.code === 'enrol_d1_email' && bb4thPlus(vars.belt) && inv4 && inv4.body;
+      if (!vars.link && (fourDanStep || /\{link\}/.test(String(step.body || '') + String(step.subject || '')))) { hold(step, student_id, 'no booking link yet'); return false; }
+      if (step.channel === 'sms') {
+        if (smsStop) { hold(step, student_id, smsStop); return false; }
+        if (smsLeft <= 0) { hold(step, student_id, 'daily text limit reached'); return false; }
+      }
       // 4th Dan+ candidates get the bespoke invitation email in place of the generic Day-1 email (same log key, no double send).
       const fourDan = step.channel === 'email' && step.code === 'enrol_d1_email' && bb4thPlus(vars.belt) && inv4 && inv4.body;
       const html = fourDan ? fill4dan(inv4.body, vars, needsEssay) : null;
@@ -384,6 +405,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       // Claim the step first (one row per cycle, student and step): if the row is already there it has been sent, so never send twice.
       const { error: claimErr } = await logRow('sent', testing && !ready ? { ghl_message_id: 'test' } : {});
       if (claimErr) { out.skipped++; return; }
+      if (step.channel === 'sms') smsLeft--;
       if (testing && !ready) { out.sent++; return; }
       try {
         const cid = await contactFor({ full_name: vars.name, email, phone });
@@ -417,7 +439,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const essayTok = Object.fromEntries((essays || []).map(e => [e.student_id + '|' + e.target_rank, e.token]));
       const { data: bdays } = await db.from('cb_days').select('day_id, grading_date, belts').eq('prep_cycle_id', cycle).eq('bb', true);
       const dayBy = Object.fromEntries((bdays || []).map(d => [d.day_id, d]));
-      const er = (bdays && bdays.length) ? await db.from('cb_entries').select('member_key, belt_to, token, day_id').in('day_id', bdays.map(d => d.day_id)) : { data: [] };
+      const er = (bdays && bdays.length) ? { data: await allRows(() => db.from('cb_entries').select('entry_id, member_key, belt_to, token, day_id').in('day_id', bdays.map(d => d.day_id)).order('entry_id')) } : { data: [] };
       const entByRefRank = {};
       for (const e of er.data || []) if (e.member_key && String(e.member_key).startsWith('efc:')) entByRefRank[e.member_key + '|' + e.belt_to] = e;
       // Students link to EFC by reference code; booking entries are keyed by efc_members.member_key — map one to the other.
@@ -460,7 +482,7 @@ export async function handle(req, db, env = {}, http = fetch) {
             if (!due || String(due) > today || String(due) < String(joined)) continue;
             if (!timeReached(step.send_at, tnow)) continue;
             if (pausedNow) continue;
-            await sendStep(step, cycle, c.student_id, vars, phone, email, needsEssay); done.add(key);
+            if (await sendStep(step, cycle, c.student_id, vars, phone, email, needsEssay) !== false) done.add(key);
           }
           const callDue = callStep ? enrolDue(callStep, joined) : null;
           if (callStep && callDue && String(callDue) <= today) {   // the Day 12 call, relative to the person's invite date
@@ -476,7 +498,7 @@ export async function handle(req, db, env = {}, http = fetch) {
             // Paid people still get the enrolment EMAILS (invitation + info, with their links); only the payment-nudge SMS stops once paid.
             if (step.channel === 'email') {
               if (!timeReached(step.send_at, tnow)) continue;
-              await sendStep(step, cycle, c.student_id, vars, phone, email, needsEssay); done.add(key);
+              if (await sendStep(step, cycle, c.student_id, vars, phone, email, needsEssay) !== false) done.add(key);
             } else {
               await db.from('prep_nurture_log').insert({ cycle_id: cycle, student_id: c.student_id, step_code: step.code, channel: step.channel, status: 'skipped_paid' });
               done.add(key); out.skipped++;
@@ -492,7 +514,7 @@ export async function handle(req, db, env = {}, http = fetch) {
             if (!dueYmd) continue;
             if (step.anchor === 'on_payment') { if (gradingYmd && String(gradingYmd) < today) continue; }
             else { if (String(dueYmd) !== today || !timeReached(step.send_at, tnow)) continue; }
-            await sendStep(step, cycle, c.student_id, vars, phone, email, needsEssay); done.add(key);
+            if (await sendStep(step, cycle, c.student_id, vars, phone, email, needsEssay) !== false) done.add(key);
           }
         }
       }

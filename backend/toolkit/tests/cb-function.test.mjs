@@ -32,15 +32,17 @@ const t = {
 };
 const db = {
   from(table) {
-    let filters = [], op = 'select', payload = null, single = false, rng = null;
+    let filters = [], op = 'select', payload = null, single = false, rng = null, ret = false; const f = filters;
     const q = {
-      select() { return q; }, order() { return q; }, range(a, b) { rng = [a, b]; return q; }, is(c, v) { filters.push(r => (r[c] ?? null) === v); return q; }, eq(c, v) { filters.push(r => r[c] === v); return q; }, in(c, vs) { filters.push(r => vs.includes(r[c])); return q; }, gte(c, v) { filters.push(r => String(r[c]) >= String(v)); return q; }, maybeSingle() { single = true; return q; },
+      select() { if (op !== 'select') ret = true; return q; }, limit() { return q; }, lt(c, v) { filters.push(r => String(r[c]) < String(v)); return q; }, delete() { op = 'delete'; return q; }, or(s) { const parts = String(s).split(',').map(p => { const [c, o, ...v] = p.split('.'); const val = v.join('.'); return r => o === 'is' ? (r[c] ?? null) === (val === 'null' ? null : val) : o === 'neq' ? (r[c] ?? null) !== null && r[c] !== val : o === 'lt' ? (r[c] ?? null) !== null && String(r[c]) < val : o === 'eq' ? r[c] === val : false; }); f.push(r => parts.some(fn => fn(r))); return q; }, neq(c, v) { f.push(r => (r[c] ?? null) !== null && r[c] !== v); return q; }, order() { return q; }, range(a, b) { rng = [a, b]; return q; }, is(c, v) { filters.push(r => (r[c] ?? null) === v); return q; }, eq(c, v) { filters.push(r => r[c] === v); return q; }, in(c, vs) { filters.push(r => vs.includes(r[c])); return q; }, gte(c, v) { filters.push(r => String(r[c]) >= String(v)); return q; }, maybeSingle() { single = true; return q; },
       update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; },
       then(res, rej) {
         return Promise.resolve().then(() => {
-          const rows = t[table].filter(r => filters.every(f => f(r)));
-          if (op === 'update') { rows.forEach(r => Object.assign(r, payload)); return { data: null, error: null }; }
-          if (op === 'insert') { t[table].push({ ...payload }); return { data: null, error: null }; }
+          const T = t[table] = t[table] || [];
+          const rows = T.filter(r => filters.every(f => f(r)));
+          if (op === 'update') { rows.forEach(r => Object.assign(r, payload)); return { data: ret ? rows.map(r => ({ ...r })) : null, error: null }; }
+          if (op === 'delete') { t[table] = T.filter(r => !rows.includes(r)); return { data: null, error: null }; }
+          if (op === 'insert') { if (table === 'cb_reply_seen' && T.some(r => r.who === payload.who && r.h === payload.h)) return { data: null, error: { code: '23505', message: 'duplicate key' } }; T.push({ ...payload }); return { data: null, error: null }; }
           return { data: single ? rows[0] || null : (rng ? rows.slice(rng[0], rng[1] + 1) : rows.slice(0, 1000)), error: null };
         }).then(res, rej);
       }
@@ -113,7 +115,7 @@ hookStatus = 200;
 r = await call({ action: 'book', token: TOKEN });
 const h = hooks[hooks.length - 1];
 ok(r.body.ok && r.body.booked && t.cb_entries[0].booked_at && !t.cb_entries[0].booking_error, 'pressing Book marks it booked');
-ok(h.member_id === 'm1' && h.efc_ref === 'AU-023-1' && h.date === '2026-11-14' && h.session_id === 'sess-1' && h.location_id === 'f39cf2f5-a3e0-47bc-97cc-bc05c9b2bc58' && h.belt_to === 'Orange Belt' && h.programme === 'Taekwondo', 'the Zap gets the EFC member ID, date, session and location to book');
+ok(h && h.member_id === 'm1' && h.efc_ref === 'AU-023-1' && h.date === '2026-11-14' && h.session_id === 'sess-1' && h.location_id === 'f39cf2f5-a3e0-47bc-97cc-bc05c9b2bc58' && h.belt_to === 'Orange Belt' && h.programme === 'Taekwondo', 'the Zap gets the EFC member ID, date, session and location to book');
 const n = hooks.length;
 r = await call({ action: 'book', token: TOKEN });
 ok(r.body.booked && hooks.length === n, 'booking twice does not book again');

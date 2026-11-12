@@ -964,8 +964,25 @@ const overviewFor = (cid, sid) => state.overview.find(s => s.cycle_id === cid &&
 const efcState = s => !s.efc_ref ? '' : !state.efcReady || state.efcRefs.has(s.efc_ref) ? 'linked' : 'missing';
 const efcTag = s => ({ linked: '<span class="tag ok" title="Linked to EFC ' + esc(s.efc_ref || '') + '">EFC</span>', missing: '<span class="tag warn" title="EFC ref not found in EFC">EFC?</span>' })[efcState(s)] || '';
 
+// Supabase hands back at most 1,000 rows a request: read big tables a page at a time (in a fixed order, so no row is skipped or repeated)
+const PAGE_KEY = { prep_students: ['student_id'], prep_enrolments: ['cycle_id', 'student_id'], prep_attendance: ['attendance_id'], prep_attendance_summary: ['cycle_id', 'student_id'],
+  prep_overview: ['cycle_id', 'student_id'], prep_payment_summary: ['payment_id'], prep_readiness: ['readiness_id'], prep_grading: ['grading_id'], prep_payment_transactions: ['transaction_id'],
+  prep_possible_duplicates: ['student_a', 'student_b'], prep_nurture_log: ['log_id'], prep_nurture_state: ['student_id'], prep_calls: ['call_id'], prep_certificates: ['certificate_id'] };
+async function allPages(table, build, size = 1000) {
+  // One request as usual; only when it comes back full is the table read again in pages, in a fixed order
+  const first = await build();
+  if (first.error || !first.data || first.data.length < size) return first;
+  const out = [];
+  for (let from = 0; ; from += size) {
+    let x = build(); for (const k of PAGE_KEY[table] || []) x = x.order(k);
+    const { data, error } = await x.range(from, from + size - 1);
+    if (error) return { data: from ? out : null, error };
+    out.push(...(data || []));
+    if (!data || data.length < size) return { data: out, error: null };
+  }
+}
 async function loadAll() {
-  const q = (t, order) => { let x = sb.from(t).select('*'); if (order) x = x.order(order[0], { ascending: order[1] !== false }); return x; };
+  const q = (t, order) => allPages(t, () => { let x = sb.from(t).select('*'); if (order) x = x.order(order[0], { ascending: order[1] !== false }); return x; });
   const res = await Promise.all([
     q('prep_settings'), q('prep_students', ['full_name']), q('prep_cycles', ['created_at', false]), q('prep_sessions', ['session_number']),
     q('prep_enrolments'), q('prep_attendance'), q('prep_attendance_summary'), q('prep_overview'),
@@ -978,7 +995,7 @@ async function loadAll() {
   const counters = await sb.from('prep_dan_counters').select('*');
   state.countersReady = !counters.error;
   state.danCounters = counters.data || [];
-  const [rd, gr, tpl, ce] = await Promise.all([sb.from('prep_readiness').select('*'), sb.from('prep_grading').select('*'), sb.from('prep_report_templates').select('*').order('name'), sb.from('prep_certificates').select('*')]);
+  const [rd, gr, tpl, ce] = await Promise.all([allPages('prep_readiness', () => sb.from('prep_readiness').select('*')), allPages('prep_grading', () => sb.from('prep_grading').select('*')), sb.from('prep_report_templates').select('*').order('name'), sb.from('prep_certificates').select('*')]);
   state.certificates = ce.data || [];
   // ID cards from AMA ID Cards, linked by Student ID (supabase/prep-update-06.sql links them by name)
   const cards = await sb.rpc('prep_card_people');
@@ -3486,9 +3503,9 @@ async function renderNurture(c) {
   let runq, logq, stq, callq;
   try { [runq, logq, stq, callq] = await Promise.all([
     sb.from('prep_nurture_runs').select('*').eq('cycle_id', cid).maybeSingle(),
-    sb.from('prep_nurture_log').select('student_id, step_code, status').eq('cycle_id', cid),
-    sb.from('prep_nurture_state').select('*').eq('cycle_id', cid),
-    sb.from('prep_calls').select('*').eq('cycle_id', cid).eq('done', false)
+    allPages('prep_nurture_log', () => sb.from('prep_nurture_log').select('log_id, student_id, step_code, status').eq('cycle_id', cid)),
+    allPages('prep_nurture_state', () => sb.from('prep_nurture_state').select('*').eq('cycle_id', cid)),
+    allPages('prep_calls', () => sb.from('prep_calls').select('*').eq('cycle_id', cid).eq('done', false))
   ]); } catch (e) { box.innerHTML = '<div class="panel-empty">The sequence isn\'t available right now.</div>'; return; }
   if (state.view !== 'grading' || state.gr.cycle !== cid || state.gr.panel !== 'sequence') return;
   const run = runq.data, logs = logq.data || [], states = stq.data || [];
@@ -4602,7 +4619,7 @@ async function exportEverything() {
     sheets.push({ name: 'Fees', head: ['Cycle', 'Student ID', 'Name', 'Fee', 'Fee option', 'Amount due', 'Paid', 'Balance', 'Status', 'Due date', 'Notes'],
       rows: state.payments.map(p => [cname(p.cycle_id), p.student_id, sname(p.student_id), p.kind === 'grading' ? `Grading to ${p.target_rank}` : 'Session fees', p.kind === 'grading' ? '' : PLAN[p.payment_plan] || '',
         Number(p.amount_due), Number(p.amount_paid), Number(p.balance), label(p.status), p.due_date || '', p.notes || '']) });
-    const { data: tx } = await sb.from('prep_payment_transactions').select('*').order('created_at');
+    const { data: tx } = await allPages('prep_payment_transactions', () => sb.from('prep_payment_transactions').select('*').order('created_at'));
     sheets.push({ name: 'Payment transactions', head: ['Date', 'Cycle', 'Student ID', 'Name', 'Type', 'Amount', 'Method', 'Reference', 'Notes', 'Recorded by'],
       rows: (tx || []).map(t => [t.paid_on, cname(t.cycle_id), t.student_id, sname(t.student_id), t.type, Number(t.amount), t.method ? METHODS[t.method] || t.method : '', t.reference || '', t.notes || '', t.recorded_by || '']) });
   }

@@ -709,8 +709,15 @@ export async function handle(req, db, env = {}, http = fetch) {
     // Stripe's receipt (from the payment's charge)
     let receipt = null;
     if (payment && String(payment).startsWith('pi_')) { try { const pi = await stripe('/payment_intents/' + encodeURIComponent(payment) + '?expand[]=latest_charge', { method: 'GET' }); receipt = (pi.latest_charge && pi.latest_charge.receipt_url) || null; } catch (er) { console.error(er); } }
-    if (pay) await db.from('cb_payments').update({ status: 'paid', paid_at: now, amount: (s.amount_total || 0) / 100, stripe_payment: payment, receipt_url: receipt }).eq('payment_id', pay.payment_id);
-    else await db.from('cb_payments').insert({ entry_id: entryId, stripe_session: s.id, status: 'paid', paid_at: now, amount: (s.amount_total || 0) / 100, stripe_payment: payment, receipt_url: receipt });
+    // Stripe's webhook and the family's return page can both arrive at once: only the one that actually flips it to paid
+    // carries on (books, emails, alerts), so nobody gets the paid email or the staff alert twice
+    if (pay) {
+      const { data: won } = await db.from('cb_payments').update({ status: 'paid', paid_at: now, amount: (s.amount_total || 0) / 100, stripe_payment: payment, receipt_url: receipt }).eq('payment_id', pay.payment_id).neq('status', 'paid').select('payment_id');
+      if (!(won || []).length) return true;
+    } else {
+      const { error: insErr } = await db.from('cb_payments').insert({ entry_id: entryId, stripe_session: s.id, status: 'paid', paid_at: now, amount: (s.amount_total || 0) / 100, stripe_payment: payment, receipt_url: receipt });
+      if (insErr && (insErr.code === '23505' || /duplicate/i.test(insErr.message || ''))) return true;
+    }
     if (!entryId) return true;
     await db.from('cb_entries').update({ paid: true, paid_at: now, paid_how: 'card' }).eq('entry_id', entryId);
     const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school, notify_paid_to, notify_paid_sent_at').eq('entry_id', entryId).maybeSingle();
@@ -801,6 +808,10 @@ export async function handle(req, db, env = {}, http = fetch) {
   const runOutbox = async (st, steps, res) => {
     const rows = await allRows(() => db.from('cb_outbox').select('out_id, entry_id, kind, sent_at').is('sent_at', null).order('out_id'));
     for (const o of rows || []) {
+      // Claim it first, so two overlapping runs never both send it (a claim older than 10 minutes is a run that died: retried)
+      const { data: got } = await db.from('cb_outbox').update({ status: 'sending', error: null, claimed_at: new Date().toISOString() }).eq('out_id', o.out_id).is('sent_at', null)
+        .or('status.is.null,status.neq.sending,claimed_at.is.null,claimed_at.lt.' + new Date(Date.now() - 10 * 60e3).toISOString()).select('out_id');
+      if (!(got || []).length) continue;
       const step = steps.find(s => s.code === (o.kind === 'send_link' ? 'out_send_link' : 'out_no_answer'));
       const { data: e } = await db.from('cb_entries').select(ENT_COLS).eq('entry_id', o.entry_id).maybeSingle();
       const { data: d } = e ? await db.from('cb_days').select(DAY_COLS).eq('day_id', e.day_id).maybeSingle() : { data: null };
@@ -849,7 +860,10 @@ export async function handle(req, db, env = {}, http = fetch) {
     // Invitation texts go in smaller lots: at most sms_daily_cap texts a day from here (GoHighLevel stops all of AMA's texts at 750,
     // which the hub needs too), and none while texting is stopped. The rest wait for the next runs.
     const { count: sms24 } = await db.from('cb_messages').select('message_id', { count: 'exact', head: true }).not('phone', 'is', null).eq('status', 'sent').gte('sent_at', new Date(nowMs - 864e5).toISOString());
-    let smsLeft = Math.max(0, (st.sms_daily_cap ?? 450) - (sms24 || 0));
+    // The black belt sequence (nurture) texts through the same GoHighLevel number, so its texts count towards the same daily limit
+    let bb24 = 0;
+    try { const { count } = await db.from('prep_nurture_log').select('log_id', { count: 'exact', head: true }).eq('channel', 'sms').eq('status', 'sent').gte('created_at', new Date(nowMs - 864e5).toISOString()); bb24 = count || 0; } catch (_) { /* no black belt tables */ }
+    let smsLeft = Math.max(0, (st.sms_daily_cap ?? 450) - (sms24 || 0) - bb24);
     // A run has limited time and memory: send at most SEQ_MAX_SENDS messages, and leave the rest for the next run (every few minutes)
     let sends = 0;
     for (const p of plan) {
@@ -1011,6 +1025,17 @@ export async function handle(req, db, env = {}, http = fetch) {
       // Which channel did they reply on? GoHighLevel sends "channel" (or "type") = "Email"/"SMS"; default to SMS when it's absent.
       const chRaw = String(body.channel || body.type || '').toLowerCase(), viaEmail = /mail/.test(chRaw);
       const bodyEmail = String(body.email || '').trim().toLowerCase(), okBodyEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(bodyEmail);
+      // The same reply delivered twice (GoHighLevel can fire its workflow more than once): handle it only once, so a family never
+      // gets two answers. A repeat of the same words from the same number within 15 minutes is ignored (coloured-belts-34.sql).
+      { const who = p9.length === 9 ? p9 : (okBodyEmail ? bodyEmail : '');
+        if (who && msg) {
+          const h = hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg.toLowerCase().replace(/\s+/g, ' '))));
+          try {
+            await db.from('cb_reply_seen').delete().eq('who', who).lt('seen_at', new Date(Date.now() - 15 * 60e3).toISOString());
+            const { error: seenErr } = await db.from('cb_reply_seen').insert({ who, h });
+            if (seenErr && (seenErr.code === '23505' || /duplicate/i.test(seenErr.message || ''))) return json({ ok: true, duplicate: true });
+          } catch (_) { /* no dedupe table yet: carry on */ }
+        } }
       if (p9.length !== 9 && !okBodyEmail) return json({ ok: true, matched: 0, why: 'no mobile or email' });
       const yes = isYes(msg);
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
@@ -1306,6 +1331,8 @@ export async function handle(req, db, env = {}, http = fetch) {
         // make it" reply is them declining the offer - record it and pause, don't send the same offer again.
         if (mine.some(e => e.alt_offer && Array.isArray(e.alt_offer.days) && e.alt_offer.at && (Date.now() - Date.parse(e.alt_offer.at) < ALT_VALID_MS))) {
           for (const e of mine) await db.from('cb_entries').update({ seq_paused_until: new Date(Date.now() + 14 * 864e5).toISOString(), cant_make_at: now, cant_make_reason: 'declined_offer' }).eq('entry_id', e.entry_id);
+          // None of the other days work either: a person needs to sort it out, so it goes to the top of the admin call list
+          for (const e of mine) await callFor(e, 'concern', "Can't make the other days offered: " + msg, true);
           return json({ ok: true, matched: mine.length, no: true, offered: 0, alreadyOffered: true });
         }
         // Each child's own options across EVERY location (belt + age), nearest date first, up to ALT_DAYS
@@ -1489,6 +1516,9 @@ export async function handle(req, db, env = {}, http = fetch) {
       }
       const phone = phoneE164(m.phone || m.guardian_phone);
       const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: it.entry_id || null, member_key: m.member_key, kind, phone: phone || m.phone || null, body: text, status, sent_by: me, ...extra });
+      // A double click (or two staff at once) must not send the same text twice: skip it if it went to them in the last 3 minutes
+      { const { data: just } = await db.from('cb_messages').select('message_id').eq('member_key', m.member_key).eq('body', text).eq('status', 'sent').gte('sent_at', new Date(Date.now() - 3 * 60e3).toISOString()).limit(1);
+        if ((just || []).length) { out.ok = true; out.duplicate = true; continue; } }
       if (!phone) { out.error = 'No mobile number'; await log('failed', { error: out.error }); continue; }
       if (testing && !ready) { out.ok = true; out.test = true; await log('test'); }
       else {
