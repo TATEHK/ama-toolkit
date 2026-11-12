@@ -62,17 +62,24 @@ function reset() {
 
 const db = {
   from(table) {
-    let flt = [], op = 'select', payload = null, single = false;
+    let flt = [], op = 'select', payload = null, single = false, rng = null;
     const q = {
       select() { return q; }, eq(c, v) { flt.push(r => r[c] === v); return q; }, in(c, vs) { flt.push(r => vs.includes(r[c])); return q; },
       gte(c, v) { flt.push(r => String(r[c]) >= String(v)); return q; }, not(c, _o, v) { flt.push(r => !(v === null ? r[c] == null : r[c] === v)); return q; },
-      maybeSingle() { single = true; return q; }, update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; },
+      maybeSingle() { single = true; return q; }, order() { return q; }, range(a, b) { rng = [a, b]; return q; }, update(p) { op = 'update'; payload = p; return q; }, insert(p) { op = 'insert'; payload = p; return q; },
       then(res, rej) {
         return Promise.resolve().then(() => {
           const rows = (t[table] || []).filter(r => flt.every(f => f(r)));
           if (op === 'update') { rows.forEach(r => Object.assign(r, payload)); return { data: null, error: null }; }
-          if (op === 'insert') { (Array.isArray(payload) ? payload : [payload]).forEach(p => t[table].push({ ...p })); return { data: null, error: null }; }
-          return { data: single ? (rows[0] || null) : rows, error: null };
+          if (op === 'insert') {
+            for (const p of (Array.isArray(payload) ? payload : [payload])) {
+              if (table === 'prep_nurture_log' && t[table].some(r => r.cycle_id === p.cycle_id && r.student_id === p.student_id && r.step_code === p.step_code)) return { data: null, error: { message: 'duplicate key value violates unique constraint' } };
+              t[table].push({ ...p });
+            }
+            return { data: null, error: null };
+          }
+          const capped = rng ? rows.slice(rng[0], rng[1] + 1) : rows.slice(0, 1000);   // like Supabase: at most 1,000 rows a request
+          return { data: single ? (rows[0] || null) : capped, error: null };
         }).then(res, rej);
       }
     };
@@ -192,5 +199,14 @@ hi = ghlCalls.length;
 let eo3 = await (await sendOne({ cycle: 'C1', member_key: 'efc:M3', essay_only: true })).json();
 ok(eo3.ok && eo3.essay === true, 'essay-only works when called with a booking member_key (resolved via efc_members)');
 
+// More than 1,000 log rows: nothing already sent goes again (Supabase only returns 1,000 rows per request)
+{ console.log('\nBig send log');
+  reset();
+  for (let i = 0; i < 1200; i++) t.prep_nurture_log.push({ cycle_id: 'C1', student_id: 'X' + i, step_code: 'enrol_d1_sms', status: 'sent' });
+  t.prep_nurture_log.push({ cycle_id: 'C1', student_id: 'S2', step_code: 'booked_pay_sms', status: 'sent' }, { cycle_id: 'C1', student_id: 'S2', step_code: 'booked_pay_email', status: 'sent' });
+  ghlCalls = [];
+  await run('2026-11-12T00:00:00Z'); await run('2026-11-12T00:15:00Z');
+  ok(!ghlCalls.some(c => c.body && /Pat/.test(c.body.message || c.body.subject || '') && /booked/i.test(c.body.message || c.body.subject || '')), 'a booked message already logged past row 1,000 is not sent again');
+  ok(t.prep_nurture_log.filter(l => l.student_id === 'S2' && l.step_code === 'booked_pay_sms').length === 1, '...and there is still just one log row for it'); }
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

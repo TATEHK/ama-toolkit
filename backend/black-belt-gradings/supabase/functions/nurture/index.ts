@@ -188,6 +188,17 @@ export async function handle(req, db, env = {}, http = fetch) {
   };
   const sendSms = async (cid, text) => { const r = await ghl('/conversations/messages', { method: 'POST', body: JSON.stringify({ type: 'SMS', contactId: cid, message: text }) }, '2021-04-15'); return r.messageId || r.id || null; };
   const sendEmail = async (cid, subject, text, html) => { const r = await ghl('/conversations/messages', { method: 'POST', body: JSON.stringify({ type: 'Email', contactId: cid, subject, html: html || emailHtml(subject, text), message: text }) }, '2021-04-15'); return r.messageId || r.id || null; };
+  // Supabase returns at most 1,000 rows per request: read big tables in pages, or rows past 1,000 are silently missing
+  // (that once made the sender think messages hadn't gone, and resend them every run).
+  const allRows = async (build, size = 1000) => {
+    const out = [];
+    for (let from = 0; ; from += size) {
+      const { data, error } = await build().range(from, from + size - 1);
+      if (error) throw new Error(error.message || String(error));
+      out.push(...(data || []));
+      if (!data || data.length < size) return out;
+    }
+  };
 
   try {
     const raw = await req.text();
@@ -368,13 +379,17 @@ export async function handle(req, db, env = {}, http = fetch) {
       const subject = fourDan ? (inv4.subject ? fill4dan(inv4.subject, vars, needsEssay) : '4th Dan & Beyond Grading Day') : (step.subject ? render(step.subject, vars, needsEssay) : null);
       const to = step.channel === 'email' ? email : phoneE164(phone);
       const logRow = (status, extra = {}) => db.from('prep_nurture_log').insert({ cycle_id: cycle, student_id, step_code: step.code, channel: step.channel, status, ...extra });
+      const setLog = patch => db.from('prep_nurture_log').update(patch).eq('cycle_id', cycle).eq('student_id', student_id).eq('step_code', step.code);
       if (!to) { await logRow('failed', { error: step.channel === 'email' ? 'no email on file' : 'no mobile on file' }); out.failed++; return; }
-      if (testing && !ready) { await logRow('sent', { ghl_message_id: 'test' }); out.sent++; return; }
+      // Claim the step first (one row per cycle, student and step): if the row is already there it has been sent, so never send twice.
+      const { error: claimErr } = await logRow('sent', testing && !ready ? { ghl_message_id: 'test' } : {});
+      if (claimErr) { out.skipped++; return; }
+      if (testing && !ready) { out.sent++; return; }
       try {
         const cid = await contactFor({ full_name: vars.name, email, phone });
         const id = step.channel === 'email' ? await sendEmail(cid, subject, text, html || emailHtml(subject, text, vars.adult)) : await sendSms(cid, text);
-        await logRow('sent', { ghl_message_id: id }); out.sent++;
-      } catch (e) { await logRow('failed', { error: String(e.message || e).slice(0, 500) }); out.failed++; }
+        await setLog({ ghl_message_id: id }); out.sent++;
+      } catch (e) { await setLog({ status: 'failed', error: String(e.message || e).slice(0, 500) }); out.failed++; }
     };
 
     // When an enrol step is due. Default: relative to each person's invite date (joined_on + offset_days).
@@ -391,13 +406,13 @@ export async function handle(req, db, env = {}, http = fetch) {
       const ids = cands.map(c => c.student_id);
       const { data: studs } = await db.from('prep_students').select('student_id, full_name, belt_rank, efc_ref, contact_email, contact_phone, dob, contact_name').in('student_id', ids);
       const studBy = Object.fromEntries((studs || []).map(s => [s.student_id, s]));
-      const { data: states } = await db.from('prep_nurture_state').select('*').eq('cycle_id', cycle);
+      const states = await allRows(() => db.from('prep_nurture_state').select('*').eq('cycle_id', cycle).order('student_id'));
       const stateBy = Object.fromEntries((states || []).map(s => [s.student_id, s]));
-      const { data: logs } = await db.from('prep_nurture_log').select('student_id, step_code').eq('cycle_id', cycle);
+      const logs = await allRows(() => db.from('prep_nurture_log').select('student_id, step_code').eq('cycle_id', cycle).order('log_id'));
       const done = new Set((logs || []).map(l => l.student_id + '|' + l.step_code));
       const { data: eqs } = await db.from('prep_essay_questions').select('target_rank');
       const essayRanks = new Set((eqs || []).map(e => e.target_rank));
-      const { data: essays } = await db.from('prep_essays').select('student_id, target_rank, status, token').eq('cycle_id', cycle);
+      const essays = await allRows(() => db.from('prep_essays').select('student_id, target_rank, status, token').eq('cycle_id', cycle).order('essay_id'));
       const essaySt = Object.fromEntries((essays || []).map(e => [e.student_id + '|' + e.target_rank, e.status]));
       const essayTok = Object.fromEntries((essays || []).map(e => [e.student_id + '|' + e.target_rank, e.token]));
       const { data: bdays } = await db.from('cb_days').select('day_id, grading_date, belts').eq('prep_cycle_id', cycle).eq('bb', true);
