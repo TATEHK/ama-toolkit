@@ -355,6 +355,12 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   ok(link && link.body.message === 'OFFICIAL Sam https://app.train-ama.com/b#TOK', 'and texts the booking link');
   const r3 = await call(alt, { action: 'reply', key: 'rk', phone: '0412 345 678', message: '1' });
   ok(!r3.body.moved, 'a number with no offer waiting does nothing');
+  // A makeup grading day is never offered automatically (staff offer those)
+  { const T0 = tables(); T0.cb_days = T.cb_days.map(d => d.day_id === 'co' ? { ...d, makeup: true } : d); T0.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z', school: 'Marrickville' }]; T0.efc_members[0].date_of_birth = '2017-03-01';
+    const mu = makeDb(T0), k0 = ghlCalls.length;
+    await call(mu, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Sorry, we can't make that one" });
+    const of = ghlCalls.slice(k0).find(c => c.body && c.body.type === 'SMS');
+    ok(of && !/Concord/.test(of.body.message) && /Auburn/.test(of.body.message) && mu.t.cb_entries[0].alt_offer.days.join() === 'we', 'a makeup grading day is not offered automatically'); }
   // Replying 0 keeps the original date
   { const T0 = tables(); T0.cb_days = T.cb_days; T0.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z', school: 'Marrickville' }]; T0.efc_members[0].date_of_birth = '2017-03-01';
     const kp = makeDb(T0), k0 = ghlCalls.length;

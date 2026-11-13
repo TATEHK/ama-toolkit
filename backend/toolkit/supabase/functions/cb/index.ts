@@ -1039,8 +1039,10 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (p9.length !== 9 && !okBodyEmail) return json({ ok: true, matched: 0, why: 'no mobile or email' });
       const yes = isYes(msg);
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-      const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by').gte('grading_date', today);
+      const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by, makeup').gte('grading_date', today);
       const open = (days || []).filter(d => !d.closed); if (!open.length) return json({ ok: true, matched: 0, why: 'no grading days coming up' });
+      // Makeup grading days are only ever offered by staff (from the Can't-make list), never picked for a family automatically
+      const offerable = open.filter(d => !d.makeup);
       const ents = await allRows(() => db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school, alt_offer').in('day_id', open.map(d => d.day_id)).order('entry_id'));
       const waiting = (ents || []).filter(e => e.invited_at && !e.booked_at && !e.result);
       if (!waiting.length) return json({ ok: true, matched: 0 });
@@ -1162,7 +1164,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         const age = ageNow(m), was = `${e.belt_from} to ${e.belt_to}`, nowIso = new Date().toISOString();
         let nd = d;
         if (d && !fitsDay({ ...d, day_id: '-' }, { day_id: '', belt_from: from }, age, d)) {
-          const alt = open.filter(x => x.location === d.location && x.day_id !== d.day_id && fitsDay(x, { day_id: '', belt_from: from }, age, d))
+          const alt = offerable.filter(x => x.location === d.location && x.day_id !== d.day_id && fitsDay(x, { day_id: '', belt_from: from }, age, d))
             .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')))[0];
           if (alt) { const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', alt.day_id).eq('member_key', e.member_key).maybeSingle(); if (!clash) nd = alt; }
         }
@@ -1246,7 +1248,7 @@ export async function handle(req, db, env = {}, http = fetch) {
           if (from && to && (from !== e.belt_from || to !== e.belt_to)) {
             const age = ageNow(m);
             const fits = day => fitsDay({ ...day, day_id: '-' }, { day_id: '', belt_from: from }, age, d);
-            let nd = fits(d) ? d : open.filter(x => x.location === d.location && x.day_id !== d.day_id && fits(x))
+            let nd = fits(d) ? d : offerable.filter(x => x.location === d.location && x.day_id !== d.day_id && fits(x))
               .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')))[0] || null;
             if (nd && nd.day_id !== d.day_id) { const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', nd.day_id).eq('member_key', e.member_key).maybeSingle(); if (clash) nd = null; }
             const was = `${e.belt_from} to ${e.belt_to}`;
@@ -1283,7 +1285,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         const e = whichKid(), d = e && open.find(x => x.day_id === e.day_id), to = d && schoolClaim(msg, d.location);
         if (e && d && to) {
           const m = byKey[e.member_key], age = ageNow(m);
-          const nd = open.filter(x => x.location === to && x.day_id !== d.day_id && fitsDay(x, e, age, d))
+          const nd = offerable.filter(x => x.location === to && x.day_id !== d.day_id && fitsDay(x, e, age, d))
             .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')))[0] || null;
           const { data: clash } = nd ? await db.from('cb_entries').select('entry_id').eq('day_id', nd.day_id).eq('member_key', e.member_key).maybeSingle() : { data: null };
           if (nd && !clash) {
@@ -1345,7 +1347,7 @@ export async function handle(req, db, env = {}, http = fetch) {
           return json({ ok: true, matched: mine.length, no: true, offered: 0, alreadyOffered: true });
         }
         // Each child's own options across EVERY location (belt + age), nearest date first, up to ALT_DAYS
-        const optsFor = e => open.filter(d => fitsDay(d, e, ageNow(byKey[e.member_key]), open.find(x => x.day_id === e.day_id)))
+        const optsFor = e => offerable.filter(d => fitsDay(d, e, ageNow(byKey[e.member_key]), open.find(x => x.day_id === e.day_id)))
           .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || ''))).slice(0, ALT_DAYS);
         const kidOpts = mine.map(e => ({ e, days: optsFor(e) })).filter(k => k.days.length);
         if (!kidOpts.length) return json({ ok: true, matched: mine.length, yes: false, no: true, offered: 0 });
