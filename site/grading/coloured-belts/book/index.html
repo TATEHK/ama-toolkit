@@ -125,6 +125,12 @@
     <p class="hint">Please arrive 15 minutes early. Family and friends are welcome to come and watch.</p>
   </div>
 
+  <div class="card" id="prepCard" hidden>
+    <h2>Want some extra practice?</h2>
+    <p class="hint" style="margin:0 0 14px">Book the optional Colour Belt Prep Session — a 2-hour workshop with Mr Mark and Master Hakan covering only grading material. Students from every AMA school are welcome.</p>
+    <a class="btn" id="prepBtn" href="https://train.australianmartialarts.com.au/colour-belt-prep" target="_blank" rel="noopener">Book the Prep Session</a>
+  </div>
+
   <footer id="foot">Questions? Call us on <a id="footTel" href="tel:0295691943">(02) 9569 1943</a></footer>
 </main>
 <script>
@@ -198,6 +204,8 @@ function show(r) {
   const bring = Array.isArray(r.bring) && r.bring.length ? r.bring : ['Full long-sleeve uniform', 'Belt', 'Drink bottle'];
   $('#bring').innerHTML = bring.map(b => `<li>${esc(b)}</li>`).join('');
   $('#bringCard').hidden = !!r.closed || (!done && !open);
+  // Once they're booked/paid, offer the optional Colour Belt Prep Session for extra practice
+  $('#prepCard').hidden = !done || !!r.closed;
   if (open && hasFee && !r.card && !r.paid && !r.booked) showError(`Online payment isn't available for this grading. Please call us on ${r.phone || PHONE} to book.`, r.phone);
   if (r.closed && !done) showError('This grading has finished.');
   else if (r.booking_closed && !done) showError(`Bookings for this grading have closed. Please call us on ${r.phone || PHONE}.`, r.phone);
