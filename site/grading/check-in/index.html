@@ -20,6 +20,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",Arial,sans-serif;
   display:flex;flex-direction:column;
@@ -59,7 +60,7 @@ h1{font-family:"Barlow Semi Condensed";font-weight:600;font-size:30px;margin:18p
 @keyframes bl{50%{opacity:0}}
 .results{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:4px max(16px,env(safe-area-inset-left,0)) 10px max(16px,env(safe-area-inset-right,0));display:flex;flex-direction:column;gap:8px}
-.res{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-align:left;width:100%}
+.res{display:flex;align-items:center;gap:14px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-align:left;width:100%}
 .res:active{background:var(--line-2)}
 .res .av{width:46px;height:46px;border-radius:12px;color:#fff;font-family:"Barlow Semi Condensed";font-weight:700;font-size:18px;display:grid;place-items:center;flex:0 0 auto}
 .res .rt{flex:1;min-width:0}
