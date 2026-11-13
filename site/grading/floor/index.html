@@ -710,9 +710,10 @@ function openProfile(id){
   const nx=Object.keys(BELTS)[Object.keys(BELTS).indexOf(s.belt)+1]||'Black';
   const cardHtml=scoreCardHtml(s);
   const sibs=siblingsOf(s), subHolder=sibs.find(x=>x.sub);
-  const dash=v=>(v==null||v==='')?'—':v;
-  const packTxt=s.pack||(s.days.length?packageOf(s.days.length):'—');
-  const feeText=s.sub?dash(s.fee):(subHolder&&subHolder.fee?`${subHolder.fee} · family`:'Family plan');
+  // only show a chip when we actually have the value (Package/Fee/Programs/Referrals come from EFC enrolment, which may not be loaded)
+  const chip=(label,val,cls='')=>(val==null||val==='')?'':`<div class="chip"><span>${label}</span><b class="${cls}">${val}</b></div>`;
+  const packVal=s.pack||(s.days.length?packageOf(s.days.length):null);
+  const feeVal=s.sub?(s.fee||null):(subHolder&&subHolder.fee?`${subHolder.fee} · family`:'Family plan');
   const ATT={green:'Regular',orange:'Slipping',red:'At risk'}, className=s.age<7?'Little Dragons':s.age<13?'Juniors':'Teens & Adults';
   const opps=[];
   if(s.attend==='red') opps.push(['At risk — winback call','bad']); else if(s.attend==='orange') opps.push(['Attendance slipping — check in','warn']);
@@ -724,21 +725,21 @@ function openProfile(id){
           <div class="stat"><div class="k">Progress</div><div class="v">${s.prog}<small>%</small></div><div class="prog mini"><i style="width:${s.prog}%"></i></div></div>
         </div>
         <div class="capline">${s.classes} classes since grading${currOf(s).min?` · min ${currOf(s).min} needed`:''} · last graded ${s.lastGap} wks ago</div>
-        ${s.days.length?`<div class="ovsec"><div class="ovlabel">Training <span class="muted">${packTxt}</span></div>
+        ${s.days.length?`<div class="ovsec"><div class="ovlabel">Training${packVal?` <span class="muted">${packVal}</span>`:''}</div>
           <div class="days">${DAYS.map(dn=>`<span class="day ${s.days.includes(dn)?'on':''}">${dn[0]}</span>`).join('')}</div></div>`:''}
         <div class="ovsec"><div class="ovlabel">Membership</div>
           <div class="chips">
-            <div class="chip"><span>Black Belt Club</span><b class="${s.bbc?'gold':''}">${s.bbc?'Member':'—'}</b></div>
-            <div class="chip"><span>Package</span><b>${packTxt}</b></div>
-            <div class="chip"><span>Fee</span><b>${feeText}</b></div>
-            <div class="chip"><span>Trains at</span><b>${dash(schoolOf(s.loc))}</b></div>
+            <div class="chip"><span>Black Belt Club</span><b class="${s.bbc?'gold':''}">${s.bbc?'Member':'Not a member'}</b></div>
+            ${chip('Package',packVal)}
+            ${chip('Fee',feeVal)}
+            <div class="chip"><span>Trains at</span><b>${schoolOf(s.loc)||'—'}</b></div>
           </div></div>
         <div class="ovsec"><div class="ovlabel">Engagement</div>
           <div class="chips">
             <div class="chip"><span>Attendance</span><b class="att ${s.attend}"><i class="dotpip ${s.attend}"></i>${ATT[s.attend]}</b></div>
-            <div class="chip"><span>Programs on</span><b>${dash(s.programs)}</b></div>
             <div class="chip"><span>Classes</span><b>${className}</b></div>
-            <div class="chip"><span>Referrals</span><b>${dash(s.referrals)}</b></div>
+            ${chip('Programs on',s.programs)}
+            ${chip('Referrals',s.referrals)}
           </div>
           ${opps.length?`<div class="opps">${opps.map(o=>`<span class="opp ${o[1]}">${o[0]}</span>`).join('')}</div>`:''}
         </div>
