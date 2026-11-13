@@ -7,30 +7,21 @@
 <title>Grading Check-In</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="../../config.js"></script>
 <style>
 :root{
-  --bg:#eef1f4; --panel:#ffffff; --ink:#15181d; --ink-2:#4b5563; --ink-3:#8b94a1;
-  --line:#e2e6ec; --line-2:#eef1f5; --accent:#1f7a43; --accent-ink:#ffffff;
-  --shadow:0 1px 2px rgba(16,24,40,.06),0 10px 30px rgba(16,24,40,.10);
-  --danger:#c23b3b; --key:#ffffff; --key-press:#e7ebf0;
-  color-scheme:light;
-}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0e1116; --panel:#161b22; --ink:#eef1f5; --ink-2:#aeb7c2; --ink-3:#717c8a;
-  --line:#242c36; --line-2:#1c232c; --accent:#34b36a; --accent-ink:#06120b;
-  --danger:#e26d6d; --key:#1b222b; --key-press:#2a333f; color-scheme:dark;
-}}
-:root[data-theme="dark"]{
-  --bg:#0e1116; --panel:#161b22; --ink:#eef1f5; --ink-2:#aeb7c2; --ink-3:#717c8a;
-  --line:#242c36; --line-2:#1c232c; --accent:#34b36a; --accent-ink:#06120b;
-  --danger:#e26d6d; --key:#1b222b; --key-press:#2a333f; color-scheme:dark;
+  /* AMA house style: pine black, gold to press, green for done (matches the hub + floor) */
+  --bg:#0f1713; --panel:#15201a; --raise:#1b2821; --ink:#edf2ee; --ink-2:#a3b5a9; --ink-3:#74897b;
+  --line:#253629; --line-2:#31473a; --accent:#f5c518; --accent-ink:#14130a;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45);
+  --danger:#ef8a73; --ok:#2f9e5b; --key:#1b2821; --key-press:#31473a;
+  color-scheme:dark;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
-body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;
+body{background:var(--bg);color:var(--ink);font-family:Barlow,"Segoe UI",Arial,sans-serif;
   display:flex;flex-direction:column;
   padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
 .screen{flex:1;min-height:0;display:none;flex-direction:column}
@@ -39,40 +30,40 @@ body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-seri
 /* ---- code screen ---- */
 #codeScreen{align-items:center;justify-content:center;gap:0;padding:24px max(16px,env(safe-area-inset-left,0)) 24px max(16px,env(safe-area-inset-right,0))}
 .code-card{width:min(440px,100%);text-align:center}
-.logo{width:60px;height:60px;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-family:Oswald;font-weight:700;font-size:30px;display:grid;place-items:center;margin:0 auto}
-h1{font-family:Oswald;font-weight:600;font-size:30px;margin:18px 0 4px;letter-spacing:.3px}
+.logo{width:60px;height:60px;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-family:"Barlow Semi Condensed";font-weight:700;font-size:30px;display:grid;place-items:center;margin:0 auto}
+h1{font-family:"Barlow Semi Condensed";font-weight:600;font-size:30px;margin:18px 0 4px;letter-spacing:.3px}
 .sub{color:var(--ink-3);font-size:15px;margin:0 0 22px;line-height:1.5}
 .code-box{display:flex;justify-content:center;gap:10px;margin-bottom:8px}
 .code-cell{width:48px;height:62px;border:2px solid var(--line);border-radius:12px;background:var(--panel);
-  display:grid;place-items:center;font-family:Oswald;font-weight:700;font-size:30px}
+  display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:30px}
 .code-cell.filled{border-color:var(--accent)}
 .code-err{color:var(--danger);font-weight:600;font-size:14px;height:20px;margin:6px 0 0}
 .kp{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:min(320px,100%);margin:18px auto 0}
 .kp button{height:58px;border:1px solid var(--line);background:var(--key);color:var(--ink);border-radius:12px;
-  font-family:Oswald;font-weight:600;font-size:24px;box-shadow:var(--shadow)}
+  font-family:"Barlow Semi Condensed";font-weight:600;font-size:24px;box-shadow:var(--shadow)}
 .kp button:active{background:var(--key-press)}
 .kp .wide{grid-column:span 1}
 
 /* ---- kiosk (name) screen ---- */
 .topbar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:14px max(16px,env(safe-area-inset-left,0)) 12px max(16px,env(safe-area-inset-right,0));border-bottom:1px solid var(--line)}
-.topbar .t b{font-family:Oswald;font-size:19px;display:block;line-height:1.1}
+.topbar .t b{font-family:"Barlow Semi Condensed";font-size:19px;display:block;line-height:1.1}
 .topbar .t small{color:var(--ink-3);font-size:12.5px}
 .topbar .re{border:1px solid var(--line);background:var(--panel);color:var(--ink-3);border-radius:9px;font-size:12px;font-weight:600;padding:8px 11px}
 .searchwrap{flex:0 0 auto;padding:16px max(16px,env(safe-area-inset-left,0)) 8px max(16px,env(safe-area-inset-right,0))}
 .searchbox{display:flex;align-items:center;gap:12px;background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:16px 18px;min-height:64px}
 .searchbox.active{border-color:var(--accent)}
-.searchbox .q{flex:1;font-family:Oswald;font-weight:600;font-size:26px;letter-spacing:.3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.searchbox .ph{color:var(--ink-3);font-weight:500;font-family:Inter;font-size:19px}
+.searchbox .q{flex:1;font-family:"Barlow Semi Condensed";font-weight:600;font-size:26px;letter-spacing:.3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.searchbox .ph{color:var(--ink-3);font-weight:500;font-family:Barlow;font-size:19px}
 .caret{display:inline-block;width:2px;height:28px;background:var(--accent);vertical-align:middle;animation:bl 1s step-end infinite}
 @keyframes bl{50%{opacity:0}}
 .results{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:4px max(16px,env(safe-area-inset-left,0)) 10px max(16px,env(safe-area-inset-right,0));display:flex;flex-direction:column;gap:8px}
 .res{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-align:left;width:100%}
 .res:active{background:var(--line-2)}
-.res .av{width:46px;height:46px;border-radius:12px;color:#fff;font-family:Oswald;font-weight:700;font-size:18px;display:grid;place-items:center;flex:0 0 auto}
+.res .av{width:46px;height:46px;border-radius:12px;color:#fff;font-family:"Barlow Semi Condensed";font-weight:700;font-size:18px;display:grid;place-items:center;flex:0 0 auto}
 .res .rt{flex:1;min-width:0}
-.res .rt b{font-family:Oswald;font-weight:600;font-size:20px;display:block}
+.res .rt b{font-family:"Barlow Semi Condensed";font-weight:600;font-size:20px;display:block}
 .res .rt span{color:var(--ink-3);font-size:13px}
 .res .go{font-weight:700;font-size:14px;color:var(--accent)}
 .res.in .go{color:var(--ink-3)}
@@ -83,25 +74,25 @@ h1{font-family:Oswald;font-weight:600;font-size:30px;margin:18px 0 4px;letter-sp
   display:flex;flex-direction:column;gap:7px}
 .krow{display:flex;gap:6px;justify-content:center}
 .key{flex:1;max-width:58px;height:52px;border:1px solid var(--line);background:var(--key);color:var(--ink);border-radius:9px;
-  font-family:Oswald;font-weight:600;font-size:21px;box-shadow:0 1px 1px rgba(16,24,40,.05)}
+  font-family:"Barlow Semi Condensed";font-weight:600;font-size:21px;box-shadow:0 1px 1px rgba(16,24,40,.05)}
 .key:active{background:var(--key-press)}
 .key.sp{max-width:none;flex:4}
 .key.bk{max-width:84px;flex:1.4;font-size:22px}
 .key.clr{max-width:84px;flex:1.4;font-size:13px;font-weight:700;color:var(--ink-3)}
 
 /* ---- confirmation overlay ---- */
-#done{position:fixed;inset:0;z-index:50;background:var(--accent);color:var(--accent-ink);
+#done{position:fixed;inset:0;z-index:50;background:var(--ok);color:#ffffff;
   display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;
   padding:30px max(20px,env(safe-area-inset-left,0)) 30px max(20px,env(safe-area-inset-right,0))}
 #done.on{display:flex}
 #done.err{background:var(--danger)}
 .tick{width:92px;height:92px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;margin-bottom:8px}
 .tick svg{width:52px;height:52px;stroke:currentColor;stroke-width:3.4;fill:none}
-#doneName{font-family:Oswald;font-weight:700;font-size:34px;margin:14px 0 2px}
+#doneName{font-family:"Barlow Semi Condensed";font-weight:700;font-size:34px;margin:14px 0 2px}
 #doneMsg{font-size:18px;opacity:.95;margin:0 0 20px}
 .cone{background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.5);border-radius:22px;padding:18px 30px;min-width:200px}
 .cone .cl{font-size:15px;letter-spacing:2px;text-transform:uppercase;opacity:.9}
-.cone .cv{font-family:Oswald;font-weight:700;font-size:72px;line-height:1}
+.cone .cv{font-family:"Barlow Semi Condensed";font-weight:700;font-size:72px;line-height:1}
 .belts{margin-top:18px;font-size:16px;font-weight:600;opacity:.95}
 #doneBtn{margin-top:26px;background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:14px;padding:15px 34px;font-size:17px;font-weight:700}
 #done.err #doneBtn{background:rgba(255,255,255,.22)}

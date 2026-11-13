@@ -64,9 +64,14 @@ begin
   if not public.cb_has_cb(array['view','days','readiness','results','calls','texts','payments']) then
     raise exception 'not allowed' using errcode = '42501';
   end if;
-  return (select coalesce(jsonb_agg(jsonb_build_object('day_id',d.day_id,'date',d.grading_date,'location',d.location,'entries',c.n,'code',d.checkin_code) order by d.grading_date, d.location),'[]'::jsonb)
+  return (select coalesce(jsonb_agg(jsonb_build_object(
+      'day_id',d.day_id,'date',d.grading_date,'location',d.location,'start_time',d.start_time,
+      'entries',c.n,'code',d.checkin_code,'belts',coalesce(c.belts,'[]'::jsonb)) order by d.grading_date, d.location),'[]'::jsonb)
     from public.cb_days d
-    left join lateral (select count(*) n from public.cb_entries e where e.day_id = d.day_id) c on true
+    left join lateral (
+      select count(*) n, jsonb_agg(distinct e.belt_from) filter (where e.belt_from is not null) belts
+      from public.cb_entries e where e.day_id = d.day_id
+    ) c on true
     where d.closed is not true and d.grading_date >= current_date - 1 and c.n > 0);
 end $$;
 
