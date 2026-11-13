@@ -249,6 +249,12 @@ export function buildEmail(kind, v) {
     ...(paid ? [['Paid', `${v.amount != null && v.amount !== '' ? '$' + Number(v.amount).toFixed(2) : 'Yes'}${v.how ? ' (' + v.how + ')' : ''}`]] : [])];
   const bring = String(v.bring || BRING).split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   const tel = String(v.phone || '').replace(/[^\d+]/g, '');
+  // When they have more than one grading still to come (a double grading), list them all so the confirmation shows both.
+  const up = (v.upcoming || []).filter(Boolean);
+  const upHtml = up.length > 1 ? `<tr><td class="pad" style="padding:26px 32px 4px;">
+    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:17px;font-weight:600;text-transform:uppercase;color:#14321f;">Your upcoming gradings</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;font-family:Arial,Helvetica,sans-serif;">${up.map(u => `<tr><td style="padding:8px 0;border-bottom:1px solid ${creamLine};"><span style="font-size:14px;color:#1c1c1c;font-weight:bold;">${esc(u.belt)}</span> <span style="font-size:13px;color:#555;">&mdash; ${esc(u.when)}${u.time ? ' at ' + esc(u.time) : ''}, AMA ${esc(u.where)}</span><br><span style="font-size:13px;color:#666;">${esc(u.status)}${u.link ? `: <a href="${esc(u.link)}" style="color:${green};font-weight:bold;">book &amp; pay</a>` : ''}</span></td></tr>`).join('')}</table></td></tr>` : '';
+  const upText = up.length > 1 ? ['', 'Your upcoming gradings:', ...up.map(u => `- ${u.belt}: ${u.when}${u.time ? ' at ' + u.time : ''}, AMA ${u.where} (${u.status}${u.link ? ' — ' + u.link : ''})`)] : [];
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(subject)}</title>
 <style>@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap');body{margin:0;padding:0;background:#E9E6DE;}a{color:${green};}@media (max-width:620px){.wrap{width:100%!important;}.pad{padding-left:22px!important;padding-right:22px!important;}.hero-title{font-size:34px!important;}}</style></head>
 <body style="margin:0;padding:0;background:#E9E6DE;">
@@ -272,6 +278,7 @@ export function buildEmail(kind, v) {
       ${rows.map(([k, x]) => `<tr><td style="font-size:13px;color:#666;padding:9px 0;width:38%;">${esc(k)}</td><td style="font-size:14px;color:#1c1c1c;font-weight:bold;padding:9px 0;">${esc(x)}</td></tr>`).join('')}
       </table></td></tr></table></td></tr>
   ${v.receipt ? `<tr><td class="pad" align="center" style="padding:18px 32px 0;"><a href="${esc(v.receipt)}" style="display:inline-block;background:${green};color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:14px;padding:11px 24px;border-radius:8px;">View your receipt</a></td></tr>` : ''}
+  ${upHtml}
   <tr><td class="pad" style="padding:26px 32px 4px;">
     <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:17px;font-weight:600;text-transform:uppercase;color:#14321f;">What to bring</div>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px;">${bring.map(b => `<tr><td valign="top" style="color:${green};font-weight:bold;padding:3px 10px 3px 0;">&#10003;</td><td style="font-size:14px;color:#333;padding:3px 0;">${esc(b)}</td></tr>`).join('')}</table>
@@ -280,7 +287,7 @@ export function buildEmail(kind, v) {
     <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;color:#ffffff;font-size:14px;letter-spacing:2px;text-transform:uppercase;">Australian Martial Arts Academy</div>
     <div style="color:#9aa39a;font-size:13px;margin-top:8px;line-height:1.5;">Questions? Call us on ${tel ? `<a href="tel:${esc(tel)}" style="color:${gold};text-decoration:none;">${esc(v.phone)}</a>` : esc(v.phone || 'the front desk')}<br>AMA ${esc(v.school)}</div></td></tr>
 </table></td></tr></table></body></html>`;
-  const text = [`Hi ${v.parent},`, intro, ...rows.map(([k, x]) => `${k}: ${x}`), ...(v.receipt ? [`Your receipt: ${v.receipt}`] : []),
+  const text = [`Hi ${v.parent},`, intro, ...rows.map(([k, x]) => `${k}: ${x}`), ...(v.receipt ? [`Your receipt: ${v.receipt}`] : []), ...upText,
     'What to bring:', ...bring.map(b => '- ' + b), 'Please arrive 15 minutes early.', `Questions? Call us on ${v.phone || 'the front desk'}.`, `AMA ${v.school}`].join('\n');
   return { subject, html, text };
 }
@@ -630,9 +637,22 @@ export async function handle(req, db, env = {}, http = fetch) {
       const when = new Date(d.grading_date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       const et = entryTime(d, e); const t = et ? String(et).slice(0, 5).split(':').map(Number) : null;
       const HOW = { card: 'card', cash: 'cash', eftpos: 'EFTPOS', transfer: 'bank transfer', other: '' };
+      // All of this student's gradings still to come (this one plus any second grading in the same cycle), oldest first, so the email can list both.
+      let upcoming = [];
+      try {
+        const sydToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+        const { data: mine } = await db.from('cb_entries').select('day_id, belt_to, paid, booked_at, token, result').eq('member_key', e.member_key).is('result', null);
+        const dayIds = [...new Set((mine || []).map(x => x.day_id))];
+        const { data: dys } = dayIds.length ? await db.from('cb_days').select('day_id, grading_date, start_time, belt_times, location, bb, closed').in('day_id', dayIds) : { data: [] };
+        const dmap = {}; (dys || []).forEach(x => { dmap[x.day_id] = x; });
+        upcoming = (mine || []).map(x => ({ x, dd: dmap[x.day_id] })).filter(o => o.dd && !o.dd.closed && String(o.dd.grading_date) >= sydToday)
+          .sort((a, b) => String(a.dd.grading_date).localeCompare(String(b.dd.grading_date)))
+          .map(({ x, dd }) => { const tt = entryTime(dd, x); return { belt: x.belt_to, when: longDay(dd.grading_date), time: tt ? clock(tt) : '', where: whereOf(x, dd),
+            status: x.paid ? 'Paid' : x.booked_at ? 'Booked' : 'Not booked yet', link: (!x.paid && !x.booked_at && x.token) ? SITE + 'b#' + x.token : '' }; });
+      } catch (er) { console.error('upcoming', er); upcoming = []; }
       const { subject, html, text } = buildEmail(kind, { parent: first(m.guardian_name) || 'there', kid: first(e.full_name), student: e.full_name, belt: e.belt_to, school: whereOf(e, d),
         when, time: t ? `${((t[0] + 11) % 12) + 1}:${String(t[1]).padStart(2, '0')}${t[0] < 12 ? 'am' : 'pm'}` : '', amount: extra.amount, how: HOW[e.paid_how] || '',
-        receipt: extra.receipt || null, phone: (cs && cs.contact_phone) || '(02) 9569 1943', bring: cs && cs.email_bring });
+        receipt: extra.receipt || null, phone: (cs && cs.contact_phone) || '(02) 9569 1943', bring: cs && cs.email_bring, upcoming });
       const log = (status, more = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind, email, body: subject + '\n\n' + text, status, sent_by: 'automatic', ...more });
       try {
         const cid = await contactFor({ ...m, email }, phoneE164(m.phone || m.guardian_phone));
