@@ -545,6 +545,11 @@ function positions(n,rows){
   for(let c=0;c<nb;c++) pos.push({x:pad((c+1)/nf*100),y:y2});        // back row, offset into the gaps
   return pos;
 }
+// Fill from the centre out: the 1st student stands in the middle, then one either side, working outwards
+// (front row before back row at the same distance). Returns, for each spot in fill order, the place on the floor.
+function centreOut(pos){
+  return pos.map((p,i)=>({i,d:Math.round(Math.abs(p.x-50)*10)/10,y:p.y,x:p.x})).sort((a,b)=>(a.d-b.d)||(a.y-b.y)||(a.x-b.x)).map(o=>pos[o.i]);
+}
 
 // member-facing self check-in kiosk
 function kioskResults(){
@@ -639,7 +644,7 @@ function render(){
   else if(!g.spots){ floor.className='floor empty'; floor.innerHTML='<div class="instr">No spots in this group</div>'; }
   else{
     floor.className='floor'+(g.status==='current'?' live':g.status==='past'?' past':'');
-    const pos=positions(g.spots,g.rows);
+    const pos=centreOut(positions(g.spots,g.rows));   // build the line from the centre out
     floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{
       const s=byId(lay[i]);
       if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
