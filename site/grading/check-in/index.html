@@ -140,6 +140,10 @@ h1{font-family:"Barlow Semi Condensed";font-weight:600;font-size:30px;margin:18p
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+// fire on pointerdown so taps register instantly on a tablet (no click delay)
+const tap=(el,fn)=>el.addEventListener('pointerdown',e=>{ e.preventDefault(); fn(e); });
+let resRaf=0;
+function scheduleResults(){ if(resRaf) return; resRaf=requestAnimationFrame(()=>{ resRaf=0; renderResults(); }); }
 const CFG=window.TOOLKIT_CONFIG||{};
 const sb=supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_KEY);
 const BELTC={ 'White':'#9aa3ad','Yellow':'#f3c53b','Orange':'#f08a24','Green':'#2f9e52','Blue':'#2f74d0',
@@ -170,7 +174,7 @@ function buildCodeKp(){
   strip.innerHTML=alpha.map(a=>`<button data-k="${a}" style="height:42px;font-size:17px">${a}</button>`).join('');
   kp.after(strip);
   const all=[...kp.querySelectorAll('button'),...strip.querySelectorAll('button')];
-  all.forEach(b=>b.onclick=()=>codeKey(b.dataset.k));
+  all.forEach(b=>tap(b,()=>codeKey(b.dataset.k)));
 }
 function codeKey(k){
   $('#codeErr').textContent='';
@@ -224,7 +228,6 @@ function renderResults(){
     <div class="av" style="background:${beltC(x.belt)}">${initials(x.name)}</div>
     <div class="rt"><b>${x.name}</b><span>${shortB(x.belt)} belt${x.loc?` · ${schoolOf(x.loc)}`:''}</span></div>
     <span class="go">${x.checked_in?'Checked in ✓':'Check in ›'}</span></button>`).join('');
-  $$('#results .res').forEach(b=>b.onclick=()=>checkIn(b.dataset.id));
 }
 function buildKbd(){
   const rows=['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'];
@@ -238,15 +241,17 @@ function buildKbd(){
   const last=document.createElement('div'); last.className='krow';
   last.innerHTML=`<button class="key sp" data-k="SP">space</button>`;
   kbd.appendChild(last);
-  $$('#kbd .key').forEach(b=>b.onclick=()=>typeKey(b.dataset.k));
 }
 function typeKey(k){
   if(k==='BK') q=q.slice(0,-1);
   else if(k==='CLR') q='';
   else if(k==='SP'){ if(q) q+=' '; }
   else q+=k;
-  renderQ(); renderResults();
+  renderQ(); scheduleResults();   // caret updates now; the list redraws once per frame
 }
+// one-time delegation: the keyboard fires on pointerdown (instant); result taps use click so the list can still scroll
+$('#kbd').addEventListener('pointerdown',e=>{ const b=e.target.closest('.key'); if(b){ e.preventDefault(); typeKey(b.dataset.k); } });
+$('#results').addEventListener('click',e=>{ const b=e.target.closest('.res'); if(b) checkIn(b.dataset.id); });
 async function checkIn(entryId){
   const st=STUDENTS.find(x=>x.entry_id===entryId);
   const {data,error}=await sb.rpc('cb_checkin_mark',{p_code:CODE,p_entry:entryId});
