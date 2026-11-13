@@ -164,12 +164,21 @@ export function fill4dan(body, v, needsEssay) {
   return stripEssay(body, needsEssay).replace(/\{(\w+)\}/g, (m, k) => (map[k] != null ? map[k] : ''));
 }
 
-// The grading helper invitation (prep-update-27). Going for 4th Dan exactly = their sword is presented at the grading they help at.
+// The grading helper invitation (prep-update-27). Three wordings:
+//  - going for 4th Dan: their sword is presented in front of everyone at the grading they help at
+//  - going for a 4th Dan level or 5th Dan and above: a senior black belt
+//  - anyone else staff choose to ask
 export const helperDay = slots => { const ds = [...new Set((slots || []).map(x => String(x.grading_date || '').slice(0, 10)).filter(Boolean))]; return ds.length === 1 ? longDate(ds[0]) : ''; };
 export const swordLine = target => /^4th Dan$/.test(String(target || '').trim()) ? " You'll be presented your 4th Dan sword in front of everyone at the grading you help at." : '';
 export function helperInvite({ first_name, target, slots }) {
   const day = helperDay(slots), nums = slots.length === 1 ? 'Reply 1' : `Reply ${slots.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${slots.length}`;
-  return `Hi ${first_name}, we'd love your help at the black belt grading${day ? ' on ' + day : ''} at AMA Sydenham.${swordLine(target)} Which session can you help at?\n${slots.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${nums} to choose. - AMA`;
+  const where = `the black belt grading${day ? ' on ' + day : ''} at AMA Sydenham`;
+  const list = `${slots.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${nums} to choose. - AMA`;
+  if (/^4th Dan$/.test(String(target || '').trim()))
+    return `Hi ${first_name}, as part of your 4th Dan grading, we'd love your help at ${where}.${swordLine(target)} Which session can you help at?\n${list}`;
+  if (bb4thPlus(target))
+    return `Hi ${first_name}, as one of our senior black belts, we'd love your help at ${where}. Your experience on the floor makes a real difference to the students grading. Which session can you help at?\n${list}`;
+  return `Hi ${first_name}, we'd love your help at ${where}. Helping out is a great way to give back, and seeing a grading from the other side is great experience for your own. Which session can you help at?\n${list}`;
 }
 
 export async function handle(req, db, env = {}, http = fetch) {
@@ -322,8 +331,9 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, ...out });
     }
 
-    // ---- Staff: text one 4th Dan+ student asking them to help at the black belt grading (prep-update-27) ----
-    // Lists the sessions that still have room, numbered; their reply ("2") is handled by the cb reply webhook.
+    // ---- Staff: text one student asking them to help at the black belt grading (prep-update-27) ----
+    // 4th Dan and above: offered the emptiest sessions with room (max 6 each, filling evenly). Anyone else staff choose:
+    // every session, their own wording, and they don't count towards the 6. { preview: true } returns the text without sending.
     if (body.action === 'helper_send') {
       const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
       const { data: who } = token ? await db.auth.getUser(token) : { data: null };
@@ -338,21 +348,23 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!s) return fail('Student not found.', 404);
       const { data: ov } = await db.from('prep_overview').select('grading_to').eq('cycle_id', cycle).eq('student_id', student_id).maybeSingle();
       const target = (ov && ov.grading_to) || '';
-      if (!bb4thPlus(target)) return fail('Only students going for 4th Dan and above are asked to help.');
+      const senior = bb4thPlus(target);   // going for 4th Dan and above: counts towards the 6 per session and the even split
       const phone = phoneE164(s.contact_phone);
       if (!phone) return fail('No mobile on file for ' + s.full_name + '.');
       const { data: slots } = await db.from('prep_helper_slots').select('*').eq('cycle_id', cycle).order('sort');
-      const { data: hs } = await db.from('prep_helpers').select('student_id, slot_id').eq('cycle_id', cycle);
-      const taken = id => (hs || []).filter(h => h.slot_id === id && h.student_id !== student_id).length;
+      const { data: hs } = await db.from('prep_helpers').select('student_id, slot_id, senior').eq('cycle_id', cycle);
+      const taken = id => (hs || []).filter(h => h.slot_id === id && h.student_id !== student_id && h.senior !== false).length;
       // Sessions fill evenly: only the ones with the fewest helpers (and room) are offered
       const withRoom = (slots || []).filter(x => taken(x.slot_id) < (x.cap ?? 6));
-      if (!withRoom.length) return fail('Every helper session is full.', 409);
-      const low = Math.min(...withRoom.map(x => taken(x.slot_id))), open = withRoom.filter(x => taken(x.slot_id) === low);
+      if (senior && !withRoom.length) return fail('Every helper session is full.', 409);
+      const low = Math.min(...withRoom.map(x => taken(x.slot_id))), open = senior ? withRoom.filter(x => taken(x.slot_id) === low) : (slots || []);
+      if (!open.length) return fail('No helper sessions are set up.', 409);
       const text = helperInvite({ first_name: first(s.full_name), target, slots: open });
+      if (body.preview) return json({ ok: true, preview: true, text });
       const cid = await contactFor({ full_name: s.full_name, email: s.contact_email, phone });
       if (!(testing && !ready)) await sendSms(cid, text);
       const nowIso = new Date().toISOString();
-      const row = { cycle_id: cycle, student_id, offered_at: nowIso, offered_slots: open.map(x => x.slot_id), declined_at: null, updated_at: nowIso };
+      const row = { cycle_id: cycle, student_id, offered_at: nowIso, offered_slots: open.map(x => x.slot_id), declined_at: null, senior, updated_at: nowIso };
       const { data: ex } = await db.from('prep_helpers').select('student_id').eq('cycle_id', cycle).eq('student_id', student_id).maybeSingle();
       if (ex) await db.from('prep_helpers').update(row).eq('cycle_id', cycle).eq('student_id', student_id); else await db.from('prep_helpers').insert(row);
       return json({ ok: true, sent: true, text });

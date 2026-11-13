@@ -1048,7 +1048,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       //      session (never past its cap of 6), "no / can't" is noted. Anything else carries on as a normal reply. ----
       if (p9.length === 9) {
         let hs = [];
-        try { const { data } = await db.from('prep_helpers').select('cycle_id, student_id, offered_slots').not('offered_at', 'is', null).is('slot_id', null).is('declined_at', null); hs = data || []; } catch (_) { /* no helper tables */ }
+        try { const { data } = await db.from('prep_helpers').select('cycle_id, student_id, offered_slots, senior').not('offered_at', 'is', null).is('slot_id', null).is('declined_at', null); hs = data || []; } catch (_) { /* no helper tables */ }
         const num = msg.match(/^\s*(?:(?:option|number|no\.?|session)\s*|#)?([1-9])(?=[\s.,!?)]|$)/i), noWay = /^\s*(no\b|nope|can'?t|cannot|unable|not available|sorry,? (?:i|we) can'?t)/i.test(msg);
         if (hs.length && (num || noWay)) {
           const { data: ps } = await db.from('prep_students').select('student_id, full_name, contact_phone, contact_email').in('student_id', hs.map(h => h.student_id));
@@ -1079,10 +1079,10 @@ export async function handle(req, db, env = {}, http = fetch) {
               if (res !== 'full' && res !== 'uneven') return json({ ok: true, helper: res });
             }
             // That session just filled (or the number wasn't one of the choices): offer what still has room
-            const { data: all } = await db.from('prep_helpers').select('student_id, slot_id').eq('cycle_id', h.cycle_id);
-            const cnt = x => (all || []).filter(r => r.slot_id === x.slot_id && r.student_id !== h.student_id).length;
+            const { data: all } = await db.from('prep_helpers').select('student_id, slot_id, senior').eq('cycle_id', h.cycle_id);
+            const cnt = x => (all || []).filter(r => r.slot_id === x.slot_id && r.student_id !== h.student_id && r.senior !== false).length;
             const roomAll = (slots || []).filter(x => cnt(x) < (x.cap ?? 6)), lowN = roomAll.length ? Math.min(...roomAll.map(cnt)) : 0;
-            const room = roomAll.filter(x => cnt(x) === lowN);   // sessions fill evenly
+            const room = h.senior === false ? (slots || []) : roomAll.filter(x => cnt(x) === lowN);   // 4th Dan+ sessions fill evenly; other helpers any session
             if (!room.length) { await reply(`Sorry ${fn}, every helper session is now full. We'll be in touch if a spot opens up. - AMA`); return json({ ok: true, helper: 'all_full' }); }
             await db.from('prep_helpers').update({ offered_slots: room.map(x => x.slot_id), updated_at: nowIso }).eq('cycle_id', h.cycle_id).eq('student_id', h.student_id);
             const nums = room.length === 1 ? 'Reply 1' : `Reply ${room.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${room.length}`;

@@ -141,8 +141,9 @@ function makeDb(tables) {
       if (fn === 'prep_helper_claim') {   // same rules as prep-update-27.sql: never past the session's cap
         const sl = (tables.prep_helper_slots || []).find(x => x.slot_id === a.p_slot && x.cycle_id === a.p_cycle); if (!sl) return { data: 'no_slot', error: null };
         const hs = tables.prep_helpers = tables.prep_helpers || [];
-        if (hs.filter(h => h.slot_id === a.p_slot && h.student_id !== a.p_student).length >= sl.cap) return { data: 'full', error: null };
-        if (a.p_balance) { const c = x => hs.filter(h => h.slot_id === x.slot_id && h.student_id !== a.p_student).length; const room = tables.prep_helper_slots.filter(x => x.cycle_id === a.p_cycle && c(x) < x.cap); if (room.length && c(sl) > Math.min(...room.map(c))) return { data: 'uneven', error: null }; }
+        const me0 = hs.find(x => x.cycle_id === a.p_cycle && x.student_id === a.p_student), sen = !me0 || me0.senior !== false;
+        if (sen && hs.filter(h => h.slot_id === a.p_slot && h.student_id !== a.p_student && h.senior !== false).length >= sl.cap) return { data: 'full', error: null };
+        if (a.p_balance && sen) { const c = x => hs.filter(h => h.slot_id === x.slot_id && h.student_id !== a.p_student && h.senior !== false).length; const room = tables.prep_helper_slots.filter(x => x.cycle_id === a.p_cycle && c(x) < x.cap); if (room.length && c(sl) > Math.min(...room.map(c))) return { data: 'uneven', error: null }; }
         const h = hs.find(x => x.cycle_id === a.p_cycle && x.student_id === a.p_student);
         const patch = { slot_id: a.p_slot, confirmed_at: new Date().toISOString(), declined_at: null, reply_text: a.p_reply, set_by: a.p_by };
         if (h) Object.assign(h, patch); else hs.push({ cycle_id: a.p_cycle, student_id: a.p_student, ...patch });
@@ -549,6 +550,9 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '2' });
     const tx = ghlCalls.filter(c => c.body && c.body.type === 'SMS').slice(-1)[0];
     ok(r.body.helper === 'full' && !x.t.prep_helpers[0].slot_id && /These sessions still need helpers:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx.body.message), 'sessions fill evenly: one already ahead is not taken, the emptier ones are offered'); }
+  { const x = setup(); x.t.prep_helpers[1].senior = false; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_id: 'H2' });   // 12:00pm (cap 1) is full of 4th Dans
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
+    ok(r.body.helper === 'ok' && x.t.prep_helpers[1].slot_id === 'H2', "a helper who isn't going for 4th Dan doesn't count towards the cap: they can still take a full session"); }
   { const x = setup();
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: "Sorry I can't make it that day" });
     ok(r.body.helper === 'declined' && x.t.prep_helpers[1].declined_at && !x.t.prep_helpers[1].slot_id, '"can\'t make it" is noted as can\'t help');

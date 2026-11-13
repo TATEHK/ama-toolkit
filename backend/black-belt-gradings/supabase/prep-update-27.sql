@@ -1,5 +1,5 @@
 -- prep-update-27.sql: grading helpers.
--- Students going for 4th Dan and above help at the black belt grading day. Staff choose when to text each one; the text
+-- Students going for 4th Dan and above help at the black belt grading day (other students can be asked too, with their own wording). Staff choose when to text each one; the text
 -- lists the sessions with the fewest helpers (so they fill evenly) ("Reply 1, 2 or 3") and the reply books them in (coloured belt reply webhook,
 -- function cb). Each session takes at most 6 helpers. Shown in the Black Belt app: Grading > Helpers.
 
@@ -25,6 +25,7 @@ create table if not exists public.prep_helpers (
   declined_at   timestamptz,
   reply_text    text,
   set_by        text,                         -- 'reply', or the staff email when set by hand
+  senior        boolean not null default true, -- going for 4th Dan and above: counts towards the 6 per session; other helpers don't
   updated_at    timestamptz not null default now(),
   primary key (cycle_id, student_id)
 );
@@ -47,17 +48,19 @@ end $$;
 drop function if exists public.prep_helper_claim(uuid, text, uuid, text, text);
 create or replace function public.prep_helper_claim(p_cycle uuid, p_student text, p_slot uuid, p_reply text default null, p_by text default 'reply', p_balance boolean default false)
 returns text language plpgsql security definer set search_path = public as $$
-declare s public.prep_helper_slots; n int; low int;
+declare s public.prep_helper_slots; n int; low int; sen boolean;
 begin
   if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' and not public.prep_has_role('grading', 'calls') then raise exception 'Not allowed'; end if;
   perform 1 from public.prep_helper_slots where cycle_id = p_cycle order by slot_id for update;   -- one claim at a time per cycle
   select * into s from public.prep_helper_slots where slot_id = p_slot and cycle_id = p_cycle;
   if not found then return 'no_slot'; end if;
-  select count(*) into n from public.prep_helpers where slot_id = p_slot and student_id <> p_student;
-  if n >= s.cap then return 'full'; end if;
-  if p_balance then
+  -- Helpers who aren't going for 4th Dan and above don't count towards the cap (or the even split)
+  select coalesce((select senior from public.prep_helpers where cycle_id = p_cycle and student_id = p_student), true) into sen;
+  select count(*) into n from public.prep_helpers where slot_id = p_slot and student_id <> p_student and senior;
+  if sen and n >= s.cap then return 'full'; end if;
+  if p_balance and sen then
     select min(c) into low from (
-      select (select count(*) from public.prep_helpers h where h.slot_id = x.slot_id and h.student_id <> p_student) c, x.cap
+      select (select count(*) from public.prep_helpers h where h.slot_id = x.slot_id and h.student_id <> p_student and h.senior) c, x.cap
       from public.prep_helper_slots x where x.cycle_id = p_cycle) t where c < cap;
     if n > coalesce(low, n) then return 'uneven'; end if;
   end if;

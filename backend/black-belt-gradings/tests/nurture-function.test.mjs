@@ -252,9 +252,15 @@ ok(eo3.ok && eo3.essay === true, 'essay-only works when called with a booking me
   ok(h && h.offered_at && h.offered_slots.join() === 'H1,H2', 'the offer and its numbering are saved');
   ghlCalls = [];
   await hsend({ student_id: 'S8' });
-  ok(sentSms().length === 1 && !/sword/.test(sentSms()[0].body.message), 'already a 4th Dan (going for a level): no sword line');
+  ok(sentSms().length === 1 && !/sword/.test(sentSms()[0].body.message) && /senior black belts/.test(sentSms()[0].body.message), 'already a 4th Dan (going for a level): the senior black belt wording, no sword line');
+  ghlCalls = [];
   const r3 = await (await hsend({ student_id: 'S1' })).json();
-  ok(r3.error && /4th Dan/.test(r3.error), 'only students going for 4th Dan and above can be asked');
+  const o = sentSms()[0];
+  ok(r3.ok && o && /great way to give back/.test(o.body.message) && !/sword|senior/.test(o.body.message) && /1\. 8:00am session\n2\. 12:00pm session\n3\. 3:30pm session/.test(o.body.message), "someone not going for 4th Dan can be asked: their own wording, every session (they don't count towards the 6)");
+  ok(t.prep_helpers.find(x => x.student_id === 'S1').senior === false, '...and they are saved as not counting towards the cap');
+  ghlCalls = [];
+  const pv = await (await hsend({ student_id: 'S8', preview: true })).json();
+  ok(pv.preview && /senior black belts/.test(pv.text) && !sentSms().length, 'preview returns the text without sending it');
   t.prep_helpers.push({ cycle_id: 'C1', student_id: 'X1', slot_id: 'H1' });   // 8:00am now has 1, 12:00pm 0
   ghlCalls = [];
   await hsend({ student_id: 'S9' });

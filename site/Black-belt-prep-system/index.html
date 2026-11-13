@@ -540,6 +540,7 @@
   .sc-outcomes button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
   .sc-outcomes button .s { display: block; font-size: 11px; font-weight: 600; opacity: .75; }
   @media (max-width: 520px) { .sc-outcomes { grid-template-columns: 1fr 1fr; } }
+  #askText { white-space: pre-line; }   /* line breaks in a message preview */
 </style>
 </head>
 <body>
@@ -3496,8 +3497,9 @@ function bbLineup(day, entries) {
   w.document.close(); w.focus(); w.print();
 }
 // ---- The grading enrolment sequence: start/pause/skip, progress grid, test sends, and the calls list ----
-// ---- Grading helpers (prep-update-27): students going for 4th Dan and above help at the black belt grading day.
-// Staff text each one when they choose; the text lists the sessions with room (max 6 each) and their reply books them in.
+// ---- Grading helpers (prep-update-27): students going for 4th Dan and above help at the black belt grading day
+// (max 6 each session, filling evenly). Staff can also ask anyone else: their own wording, and they don't count towards the 6.
+// Staff text each one when they choose; the text lists the sessions to pick from and their reply books them in.
 const HELPER_RANK = /^(4|5|6|7|8|9|10)(st|nd|rd|th)\s+Dan/;
 async function renderHelpers(c) {
   const box = $('#grHelpers'); if (!box) return;
@@ -3509,35 +3511,52 @@ async function renderHelpers(c) {
   if (sq.error || hq.error) { box.innerHTML = '<div class="panel-empty">Run supabase/prep-update-27.sql in Supabase to use grading helpers.</div>'; return; }
   const slots = sq.data || [], hs = hq.data || [], hBy = Object.fromEntries(hs.map(h => [h.student_id, h]));
   const slotBy = Object.fromEntries(slots.map(x => [x.slot_id, x]));
-  const cands = grRows().filter(x => x.e.is_grading && HELPER_RANK.test(x.target || '')).map(x => ({ id: x.s.student_id, name: x.s.full_name, target: x.target, mobile: x.s.contact_phone, h: hBy[x.s.student_id] || null }));
-  const inSlot = id => cands.filter(x => x.h && x.h.slot_id === id);
+  const rows = grRows(), rowBy = Object.fromEntries(rows.map(x => [x.s.student_id, x]));
+  const person = (id, senior) => { const x = rowBy[id], st = student(id); return st ? { id, name: st.full_name, target: x ? x.target : '', mobile: st.contact_phone, senior, h: hBy[id] || null } : null; };
+  const cands = rows.filter(x => x.e.is_grading && HELPER_RANK.test(x.target || '')).map(x => person(x.s.student_id, true)).filter(Boolean);
+  const candIds = new Set(cands.map(x => x.id));
+  const others = hs.filter(h => !candIds.has(h.student_id)).map(h => person(h.student_id, false)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+  const everyone = [...cands, ...others];
+  const seniorsIn = id => everyone.filter(x => x.senior && x.h && x.h.slot_id === id), othersIn = id => everyone.filter(x => !x.senior && x.h && x.h.slot_id === id);
   const statusOf = x => { const h = x.h; if (h && h.slot_id && slotBy[h.slot_id]) return `<span class="tag ok">Helping: ${esc(slotBy[h.slot_id].label)}</span>`; if (h && h.declined_at) return '<span class="tag">Can\'t help</span>'; if (h && h.offered_at) return `<span class="tag">Asked ${esc(fmt(h.offered_at, { day: 'numeric', month: 'short' }))}, waiting</span>`; return '<span class="tag">Not asked</span>'; };
-  const helping = cands.filter(x => x.h && x.h.slot_id).length, asked = cands.filter(x => x.h && x.h.offered_at).length;
+  const helping = everyone.filter(x => x.h && x.h.slot_id).length, asked = everyone.filter(x => x.h && x.h.offered_at).length;
   const day = slots[0] ? fmt(slots[0].grading_date, { weekday: 'long', day: 'numeric', month: 'long' }) : '';
-  box.innerHTML = `<div class="day-head"><div><h3>Grading helpers</h3><p class="sub">Students going for 4th Dan and above help at the black belt grading${day ? ' on ' + esc(day) : ''}. Text each one when you're ready; they reply with a session number. The text only offers the sessions with the fewest helpers, so they fill evenly (max 6 each).</p></div></div>
+  const rowHtml = x => `<li><div class="item" style="cursor:default;flex-wrap:wrap"><div class="main"><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.target || (student(x.id) || {}).belt_rank || '')}${x.mobile ? '' : ' · <span class="bad-text">no mobile</span>'} · ${statusOf(x)}</div></div>
+      <div class="row" style="flex-wrap:wrap;gap:4px">${slots.length ? `<select data-hset="${esc(x.id)}" aria-label="Session for ${esc(x.name)}"><option value="">Set session…</option>${slots.map(sl => `<option value="${esc(sl.slot_id)}"${x.h && x.h.slot_id === sl.slot_id ? ' selected' : ''}>${esc(sl.label)}${x.senior ? ` (${seniorsIn(sl.slot_id).length}/${sl.cap})` : ''}</option>`).join('')}</select>` : ''}
+      ${x.mobile && slots.length && !(x.h && x.h.slot_id) ? `<button class="btn sm ${x.h && x.h.offered_at ? '' : 'primary'}" data-hsend="${esc(x.id)}">${x.h && x.h.offered_at ? 'Resend' : 'Send'}</button>` : ''}</div></div></li>`;
+  const pickable = state.students.filter(st => st.is_active !== false && !candIds.has(st.student_id) && !hBy[st.student_id]).sort((a, b) => a.full_name.localeCompare(b.full_name));
+  box.innerHTML = `<div class="day-head"><div><h3>Grading helpers</h3><p class="sub">Students going for 4th Dan and above help at the black belt grading${day ? ' on ' + esc(day) : ''}. Text each one when you're ready; they reply with a session number. The text only offers the sessions with the fewest helpers, so they fill evenly (max 6 each). You can also ask anyone else below.</p></div></div>
     <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
       <div class="kpi"><b>${cands.length}</b><span>4th Dan and above</span></div>
       <div class="kpi"><b>${asked}</b><span>Asked</span></div>
       <div class="kpi"><b>${helping}</b><span>Helping</span></div></div>
-    ${slots.length ? `<div class="section"><h3>Sessions</h3><div class="grid2">${slots.map(x => { const who = inSlot(x.slot_id); return `<div class="card" style="margin:0"><div class="row" style="justify-content:space-between"><b>${esc(x.label)}</b><span class="tag${who.length >= x.cap ? '' : ' ok'}">${who.length} / ${x.cap}${who.length >= x.cap ? ' full' : ''}</span></div>
-        ${who.length ? `<ul class="list">${who.map(w => `<li><div class="item" style="cursor:default"><div class="main"><div class="name">${esc(w.name)}</div><div class="meta">${esc(w.target)}${w.h.set_by && w.h.set_by !== 'reply' ? ' · added by staff' : ''}</div></div><button class="btn sm ghost" data-hclear="${esc(w.id)}" aria-label="Take ${esc(w.name)} off this session">Remove</button></div></li>`).join('')}</ul>` : '<p class="hint">No one yet.</p>'}</div>`; }).join('')}</div></div>`
+    ${slots.length ? `<div class="section"><h3>Sessions</h3><div class="grid2">${slots.map(x => { const sen = seniorsIn(x.slot_id), oth = othersIn(x.slot_id), who = [...sen, ...oth]; return `<div class="card" style="margin:0"><div class="row" style="justify-content:space-between"><b>${esc(x.label)}</b><span class="tag${sen.length >= x.cap ? '' : ' ok'}">${sen.length} / ${x.cap}${sen.length >= x.cap ? ' full' : ''}${oth.length ? ` + ${oth.length} other` : ''}</span></div>
+        ${who.length ? `<ul class="list">${who.map(w => `<li><div class="item" style="cursor:default"><div class="main"><div class="name">${esc(w.name)}</div><div class="meta">${esc(w.target || '')}${w.senior ? '' : (w.target ? ' · ' : '') + 'other helper'}${w.h.set_by && w.h.set_by !== 'reply' ? ' · added by staff' : ''}</div></div><button class="btn sm ghost" data-hclear="${esc(w.id)}" aria-label="Take ${esc(w.name)} off this session">Remove</button></div></li>`).join('')}</ul>` : '<p class="hint">No one yet.</p>'}</div>`; }).join('')}</div></div>`
       : '<p class="hint">No helper sessions are set up for this cycle yet.</p>'}
     <div class="section"><h3>4th Dan and above <span class="muted small">${cands.length}</span></h3>
-    ${cands.length ? `<ul class="list">${cands.map(x => `<li><div class="item" style="cursor:default;flex-wrap:wrap"><div class="main"><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.target)}${x.mobile ? '' : ' · <span class="bad-text">no mobile</span>'} · ${statusOf(x)}</div></div>
-        <div class="row" style="flex-wrap:wrap;gap:4px">${slots.length ? `<select data-hset="${esc(x.id)}" aria-label="Session for ${esc(x.name)}"><option value="">Set session…</option>${slots.map(sl => `<option value="${esc(sl.slot_id)}"${x.h && x.h.slot_id === sl.slot_id ? ' selected' : ''}>${esc(sl.label)} (${inSlot(sl.slot_id).length}/${sl.cap})</option>`).join('')}</select>` : ''}
-        ${x.mobile && slots.length && !(x.h && x.h.slot_id) ? `<button class="btn sm ${x.h && x.h.offered_at ? '' : 'primary'}" data-hsend="${esc(x.id)}">${x.h && x.h.offered_at ? 'Resend' : 'Send'}</button>` : ''}</div></div></li>`).join('')}</ul>` : '<p class="hint">No one going for 4th Dan or above is put forward for grading yet.</p>'}</div>`;
+    ${cands.length ? `<ul class="list">${cands.map(rowHtml).join('')}</ul>` : '<p class="hint">No one going for 4th Dan or above is put forward for grading yet.</p>'}</div>
+    <div class="section"><h3>Other helpers <span class="muted small">${others.length}</span></h3>
+      <p class="hint">Anyone else you ask gets a different text (no sword), can pick any session, and doesn't count towards the 6.</p>
+      ${others.length ? `<ul class="list">${others.map(rowHtml).join('')}</ul>` : ''}
+      ${slots.length ? `<div class="row" style="gap:6px;flex-wrap:wrap"><select id="hOther" aria-label="Ask someone else" style="flex:1 1 220px"><option value="">Ask someone else…</option>${pickable.map(st => `<option value="${esc(st.student_id)}">${esc(st.full_name)}${st.belt_rank ? ' · ' + esc(st.belt_rank) : ''}</option>`).join('')}</select><button class="btn sm primary" id="hOtherSend">Send</button></div>` : ''}</div>`;
   const again = () => renderHelpers(c);
-  $$('#grHelpers [data-hsend]').forEach(b => b.onclick = async () => {
-    const x = cands.find(y => y.id === b.dataset.hsend); if (!x) return;
-    if (!await ask(`Text ${x.name} asking them to help at the grading? They'll get the sessions with room and reply with a number.`, 'Send')) return;
-    b.disabled = true;
-    try { const r = await sb.functions.invoke('nurture', { body: { action: 'helper_send', cycle: cid, student_id: x.id } }); if (r.error) throw new Error(r.error.message || r.error); if (r.data && r.data.error) throw new Error(r.data.error); toast('Helper text sent to ' + x.name); again(); }
-    catch (e) { b.disabled = false; toast(errMsg(e), 7000); }
-  });
+  const sendTo = async (id, name, b) => {
+    if (b) b.disabled = true;
+    try {
+      const pv = await sb.functions.invoke('nurture', { body: { action: 'helper_send', cycle: cid, student_id: id, preview: true } });
+      if (pv.error) throw new Error(pv.error.message || pv.error); if (pv.data && pv.data.error) throw new Error(pv.data.error);
+      if (!await ask(pv.data.text, 'Send text', false, `Text ${name}?`)) { if (b) b.disabled = false; return; }
+      const r = await sb.functions.invoke('nurture', { body: { action: 'helper_send', cycle: cid, student_id: id } });
+      if (r.error) throw new Error(r.error.message || r.error); if (r.data && r.data.error) throw new Error(r.data.error);
+      toast('Helper text sent to ' + name); again();
+    } catch (e) { if (b) b.disabled = false; toast(errMsg(e), 7000); }
+  };
+  $$('#grHelpers [data-hsend]').forEach(b => b.onclick = () => { const x = everyone.find(y => y.id === b.dataset.hsend); if (x) sendTo(x.id, x.name, b); });
+  const os = $('#hOtherSend'); if (os) os.onclick = () => { const id = $('#hOther').value, st = student(id); if (!id || !st) return toast('Choose who to ask first.'); if (!st.contact_phone) return toast(st.full_name + ' has no mobile on file.', 5000); sendTo(id, st.full_name, os); };
   $$('#grHelpers [data-hset]').forEach(sel => sel.onchange = async () => {
     const sid = sel.dataset.hset, slot = sel.value; if (!slot) return;
     try { const { data, error } = await sb.rpc('prep_helper_claim', { p_cycle: cid, p_student: sid, p_slot: slot, p_reply: null, p_by: state.email || 'staff' }); if (error) throw error;
-      if (data === 'full') { toast('That session already has its 6 helpers.', 5000); again(); return; } toast('Session set'); again(); }
+      if (data === 'full') { toast('That session already has its 6 helpers going for 4th Dan and above.', 5000); again(); return; } toast('Session set'); again(); }
     catch (e) { toast(errMsg(e), 7000); again(); }
   });
   $$('#grHelpers [data-hclear]').forEach(b => b.onclick = async () => {
