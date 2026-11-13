@@ -1051,6 +1051,7 @@ function scheduleReload() {
   clearTimeout(reloadTimer);
   reloadTimer = setTimeout(async () => {
     if (reloading) return scheduleReload();
+    const dlg = document.getElementById('askDlg'); if (dlg && dlg.open) return scheduleReload();   // never redraw behind an open question
     reloading = true;
     try { await loadAll(); render(); } catch (e) { console.warn(e); } finally { reloading = false; }
   }, 350);
@@ -3497,18 +3498,19 @@ function bbLineup(day, entries) {
   w.document.close(); w.focus(); w.print();
 }
 // ---- The grading enrolment sequence: start/pause/skip, progress grid, test sends, and the calls list ----
-// ---- Grading helpers (prep-update-27): students going for 4th Dan and above help at the black belt grading day
-// (max 6 each session, filling evenly). Staff can also ask anyone else: their own wording, and they don't count towards the 6.
-// Staff text each one when they choose; the text lists the sessions to pick from and their reply books them in.
+// ---- Grading helpers (prep-update-27, -28): students going for 4th Dan and above help at the black belt grading day
+// (max 6 each session, filling evenly), and can help at more than one session. Staff can also ask anyone else: their own
+// wording, and they don't count towards the 6. Staff text each one when they choose; their reply ("1 and 3") books them in.
 const HELPER_RANK = /^(4|5|6|7|8|9|10)(st|nd|rd|th)\s+Dan/;
+let helpersView = { cid: null, html: '' };   // the last drawn Helpers panel, shown at once while a background reload refreshes it
 async function renderHelpers(c) {
   const box = $('#grHelpers'); if (!box) return;
   const cid = c.cycle_id;
   let sq, hq;
   try { [sq, hq] = await Promise.all([sb.from('prep_helper_slots').select('*').eq('cycle_id', cid).order('sort'), sb.from('prep_helpers').select('*').eq('cycle_id', cid)]); }
   catch (e) { box.innerHTML = '<div class="panel-empty">Helpers aren\'t available right now.</div>'; return; }
-  if (state.view !== 'grading' || state.gr.cycle !== cid || state.gr.panel !== 'helpers') return;
-  if (sq.error || hq.error) { box.innerHTML = '<div class="panel-empty">Run supabase/prep-update-27.sql in Supabase to use grading helpers.</div>'; return; }
+  if (state.view !== 'grading' || state.gr.cycle !== cid || state.gr.panel !== 'helpers' || !document.body.contains(box)) return;
+  if (sq.error || hq.error) { box.innerHTML = '<div class="panel-empty">Run supabase/prep-update-28.sql in Supabase to use grading helpers.</div>'; return; }
   const slots = sq.data || [], hs = hq.data || [], hBy = Object.fromEntries(hs.map(h => [h.student_id, h]));
   const slotBy = Object.fromEntries(slots.map(x => [x.slot_id, x]));
   const rows = grRows(), rowBy = Object.fromEntries(rows.map(x => [x.s.student_id, x]));
@@ -3517,52 +3519,132 @@ async function renderHelpers(c) {
   const candIds = new Set(cands.map(x => x.id));
   const others = hs.filter(h => !candIds.has(h.student_id)).map(h => person(h.student_id, false)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
   const everyone = [...cands, ...others];
-  const seniorsIn = id => everyone.filter(x => x.senior && x.h && x.h.slot_id === id), othersIn = id => everyone.filter(x => !x.senior && x.h && x.h.slot_id === id);
-  const statusOf = x => { const h = x.h; if (h && h.slot_id && slotBy[h.slot_id]) return `<span class="tag ok">Helping: ${esc(slotBy[h.slot_id].label)}</span>`; if (h && h.declined_at) return '<span class="tag">Can\'t help</span>'; if (h && h.offered_at) return `<span class="tag">Asked ${esc(fmt(h.offered_at, { day: 'numeric', month: 'short' }))}, waiting</span>`; return '<span class="tag">Not asked</span>'; };
-  const helping = everyone.filter(x => x.h && x.h.slot_id).length, asked = everyone.filter(x => x.h && x.h.offered_at).length;
+  const mine = x => (x.h && x.h.slot_ids || []).filter(id => slotBy[id]);
+  const inS = (x, id) => mine(x).includes(id);
+  const seniorsIn = id => everyone.filter(x => x.senior && inS(x, id)), othersIn = id => everyone.filter(x => !x.senior && inS(x, id));
+  const statusOf = x => { const h = x.h, m = mine(x); if (m.length) return `<span class="tag ok">Helping: ${esc(slots.filter(sl => m.includes(sl.slot_id)).map(sl => sl.label.replace(/ session$/, '')).join(', '))}</span>`; if (h && h.declined_at) return '<span class="tag">Can\'t help</span>'; if (h && h.offered_at) return `<span class="tag">Asked ${esc(fmt(h.offered_at, { day: 'numeric', month: 'short' }))}, waiting</span>`; return '<span class="tag">Not asked</span>'; };
+  const helping = everyone.filter(x => mine(x).length).length, asked = everyone.filter(x => x.h && x.h.offered_at).length;
   const day = slots[0] ? fmt(slots[0].grading_date, { weekday: 'long', day: 'numeric', month: 'long' }) : '';
-  const rowHtml = x => `<li><div class="item" style="cursor:default;flex-wrap:wrap"><div class="main"><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.target || (student(x.id) || {}).belt_rank || '')}${x.mobile ? '' : ' · <span class="bad-text">no mobile</span>'} · ${statusOf(x)}</div></div>
-      <div class="row" style="flex-wrap:wrap;gap:4px">${slots.length ? `<select data-hset="${esc(x.id)}" aria-label="Session for ${esc(x.name)}"><option value="">Set session…</option>${slots.map(sl => `<option value="${esc(sl.slot_id)}"${x.h && x.h.slot_id === sl.slot_id ? ' selected' : ''}>${esc(sl.label)}${x.senior ? ` (${seniorsIn(sl.slot_id).length}/${sl.cap})` : ''}</option>`).join('')}</select>` : ''}
-      ${x.mobile && slots.length && !(x.h && x.h.slot_id) ? `<button class="btn sm ${x.h && x.h.offered_at ? '' : 'primary'}" data-hsend="${esc(x.id)}">${x.h && x.h.offered_at ? 'Resend' : 'Send'}</button>` : ''}</div></div></li>`;
+  const rowHtml = x => { const m = mine(x), free = slots.filter(sl => !m.includes(sl.slot_id)); return `<li><div class="item" style="cursor:default;flex-wrap:wrap"><div class="main"><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.target || (student(x.id) || {}).belt_rank || '')}${x.mobile ? '' : ' · <span class="bad-text">no mobile</span>'} · ${statusOf(x)}</div></div>
+      <div class="row" style="flex-wrap:wrap;gap:4px">${free.length ? `<select data-hset="${esc(x.id)}" aria-label="Add a session for ${esc(x.name)}" style="max-width:100%"><option value="">${m.length ? 'Add another session…' : 'Add to a session…'}</option>${free.map(sl => `<option value="${esc(sl.slot_id)}">${esc(sl.label)}${x.senior ? ` (${seniorsIn(sl.slot_id).length}/${sl.cap})` : ''}</option>`).join('')}</select>` : ''}
+      ${x.mobile && slots.length && !m.length ? `<button class="btn sm ${x.h && x.h.offered_at ? '' : 'primary'}" data-hsend="${esc(x.id)}">${x.h && x.h.offered_at ? 'Resend' : 'Send'}</button>` : ''}</div></div></li>`; };
   const pickable = state.students.filter(st => st.is_active !== false && !candIds.has(st.student_id) && !hBy[st.student_id]).sort((a, b) => a.full_name.localeCompare(b.full_name));
-  box.innerHTML = `<div class="day-head"><div><h3>Grading helpers</h3><p class="sub">Students going for 4th Dan and above help at the black belt grading${day ? ' on ' + esc(day) : ''}. Text each one when you're ready; they reply with a session number. The text only offers the sessions with the fewest helpers, so they fill evenly (max 6 each). You can also ask anyone else below.</p></div></div>
+  const html = `<div class="day-head"><div><h3>Grading helpers</h3><p class="sub">Students going for 4th Dan and above help at the black belt grading${day ? ' on ' + esc(day) : ''}. Text each one when you're ready; they reply with the session numbers they can do (one or more, e.g. "1 and 3"). The text offers the sessions with the fewest helpers, so they fill evenly (max 6 each). You can also ask anyone else below.</p></div><button class="btn sm" id="hSettings">Settings</button></div>
     <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
       <div class="kpi"><b>${cands.length}</b><span>4th Dan and above</span></div>
       <div class="kpi"><b>${asked}</b><span>Asked</span></div>
       <div class="kpi"><b>${helping}</b><span>Helping</span></div></div>
-    ${slots.length ? `<div class="section"><h3>Sessions</h3><div class="grid2">${slots.map(x => { const sen = seniorsIn(x.slot_id), oth = othersIn(x.slot_id), who = [...sen, ...oth]; return `<div class="card" style="margin:0"><div class="row" style="justify-content:space-between"><b>${esc(x.label)}</b><span class="tag${sen.length >= x.cap ? '' : ' ok'}">${sen.length} / ${x.cap}${sen.length >= x.cap ? ' full' : ''}${oth.length ? ` + ${oth.length} other` : ''}</span></div>
-        ${who.length ? `<ul class="list">${who.map(w => `<li><div class="item" style="cursor:default"><div class="main"><div class="name">${esc(w.name)}</div><div class="meta">${esc(w.target || '')}${w.senior ? '' : (w.target ? ' · ' : '') + 'other helper'}${w.h.set_by && w.h.set_by !== 'reply' ? ' · added by staff' : ''}</div></div><button class="btn sm ghost" data-hclear="${esc(w.id)}" aria-label="Take ${esc(w.name)} off this session">Remove</button></div></li>`).join('')}</ul>` : '<p class="hint">No one yet.</p>'}</div>`; }).join('')}</div></div>`
+    ${slots.length ? `<div class="section"><h3>Sessions</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px">${slots.map(x => { const sen = seniorsIn(x.slot_id), oth = othersIn(x.slot_id), who = [...sen, ...oth]; return `<div class="card" style="margin:0;min-width:0"><div class="row" style="justify-content:space-between"><b>${esc(x.label)}</b><span class="tag${sen.length >= x.cap ? '' : ' ok'}">${sen.length} / ${x.cap}${sen.length >= x.cap ? ' full' : ''}${oth.length ? ` + ${oth.length} other` : ''}</span></div>
+        ${who.length ? `<ul class="list">${who.map(w => `<li><div class="item" style="cursor:default"><div class="main"><div class="name">${esc(w.name)}</div><div class="meta">${esc(w.target || '')}${w.senior ? '' : (w.target ? ' · ' : '') + 'other helper'}${mine(w).length > 1 ? ' · ' + mine(w).length + ' sessions' : ''}${w.h.set_by && w.h.set_by !== 'reply' ? ' · added by staff' : ''}</div></div><button class="btn sm ghost" data-hclear="${esc(w.id)}" data-hslot="${esc(x.slot_id)}" aria-label="Take ${esc(w.name)} off the ${esc(x.label)}">Remove</button></div></li>`).join('')}</ul>` : '<p class="hint">No one yet.</p>'}</div>`; }).join('')}</div></div>`
       : '<p class="hint">No helper sessions are set up for this cycle yet.</p>'}
     <div class="section"><h3>4th Dan and above <span class="muted small">${cands.length}</span></h3>
     ${cands.length ? `<ul class="list">${cands.map(rowHtml).join('')}</ul>` : '<p class="hint">No one going for 4th Dan or above is put forward for grading yet.</p>'}</div>
     <div class="section"><h3>Other helpers <span class="muted small">${others.length}</span></h3>
-      <p class="hint">Anyone else you ask gets a different text (no sword), can pick any session, and doesn't count towards the 6.</p>
+      <p class="hint">Anyone else you ask gets a different text (no sword), can pick any sessions, and doesn't count towards the 6.</p>
       ${others.length ? `<ul class="list">${others.map(rowHtml).join('')}</ul>` : ''}
       ${slots.length ? `<div class="row" style="gap:6px;flex-wrap:wrap"><select id="hOther" aria-label="Ask someone else" style="flex:1 1 220px"><option value="">Ask someone else…</option>${pickable.map(st => `<option value="${esc(st.student_id)}">${esc(st.full_name)}${st.belt_rank ? ' · ' + esc(st.belt_rank) : ''}</option>`).join('')}</select><button class="btn sm primary" id="hOtherSend">Send</button></div>` : ''}</div>`;
+  // A background reload with nothing changed: leave the panel alone (keeps scroll and any open menu)
+  if (helpersView.cid === cid && helpersView.html === html && box.dataset.wired === '1') return;
+  helpersView = { cid, html };
+  box.innerHTML = html; box.dataset.wired = '1';
   const again = () => renderHelpers(c);
+  $('#hSettings').onclick = () => openHelperSettings(c, slots, everyone, again);
+  // Send: tick which sessions to offer (the even-split suggestion is ticked to start with), see the exact text, then send
   const sendTo = async (id, name, b) => {
     if (b) b.disabled = true;
+    const call = async extra => { const r = await sb.functions.invoke('nurture', { body: { action: 'helper_send', cycle: cid, student_id: id, ...extra } }); if (r.error) throw new Error(r.error.message || r.error); if (r.data && r.data.error) throw new Error(r.data.error); return r.data; };
     try {
-      const pv = await sb.functions.invoke('nurture', { body: { action: 'helper_send', cycle: cid, student_id: id, preview: true } });
-      if (pv.error) throw new Error(pv.error.message || pv.error); if (pv.data && pv.data.error) throw new Error(pv.data.error);
-      if (!await ask(pv.data.text, 'Send text', false, `Text ${name}?`)) { if (b) b.disabled = false; return; }
-      const r = await sb.functions.invoke('nurture', { body: { action: 'helper_send', cycle: cid, student_id: id } });
-      if (r.error) throw new Error(r.error.message || r.error); if (r.data && r.data.error) throw new Error(r.data.error);
-      toast('Helper text sent to ' + name); again();
+      const o = await call({ options: true });
+      if (b) b.disabled = false;
+      const pickedNow = () => $$('#hPick input:checked').map(x => x.value);
+      openSheet(`<div class="body">${sheetHead('Text ' + name, 'Choose the sessions to offer. They reply with the numbers they can do.')}
+        <div id="hPick" class="list">${o.slots.map(sl => `<label class="check" style="display:flex;gap:8px;align-items:center;padding:6px 0"><input type="checkbox" value="${esc(sl.slot_id)}"${o.suggested.includes(sl.slot_id) ? ' checked' : ''}${sl.full ? ' disabled' : ''}> ${esc(sl.label)} <span class="muted small">${o.senior ? `${sl.taken}/${sl.cap}${sl.full ? ' full' : ''}` : ''}</span></label>`).join('')}</div>
+        <p class="hint" id="hPrevHint">${o.senior ? 'Ticked to start with: the sessions with the fewest helpers.' : ''}</p>
+        <div class="field"><label>The text</label><p id="hPrev" class="card" style="white-space:pre-line;margin:0">…</p></div>
+        <div class="dlg-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="hGo">Send text</button></div></div>`);
+      let seq = 0;
+      const preview = async () => { const my = ++seq, ids = pickedNow(); $('#hGo').disabled = !ids.length; if (!ids.length) { $('#hPrev').textContent = 'Tick at least one session.'; return; }
+        try { const p = await call({ preview: true, slots: ids }); if (my === seq && $('#hPrev')) $('#hPrev').textContent = p.text; } catch (e) { if ($('#hPrev')) $('#hPrev').textContent = errMsg(e); } };
+      $$('#hPick input').forEach(x => x.onchange = preview); preview();
+      $('#hGo').onclick = async () => { const ids = pickedNow(); if (!ids.length) return; $('#hGo').disabled = true;
+        try { await call({ slots: ids }); sheet.close(); toast('Helper text sent to ' + name); again(); } catch (e) { $('#hGo').disabled = false; toast(errMsg(e), 7000); } };
     } catch (e) { if (b) b.disabled = false; toast(errMsg(e), 7000); }
   };
   $$('#grHelpers [data-hsend]').forEach(b => b.onclick = () => { const x = everyone.find(y => y.id === b.dataset.hsend); if (x) sendTo(x.id, x.name, b); });
   const os = $('#hOtherSend'); if (os) os.onclick = () => { const id = $('#hOther').value, st = student(id); if (!id || !st) return toast('Choose who to ask first.'); if (!st.contact_phone) return toast(st.full_name + ' has no mobile on file.', 5000); sendTo(id, st.full_name, os); };
   $$('#grHelpers [data-hset]').forEach(sel => sel.onchange = async () => {
     const sid = sel.dataset.hset, slot = sel.value; if (!slot) return;
-    try { const { data, error } = await sb.rpc('prep_helper_claim', { p_cycle: cid, p_student: sid, p_slot: slot, p_reply: null, p_by: state.email || 'staff' }); if (error) throw error;
-      if (data === 'full') { toast('That session already has its 6 helpers going for 4th Dan and above.', 5000); again(); return; } toast('Session set'); again(); }
+    try { const { data, error } = await sb.rpc('prep_helper_claim', { p_cycle: cid, p_student: sid, p_slots: [slot], p_reply: null, p_by: state.email || 'staff' }); if (error) throw error;
+      if (data && (data.full || []).length) { toast('That session already has its 6 helpers going for 4th Dan and above.', 5000); again(); return; } toast('Session added'); again(); }
     catch (e) { toast(errMsg(e), 7000); again(); }
   });
   $$('#grHelpers [data-hclear]').forEach(b => b.onclick = async () => {
-    try { const { error } = await sb.from('prep_helpers').update({ slot_id: null, confirmed_at: null, updated_at: new Date().toISOString() }).eq('cycle_id', cid).eq('student_id', b.dataset.hclear); if (error) throw error; toast('Taken off the session'); again(); }
+    const x = everyone.find(y => y.id === b.dataset.hclear); if (!x || !x.h) return;
+    const left = (x.h.slot_ids || []).filter(id => id !== b.dataset.hslot);
+    try { const { error } = await sb.from('prep_helpers').update({ slot_ids: left, ...(left.length ? {} : { confirmed_at: null }), updated_at: new Date().toISOString() }).eq('cycle_id', cid).eq('student_id', x.id); if (error) throw error; toast('Taken off that session'); again(); }
     catch (e) { toast(errMsg(e), 7000); }
   });
+}
+
+// Helpers > Settings: the sessions (name, date, time, max helpers) and the wording of each text
+const HELPER_TEXT_DEFAULTS = {
+  invite_4th: "Hi {first_name}, as part of your 4th Dan grading, we'd love your help at the black belt grading on {day} at AMA Sydenham.{sword} Which sessions can you help at?\n{sessions}\n{reply}. - AMA",
+  invite_senior: "Hi {first_name}, as one of our senior black belts, we'd love your help at the black belt grading on {day} at AMA Sydenham. Your experience on the floor makes a real difference to the students grading. Which sessions can you help at?\n{sessions}\n{reply}. - AMA",
+  invite_other: "Hi {first_name}, we'd love your help at the black belt grading on {day} at AMA Sydenham. Helping out is a great way to give back, and seeing a grading from the other side is great experience for your own. Which sessions can you help at?\n{sessions}\n{reply}. - AMA",
+  confirm_text: "Thanks {first_name}! You're helping at the {sessions} on {day} at AMA Sydenham.{full_note}{sword} See you there! - AMA"
+};
+const HELPER_TEXTS = [['invite_4th', 'Invitation: going for 4th Dan', true], ['invite_senior', 'Invitation: 4th Dan levels and 5th Dan and above', false], ['invite_other', 'Invitation: anyone else you ask', false], ['confirm_text', 'Confirmation (after they reply)', true]];
+async function openHelperSettings(c, slots, everyone, done) {
+  const cid = c.cycle_id;
+  let set = {}; try { const { data } = await sb.from('prep_helper_settings').select('*').eq('id', 1).maybeSingle(); set = data || {}; } catch (e) { /* defaults */ }
+  const t = k => (set[k] && String(set[k]).trim()) ? set[k] : HELPER_TEXT_DEFAULTS[k];
+  let rows = slots.map(x => ({ slot_id: x.slot_id, label: x.label, grading_date: String(x.grading_date || '').slice(0, 10), start_time: x.start_time ? String(x.start_time).slice(0, 5) : '', cap: x.cap }));
+  const inSlot = id => everyone.filter(x => x.h && (x.h.slot_ids || []).includes(id)).length;
+  const sample = (k, tx) => { const two = rows.filter(r => r.label).slice(0, 3); const d = two[0] && two[0].grading_date ? fmt(two[0].grading_date, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Saturday 5 December';
+    const v = { first_name: 'Sam', day: d, sessions: k === 'confirm_text' ? (two.length > 1 ? `${two[0].label.replace(/ session$/, '')} and ${two[two.length - 1].label.replace(/ session$/, '')} sessions` : (two[0] ? two[0].label : '8:00am session')) : (two.length ? two : [{ label: '8:00am session' }]).map((r, i) => `${i + 1}. ${r.label}`).join('\n'),
+      reply: two.length === 1 ? 'Reply 1 to help' : `Reply with the number of each session you can do (e.g. ${two.length >= 3 ? '1 and 3' : '1 and 2'}, or just one)`,
+      sword: k === 'invite_4th' ? " You'll be presented your 4th Dan sword in front of everyone at the grading you help at." : k === 'confirm_text' ? " You'll be presented your 4th Dan sword in front of everyone at the grading." : '', full_note: '' };
+    return String(tx).replace(/\{(\w+)\}/g, (m, kk) => (v[kk] != null ? v[kk] : '')); };
+  const slotRow = (r, i) => `<div class="card" style="margin:0 0 8px;padding:10px;min-width:0" data-hrow="${i}">
+      <div class="field"><label>Session name (as it reads in the text)</label><input data-hf="label" value="${esc(r.label)}" placeholder="8:00am session" style="width:100%;min-width:0;box-sizing:border-box"></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+        <div class="field" style="min-width:0"><label>Date</label><input type="date" data-hf="grading_date" value="${esc(r.grading_date)}" style="width:100%;min-width:0;box-sizing:border-box"></div>
+        <div class="field" style="min-width:0"><label>Start</label><input type="time" data-hf="start_time" value="${esc(r.start_time)}" style="width:100%;min-width:0;box-sizing:border-box"></div>
+        <div class="field" style="min-width:0"><label>Max 4th Dan+</label><input type="number" min="1" max="50" data-hf="cap" value="${esc(r.cap)}" style="width:100%;min-width:0;box-sizing:border-box"></div></div>
+      <div class="row" style="justify-content:space-between"><span class="hint">${r.slot_id ? inSlot(r.slot_id) + ' helping' : 'New'}</span><button type="button" class="btn sm ghost" data-hdel="${i}">Remove session</button></div></div>`;
+  const draw = () => {
+    openSheet(`<div class="body">${sheetHead('Helper settings', esc(c.name))}
+      <div class="section"><h3>Sessions</h3><div id="hRows">${rows.map(slotRow).join('')}</div><button type="button" class="btn sm" id="hAddRow">Add session</button></div>
+      <div class="section"><h3>Wording</h3><p class="hint">Fields: {first_name} {day} {sessions} {reply} {sword} (only for students going for 4th Dan) and, in the confirmation, {full_note} (says if a session they picked was full).</p>
+        ${HELPER_TEXTS.map(([k, lab]) => `<div class="field"><label for="ht_${k}">${esc(lab)}</label><textarea id="ht_${k}" rows="5" style="width:100%;min-width:0;box-sizing:border-box">${esc(t(k))}</textarea>
+          <p class="hint" style="white-space:pre-line" data-hprev="${k}">${esc(sample(k, t(k)))}</p><button type="button" class="btn sm ghost" data-hreset="${k}">Use the original wording</button></div>`).join('')}</div>
+      <div class="dlg-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="hSave">Save</button></div></div>`);
+    const readRows = () => $$('#hRows [data-hrow]').forEach(el => { const r = rows[+el.dataset.hrow]; el.querySelectorAll('[data-hf]').forEach(inp => { r[inp.dataset.hf] = inp.dataset.hf === 'cap' ? Number(inp.value) || 6 : inp.value.trim(); }); });
+    HELPER_TEXTS.forEach(([k]) => { const ta = $('#ht_' + k); ta.oninput = () => { $(`[data-hprev="${k}"]`).textContent = sample(k, ta.value); }; });
+    $$('[data-hreset]').forEach(b => b.onclick = () => { const k = b.dataset.hreset; $('#ht_' + k).value = HELPER_TEXT_DEFAULTS[k]; $(`[data-hprev="${k}"]`).textContent = sample(k, HELPER_TEXT_DEFAULTS[k]); });
+    $('#hAddRow').onclick = () => { readRows(); const last = rows[rows.length - 1] || {}; rows.push({ slot_id: null, label: '', grading_date: last.grading_date || c.grading_date || '', start_time: '', cap: 6 }); keepTexts(); draw(); };
+    $$('[data-hdel]').forEach(b => b.onclick = async () => { readRows(); const r = rows[+b.dataset.hdel]; if (r.slot_id && inSlot(r.slot_id) && !await ask(`${inSlot(r.slot_id)} helping at the ${r.label}. Remove the session anyway? They'll be taken off it.`, 'Remove', true)) return; rows.splice(+b.dataset.hdel, 1); keepTexts(); draw(); });
+    const keepTexts = () => HELPER_TEXTS.forEach(([k]) => { set[k] = $('#ht_' + k).value; });
+    $('#hSave').onclick = async () => {
+      readRows(); keepTexts();
+      if (rows.some(r => !r.label || !r.grading_date)) return toast('Every session needs a name and a date.', 5000);
+      const b = $('#hSave'); b.disabled = true;
+      try {
+        const keep = rows.filter(r => r.slot_id).map(r => r.slot_id), gone = slots.map(x => x.slot_id).filter(id => !keep.includes(id));
+        if (gone.length) { const { error } = await sb.from('prep_helper_slots').delete().in('slot_id', gone); if (error) throw error; }
+        for (const [i, r] of rows.entries()) {
+          const rec = { cycle_id: cid, label: r.label, grading_date: r.grading_date, start_time: r.start_time || null, cap: r.cap || 6, sort: i + 1 };
+          const { error } = r.slot_id ? await sb.from('prep_helper_slots').update(rec).eq('slot_id', r.slot_id) : await sb.from('prep_helper_slots').insert(rec);
+          if (error) throw error;
+        }
+        const words = Object.fromEntries(HELPER_TEXTS.map(([k]) => [k, String(set[k] || '').trim() || HELPER_TEXT_DEFAULTS[k]]));
+        const { error: we } = await sb.from('prep_helper_settings').upsert({ id: 1, ...words, updated_at: new Date().toISOString(), updated_by: state.email });
+        if (we) throw we;
+        sheet.close(); toast('Helper settings saved'); helpersView = { cid: null, html: '' }; done();
+      } catch (e) { b.disabled = false; toast(errMsg(e), 7000); }
+    };
+  };
+  draw();
 }
 
 async function renderNurture(c) {
@@ -3703,7 +3785,7 @@ function renderGrading() {
     box.outerHTML = '<div class="card" id="grBooking"><div class="panel-empty">Loading the grading day…</div></div>';
     renderBbBooking(c);
   } else if (G.panel === 'helpers') {
-    box.outerHTML = '<div class="card" id="grHelpers"><div class="panel-empty">Loading helpers…</div></div>';
+    box.outerHTML = `<div class="card" id="grHelpers">${helpersView.cid === c.cycle_id && helpersView.html ? helpersView.html : '<div class="panel-empty">Loading helpers…</div>'}</div>`;
     renderHelpers(c);
   } else if (G.panel === 'scoring') {
     box.outerHTML = '<div id="grScoring"><div class="card panel-empty">Loading scores…</div></div>';

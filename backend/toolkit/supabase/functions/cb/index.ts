@@ -1044,13 +1044,17 @@ export async function handle(req, db, env = {}, http = fetch) {
           } catch (_) { /* no dedupe table yet: carry on */ }
         } }
       if (p9.length !== 9 && !okBodyEmail) return json({ ok: true, matched: 0, why: 'no mobile or email' });
-      // ---- A 4th Dan+ student answering the black belt grading helper text (prep-update-27): "2" books them into that
-      //      session (never past its cap of 6), "no / can't" is noted. Anything else carries on as a normal reply. ----
+      // ---- A 4th Dan+ student answering the black belt grading helper text (prep-update-27, -28): "2", "1 and 3", "3, 1",
+      //      "all" books them into those sessions (never past a session's cap of 6), "no / can't" is noted.
+      //      Anything else carries on as a normal reply. ----
       if (p9.length === 9) {
         let hs = [];
-        try { const { data } = await db.from('prep_helpers').select('cycle_id, student_id, offered_slots, senior').not('offered_at', 'is', null).is('slot_id', null).is('declined_at', null); hs = data || []; } catch (_) { /* no helper tables */ }
-        const num = msg.match(/^\s*(?:(?:option|number|no\.?|session)\s*|#)?([1-9])(?=[\s.,!?)]|$)/i), noWay = /^\s*(no\b|nope|can'?t|cannot|unable|not available|sorry,? (?:i|we) can'?t)/i.test(msg);
-        if (hs.length && (num || noWay)) {
+        try { const { data } = await db.from('prep_helpers').select('cycle_id, student_id, offered_slots, senior, slot_ids').not('offered_at', 'is', null).is('declined_at', null); hs = (data || []).filter(h => !(h.slot_ids || []).length); } catch (_) { /* no helper tables */ }
+        const nums = /^\s*(?:(?:options?|numbers?|sessions?|no\.?)\s*|#)?[1-9](?:\s*(?:,|&|\+|\/|and|or|then)?\s*(?:(?:options?|numbers?|sessions?)\s*)?[1-9])*\s*(?:please|pls|thanks?|thank you|cheers)?\s*[.!]*\s*$/i.test(msg)
+          ? [...new Set((msg.match(/[1-9]/g) || []).map(Number))] : null;
+        const allOf = /^\s*(all|all of them|all three|all 3|every one|everything|both)\b/i.test(msg);
+        const noWay = /^\s*(no\b|nope|can'?t|cannot|unable|not available|sorry,? (?:i|we) can'?t)/i.test(msg);
+        if (hs.length && (nums || allOf || noWay)) {
           const { data: ps } = await db.from('prep_students').select('student_id, full_name, contact_phone, contact_email').in('student_id', hs.map(h => h.student_id));
           const stu = (ps || []).find(x => String(x.contact_phone || '').replace(/\D/g, '').slice(-9) === p9), h = stu && hs.find(x => x.student_id === stu.student_id);
           if (h) {
@@ -1063,31 +1067,36 @@ export async function handle(req, db, env = {}, http = fetch) {
               if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return env.GHL_TEST === '1';
               try { const cid = await contactFor({ full_name: stu.full_name, email: stu.contact_email }, phone); await sendSms(cid, text); return true; } catch (_) { return false; }
             };
-            const nowIso = new Date().toISOString();
-            if (noWay && !num) {
+            const nowIso = new Date().toISOString(), offered = (h.offered_slots || []).filter(id => (slots || []).some(x => x.slot_id === id));
+            const labels = ids => { const l = (slots || []).filter(x => ids.includes(x.slot_id)).map(x => x.label.replace(/ session$/, '')); return l.length <= 1 ? (l[0] || '') + ' session' : l.slice(0, -1).join(', ') + ' and ' + l[l.length - 1] + ' sessions'; };
+            if (noWay && !nums && !allOf) {
               await db.from('prep_helpers').update({ declined_at: nowIso, reply_text: msg.slice(0, 300), updated_at: nowIso }).eq('cycle_id', h.cycle_id).eq('student_id', h.student_id);
               await reply(`No worries, ${fn}, thanks for letting us know. - AMA`);
               return json({ ok: true, helper: 'declined' });
             }
-            const sid = (h.offered_slots || [])[Number(num[1]) - 1], slot = (slots || []).find(x => x.slot_id === sid);
-            if (slot) {
-              const { data: res } = await db.rpc('prep_helper_claim', { p_cycle: h.cycle_id, p_student: h.student_id, p_slot: sid, p_reply: msg.slice(0, 300), p_by: 'reply', p_balance: true });
-              if (res === 'ok') {
-                await reply(`Thanks ${fn}! You're helping at the ${slot.label}${day ? ' on ' + day : ''} at AMA Sydenham.${sword} See you there! - AMA`);
-                return json({ ok: true, helper: 'ok', slot: slot.slot_id });
-              }
-              if (res !== 'full' && res !== 'uneven') return json({ ok: true, helper: res });
+            if (allOf && /^\s*both\b/i.test(msg) && offered.length !== 2) return json({ ok: true, helper: 'unclear' });
+            const want = allOf ? offered : (nums || []).map(n => offered[n - 1]).filter(Boolean);
+            const bad = allOf ? [] : (nums || []).filter(n => !offered[n - 1]);
+            let res = { ok: [], full: [], uneven: [] };
+            if (want.length) { const { data } = await db.rpc('prep_helper_claim', { p_cycle: h.cycle_id, p_student: h.student_id, p_slots: want, p_reply: msg.slice(0, 300), p_by: 'reply', p_balance: want.length === 1 }); res = data || res; }
+            const got = res.ok || [], missed = [...(res.full || []), ...(res.uneven || [])];
+            if (got.length) {
+              let tpl = "Thanks {first_name}! You're helping at the {sessions} on {day} at AMA Sydenham.{full_note}{sword} See you there! - AMA";
+              try { const { data: hset } = await db.from('prep_helper_settings').select('confirm_text').eq('id', 1).maybeSingle(); if (hset && String(hset.confirm_text || '').trim()) tpl = hset.confirm_text; } catch (_) { /* default wording */ }
+              const fill = { first_name: fn, sessions: labels(got), day, sword, full_note: missed.length ? ` The ${labels(missed)} ${missed.length > 1 ? 'are' : 'is'} already full.` : '' };
+              await reply(String(tpl).replace(/\{(\w+)\}/g, (m, k) => (fill[k] != null ? fill[k] : '')).replace(/ on  at /, ' at ').trim());
+              return json({ ok: true, helper: 'ok', slots: got, full: missed });
             }
-            // That session just filled (or the number wasn't one of the choices): offer what still has room
-            const { data: all } = await db.from('prep_helpers').select('student_id, slot_id, senior').eq('cycle_id', h.cycle_id);
-            const cnt = x => (all || []).filter(r => r.slot_id === x.slot_id && r.student_id !== h.student_id && r.senior !== false).length;
+            // Nothing booked: those sessions have just filled (or the numbers weren't choices). Offer what still needs helpers.
+            const { data: all } = await db.from('prep_helpers').select('student_id, slot_ids, senior').eq('cycle_id', h.cycle_id);
+            const cnt = x => (all || []).filter(r => (r.slot_ids || []).includes(x.slot_id) && r.student_id !== h.student_id && r.senior !== false).length;
             const roomAll = (slots || []).filter(x => cnt(x) < (x.cap ?? 6)), lowN = roomAll.length ? Math.min(...roomAll.map(cnt)) : 0;
             const room = h.senior === false ? (slots || []) : roomAll.filter(x => cnt(x) === lowN);   // 4th Dan+ sessions fill evenly; other helpers any session
             if (!room.length) { await reply(`Sorry ${fn}, every helper session is now full. We'll be in touch if a spot opens up. - AMA`); return json({ ok: true, helper: 'all_full' }); }
             await db.from('prep_helpers').update({ offered_slots: room.map(x => x.slot_id), updated_at: nowIso }).eq('cycle_id', h.cycle_id).eq('student_id', h.student_id);
-            const nums = room.length === 1 ? 'Reply 1' : `Reply ${room.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${room.length}`;
-            await reply(`Sorry ${fn}, ${slot ? 'that session now has enough helpers' : "that isn't one of the choices"}. These sessions still need helpers:\n${room.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${nums} to choose. - AMA`);
-            return json({ ok: true, helper: slot ? 'full' : 'not_a_choice' });
+            const ask = room.length === 1 ? 'Reply 1 to help' : `Reply with the number of each session you can do (e.g. ${room.length >= 3 ? '1 and 3' : '1 and 2'}, or just one)`;
+            await reply(`Sorry ${fn}, ${missed.length ? (missed.length > 1 ? 'those sessions now have' : 'that session now has') + ' enough helpers' : (bad.length ? "that isn't one of the choices" : 'that session now has enough helpers')}. These sessions still need helpers:\n${room.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${ask}. - AMA`);
+            return json({ ok: true, helper: missed.length ? 'full' : 'not_a_choice' });
           }
         }
       }

@@ -138,16 +138,20 @@ function makeDb(tables) {
     t: tables,
     rpc: async (fn, a) => {
       if (fn === 'cb_cron_ok') return { data: a.p_secret === 'cron-secret', error: null };
-      if (fn === 'prep_helper_claim') {   // same rules as prep-update-27.sql: never past the session's cap
-        const sl = (tables.prep_helper_slots || []).find(x => x.slot_id === a.p_slot && x.cycle_id === a.p_cycle); if (!sl) return { data: 'no_slot', error: null };
-        const hs = tables.prep_helpers = tables.prep_helpers || [];
+      if (fn === 'prep_helper_claim') {   // same rules as prep-update-28.sql: each session on its own, never past its cap
+        const hs = tables.prep_helpers = tables.prep_helpers || [], sl = tables.prep_helper_slots || [];
         const me0 = hs.find(x => x.cycle_id === a.p_cycle && x.student_id === a.p_student), sen = !me0 || me0.senior !== false;
-        if (sen && hs.filter(h => h.slot_id === a.p_slot && h.student_id !== a.p_student && h.senior !== false).length >= sl.cap) return { data: 'full', error: null };
-        if (a.p_balance && sen) { const c = x => hs.filter(h => h.slot_id === x.slot_id && h.student_id !== a.p_student && h.senior !== false).length; const room = tables.prep_helper_slots.filter(x => x.cycle_id === a.p_cycle && c(x) < x.cap); if (room.length && c(sl) > Math.min(...room.map(c))) return { data: 'uneven', error: null }; }
-        const h = hs.find(x => x.cycle_id === a.p_cycle && x.student_id === a.p_student);
-        const patch = { slot_id: a.p_slot, confirmed_at: new Date().toISOString(), declined_at: null, reply_text: a.p_reply, set_by: a.p_by };
-        if (h) Object.assign(h, patch); else hs.push({ cycle_id: a.p_cycle, student_id: a.p_student, ...patch });
-        return { data: 'ok', error: null };
+        let mine = [...((me0 && me0.slot_ids) || [])]; const out = { ok: [], full: [], uneven: [] };
+        const cnt = id => hs.filter(h => (h.slot_ids || []).includes(id) && h.student_id !== a.p_student && h.senior !== false).length;
+        for (const id of [...new Set(a.p_slots)]) {
+          const s0 = sl.find(x => x.slot_id === id && x.cycle_id === a.p_cycle); if (!s0) continue;
+          if (mine.includes(id)) { out.ok.push(id); continue; }
+          if (sen && cnt(id) >= s0.cap) { out.full.push(id); continue; }
+          if (a.p_balance && sen && a.p_slots.length === 1) { const room = sl.filter(x => x.cycle_id === a.p_cycle && cnt(x.slot_id) < x.cap); if (room.length && cnt(id) > Math.min(...room.map(x => cnt(x.slot_id)))) { out.uneven.push(id); continue; } }
+          mine.push(id); out.ok.push(id);
+        }
+        if (out.ok.length) { const patch = { slot_ids: mine, confirmed_at: new Date().toISOString(), declined_at: null, reply_text: a.p_reply, set_by: a.p_by }; if (me0) Object.assign(me0, patch); else hs.push({ cycle_id: a.p_cycle, student_id: a.p_student, ...patch }); }
+        return { data: out, error: null };
       }
       return { data: null, error: null };
     },
@@ -528,36 +532,52 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
     T.prep_helper_slots = [{ slot_id: 'H1', cycle_id: 'C1', label: '8:00am session', grading_date: '2026-12-05', cap: 6, sort: 1 }, { slot_id: 'H2', cycle_id: 'C1', label: '12:00pm session', grading_date: '2026-12-05', cap: 1, sort: 2 }, { slot_id: 'H3', cycle_id: 'C1', label: '3:30pm session', grading_date: '2026-12-05', cap: 6, sort: 3 }];
     T.prep_students = [{ student_id: 'B1', full_name: 'Bella Up', contact_phone: '0499 111 222' }, { student_id: 'B2', full_name: 'Kat Gal', contact_phone: '0499 333 444' }];
     T.prep_overview = [{ cycle_id: 'C1', student_id: 'B1', grading_to: '4th Dan' }, { cycle_id: 'C1', student_id: 'B2', grading_to: '4th Dan Level 1' }];
-    T.prep_helpers = [{ cycle_id: 'C1', student_id: 'B1', offered_at: '2026-11-13T08:00:00Z', offered_slots: ['H1', 'H2', 'H3'], slot_id: null, declined_at: null },
-                      { cycle_id: 'C1', student_id: 'B2', offered_at: '2026-11-13T08:00:00Z', offered_slots: ['H1', 'H2', 'H3'], slot_id: null, declined_at: null }];
+    T.prep_helpers = [{ cycle_id: 'C1', student_id: 'B1', offered_at: '2026-11-13T08:00:00Z', offered_slots: ['H1', 'H2', 'H3'], slot_ids: [], declined_at: null },
+                      { cycle_id: 'C1', student_id: 'B2', offered_at: '2026-11-13T08:00:00Z', offered_slots: ['H1', 'H2', 'H3'], slot_ids: [], declined_at: null }];
     return makeDb(T); };
   Date.now = realNow;
   { const x = setup(), k = ghlCalls.length;
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '2' });
     const tx = smsN().slice(-1)[0];
-    ok(r.body.helper === 'ok' && x.t.prep_helpers[0].slot_id === 'H2' && x.t.prep_helpers[0].confirmed_at, 'replying 2 books them into the second session');
+    ok(r.body.helper === 'ok' && (x.t.prep_helpers[0].slot_ids || []).join() === 'H2' && x.t.prep_helpers[0].confirmed_at, 'replying 2 books them into the second session');
     ok(ghlCalls.length > k && /You're helping at the 12:00pm session on Saturday 5 December at AMA Sydenham\. You'll be presented your 4th Dan sword/.test(tx.body.message), '...and texts a confirmation with the sword line');
     const k2 = ghlCalls.length, r2 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
     const tx2 = smsN().slice(-1)[0];
-    ok(r2.body.helper === 'full' && !x.t.prep_helpers[1].slot_id && ghlCalls.length > k2 && /now has enough helpers\. These sessions still need helpers:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx2.body.message), 'a full session is never overbooked: they get the sessions that still have room');
+    ok(r2.body.helper === 'full' && !(x.t.prep_helpers[1].slot_ids || []).length && ghlCalls.length > k2 && /now has enough helpers\. These sessions still need helpers:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx2.body.message), 'a full session is never overbooked: they get the sessions that still have room');
     const r3x = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
     ok(r3x.body.duplicate, 'the same "2" delivered again straight away is ignored');
     x.t.cb_reply_seen.forEach(r => { r.seen_at = new Date(Date.now() - 120e3).toISOString(); });   // two minutes later
     const r3 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
-    ok(r3.body.helper === 'ok' && x.t.prep_helpers[1].slot_id === 'H3', '...but a "2" a couple of minutes later is read against the new list');
+    ok(r3.body.helper === 'ok' && (x.t.prep_helpers[1].slot_ids || []).join() === 'H3', '...but a "2" a couple of minutes later is read against the new list');
   }
-  { const x = setup(); x.t.prep_helper_slots[1].cap = 6; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_id: 'H2' });
+  { const x = setup(); x.t.prep_helper_slots[1].cap = 6; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_ids: ['H2'] });
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '2' });
     const tx = ghlCalls.filter(c => c.body && c.body.type === 'SMS').slice(-1)[0];
-    ok(r.body.helper === 'full' && !x.t.prep_helpers[0].slot_id && /These sessions still need helpers:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx.body.message), 'sessions fill evenly: one already ahead is not taken, the emptier ones are offered'); }
-  { const x = setup(); x.t.prep_helpers[1].senior = false; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_id: 'H2' });   // 12:00pm (cap 1) is full of 4th Dans
+    ok(r.body.helper === 'full' && !(x.t.prep_helpers[0].slot_ids || []).length && /These sessions still need helpers:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx.body.message), 'sessions fill evenly: one already ahead is not taken, the emptier ones are offered'); }
+  { const x = setup(); x.t.prep_helpers[1].senior = false; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_ids: ['H2'] });   // 12:00pm (cap 1) is full of 4th Dans
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
-    ok(r.body.helper === 'ok' && x.t.prep_helpers[1].slot_id === 'H2', "a helper who isn't going for 4th Dan doesn't count towards the cap: they can still take a full session"); }
+    ok(r.body.helper === 'ok' && (x.t.prep_helpers[1].slot_ids || []).join() === 'H2', "a helper who isn't going for 4th Dan doesn't count towards the cap: they can still take a full session"); }
+  // More than one session, in any order
+  { const x = setup(); x.t.prep_helper_slots[1].cap = 6;
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '3 and 1' });
+    const tx = ghlCalls.filter(c => c.body && c.body.type === 'SMS').slice(-1)[0];
+    ok(r.body.helper === 'ok' && x.t.prep_helpers[0].slot_ids.slice().sort().join() === 'H1,H3' && /helping at the 8:00am and 3:30pm sessions on Saturday 5 December/.test(tx.body.message), '"3 and 1" books both sessions, in any order');
+    const r2 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: 'All of them' });
+    ok(r2.body.helper === 'ok' && x.t.prep_helpers[1].slot_ids.length === 3, '"all of them" books every session offered'); }
+  { const x = setup();   // 12:00pm (cap 1) is taken
+    x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_ids: ['H2'] });
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '2, 3' });
+    const tx = ghlCalls.filter(c => c.body && c.body.type === 'SMS').slice(-1)[0];
+    ok(r.body.helper === 'ok' && x.t.prep_helpers[0].slot_ids.join() === 'H3' && /helping at the 3:30pm session.*The 12:00pm session is already full/.test(tx.body.message), 'one full and one free: booked into the free one, and told the other is full'); }
+  { const x = setup(); x.t.prep_helper_settings = [{ id: 1, confirm_text: 'Legend {first_name}, see you at the {sessions}.' }];
+    await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '1' });
+    const tx = ghlCalls.filter(c => c.body && c.body.type === 'SMS').slice(-1)[0];
+    ok(tx.body.message === 'Legend Bella, see you at the 8:00am session.', 'the confirmation wording from Helper settings is used'); }
   { const x = setup();
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: "Sorry I can't make it that day" });
-    ok(r.body.helper === 'declined' && x.t.prep_helpers[1].declined_at && !x.t.prep_helpers[1].slot_id, '"can\'t make it" is noted as can\'t help');
+    ok(r.body.helper === 'declined' && x.t.prep_helpers[1].declined_at && !(x.t.prep_helpers[1].slot_ids || []).length, '"can\'t make it" is noted as can\'t help');
     const r2 = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: 'What time do I need to be there?' });
-    ok(!r2.body.helper && !x.t.prep_helpers[0].slot_id, 'any other reply carries on as a normal reply'); }
+    ok(!r2.body.helper && !(x.t.prep_helpers[0].slot_ids || []).length, 'any other reply carries on as a normal reply'); }
 }
 Date.now = realNow;
 

@@ -164,21 +164,25 @@ export function fill4dan(body, v, needsEssay) {
   return stripEssay(body, needsEssay).replace(/\{(\w+)\}/g, (m, k) => (map[k] != null ? map[k] : ''));
 }
 
-// The grading helper invitation (prep-update-27). Three wordings:
+// The grading helper invitation (prep-update-27, -28). Three wordings, editable in the app (prep_helper_settings):
 //  - going for 4th Dan: their sword is presented in front of everyone at the grading they help at
 //  - going for a 4th Dan level or 5th Dan and above: a senior black belt
 //  - anyone else staff choose to ask
+// Fields: {first_name} {day} {sessions} (numbered list) {reply} (how to answer) {sword}.
+export const HELPER_DEFAULTS = {
+  invite_4th: "Hi {first_name}, as part of your 4th Dan grading, we'd love your help at the black belt grading on {day} at AMA Sydenham.{sword} Which sessions can you help at?\n{sessions}\n{reply}. - AMA",
+  invite_senior: "Hi {first_name}, as one of our senior black belts, we'd love your help at the black belt grading on {day} at AMA Sydenham. Your experience on the floor makes a real difference to the students grading. Which sessions can you help at?\n{sessions}\n{reply}. - AMA",
+  invite_other: "Hi {first_name}, we'd love your help at the black belt grading on {day} at AMA Sydenham. Helping out is a great way to give back, and seeing a grading from the other side is great experience for your own. Which sessions can you help at?\n{sessions}\n{reply}. - AMA",
+};
 export const helperDay = slots => { const ds = [...new Set((slots || []).map(x => String(x.grading_date || '').slice(0, 10)).filter(Boolean))]; return ds.length === 1 ? longDate(ds[0]) : ''; };
 export const swordLine = target => /^4th Dan$/.test(String(target || '').trim()) ? " You'll be presented your 4th Dan sword in front of everyone at the grading you help at." : '';
-export function helperInvite({ first_name, target, slots }) {
-  const day = helperDay(slots), nums = slots.length === 1 ? 'Reply 1' : `Reply ${slots.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${slots.length}`;
-  const where = `the black belt grading${day ? ' on ' + day : ''} at AMA Sydenham`;
-  const list = `${slots.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${nums} to choose. - AMA`;
-  if (/^4th Dan$/.test(String(target || '').trim()))
-    return `Hi ${first_name}, as part of your 4th Dan grading, we'd love your help at ${where}.${swordLine(target)} Which session can you help at?\n${list}`;
-  if (bb4thPlus(target))
-    return `Hi ${first_name}, as one of our senior black belts, we'd love your help at ${where}. Your experience on the floor makes a real difference to the students grading. Which session can you help at?\n${list}`;
-  return `Hi ${first_name}, we'd love your help at ${where}. Helping out is a great way to give back, and seeing a grading from the other side is great experience for your own. Which session can you help at?\n${list}`;
+export const helperReplyHint = n => n === 1 ? 'Reply 1 to help' : `Reply with the number of each session you can do (e.g. ${n >= 3 ? '1 and 3' : '1 and 2'}, or just one)`;
+export function helperInvite({ first_name, target, slots, settings }) {
+  const t = { ...HELPER_DEFAULTS, ...Object.fromEntries(Object.entries(settings || {}).filter(([, v]) => v && String(v).trim())) };
+  const tpl = /^4th Dan$/.test(String(target || '').trim()) ? t.invite_4th : bb4thPlus(target) ? t.invite_senior : t.invite_other;
+  const day = helperDay(slots);
+  const v = { first_name, day, sessions: slots.map((x, i) => `${i + 1}. ${x.label}`).join('\n'), reply: helperReplyHint(slots.length), sword: swordLine(target) };
+  return String(tpl).replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : '')).replace(/ on  at /, ' at ').replace(/[ \t]+\n/g, '\n').trim();
 }
 
 export async function handle(req, db, env = {}, http = fetch) {
@@ -333,7 +337,8 @@ export async function handle(req, db, env = {}, http = fetch) {
 
     // ---- Staff: text one student asking them to help at the black belt grading (prep-update-27) ----
     // 4th Dan and above: offered the emptiest sessions with room (max 6 each, filling evenly). Anyone else staff choose:
-    // every session, their own wording, and they don't count towards the 6. { preview: true } returns the text without sending.
+    // every session, their own wording, and they don't count towards the 6. { slots: [...] } offers just those sessions;
+    // { options: true } lists the sessions and the suggested ones; { preview: true } returns the text without sending.
     if (body.action === 'helper_send') {
       const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
       const { data: who } = token ? await db.auth.getUser(token) : { data: null };
@@ -352,14 +357,20 @@ export async function handle(req, db, env = {}, http = fetch) {
       const phone = phoneE164(s.contact_phone);
       if (!phone) return fail('No mobile on file for ' + s.full_name + '.');
       const { data: slots } = await db.from('prep_helper_slots').select('*').eq('cycle_id', cycle).order('sort');
-      const { data: hs } = await db.from('prep_helpers').select('student_id, slot_id, senior').eq('cycle_id', cycle);
-      const taken = id => (hs || []).filter(h => h.slot_id === id && h.student_id !== student_id && h.senior !== false).length;
+      const { data: hs } = await db.from('prep_helpers').select('student_id, slot_ids, senior').eq('cycle_id', cycle);
+      const taken = id => (hs || []).filter(h => (h.slot_ids || []).includes(id) && h.student_id !== student_id && h.senior !== false).length;
       // Sessions fill evenly: only the ones with the fewest helpers (and room) are offered
       const withRoom = (slots || []).filter(x => taken(x.slot_id) < (x.cap ?? 6));
       if (senior && !withRoom.length) return fail('Every helper session is full.', 409);
-      const low = Math.min(...withRoom.map(x => taken(x.slot_id))), open = senior ? withRoom.filter(x => taken(x.slot_id) === low) : (slots || []);
+      const low = Math.min(...withRoom.map(x => taken(x.slot_id))), suggested = senior ? withRoom.filter(x => taken(x.slot_id) === low) : (slots || []);
+      // Staff can pick exactly which sessions to offer (e.g. only 1 and 2); a full session is never offered to a 4th Dan+ student
+      const picked = Array.isArray(body.slots) && body.slots.length ? (senior ? withRoom : (slots || [])).filter(x => body.slots.includes(x.slot_id)) : null;
+      if (picked && !picked.length) return fail('Those sessions are full. Pick another one.', 409);
+      const open = picked || suggested;
       if (!open.length) return fail('No helper sessions are set up.', 409);
-      const text = helperInvite({ first_name: first(s.full_name), target, slots: open });
+      if (body.options) return json({ ok: true, senior, suggested: suggested.map(x => x.slot_id), slots: (slots || []).map(x => ({ slot_id: x.slot_id, label: x.label, taken: taken(x.slot_id), cap: x.cap ?? 6, full: senior && taken(x.slot_id) >= (x.cap ?? 6) })) });
+      let hset = null; try { ({ data: hset } = await db.from('prep_helper_settings').select('*').eq('id', 1).maybeSingle()); } catch (_) { /* defaults */ }
+      const text = helperInvite({ first_name: first(s.full_name), target, slots: open, settings: hset });
       if (body.preview) return json({ ok: true, preview: true, text });
       const cid = await contactFor({ full_name: s.full_name, email: s.contact_email, phone });
       if (!(testing && !ready)) await sendSms(cid, text);

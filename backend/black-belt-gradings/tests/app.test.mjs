@@ -41,7 +41,7 @@ await db.exec(read(join(here, '../supabase/prep-update-13.sql')));
 await db.exec(read(join(here, '../supabase/prep-update-14.sql')));
 // Later updates the page now uses (polos, nurture, essays allowed late, scoring); 20 needs pg_cron, 23 and 24 need the coloured belt tables
 await db.exec(`create or replace function public.gen_random_bytes(n int) returns bytea language sql volatile as $$ select substring(decode(md5(random()::text) || md5(random()::text) || md5(random()::text) || md5(random()::text) || md5(random()::text), 'hex') from 1 for n) $$`);   // pgcrypto stand-in
-for (const i of [15, 16, 17, 18, 19, 21, 22, 25, 27]) await db.exec(read(join(here, `../supabase/prep-update-${i}.sql`)));
+for (const i of [15, 16, 17, 18, 19, 21, 22, 25, 27, 28]) await db.exec(read(join(here, `../supabase/prep-update-${i}.sql`)));
 await db.exec(`insert into prep_roles (email, role) values ('att@ama.test','attendance'), ('view@ama.test','viewer');
   update prep_settings set default_session_fee = 120;
   insert into prep_dan_counters (target_rank, next_number) values ('Probationary Black Belt', 501), ('1st Dan Black Belt', 701);`);
@@ -1176,10 +1176,24 @@ try {
     const txt = await page.textContent('#grHelpers');
     ok(/Grading helpers/.test(txt) && txt.includes(s0.full_name) && /8:00am session/.test(txt) && /3:30pm session/.test(txt) && /0 \/ 6/.test(txt), 'Helpers shows the 4th Dan+ students and the three sessions (max 6)');
     await page.selectOption(`[data-hset="${s0.student_id}"]`, { label: '12:00pm session (0/6)' }); await settle(page); await page.waitForTimeout(600);
-    const hr = (await q(`select h.set_by, sl.label from prep_helpers h join prep_helper_slots sl using (slot_id) where h.student_id = $1`, [s0.student_id]))[0];
+    const hr = (await q(`select h.set_by, sl.label from prep_helpers h join prep_helper_slots sl on sl.slot_id = any(h.slot_ids) where h.student_id = $1`, [s0.student_id]))[0];
     ok(hr && hr.label === '12:00pm session' && hr.set_by === 'owner@ama.test', 'staff can put a helper into a session by hand');
     ok(/1 \/ 6/.test(await page.textContent('#grHelpers')), 'the session shows who is helping');
+    await page.selectOption(`[data-hset="${s0.student_id}"]`, { label: '3:30pm session (0/6)' }); await settle(page); await page.waitForTimeout(600);
+    const two = (await q(`select cardinality(slot_ids) n from prep_helpers where student_id = $1`, [s0.student_id]))[0];
+    ok(two && two.n === 2, 'a helper can be in more than one session');
     await shot(page, 'grading-helpers');
+    ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'the Helpers tab fits a phone screen (no sideways scrolling)');
+    // Settings: change a session's max and the 4th Dan wording
+    await page.click('#hSettings'); await page.waitForSelector('#hSave', { timeout: 5000 });
+    await page.fill('#hRows [data-hrow="2"] [data-hf="cap"]', '4');
+    await page.fill('#ht_invite_4th', 'Hi {first_name}, help us on {day}?{sword}\n{sessions}\n{reply}.');
+    ok((await page.textContent('[data-hprev="invite_4th"]')).startsWith('Hi Sam, help us on'), 'the wording preview fills in the fields');
+    await shot(page, 'grading-helpers-settings');
+    await page.$eval('#hSave', b => b.click()); await page.waitForTimeout(800);
+    const cap3 = (await q(`select cap from prep_helper_slots where cycle_id = $1 and label = '3:30pm session'`, [c0.cycle_id]))[0];
+    const w = (await q(`select invite_4th from prep_helper_settings where id = 1`))[0];
+    ok(cap3 && cap3.cap === 4 && w && w.invite_4th.startsWith('Hi {first_name}, help us on'), 'Helper settings saves the sessions and the wording');
     await ctx.close();
   }
 

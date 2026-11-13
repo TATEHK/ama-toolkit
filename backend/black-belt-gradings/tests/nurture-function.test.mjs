@@ -241,12 +241,12 @@ ok(eo3.ok && eo3.essay === true, 'essay-only works when called with a booking me
                       { cycle_id: 'C1', student_id: 'S8', full_name: 'Kat Gal', is_grading: true, grading_to: '4th Dan Level 1', grading_fee_status: 'paid' });
   t.prep_students.push({ student_id: 'S9', full_name: 'Bella Up', contact_phone: '0412000009', contact_email: 'b@test' }, { student_id: 'S8', full_name: 'Kat Gal', contact_phone: '0412000008' });
   t.prep_helper_slots = [{ slot_id: 'H1', cycle_id: 'C1', label: '8:00am session', grading_date: '2026-12-05', cap: 6, sort: 1 }, { slot_id: 'H2', cycle_id: 'C1', label: '12:00pm session', grading_date: '2026-12-05', cap: 6, sort: 2 }, { slot_id: 'H3', cycle_id: 'C1', label: '3:30pm session', grading_date: '2026-12-05', cap: 1, sort: 3 }];
-  t.prep_helpers = [{ cycle_id: 'C1', student_id: 'S2', slot_id: 'H3' }];   // the 3:30pm session (cap 1 here) is full
+  t.prep_helpers = [{ cycle_id: 'C1', student_id: 'S2', slot_ids: ['H3'] }];   // the 3:30pm session (cap 1 here) is full
   const hsend = (body, tok = 'tok-grader') => handle(new Request('https://x/', { method: 'POST', headers: { authorization: 'Bearer ' + tok }, body: JSON.stringify({ action: 'helper_send', cycle: 'C1', ...body }) }), db, env, http);
   ghlCalls = [];
   const r = await (await hsend({ student_id: 'S9' })).json();
   const sms = sentSms().find(c => /help at the black belt grading/.test(c.body.message));
-  ok(r.ok && sms && /on Saturday 5 December at AMA Sydenham/.test(sms.body.message) && /1\. 8:00am session\n2\. 12:00pm session\nReply 1 or 2 to choose/.test(sms.body.message) && !/3:30pm/.test(sms.body.message), 'the helper text lists only the sessions with room, numbered');
+  ok(r.ok && sms && /on Saturday 5 December at AMA Sydenham/.test(sms.body.message) && /1\. 8:00am session\n2\. 12:00pm session\nReply with the number of each session you can do \(e\.g\. 1 and 2, or just one\)/.test(sms.body.message) && !/3:30pm/.test(sms.body.message), 'the helper text lists only the sessions with room, numbered');
   ok(/presented your 4th Dan sword in front of everyone at the grading you help at/.test(sms.body.message), 'going for 4th Dan: the text says their sword is presented at the grading they help at');
   const h = t.prep_helpers.find(x => x.student_id === 'S9');
   ok(h && h.offered_at && h.offered_slots.join() === 'H1,H2', 'the offer and its numbering are saved');
@@ -261,10 +261,24 @@ ok(eo3.ok && eo3.essay === true, 'essay-only works when called with a booking me
   ghlCalls = [];
   const pv = await (await hsend({ student_id: 'S8', preview: true })).json();
   ok(pv.preview && /senior black belts/.test(pv.text) && !sentSms().length, 'preview returns the text without sending it');
-  t.prep_helpers.push({ cycle_id: 'C1', student_id: 'X1', slot_id: 'H1' });   // 8:00am now has 1, 12:00pm 0
+  t.prep_helpers.push({ cycle_id: 'C1', student_id: 'X1', slot_ids: ['H1'] });   // 8:00am now has 1, 12:00pm 0
   ghlCalls = [];
   await hsend({ student_id: 'S9' });
-  ok(/1\. 12:00pm session\nReply 1 to choose/.test(sentSms()[0].body.message), 'sessions fill evenly: only the emptiest session with room is offered');
+  ok(/1\. 12:00pm session\nReply 1 to help/.test(sentSms()[0].body.message), 'sessions fill evenly: only the emptiest session with room is offered');
+  t.prep_helper_settings = [{ id: 1, invite_4th: 'Yo {first_name}! Help on {day}?{sword}\n{sessions}\n{reply}.', invite_senior: '', invite_other: '', confirm_text: '' }];
+  ghlCalls = [];
+  const pv2 = await (await hsend({ student_id: 'S9', preview: true })).json();
+  ok(/^Yo Bella! Help on Saturday 5 December\? You'll be presented your 4th Dan sword/.test(pv2.text) && /\n1\. 12:00pm session\nReply 1 to help\.$/.test(pv2.text), 'the wording set in Helper settings is used, with its fields filled in');
+  const pv3 = await (await hsend({ student_id: 'S8', preview: true })).json();
+  ok(/senior black belts/.test(pv3.text), 'a wording left blank in settings falls back to the original');
+  ghlCalls = [];
+  t.prep_helper_settings = [];
+  const op = await (await hsend({ student_id: 'S9', options: true })).json();
+  ok(op.senior && op.suggested.join() === 'H2' && op.slots.find(x => x.slot_id === 'H3').full, 'options: lists the sessions, which are suggested, and which are full');
+  await hsend({ student_id: 'S9', slots: ['H1', 'H2'] });
+  ok(/1\. 8:00am session\n2\. 12:00pm session\nReply with the number/.test(sentSms()[0].body.message) && t.prep_helpers.find(x => x.student_id === 'S9').offered_slots.join() === 'H1,H2', 'staff can choose exactly which sessions to offer (just 1 and 2)');
+  const rf = await (await hsend({ student_id: 'S9', slots: ['H3'] })).json();
+  ok(rf.error && /full/.test(rf.error), 'a full session is never offered to a 4th Dan+ student, even if picked');
   const r4 = await (await hsend({ student_id: 'S9' }, 'nope')).json();
   ok(r4.error, 'staff only'); }
 console.log(`\n${passed} passed, ${failed} failed`);
