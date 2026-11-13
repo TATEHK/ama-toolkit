@@ -1200,22 +1200,41 @@ function secondGrading(e) {
   const nb = beltOf(e.belt_to, state.programme), toBelt = nb && nb.next_belt, toProg = (nb && nb.next_programme) || null;
   if (!toBelt) return toast(`There's no belt after ${short(e.belt_to)} to grade for.`, 5000);
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-  const days = state.days.filter(d => !d.closed && String(d.grading_date) >= today && d.day_id !== e.day_id && (!d.belts || !d.belts.length || d.belts.includes(e.belt_to)))
+  const hosts = (d, belt) => !d.belts || !d.belts.length || d.belts.includes(belt);
+  const curDay = dayOf(e.day_id);
+  // Offer open future days (not their current one) that can host either belt in the pair, so the two gradings can be put in date order.
+  const days = state.days.filter(d => !d.closed && String(d.grading_date) >= today && d.day_id !== e.day_id && (hosts(d, e.belt_from) || hosts(d, e.belt_to)))
     .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || (a.location || '').localeCompare(b.location || ''));
-  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Second grading &mdash; ${esc(e.full_name)}</h3><p class="sub">After ${esc(short(e.belt_to))}, grading for <b>${esc(short(withProg(toBelt, toProg)))}</b></p></div><button class="x" data-close>Close</button></div>
-    <p class="hint">Puts them forward for a second grading this cycle, on another day. They get their own booking link and fee for it.</p>
-    <div class="field"><label class="label" for="sgDay">Grading day</label>
-      <select id="sgDay">${days.length ? '<option value="">Choose a day&hellip;</option>' + days.map(d => `<option value="${esc(d.day_id)}">${esc(fmtDate(d.grading_date))} &mdash; ${esc(schoolLabel(d.location))}, ${esc(beltsText(d))}</option>`).join('') : `<option value="">No open day handles ${esc(short(e.belt_to))}</option>`}</select></div>
+  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Second grading &mdash; ${esc(e.full_name)}</h3><p class="sub">${esc(short(e.belt_from))} &rarr; ${esc(short(e.belt_to))} and ${esc(short(e.belt_to))} &rarr; <b>${esc(short(withProg(toBelt, toProg)))}</b></p></div><button class="x" data-close>Close</button></div>
+    <p class="hint">Puts them forward for a second grading this cycle. The lower belt goes on the earlier date and the next belt on the later date &mdash; so they never grade the higher belt first. Each gets its own booking link and fee.</p>
+    <div class="field"><label class="label" for="sgDay">Other grading day</label>
+      <select id="sgDay">${days.length ? '<option value="">Choose a day&hellip;</option>' + days.map(d => `<option value="${esc(d.day_id)}">${esc(fmtDate(d.grading_date))} &mdash; ${esc(schoolLabel(d.location))}, ${esc(beltsText(d))}</option>`).join('') : `<option value="">No other open day for these belts</option>`}</select></div>
     <div class="dlg-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="sgAdd"${days.length ? '' : ' disabled'}>Add second grading</button></div></div>`);
   const add = $('#sgAdd'); if (add) add.onclick = async () => {
     const dayId = $('#sgDay').value; if (!dayId) return toast('Choose a day.');
     if (state.all.entries.some(x => x.day_id === dayId && x.member_key === e.member_key)) return toast('They are already on that day.', 5000);
+    const nd = dayOf(dayId), chosenEarlier = String(nd.grading_date) < String(curDay.grading_date);
     try {
-      const rows = await run(sb.from('cb_entries').insert({ day_id: dayId, member_key: e.member_key, full_name: e.full_name, belt_from: e.belt_to, belt_to: toBelt, to_programme: toProg }).select(), 'Second grading added');
-      (rows || []).forEach(r => { if (!state.all.entries.some(x => x.entry_id === r.entry_id)) state.all.entries.push(r); });
-      applyProgramme(); const nd = dayOf(dayId); dlg.close(); render();
-      const ne = state.all.entries.find(x => x.day_id === dayId && x.member_key === e.member_key);
-      if (ne) composeTexts('invite', [{ member_key: ne.member_key, entry_id: ne.entry_id, e: ne, s: student(ne.member_key), d: nd }]);   // send its booking link
+      let highDay;
+      if (!chosenEarlier) {
+        // Chosen day is later (or same): it holds the higher belt; their current grading stays as the lower belt.
+        const rows = await run(sb.from('cb_entries').insert({ day_id: dayId, member_key: e.member_key, full_name: e.full_name, belt_from: e.belt_to, belt_to: toBelt, to_programme: toProg }).select(), 'Second grading added');
+        (rows || []).forEach(r => { if (!state.all.entries.some(x => x.entry_id === r.entry_id)) state.all.entries.push(r); });
+        highDay = dayId;
+      } else {
+        // Chosen day is earlier: keep the LOWER belt on that earlier day and put the next belt on the later (current) day.
+        if (e.booked_at || e.paid) return toast(`They're already booked for ${fmtDate(curDay.grading_date)}; move that grading to the earlier date first, then add the second.`, 8000);
+        if (!hosts(nd, e.belt_from)) return toast(`${fmtDate(nd.grading_date)} doesn't grade ${short(e.belt_from)}, so it can't be their first grading.`, 8000);
+        if (!hosts(curDay, e.belt_to)) return toast(`${fmtDate(curDay.grading_date)} doesn't grade ${short(e.belt_to)}, so it can't hold the next belt.`, 8000);
+        await run(sb.from('cb_entries').update({ day_id: dayId, moved_from_day: e.day_id }).eq('entry_id', e.entry_id));   // lower belt -> earlier day
+        Object.assign(e, { day_id: dayId, moved_from_day: e.day_id });
+        const rows = await run(sb.from('cb_entries').insert({ day_id: curDay.day_id, member_key: e.member_key, full_name: e.full_name, belt_from: e.belt_to, belt_to: toBelt, to_programme: toProg }).select(), 'Second grading added (put in date order)');   // next belt -> later day
+        (rows || []).forEach(r => { if (!state.all.entries.some(x => x.entry_id === r.entry_id)) state.all.entries.push(r); });
+        highDay = curDay.day_id;
+      }
+      applyProgramme(); dlg.close(); render();
+      const hd = dayOf(highDay), ne = state.all.entries.find(x => x.day_id === highDay && x.member_key === e.member_key && x.belt_from === e.belt_to);
+      if (ne) composeTexts('invite', [{ member_key: ne.member_key, entry_id: ne.entry_id, e: ne, s: student(ne.member_key), d: hd }]);   // send the next-belt booking link
     } catch (er) { toast(errMsg(er), 6000); }
   };
 }
