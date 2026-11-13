@@ -1225,17 +1225,15 @@ function secondGrading(e) {
         // Chosen day is earlier: keep the LOWER belt on that earlier day and put the next belt on the later (current) day.
         if (!hosts(nd, e.belt_from)) return toast(`${fmtDate(nd.grading_date)} doesn't grade ${short(e.belt_from)}, so it can't be their first grading.`, 8000);
         if (!hosts(curDay, e.belt_to)) return toast(`${fmtDate(curDay.grading_date)} doesn't grade ${short(e.belt_to)}, so it can't hold the next belt.`, 8000);
-        // If they're already booked/paid for the day we're moving them off, their EFC booking has to move too — flag it so staff re-book in EFC.
-        const rebook = (e.booked_at || e.paid) ? { efc_rebook_at: new Date().toISOString() } : {};
-        await run(sb.from('cb_entries').update({ day_id: dayId, moved_from_day: e.day_id, ...rebook }).eq('entry_id', e.entry_id));   // lower belt -> earlier day
-        Object.assign(e, { day_id: dayId, moved_from_day: e.day_id, ...rebook });
+        // They keep their existing booking/payment on the entry; they attend that session plus the second one, so EFC needs no change.
+        await run(sb.from('cb_entries').update({ day_id: dayId, moved_from_day: e.day_id }).eq('entry_id', e.entry_id));   // lower belt -> earlier day
+        Object.assign(e, { day_id: dayId, moved_from_day: e.day_id });
         const rows = await run(sb.from('cb_entries').insert({ day_id: curDay.day_id, member_key: e.member_key, full_name: e.full_name, belt_from: e.belt_to, belt_to: toBelt, to_programme: toProg }).select(), 'Second grading added (put in date order)');   // next belt -> later day
         (rows || []).forEach(r => { if (!state.all.entries.some(x => x.entry_id === r.entry_id)) state.all.entries.push(r); });
         lowEntry = e; highDay = curDay.day_id;
       }
       applyProgramme(); dlg.close(); render();
       const highEntry = state.all.entries.find(x => x.day_id === highDay && x.member_key === e.member_key && x.belt_from === e.belt_to);
-      if (lowEntry.efc_rebook_at) toast(`Moved ${lowEntry.full_name}'s ${short(lowEntry.belt_from)} grading to ${fmtDate(dayOf(lowEntry.day_id).grading_date)}. They've paid, so move them to that day's session in EFC, then press ‘Booked in EFC’ on their entry.`, 9000);
       if (highEntry) doubleText(lowEntry, highEntry);   // one message covering both gradings
     } catch (er) { toast(errMsg(er), 6000); }
   };
@@ -1293,8 +1291,7 @@ function openEntry(id) {
   const e = state.entries.find(x => x.entry_id === id); if (!e) return;
   const d = dayOf(e.day_id), s = student(e.member_key);
   const at = iso => new Date(iso).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' });
-  const booking = e.efc_rebook_at ? `<span class="bad-text">Moved to this day for a double grading. They've already paid, so in EFC cancel their old session booking and book this day's session, then press ‘Booked in EFC’.</span>`
-    : e.efc_by_hand && e.booked_at ? (e.efc_by_hand_done_at ? `Booked by hand in EFC, ${at(e.efc_by_hand_done_at)}` : `<span class="bad-text">Booked here, but they're from ${esc(s ? schoolLabel(s.location) : 'another school')}, so EFC can't book them automatically. Book them in EFC by hand, then press Done in EFC.</span>`)
+  const booking = e.efc_by_hand && e.booked_at ? (e.efc_by_hand_done_at ? `Booked by hand in EFC, ${at(e.efc_by_hand_done_at)}` : `<span class="bad-text">Booked here, but they're from ${esc(s ? schoolLabel(s.location) : 'another school')}, so EFC can't book them automatically. Book them in EFC by hand, then press Done in EFC.</span>`)
     : e.booked_at ? `Booked ${at(e.booked_at)}` : e.booking_error ? `<span class="bad-text">Failed: ${esc(e.booking_error)}${e.paid ? '. They have paid, so book them in EFC by hand, then press Mark booked.' : ''}</span>` : e.yes_at ? `Said YES ${at(e.yes_at)}, booking link sent, not booked yet` : e.invited_at ? `Invited ${at(e.invited_at)}, not booked yet${e.reply_text ? '. Replied: “' + esc(e.reply_text) + '”' : ''}` : 'Not invited yet';
   openDlg(`<div class="dlg">
     <div class="dlg-head"><div><h3>${esc(e.full_name)}</h3><p class="sub">${swatch(e.belt_from)} ${esc(e.belt_from)} to <b>${esc(toText(e))}</b></p></div><button class="x" data-close>Close</button></div>
@@ -1307,7 +1304,6 @@ function openEntry(id) {
     </dl>
     <div class="row">
       ${canPay() && !e.paid ? '<button class="btn primary" id="recordPay">Record payment</button>' : ''}
-      ${canDays() && e.efc_rebook_at ? '<button class="btn primary" id="rebookDone">Booked in EFC</button>' : ''}
       ${canDays() && e.efc_by_hand && !e.efc_by_hand_done_at ? '<button class="btn primary" id="byHandDone">Done in EFC</button>' : ''}
       ${canDays() && !e.booked_at ? '<button class="btn" id="markBooked">Mark booked</button>' : ''}
       ${canPay() && e.paid && e.paid_how !== 'card' ? '<button class="btn" id="paidBtn">Mark unpaid</button>' : ''}
@@ -1347,7 +1343,6 @@ function openEntry(id) {
   const bg = $('#backOnGrading'); if (bg) bg.onclick = () => change({ cant_make_at: null, cant_make_reason: null, ...(/^Can't make grading/.test(e.seq_stopped_why || '') ? { seq_stopped_at: null, seq_stopped_why: null } : {}) }, 'Back on grading');
   const sg = $('#secondGrading'); if (sg) sg.onclick = () => secondGrading(e);
   const p = $('#paidBtn'); if (p) p.onclick = async () => { try { await run(sb.rpc('cb_set_paid', { p_entry: e.entry_id, p_paid: false }), 'Marked unpaid'); Object.assign(e, { paid: false, paid_at: null, paid_how: null }); render(); openEntry(id); } catch (er) { toast(errMsg(er), 6000); } };
-  const rbd = $('#rebookDone'); if (rbd) rbd.onclick = () => change({ efc_rebook_at: null }, 'Marked re-booked in EFC');
   const bh = $('#byHandDone'); if (bh) bh.onclick = () => change({ efc_by_hand_done_at: new Date().toISOString() }, 'Ticked off');
   const mb = $('#markBooked'); if (mb) mb.onclick = () => change({ booked_at: new Date().toISOString(), booking_error: null }, 'Marked booked');
   const u = $('#unbook'); if (u) u.onclick = () => change({ booked_at: null }, 'Booking cleared (cancel it in EFC too)');
