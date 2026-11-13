@@ -1183,6 +1183,8 @@ try {
     const two = (await q(`select cardinality(slot_ids) n from prep_helpers where student_id = $1`, [s0.student_id]))[0];
     ok(two && two.n === 2, 'a helper can be in more than one session');
     await shot(page, 'grading-helpers');
+    await page.reload(); await page.waitForSelector('#grHelpers .day-head', { timeout: 10000 }).catch(() => {});
+    ok(page.url().endsWith('#grading/helpers') && await page.isVisible('#grHelpers'), 'refreshing the page stays on the Helpers tab');
     ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'the Helpers tab fits a phone screen (no sideways scrolling)');
     // Settings: change a session's max and the 4th Dan wording
     await page.click('#hSettings'); await page.waitForSelector('#hSave', { timeout: 5000 });

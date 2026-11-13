@@ -1065,11 +1065,13 @@ function fromHash() {
   const p = location.hash.replace(/^#\/?/, '').split('/').map(x => { try { return decodeURIComponent(x); } catch (e) { return x; } });
   const k = (p[0] || '').toLowerCase();
   if (k === 'student' && p[1]) return { v: 'students', student: p[1] };
+  if (k === 'grading' && p[1]) return { v: 'grading', panel: p[1].toLowerCase() };   // #grading/helpers: a refresh stays on that panel
   return { v: VIEWS.includes(k) ? k : 'dashboard' };
 }
 function route() {
   if (!state.loaded) return;
   const r = fromHash();
+  if (r.panel && state.gr.panel !== r.panel) { state.gr.panel = r.panel; if (r.v === state.view) render(); }
   if (r.v !== state.view) showView(r.v, true);
   if (r.student && student(r.student)) openStudent(r.student);
 }
@@ -1077,7 +1079,8 @@ window.addEventListener('popstate', route);
 window.addEventListener('hashchange', route);
 function showView(v, fromAddress) {
   state.view = v;
-  if (!fromAddress && location.hash !== '#' + v) { try { history.pushState(null, '', '#' + v); } catch (e) { /* ignore */ } }
+  const addr = v === 'grading' && state.gr.panel && state.gr.panel !== 'candidates' ? 'grading/' + state.gr.panel : v;
+  if (!fromAddress && location.hash !== '#' + addr) { try { history.pushState(null, '', '#' + addr); } catch (e) { /* ignore */ } }
   $$('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.view === v || (t.dataset.view === 'attendance' && v === 'checkin') || (t.dataset.view === 'more' && ['cycles', 'payments', 'readiness', 'certificates', 'reports', 'essays', 'polos'].includes(v)))));
   $$('#app > .view').forEach(s => s.hidden = s.id !== 'view-' + v);
   if (v !== 'attendance') stopSelecting();
@@ -3764,7 +3767,9 @@ function renderGrading() {
     <div id="grPanel"></div>`;
   $('#grCycle').onchange = e => { G.cycle = e.target.value; stopGrSelect(); renderGrading(); };
   $$('#view-grading [data-grp]').forEach(b => b.onclick = () => { G.filter = b.dataset.grp; G.panel = 'candidates'; renderGrading(); });
-  $$('#view-grading [data-grpanel]').forEach(b => b.onclick = () => { G.panel = b.dataset.grpanel; if (G.panel !== 'candidates') stopGrSelect(); renderGrading(); });
+  $$('#view-grading [data-grpanel]').forEach(b => b.onclick = () => { G.panel = b.dataset.grpanel; if (G.panel !== 'candidates') stopGrSelect();
+    try { history.replaceState(null, '', '#' + (G.panel === 'candidates' ? 'grading' : 'grading/' + G.panel)); } catch (e) { /* ignore */ }   // a refresh stays on this panel
+    renderGrading(); });
   $('#grList').onclick = () => openGradingList(G.cycle);
   const gt = $('#grText'); if (gt) gt.onclick = () => openTexts(G.cycle, canText('invite') ? 'invite' : 'not_ready');
   const box = $('#grPanel');
@@ -5219,6 +5224,7 @@ async function start() {
   $('#view-dashboard').innerHTML = '<p class="muted">Loading...</p>';
   try { await loadAll(); } catch (e) { toast('Could not load: ' + errMsg(e), 8000); return; }
   const r = fromHash();   // open on the screen in the address (a bookmark or shared link)
+  if (r.panel) state.gr.panel = r.panel;
   if (r.v !== 'dashboard') $('#view-dashboard').innerHTML = '';   // drawn when it's opened
   showView(r.v, true);
   if (!location.hash) { try { history.replaceState(null, '', '#' + r.v); } catch (e) { /* ignore */ } }
