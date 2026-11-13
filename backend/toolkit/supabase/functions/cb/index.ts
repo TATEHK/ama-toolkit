@@ -624,6 +624,50 @@ export async function handle(req, db, env = {}, http = fetch) {
     const { data: belt } = await db.from('cb_belts').select('fee').eq('programme', (d && d.programme) || 'Taekwondo').eq('belt', e.belt_from).maybeSingle();
     return belt && belt.fee != null ? Number(belt.fee) : null;
   };
+  // All of a student's gradings still to come (this one plus any second grading in the same cycle), oldest first,
+  // so a confirmation can list both. Each: belt, date, time, school, status, and a book-and-pay link if not done yet.
+  const upcomingFor = async member_key => {
+    try {
+      const sydToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+      const { data: mine } = await db.from('cb_entries').select('day_id, belt_to, paid, booked_at, token, result').eq('member_key', member_key).is('result', null);
+      const dayIds = [...new Set((mine || []).map(x => x.day_id))];
+      const { data: dys } = dayIds.length ? await db.from('cb_days').select('day_id, grading_date, start_time, belt_times, location, bb, closed').in('day_id', dayIds) : { data: [] };
+      const dmap = {}; (dys || []).forEach(x => { dmap[x.day_id] = x; });
+      return (mine || []).map(x => ({ x, dd: dmap[x.day_id] })).filter(o => o.dd && !o.dd.closed && String(o.dd.grading_date) >= sydToday)
+        .sort((a, b) => String(a.dd.grading_date).localeCompare(String(b.dd.grading_date)))
+        .map(({ x, dd }) => { const tt = entryTime(dd, x); return { belt: x.belt_to, when: longDay(dd.grading_date), time: tt ? clock(tt) : '', where: whereOf(x, dd),
+          status: x.paid ? 'Paid' : x.booked_at ? 'Booked' : 'Not booked yet', link: (!x.paid && !x.booked_at && x.token) ? SITE + 'b#' + x.token : '' }; });
+    } catch (er) { console.error('upcoming', er); return []; }
+  };
+  // Automatic confirmation text (once each): 'sms_booked' or 'sms_paid'. Mirrors the email; lists both for a double grading. Never stops a booking/payment if it fails.
+  const confirmSms = async (e, d, kind, extra = {}) => {
+    try {
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return;
+      const { data: sent } = await db.from('cb_messages').select('status').eq('entry_id', e.entry_id).eq('kind', kind).eq('status', 'sent').maybeSingle();
+      if (sent) return;
+      const { data: m } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email').eq('member_key', e.member_key).maybeSingle();
+      const phone = phoneE164((m && m.phone) || (m && m.guardian_phone));
+      if (!phone) return;
+      const sbelt = x => String(x || '').replace(/ Belt$/, '');
+      const self = selfOf(m), who = self ? 'your' : (first(e.full_name) + "'s");
+      const paid = kind === 'sms_paid';
+      const et = entryTime(d, e), when = longDay(d.grading_date) + (et ? ' at ' + clock(et) : '');
+      const lead = paid ? `Thanks! Payment received for ${who} ${sbelt(e.belt_from)} to ${sbelt(e.belt_to)} grading on ${when}, AMA ${whereOf(e, d)}.`
+        : `${self ? "You're" : first(e.full_name) + ' is'} booked in to grade ${sbelt(e.belt_from)} to ${sbelt(e.belt_to)} on ${when}, AMA ${whereOf(e, d)}.`;
+      const up = await upcomingFor(e.member_key);
+      const extra2 = up.length > 1
+        ? ' ' + (self ? 'Your' : 'Their') + ' gradings: ' + up.map(u => `${sbelt(u.belt)} ${u.when}${u.time ? ' ' + u.time : ''} (${u.status === 'Not booked yet' && u.link ? 'book & pay: ' + u.link : u.status})`).join('; ') + '.'
+        : '';
+      const body = (lead + extra2 + ' See you there - AMA').replace(/ {2,}/g, ' ').trim();
+      const log = (status, more = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind, body, status, sent_by: 'automatic', ...more });
+      try {
+        const cid = await contactFor({ ...m }, phone);
+        if (!cid) throw new Error('Could not find or add the contact');
+        await sendSms(cid, body);
+        await log('sent');
+      } catch (er) { await log('failed', { error: String(er.message || er).slice(0, 500) }); }
+    } catch (er) { console.error('confirmSms', er); }
+  };
   // Automatic confirmation emails (once each): 'email_booked' or 'email_paid'. Never stops a booking or payment if it fails.
   const confirmEmail = async (e, d, kind, extra = {}) => {
     try {
@@ -637,19 +681,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const when = new Date(d.grading_date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       const et = entryTime(d, e); const t = et ? String(et).slice(0, 5).split(':').map(Number) : null;
       const HOW = { card: 'card', cash: 'cash', eftpos: 'EFTPOS', transfer: 'bank transfer', other: '' };
-      // All of this student's gradings still to come (this one plus any second grading in the same cycle), oldest first, so the email can list both.
-      let upcoming = [];
-      try {
-        const sydToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-        const { data: mine } = await db.from('cb_entries').select('day_id, belt_to, paid, booked_at, token, result').eq('member_key', e.member_key).is('result', null);
-        const dayIds = [...new Set((mine || []).map(x => x.day_id))];
-        const { data: dys } = dayIds.length ? await db.from('cb_days').select('day_id, grading_date, start_time, belt_times, location, bb, closed').in('day_id', dayIds) : { data: [] };
-        const dmap = {}; (dys || []).forEach(x => { dmap[x.day_id] = x; });
-        upcoming = (mine || []).map(x => ({ x, dd: dmap[x.day_id] })).filter(o => o.dd && !o.dd.closed && String(o.dd.grading_date) >= sydToday)
-          .sort((a, b) => String(a.dd.grading_date).localeCompare(String(b.dd.grading_date)))
-          .map(({ x, dd }) => { const tt = entryTime(dd, x); return { belt: x.belt_to, when: longDay(dd.grading_date), time: tt ? clock(tt) : '', where: whereOf(x, dd),
-            status: x.paid ? 'Paid' : x.booked_at ? 'Booked' : 'Not booked yet', link: (!x.paid && !x.booked_at && x.token) ? SITE + 'b#' + x.token : '' }; });
-      } catch (er) { console.error('upcoming', er); upcoming = []; }
+      const upcoming = await upcomingFor(e.member_key);   // this one plus any second grading, so the email can list both
       const { subject, html, text } = buildEmail(kind, { parent: first(m.guardian_name) || 'there', kid: first(e.full_name), student: e.full_name, belt: e.belt_to, school: whereOf(e, d),
         when, time: t ? `${((t[0] + 11) % 12) + 1}:${String(t[1]).padStart(2, '0')}${t[0] < 12 ? 'am' : 'pm'}` : '', amount: extra.amount, how: HOW[e.paid_how] || '',
         receipt: extra.receipt || null, phone: (cs && cs.contact_phone) || '(02) 9569 1943', bring: cs && cs.email_bring, upcoming });
@@ -745,6 +777,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb').eq('day_id', e.day_id).maybeSingle();
       if (d && !e.booked_at) await bookEntry(e, d);
       if (d) await confirmEmail(e, d, 'email_paid', { amount: (s.amount_total || 0) / 100, receipt });
+      if (d) await confirmSms(e, d, 'sms_paid');
       // Staff alert: text a set number once this entry's fee is paid (one-off payment links), sent only once
       if (e.notify_paid_to && !e.notify_paid_sent_at) {
         try {
@@ -969,6 +1002,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (b.notSetUp) return json({ ...info, ok: false, error: 'Online booking isn\'t set up for this grading yet. Please contact the front desk.' });
         if (!b.ok) return json({ ...info, ok: false, error: 'We couldn\'t book it just now. Please try again in a minute, or contact the front desk.' }, 502);
         await confirmEmail(e, d, 'email_booked');
+        await confirmSms(e, d, 'sms_booked');
         return json({ ...info, booked: true });
       }
       // Pay by card
@@ -1558,6 +1592,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb').eq('day_id', e.day_id).maybeSingle();
       if (d && !e.booked_at) b = await bookEntry(e, d);
       if (d) await confirmEmail(e, d, 'email_paid', { amount: await feeFor(e, d) });
+      if (d) await confirmSms(e, d, 'sms_paid');
       return json({ ok: true, booked: !!b.ok, byHand: !!b.byHand, booking_error: b.ok ? null : (b.why || null) });
     }
     // The booking sequence: "Send test to me" for any step (grading staff), with a real student's details or a sample
