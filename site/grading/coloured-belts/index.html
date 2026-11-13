@@ -1280,8 +1280,10 @@ function openEntry(id) {
   const rp = $('#recordPay'); if (rp) rp.onclick = () => recordPayment(e);
   const ec = $('#editContact'); if (ec) ec.onclick = () => editContact(e.member_key, () => openEntry(id));
   const eb = $('#editBelt'); if (eb) eb.onclick = () => editBelt(e);
-  const cm = $('#cantMake'); if (cm) cm.onclick = () => change({ cant_make_at: new Date().toISOString(), cant_make_reason: 'by_hand' }, 'Added to Can\'t make grading');
-  const bg = $('#backOnGrading'); if (bg) bg.onclick = () => change({ cant_make_at: null, cant_make_reason: null }, 'Back on grading');
+  // Can't make grading also stops their automatic reminder texts; Back on grading starts them again (only if it was this that stopped them)
+  const CANT_STOP = "Can't make grading (marked by staff)";
+  const cm = $('#cantMake'); if (cm) cm.onclick = () => change({ cant_make_at: new Date().toISOString(), cant_make_reason: 'by_hand', ...(e.seq_stopped_at ? {} : { seq_stopped_at: new Date().toISOString(), seq_stopped_why: CANT_STOP }) }, 'Added to Can\'t make grading, reminder texts stopped');
+  const bg = $('#backOnGrading'); if (bg) bg.onclick = () => change({ cant_make_at: null, cant_make_reason: null, ...(/^Can't make grading/.test(e.seq_stopped_why || '') ? { seq_stopped_at: null, seq_stopped_why: null } : {}) }, 'Back on grading');
   const sg = $('#secondGrading'); if (sg) sg.onclick = () => secondGrading(e);
   const p = $('#paidBtn'); if (p) p.onclick = async () => { try { await run(sb.rpc('cb_set_paid', { p_entry: e.entry_id, p_paid: false }), 'Marked unpaid'); Object.assign(e, { paid: false, paid_at: null, paid_how: null }); render(); openEntry(id); } catch (er) { toast(errMsg(er), 6000); } };
   const bh = $('#byHandDone'); if (bh) bh.onclick = () => change({ efc_by_hand_done_at: new Date().toISOString() }, 'Ticked off');
@@ -1824,8 +1826,9 @@ async function cantMakeAdd() {
     for (const id of ids) {
       const e = state.all.entries.find(x => x.entry_id === id); if (!e) continue;
       if (state.all.entries.some(x => x.day_id === dayId && x.member_key === e.member_key && x.entry_id !== id)) { toast(`${e.full_name} is already on that day — skipped`, 5000); continue; }
-      await run(sb.from('cb_entries').update({ day_id: dayId, moved_from_day: e.day_id, cant_make_at: null, cant_make_reason: null, alt_offer: null, seq_paused_until: null, invited_at: nowIso, yes_at: null }).eq('entry_id', id));
-      Object.assign(e, { day_id: dayId, moved_from_day: e.day_id, cant_make_at: null, cant_make_reason: null, invited_at: nowIso, yes_at: null });
+      const restart = /^Can't make grading/.test(e.seq_stopped_why || '') ? { seq_stopped_at: null, seq_stopped_why: null } : {};
+      await run(sb.from('cb_entries').update({ day_id: dayId, moved_from_day: e.day_id, cant_make_at: null, cant_make_reason: null, alt_offer: null, seq_paused_until: null, invited_at: nowIso, yes_at: null, ...restart }).eq('entry_id', id));
+      Object.assign(e, { day_id: dayId, moved_from_day: e.day_id, cant_make_at: null, cant_make_reason: null, invited_at: nowIso, yes_at: null, ...restart });
       moved.push(e);
     }
     applyProgramme();
