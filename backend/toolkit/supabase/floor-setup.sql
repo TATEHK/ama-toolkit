@@ -76,7 +76,8 @@ begin
              jsonb_agg(distinct e.belt_from) filter (where e.paid and e.belt_from is not null) belts
       from public.cb_entries e where e.day_id = d.day_id
     ) c on true
-    where d.closed is not true and d.grading_date >= current_date - 1 and c.n > 0);
+    where d.closed is not true and coalesce(d.bb,false) = false
+      and d.grading_date >= current_date - 1 and c.n > 0);
 end $$;
 
 create or replace function public.cb_floor_load(p_day uuid)

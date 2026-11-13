@@ -35,7 +35,7 @@ button{font-family:inherit;color:inherit;cursor:pointer}
 .bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--panel);z-index:31}
 .bar .wrap{display:flex;align-items:center;gap:14px;min-height:62px}
-.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.brand{display:flex;align-items:center;gap:11px;min-width:0;cursor:pointer}
 .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:16px;flex:none}
 .brand b{font-family:"Barlow Semi Condensed";font-weight:600;font-size:17px;line-height:1;display:block}
 .brand small{color:var(--ink-3);font-size:12px;font-weight:500}
@@ -380,7 +380,7 @@ body[data-role="signin"]{overflow:hidden}
   </div>
 </div>
 <div class="bar"><div class="wrap">
-  <div class="brand"><div class="logo">A</div><div><b>Grading Floor</b><small id="dayLabel">—</small></div></div>
+  <div class="brand" id="brand" title="Switch grading day" role="button"><div class="logo">A</div><div><b>Grading Floor</b><small id="dayLabel">—</small></div></div>
   <div class="bar-sp"></div>
   <div class="roleseg" id="roleSeg"><button data-role="signin">Sign-in</button><button data-role="sarah">Sarah</button><button data-role="master">Master</button><button data-role="admin">Admin</button><button data-role="super" class="supr">Super</button></div>
   <button class="pill code" id="codePill" hidden title="Check-in code — enter it on a check-in station">Code <b id="codeVal">—</b></button>
@@ -834,7 +834,8 @@ function loadGroups(gs) {
 async function loadDay(dayId) {
   loading = true; DAYID = dayId;
   const { data, error } = await sb.rpc('cb_floor_load', { p_day: dayId });
-  if (error || !data) { loading = false; return toast('Could not load the grading day.', 6000); }
+  if (error || !data || !data.day) { loading = false; DAYID = null; try { localStorage.removeItem('cb_floor_day'); } catch (e) {} showDays(); return false; }
+  try { localStorage.setItem('cb_floor_day', dayId); } catch (e) {}   // remember the picked day across refreshes
   DAYINFO = data.day || {}; CODE = DAYINFO.checkin_code || null;
   if (!CODE) { const { data: c } = await sb.rpc('cb_floor_set_code', { p_day: dayId }); if (c) CODE = c; }
   showCode();
@@ -879,8 +880,12 @@ async function boot() {
   canSuper = (ME === SUPER_EMAIL);
   if (!canSuper) { const sx = $('#roleSeg [data-role="super"]'); if (sx) sx.remove(); if (state.role === 'super') state.role = 'admin'; }
   if (!PERMS.length) { $('#gate').hidden = false; $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gateMsg').textContent = "You don't have Coloured Belts access yet."; $('#dayList').innerHTML = ''; return; }
-  showDays();
+  let saved = ''; try { saved = localStorage.getItem('cb_floor_day') || ''; } catch (e) {}
+  if (saved) { loadDay(saved); } else { showDays(); }   // reopen the day you were on, across refreshes
 }
+// reopen the day picker (to switch grading days)
+function openPicker() { if (pollT) clearInterval(pollT); $('#gate').hidden = false; showDays(); }
+$('#brand').onclick = openPicker;
 $('#siForm').addEventListener('submit', async e => {
   e.preventDefault(); const go = $('#siGo'); go.disabled = true; go.textContent = 'Signing in…'; $('#siErr').hidden = true;
   const { error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
@@ -895,7 +900,7 @@ $('#codePill').onclick = () => {
   const url = location.origin + '/grading/check-in';
   toast(`Check-in code ${CODE} — open ${url} on each station and enter it`, 6000);
 };
-$('#gateOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('#gateOut').onclick = async () => { try { localStorage.removeItem('cb_floor_day'); } catch (e) {} await sb.auth.signOut(); location.reload(); };
 boot();
 </script>
 </body>
