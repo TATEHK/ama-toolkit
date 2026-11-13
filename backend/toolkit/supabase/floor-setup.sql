@@ -9,7 +9,9 @@
 --               the kiosk pairs to a day by code, and students tap their name to mark arrival and
 --               see their group cone. Anon, gated only by the code.
 --
--- Groups are generated from the full expected roster so every booked student has a cone BEFORE they
+-- The floor and the kiosk only ever include students who have PAID (cb_entries.paid): groups, the
+-- roster, the day-picker counts, the check-in feed and the mark action are all paid-only.
+-- Groups are generated from the full paid roster so every paid student has a cone BEFORE they
 -- arrive; check-in only marks arrival, it never reshuffles the cones.
 --
 -- Idempotent: safe to re-run. Permission helper cb_has_cb is defined in the hub setup and repeated
@@ -66,10 +68,12 @@ begin
   end if;
   return (select coalesce(jsonb_agg(jsonb_build_object(
       'day_id',d.day_id,'date',d.grading_date,'location',d.location,'start_time',d.start_time,
-      'entries',c.n,'code',d.checkin_code,'belts',coalesce(c.belts,'[]'::jsonb)) order by d.grading_date, d.location),'[]'::jsonb)
+      'entries',c.np,'code',d.checkin_code,'belts',coalesce(c.belts,'[]'::jsonb)) order by d.grading_date, d.location),'[]'::jsonb)
     from public.cb_days d
     left join lateral (
-      select count(*) n, jsonb_agg(distinct e.belt_from) filter (where e.belt_from is not null) belts
+      select count(*) n,
+             count(*) filter (where e.paid) np,
+             jsonb_agg(distinct e.belt_from) filter (where e.paid and e.belt_from is not null) belts
       from public.cb_entries e where e.day_id = d.day_id
     ) c on true
     where d.closed is not true and d.grading_date >= current_date - 1 and c.n > 0);
@@ -104,7 +108,7 @@ begin
           'score', (select jsonb_build_object('scores',sc.scores,'pattern',sc.pattern,'ticks',sc.ticks) from public.cb_scores sc where sc.entry_id = e.entry_id)
         ) s
         from public.cb_entries e left join public.efc_members m on m.member_key = e.member_key
-        where e.day_id = p_day
+        where e.day_id = p_day and e.paid
       ) q)
   ) into out;
   return out;
@@ -212,7 +216,7 @@ begin
         'cone', (select g.cone from public.cb_groups g where g.day_id = d.day_id and g.slots @> to_jsonb(e.entry_id::text) limit 1),
         'checked_in', e.checked_in_at is not null
       ) order by e.full_name), '[]'::jsonb)
-      from public.cb_entries e left join public.efc_members m on m.member_key = e.member_key where e.day_id = d.day_id)
+      from public.cb_entries e left join public.efc_members m on m.member_key = e.member_key where e.day_id = d.day_id and e.paid)
   ) into out;
   return out;
 end $$;
@@ -223,7 +227,7 @@ declare d public.cb_days%rowtype; e public.cb_entries%rowtype; cone text;
 begin
   select * into d from public.cb_days where checkin_code = upper(trim(coalesce(p_code,'')));
   if not found then return jsonb_build_object('error','wrong_code'); end if;
-  select * into e from public.cb_entries where entry_id = p_entry and day_id = d.day_id;
+  select * into e from public.cb_entries where entry_id = p_entry and day_id = d.day_id and paid;
   if not found then return jsonb_build_object('error','not_found'); end if;
   if e.checked_in_at is null then update public.cb_entries set checked_in_at = now() where entry_id = e.entry_id; end if;
   select g.cone into cone from public.cb_groups g where g.day_id = d.day_id and g.slots @> to_jsonb(e.entry_id::text) limit 1;
