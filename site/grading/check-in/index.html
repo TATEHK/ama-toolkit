@@ -191,7 +191,7 @@ async function submitCode(){
   const {data,error}=await sb.rpc('cb_checkin_feed',{p_code:code});
   if(error){ $('#codeErr').textContent='Could not connect — try again.'; return; }
   if(!data || data.error){ $('#codeErr').textContent='That code isn’t right. Check the grading screen.'; codeChars=''; renderCodeBox(); return; }
-  CODE=code; try{ sessionStorage.setItem('cb_checkin_code',code); }catch(e){}
+  CODE=code; keepCode(code);
   applyFeed(data); startKiosk();
 }
 
@@ -283,7 +283,7 @@ function showDone(data,st,isErr){
 }
 function closeDone(){ clearInterval(doneT); $('#done').classList.remove('on'); q=''; renderQ(); renderResults(); }
 $('#doneBtn').onclick=closeDone;
-$('#kReset').onclick=()=>{ clearInterval(feedT); try{ sessionStorage.removeItem('cb_checkin_code'); }catch(e){} CODE=''; codeChars=''; renderCodeBox(); $('#codeErr').textContent=''; $('#kioskScreen').classList.remove('on'); $('#codeScreen').classList.add('on'); };
+$('#kReset').onclick=()=>{ clearInterval(feedT); keepCode(''); CODE=''; codeChars=''; renderCodeBox(); $('#codeErr').textContent=''; $('#kioskScreen').classList.remove('on'); $('#codeScreen').classList.add('on'); };
 
 // physical keyboard support (for a laptop station)
 addEventListener('keydown',e=>{
@@ -301,11 +301,17 @@ addEventListener('keydown',e=>{
   }
 });
 
+// Remember the grading code across refreshes (and on kiosk tablets that clear tab memory): in the address and on the device
+function keepCode(code){
+  try{ if(code) localStorage.setItem('cb_checkin_code',code); else { localStorage.removeItem('cb_checkin_code'); sessionStorage.removeItem('cb_checkin_code'); } }catch(e){}
+  try{ const u=new URL(location.href); if(code) u.searchParams.set('code',code); else u.searchParams.delete('code'); history.replaceState(null,'',u.pathname+u.search+u.hash); }catch(e){}
+}
 // ---------- boot ----------
 buildCodeKp(); renderCodeBox();
 (async()=>{
-  let saved=''; try{ saved=sessionStorage.getItem('cb_checkin_code')||''; }catch(e){}
-  if(saved){ const {data}=await sb.rpc('cb_checkin_feed',{p_code:saved}); if(data && !data.error){ CODE=saved; codeChars=saved; applyFeed(data); startKiosk(); } }
+  // Reopen the grading this station was on: from the address (?code=...) first, then this device's memory
+  let saved=''; try{ saved=(new URLSearchParams(location.search).get('code')||'').toUpperCase()||localStorage.getItem('cb_checkin_code')||sessionStorage.getItem('cb_checkin_code')||''; }catch(e){}
+  if(saved){ const {data}=await sb.rpc('cb_checkin_feed',{p_code:saved}); if(data && !data.error){ CODE=saved; codeChars=saved; keepCode(saved); applyFeed(data); startKiosk(); } else keepCode(''); }
 })();
 </script>
 </body>

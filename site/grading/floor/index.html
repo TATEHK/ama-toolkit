@@ -834,8 +834,8 @@ function loadGroups(gs) {
 async function loadDay(dayId) {
   loading = true; DAYID = dayId;
   const { data, error } = await sb.rpc('cb_floor_load', { p_day: dayId });
-  if (error || !data || !data.day) { loading = false; DAYID = null; try { localStorage.removeItem('cb_floor_day'); } catch (e) {} showDays(); return false; }
-  try { localStorage.setItem('cb_floor_day', dayId); } catch (e) {}   // remember the picked day across refreshes
+  if (error || !data || !data.day) { loading = false; DAYID = null; keepDay(''); showDays(); return false; }
+  keepDay(dayId);   // remember the picked day across refreshes (in the address and on this device)
   DAYINFO = data.day || {}; CODE = DAYINFO.checkin_code || null;
   if (!CODE) { const { data: c } = await sb.rpc('cb_floor_set_code', { p_day: dayId }); if (c) CODE = c; }
   showCode();
@@ -880,8 +880,13 @@ async function boot() {
   canSuper = (ME === SUPER_EMAIL);
   if (!canSuper) { const sx = $('#roleSeg [data-role="super"]'); if (sx) sx.remove(); if (state.role === 'super') state.role = 'admin'; }
   if (!PERMS.length) { $('#gate').hidden = false; $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gateMsg').textContent = "You don't have Coloured Belts access yet."; $('#dayList').innerHTML = ''; return; }
-  let saved = ''; try { saved = localStorage.getItem('cb_floor_day') || ''; } catch (e) {}
+  let saved = ''; try { saved = new URLSearchParams(location.search).get('day') || localStorage.getItem('cb_floor_day') || ''; } catch (e) {}
   if (saved) { loadDay(saved); } else { showDays(); }   // reopen the day you were on, across refreshes
+}
+// The grading day you're on stays across refreshes: in the address (?day=...) and on this device
+function keepDay(id) {
+  try { if (id) localStorage.setItem('cb_floor_day', id); else localStorage.removeItem('cb_floor_day'); } catch (e) {}
+  try { const u = new URL(location.href); if (id) u.searchParams.set('day', id); else u.searchParams.delete('day'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {}
 }
 // reopen the day picker (to switch grading days)
 function openPicker() { if (pollT) clearInterval(pollT); $('#gate').hidden = false; showDays(); }
@@ -900,7 +905,7 @@ $('#codePill').onclick = () => {
   const url = location.origin + '/grading/check-in';
   toast(`Check-in code ${CODE} — open ${url} on each station and enter it`, 6000);
 };
-$('#gateOut').onclick = async () => { try { localStorage.removeItem('cb_floor_day'); } catch (e) {} await sb.auth.signOut(); location.reload(); };
+$('#gateOut').onclick = async () => { keepDay(''); await sb.auth.signOut(); location.reload(); };
 boot();
 </script>
 </body>
