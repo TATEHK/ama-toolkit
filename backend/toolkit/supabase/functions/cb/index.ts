@@ -1071,20 +1071,22 @@ export async function handle(req, db, env = {}, http = fetch) {
             }
             const sid = (h.offered_slots || [])[Number(num[1]) - 1], slot = (slots || []).find(x => x.slot_id === sid);
             if (slot) {
-              const { data: res } = await db.rpc('prep_helper_claim', { p_cycle: h.cycle_id, p_student: h.student_id, p_slot: sid, p_reply: msg.slice(0, 300), p_by: 'reply' });
+              const { data: res } = await db.rpc('prep_helper_claim', { p_cycle: h.cycle_id, p_student: h.student_id, p_slot: sid, p_reply: msg.slice(0, 300), p_by: 'reply', p_balance: true });
               if (res === 'ok') {
                 await reply(`Thanks ${fn}! You're helping at the ${slot.label}${day ? ' on ' + day : ''} at AMA Sydenham.${sword} See you there! - AMA`);
                 return json({ ok: true, helper: 'ok', slot: slot.slot_id });
               }
-              if (res !== 'full') return json({ ok: true, helper: res });
+              if (res !== 'full' && res !== 'uneven') return json({ ok: true, helper: res });
             }
             // That session just filled (or the number wasn't one of the choices): offer what still has room
             const { data: all } = await db.from('prep_helpers').select('student_id, slot_id').eq('cycle_id', h.cycle_id);
-            const room = (slots || []).filter(x => (all || []).filter(r => r.slot_id === x.slot_id && r.student_id !== h.student_id).length < (x.cap ?? 6));
+            const cnt = x => (all || []).filter(r => r.slot_id === x.slot_id && r.student_id !== h.student_id).length;
+            const roomAll = (slots || []).filter(x => cnt(x) < (x.cap ?? 6)), lowN = roomAll.length ? Math.min(...roomAll.map(cnt)) : 0;
+            const room = roomAll.filter(x => cnt(x) === lowN);   // sessions fill evenly
             if (!room.length) { await reply(`Sorry ${fn}, every helper session is now full. We'll be in touch if a spot opens up. - AMA`); return json({ ok: true, helper: 'all_full' }); }
             await db.from('prep_helpers').update({ offered_slots: room.map(x => x.slot_id), updated_at: nowIso }).eq('cycle_id', h.cycle_id).eq('student_id', h.student_id);
             const nums = room.length === 1 ? 'Reply 1' : `Reply ${room.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${room.length}`;
-            await reply(`Sorry ${fn}, ${slot ? 'that session has just filled up' : "that isn't one of the choices"}. These still have room:\n${room.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${nums} to choose. - AMA`);
+            await reply(`Sorry ${fn}, ${slot ? 'that session now has enough helpers' : "that isn't one of the choices"}. These sessions still need helpers:\n${room.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${nums} to choose. - AMA`);
             return json({ ok: true, helper: slot ? 'full' : 'not_a_choice' });
           }
         }

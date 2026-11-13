@@ -344,8 +344,10 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: slots } = await db.from('prep_helper_slots').select('*').eq('cycle_id', cycle).order('sort');
       const { data: hs } = await db.from('prep_helpers').select('student_id, slot_id').eq('cycle_id', cycle);
       const taken = id => (hs || []).filter(h => h.slot_id === id && h.student_id !== student_id).length;
-      const open = (slots || []).filter(x => taken(x.slot_id) < (x.cap ?? 6));
-      if (!open.length) return fail('Every helper session is full.', 409);
+      // Sessions fill evenly: only the ones with the fewest helpers (and room) are offered
+      const withRoom = (slots || []).filter(x => taken(x.slot_id) < (x.cap ?? 6));
+      if (!withRoom.length) return fail('Every helper session is full.', 409);
+      const low = Math.min(...withRoom.map(x => taken(x.slot_id))), open = withRoom.filter(x => taken(x.slot_id) === low);
       const text = helperInvite({ first_name: first(s.full_name), target, slots: open });
       const cid = await contactFor({ full_name: s.full_name, email: s.contact_email, phone });
       if (!(testing && !ready)) await sendSms(cid, text);

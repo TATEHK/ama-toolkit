@@ -3514,7 +3514,7 @@ async function renderHelpers(c) {
   const statusOf = x => { const h = x.h; if (h && h.slot_id && slotBy[h.slot_id]) return `<span class="tag ok">Helping: ${esc(slotBy[h.slot_id].label)}</span>`; if (h && h.declined_at) return '<span class="tag">Can\'t help</span>'; if (h && h.offered_at) return `<span class="tag">Asked ${esc(fmt(h.offered_at, { day: 'numeric', month: 'short' }))}, waiting</span>`; return '<span class="tag">Not asked</span>'; };
   const helping = cands.filter(x => x.h && x.h.slot_id).length, asked = cands.filter(x => x.h && x.h.offered_at).length;
   const day = slots[0] ? fmt(slots[0].grading_date, { weekday: 'long', day: 'numeric', month: 'long' }) : '';
-  box.innerHTML = `<div class="day-head"><div><h3>Grading helpers</h3><p class="sub">Students going for 4th Dan and above help at the black belt grading${day ? ' on ' + esc(day) : ''}. Text each one when you're ready; they reply with a session number. Max 6 per session.</p></div></div>
+  box.innerHTML = `<div class="day-head"><div><h3>Grading helpers</h3><p class="sub">Students going for 4th Dan and above help at the black belt grading${day ? ' on ' + esc(day) : ''}. Text each one when you're ready; they reply with a session number. The text only offers the sessions with the fewest helpers, so they fill evenly (max 6 each).</p></div></div>
     <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
       <div class="kpi"><b>${cands.length}</b><span>4th Dan and above</span></div>
       <div class="kpi"><b>${asked}</b><span>Asked</span></div>

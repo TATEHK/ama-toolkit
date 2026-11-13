@@ -1,6 +1,6 @@
 -- prep-update-27.sql: grading helpers.
 -- Students going for 4th Dan and above help at the black belt grading day. Staff choose when to text each one; the text
--- lists the sessions that still have room ("Reply 1, 2 or 3") and the reply books them in (coloured belt reply webhook,
+-- lists the sessions with the fewest helpers (so they fill evenly) ("Reply 1, 2 or 3") and the reply books them in (coloured belt reply webhook,
 -- function cb). Each session takes at most 6 helpers. Shown in the Black Belt app: Grading > Helpers.
 
 create table if not exists public.prep_helper_slots (
@@ -42,24 +42,33 @@ do $$ declare t text; begin
 end $$;
 
 -- Put a helper into a session, never past its cap (two replies at once can't both take the last place).
--- Returns 'ok', 'full' or 'no_slot'.
-create or replace function public.prep_helper_claim(p_cycle uuid, p_student text, p_slot uuid, p_reply text default null, p_by text default 'reply')
+-- p_balance (text replies): keep the sessions even, so a session can't get ahead of the emptiest one with room by more than 1.
+-- Staff setting a session by hand only respect the cap. Returns 'ok', 'full', 'uneven' or 'no_slot'.
+drop function if exists public.prep_helper_claim(uuid, text, uuid, text, text);
+create or replace function public.prep_helper_claim(p_cycle uuid, p_student text, p_slot uuid, p_reply text default null, p_by text default 'reply', p_balance boolean default false)
 returns text language plpgsql security definer set search_path = public as $$
-declare s public.prep_helper_slots; n int;
+declare s public.prep_helper_slots; n int; low int;
 begin
   if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' and not public.prep_has_role('grading', 'calls') then raise exception 'Not allowed'; end if;
-  select * into s from public.prep_helper_slots where slot_id = p_slot and cycle_id = p_cycle for update;
+  perform 1 from public.prep_helper_slots where cycle_id = p_cycle order by slot_id for update;   -- one claim at a time per cycle
+  select * into s from public.prep_helper_slots where slot_id = p_slot and cycle_id = p_cycle;
   if not found then return 'no_slot'; end if;
   select count(*) into n from public.prep_helpers where slot_id = p_slot and student_id <> p_student;
   if n >= s.cap then return 'full'; end if;
+  if p_balance then
+    select min(c) into low from (
+      select (select count(*) from public.prep_helpers h where h.slot_id = x.slot_id and h.student_id <> p_student) c, x.cap
+      from public.prep_helper_slots x where x.cycle_id = p_cycle) t where c < cap;
+    if n > coalesce(low, n) then return 'uneven'; end if;
+  end if;
   insert into public.prep_helpers (cycle_id, student_id, slot_id, confirmed_at, declined_at, reply_text, set_by, updated_at)
   values (p_cycle, p_student, p_slot, now(), null, p_reply, p_by, now())
   on conflict (cycle_id, student_id) do update set slot_id = excluded.slot_id, confirmed_at = now(), declined_at = null,
     reply_text = coalesce(excluded.reply_text, public.prep_helpers.reply_text), set_by = excluded.set_by, updated_at = now();
   return 'ok';
 end $$;
-revoke all on function public.prep_helper_claim(uuid, text, uuid, text, text) from public, anon;
-grant execute on function public.prep_helper_claim(uuid, text, uuid, text, text) to authenticated, service_role;
+revoke all on function public.prep_helper_claim(uuid, text, uuid, text, text, boolean) from public, anon;
+grant execute on function public.prep_helper_claim(uuid, text, uuid, text, text, boolean) to authenticated, service_role;
 
 -- The December cycle's black belt grading day (Sat 5 Dec, AMA Sydenham): its three session times
 insert into public.prep_helper_slots (cycle_id, label, grading_date, start_time, sort)

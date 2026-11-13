@@ -255,6 +255,10 @@ ok(eo3.ok && eo3.essay === true, 'essay-only works when called with a booking me
   ok(sentSms().length === 1 && !/sword/.test(sentSms()[0].body.message), 'already a 4th Dan (going for a level): no sword line');
   const r3 = await (await hsend({ student_id: 'S1' })).json();
   ok(r3.error && /4th Dan/.test(r3.error), 'only students going for 4th Dan and above can be asked');
+  t.prep_helpers.push({ cycle_id: 'C1', student_id: 'X1', slot_id: 'H1' });   // 8:00am now has 1, 12:00pm 0
+  ghlCalls = [];
+  await hsend({ student_id: 'S9' });
+  ok(/1\. 12:00pm session\nReply 1 to choose/.test(sentSms()[0].body.message), 'sessions fill evenly: only the emptiest session with room is offered');
   const r4 = await (await hsend({ student_id: 'S9' }, 'nope')).json();
   ok(r4.error, 'staff only'); }
 console.log(`\n${passed} passed, ${failed} failed`);

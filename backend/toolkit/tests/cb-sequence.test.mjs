@@ -142,6 +142,7 @@ function makeDb(tables) {
         const sl = (tables.prep_helper_slots || []).find(x => x.slot_id === a.p_slot && x.cycle_id === a.p_cycle); if (!sl) return { data: 'no_slot', error: null };
         const hs = tables.prep_helpers = tables.prep_helpers || [];
         if (hs.filter(h => h.slot_id === a.p_slot && h.student_id !== a.p_student).length >= sl.cap) return { data: 'full', error: null };
+        if (a.p_balance) { const c = x => hs.filter(h => h.slot_id === x.slot_id && h.student_id !== a.p_student).length; const room = tables.prep_helper_slots.filter(x => x.cycle_id === a.p_cycle && c(x) < x.cap); if (room.length && c(sl) > Math.min(...room.map(c))) return { data: 'uneven', error: null }; }
         const h = hs.find(x => x.cycle_id === a.p_cycle && x.student_id === a.p_student);
         const patch = { slot_id: a.p_slot, confirmed_at: new Date().toISOString(), declined_at: null, reply_text: a.p_reply, set_by: a.p_by };
         if (h) Object.assign(h, patch); else hs.push({ cycle_id: a.p_cycle, student_id: a.p_student, ...patch });
@@ -537,13 +538,17 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
     ok(ghlCalls.length > k && /You're helping at the 12:00pm session on Saturday 5 December at AMA Sydenham\. You'll be presented your 4th Dan sword/.test(tx.body.message), '...and texts a confirmation with the sword line');
     const k2 = ghlCalls.length, r2 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
     const tx2 = smsN().slice(-1)[0];
-    ok(r2.body.helper === 'full' && !x.t.prep_helpers[1].slot_id && ghlCalls.length > k2 && /just filled up\. These still have room:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx2.body.message), 'a full session is never overbooked: they get the sessions that still have room');
+    ok(r2.body.helper === 'full' && !x.t.prep_helpers[1].slot_id && ghlCalls.length > k2 && /now has enough helpers\. These sessions still need helpers:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx2.body.message), 'a full session is never overbooked: they get the sessions that still have room');
     const r3x = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
     ok(r3x.body.duplicate, 'the same "2" delivered again straight away is ignored');
     x.t.cb_reply_seen.forEach(r => { r.seen_at = new Date(Date.now() - 120e3).toISOString(); });   // two minutes later
     const r3 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
     ok(r3.body.helper === 'ok' && x.t.prep_helpers[1].slot_id === 'H3', '...but a "2" a couple of minutes later is read against the new list');
   }
+  { const x = setup(); x.t.prep_helper_slots[1].cap = 6; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_id: 'H2' });
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '2' });
+    const tx = ghlCalls.filter(c => c.body && c.body.type === 'SMS').slice(-1)[0];
+    ok(r.body.helper === 'full' && !x.t.prep_helpers[0].slot_id && /These sessions still need helpers:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx.body.message), 'sessions fill evenly: one already ahead is not taken, the emptier ones are offered'); }
   { const x = setup();
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: "Sorry I can't make it that day" });
     ok(r.body.helper === 'declined' && x.t.prep_helpers[1].declined_at && !x.t.prep_helpers[1].slot_id, '"can\'t make it" is noted as can\'t help');
