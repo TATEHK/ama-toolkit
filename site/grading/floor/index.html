@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0e1116">
+<base href="/grading/floor/">
+<link rel="icon" href="../../icons/ama-id-cards.png">
+<link rel="apple-touch-icon" href="../../icons/ama-apple-touch.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../../config.js"></script>
+<script src="../../hub-signin.js"></script>
+<script src="../../idle-logout.js"></script>
+<title>Grading Floor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#15181d; --ink-2:#4b5563; --ink-3:#8b94a1;
+  --line:#e2e6ec; --line-2:#eef1f5; --accent:#1f7a43; --accent-ink:#ffffff;
+  --mat:#d7b98a; --mat-2:#cda877; --mat-line:#b9935f; --spot:#ffffff; --spot-line:#c9ad82;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.08); --radius:16px;
+  --danger:#c23b3b; --ok:#1f7a43; --warn:#b5831f;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1116; --panel:#161b22; --ink:#eef1f5; --ink-2:#aeb7c2; --ink-3:#717c8a;
+  --line:#242c36; --line-2:#1c232c; --accent:#34b36a; --accent-ink:#06120b;
+  --mat:#3a3326; --mat-2:#332d22; --mat-line:#4a4030; --spot:#1d2530; --spot-line:#3a4452;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0e1116; --panel:#161b22; --ink:#eef1f5; --ink-2:#aeb7c2; --ink-3:#717c8a;
+  --line:#242c36; --line-2:#1c232c; --accent:#34b36a; --accent-ink:#06120b;
+  --mat:#3a3326; --mat-2:#332d22; --mat-line:#4a4030; --spot:#1d2530; --spot-line:#3a4452;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45); color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;margin:0;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:Oswald,"Arial Narrow",sans-serif;font-weight:600;margin:0;letter-spacing:.01em}
+button{font-family:inherit;cursor:pointer}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0}
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--panel);z-index:31}
+.bar .wrap{display:flex;align-items:center;gap:14px;min-height:62px}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:Oswald;font-weight:700;font-size:16px;flex:none}
+.brand b{font-family:Oswald;font-weight:600;font-size:17px;line-height:1;display:block}
+.brand small{color:var(--ink-3);font-size:12px;font-weight:500}
+.bar-sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.pill.code{cursor:pointer;color:var(--ink-3)}
+.pill.code b{font-family:Oswald,sans-serif;font-size:15px;letter-spacing:1.5px;color:var(--accent)}
+.roleseg{display:flex;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px}
+.roleseg button{border:0;background:transparent;color:var(--ink-2);font-weight:700;font-size:12.5px;padding:6px 12px;border-radius:999px}
+.roleseg button.on{background:var(--accent);color:var(--accent-ink)}
+.roleseg button.supr{color:var(--ink)}
+.roleseg button.supr.on{background:#15181d;color:#fff}
+:root[data-theme="dark"] .roleseg button.supr.on,:root:not([data-theme="light"]) .roleseg button.supr.on{background:#eef1f5;color:#0e1116}
+body[data-role="master"] #groups{display:none}
+body[data-role="master"] .side{display:none}
+body[data-role="master"] .main{grid-template-columns:1fr}
+body[data-role="master"] .floor{min-height:60vh}
+.superbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#15181d;color:#fff;border-radius:12px;padding:11px 13px;margin-bottom:6px}
+.superbar .sb-l{font-family:Oswald;font-weight:600;font-size:13px;letter-spacing:.03em}
+.superbar .sb-belt{font-size:12.5px;display:flex;align-items:center;gap:6px;color:#cbd2da}
+.superbar select{background:#242c36;color:#fff;border:1px solid #3a4452;border-radius:8px;padding:5px 8px;font-family:inherit;font-size:12.5px}
+.superbar .sb-rdy{margin-left:auto;background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700}
+.supertools{margin-top:4px;border-top:1px solid var(--line);padding-top:14px}
+.supertools .st-h{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:9px}
+#resetGrading{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent)}
+.currpanel{padding:2px 2px 12px;max-height:62vh;overflow:auto}
+.cp-sec{margin-top:13px}
+.cp-h{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin-bottom:5px}
+.cp-it{font-size:12.5px;line-height:1.4;padding:4px 0;border-bottom:1px solid var(--line-2);color:var(--ink-2)}
+@media (max-width:560px){.roleseg button{padding:6px 9px;font-size:11.5px}}
+.roleseg{overflow-x:auto;scrollbar-width:none}.roleseg::-webkit-scrollbar{display:none}
+.cone{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:5px;color:#fff;font-size:11px;font-weight:800;margin-right:7px;vertical-align:middle}
+/* MC checklist */
+.cp-it.say{cursor:pointer;align-items:center;gap:9px}
+.cp-it.say:hover{background:var(--line-2)}
+.cp-it .sk{width:16px;height:16px;border-radius:5px;border:1.8px solid var(--line);flex:none;position:relative}
+.cp-it.done .sk{background:var(--accent);border-color:var(--accent)}
+.cp-it.done .sk::after{content:"";position:absolute;left:4.5px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.cp-it.done span:last-child{color:var(--ink-3);text-decoration:line-through}
+/* self check-in kiosk */
+body[data-role="signin"] #app{display:none}
+body[data-role="signin"]{overflow:hidden}
+.kiosk{height:calc(100dvh - 62px);overflow:hidden}
+.ki-wrap{max-width:560px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding:22px max(16px,env(safe-area-inset-left,0px)) max(14px,env(safe-area-inset-bottom,0px))}
+.ki-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex:none}
+.ki-logo{width:46px;height:46px;border-radius:12px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:Oswald;font-weight:700;font-size:22px;flex:none}
+.ki-head h1{font-family:Oswald;font-size:26px;line-height:1}
+.ki-head p{color:var(--ink-3);font-size:14px;margin-top:4px}
+.ki-input{width:100%;font-size:22px;padding:17px 20px;border:2px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);font-family:inherit;font-weight:600}
+.ki-input:focus{outline:0;border-color:var(--accent)}
+.ki-input{flex:none}
+.ki-results{margin-top:14px;display:flex;flex-direction:column;gap:10px;flex:1;overflow-y:auto;min-height:0}
+.ki-res{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px;text-align:left;width:100%}
+.ki-res:hover{border-color:var(--accent)}
+.ki-av{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;font-family:Oswald;font-weight:700;font-size:18px;color:#fff;flex:none}
+.ki-rt{flex:1;min-width:0}.ki-rt b{font-size:18px;display:block}.ki-rt span{font-size:13px;color:var(--ink-3)}
+.ki-go{font-weight:700;color:var(--accent);font-size:15px;white-space:nowrap}
+.ki-hint,.ki-none{color:var(--ink-3);text-align:center;padding:28px 10px;font-size:15px}
+.ki-wrap.done{justify-content:center;overflow-y:auto}
+.ki-card{background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:38px 26px;text-align:center;flex:none}
+.ki-check{width:64px;height:64px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;margin:0 auto 16px}.ki-check svg{width:34px;height:34px}
+.ki-name{font-family:Oswald;font-size:28px;line-height:1.05}
+.ki-msg{color:var(--ink-3);font-size:15px;margin-top:4px}
+.ki-group{display:flex;align-items:center;gap:16px;justify-content:center;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:18px;margin:22px 0 12px}
+.ki-cone{width:58px;height:58px;border-radius:14px;background:var(--bc);color:#fff;display:grid;place-items:center;font-family:Oswald;font-weight:700;font-size:30px;flex:none}
+.ki-gi{text-align:left}.ki-gi b{font-family:Oswald;font-size:24px;display:block;line-height:1}.ki-gi span{font-size:14px;color:var(--ink-2)}
+.ki-find{font-size:15px;color:var(--ink-2)}
+.ki-next{margin-top:22px;width:100%;background:var(--accent);color:var(--accent-ink);border:0;border-radius:14px;padding:15px;font-size:17px;font-weight:700}
+.ki-input[readonly]{cursor:default}
+.ki-kb{margin-top:14px;display:flex;flex-direction:column;gap:7px;flex:none}
+.kb-row{display:flex;gap:6px;justify-content:center}
+.kb-key{flex:1;min-width:0;max-width:58px;height:50px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;font-size:18px;font-weight:700;font-family:inherit;touch-action:manipulation}
+.kb-key:hover{border-color:var(--accent)}
+.kb-key:active{background:var(--line-2);transform:scale(.96)}
+.kb-wide{max-width:none;flex:1.4;font-size:16px}
+.kb-space{flex:3.2;max-width:none;font-size:14px;color:var(--ink-3);font-weight:600;letter-spacing:.05em}
+.icon-btn{width:40px;height:40px;border-radius:11px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);display:grid;place-items:center}
+.icon-btn:hover{color:var(--ink);border-color:var(--ink-3)}
+.icon-btn svg{width:20px;height:20px}
+/* group tabs */
+.groups{display:flex;gap:10px;overflow-x:auto;padding:16px 0 4px;scrollbar-width:none}
+.groups::-webkit-scrollbar{display:none}
+.gtab{flex:none;min-width:150px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 15px;transition:.14s;position:relative}
+.gtab:hover{border-color:var(--ink-3)}
+.gtab[aria-selected="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.gtab .gname{font-family:Oswald;font-weight:600;font-size:16px}
+.gtab .gmeta{font-size:12px;color:var(--ink-3);margin-top:3px;font-weight:500}
+.gtab .gdots{display:flex;gap:3px;margin-top:9px}
+.gtab .gdots i{width:13px;height:13px;border-radius:50%;border:1.5px solid rgba(0,0,0,.12)}
+.gcount{position:absolute;top:10px;right:12px;font-size:12px;font-weight:700;color:var(--ink-2)}
+.gtab.live{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+.gtab.done{opacity:.55}
+.gbadge{display:inline-block;margin-top:9px;font-size:11px;font-weight:700;letter-spacing:.02em}
+.gbadge.live{color:var(--accent)} .gbadge.done{color:var(--ink-3)}
+.flctrl{margin-left:auto;display:flex;align-items:center;gap:10px}
+.statustag{font-family:Oswald;font-weight:600;font-size:13px;letter-spacing:.03em}
+.statustag.live{color:var(--accent)} .statustag.done{color:var(--ink-3)}
+.sbtn{border:0;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:700;color:#fff}
+.sbtn.start{background:var(--accent);color:var(--accent-ink)}
+.sbtn.done{background:#15181d;color:#fff}
+.sbtn.re{background:var(--bg);color:var(--ink-2);border:1px solid var(--line)}
+.alertbar{display:flex;align-items:center;gap:12px;margin:16px 20px 0;padding:12px 14px;border-radius:12px;background:color-mix(in srgb,var(--danger) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--danger) 40%,transparent)}
+.alertbar .al-ic{width:26px;height:26px;border-radius:50%;background:var(--danger);color:#fff;display:grid;place-items:center;font-weight:800;flex:none}
+.alertbar .al-tx{flex:1;min-width:0}
+.alertbar .al-tx b{display:block;font-size:13.5px}
+.alertbar .al-tx span{font-size:12px;color:var(--ink-2)}
+.alertbar .al-add{border:0;background:var(--danger);color:#fff;border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:700;white-space:nowrap}
+.alertbar .al-x{border:0;background:transparent;color:var(--ink-3);font-size:14px;padding:4px 6px}
+.floor.live{box-shadow:inset 0 0 0 3px var(--accent)}
+.floor.past{filter:grayscale(.4) opacity(.75)}
+/* layout */
+.main{display:grid;grid-template-columns:1fr 310px;gap:18px;padding:14px 0 40px;align-items:start}
+@media (max-width:860px){.main{grid-template-columns:1fr}}
+.floorwrap{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.floorhead{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.floorhead h2{font-size:19px}
+.floorhead .sub{color:var(--ink-3);font-size:13px;font-weight:500}
+.dim{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);font-weight:600;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:6px 10px}
+.floor{position:relative;margin:20px;border-radius:12px;
+  background:
+    repeating-linear-gradient(0deg,transparent,transparent calc(16.666% - 1px),var(--mat-line) 16.666%),
+    repeating-linear-gradient(90deg,transparent,transparent calc(16.666% - 1px),var(--mat-line) 16.666%),
+    linear-gradient(135deg,var(--mat),var(--mat-2));
+  border:3px solid var(--mat-line);box-shadow:inset 0 0 0 2px rgba(255,255,255,.06)}
+.floor .instr{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:Oswald;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,0,0,.34);font-weight:600}
+.spot{position:absolute;transform:translate(-50%,-50%);width:72px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.spot:active{cursor:grabbing}
+.spot .dot{position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:Oswald;font-weight:700;font-size:15px;color:#fff;transition:transform .1s;
+  background:radial-gradient(circle at 36% 30%,#ff6f5f,#d5322a 72%);box-shadow:0 3px 7px rgba(120,18,14,.45),inset 0 -3px 6px rgba(0,0,0,.2);border:2px solid rgba(255,255,255,.55)}
+.spot:not(.empty) .dot{background:var(--belt);color:var(--ink-on,#fff);box-shadow:0 3px 7px rgba(0,0,0,.28)}
+.spot .dot::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:3.5px solid var(--att,transparent)}
+.spot.empty{cursor:default}
+.spot.empty .dot{background:radial-gradient(circle at 36% 30%,#eb958c,#c9544c 72%);opacity:.45;color:transparent;box-shadow:0 2px 5px rgba(120,18,14,.3);border-color:rgba(255,255,255,.35)}
+.spot:not(.empty):hover .dot{transform:translateY(-2px)}
+.spot.sel .dot{outline:3px solid #15181d;outline-offset:3px}
+.spot.drop .dot{outline:3px dashed #fff;outline-offset:3px;transform:scale(1.1)}
+.spot .nm{font-size:11px;font-weight:600;color:#2a2111;background:rgba(255,255,255,.86);padding:2px 7px;border-radius:7px;max-width:82px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+.ghost{position:fixed;transform:translate(-50%,-50%);z-index:70;pointer-events:none}
+.ghost .dot{position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:Oswald;font-weight:700;font-size:15px;color:#fff;background:radial-gradient(circle at 36% 30%,#ff6f5f,#d5322a 72%);box-shadow:0 10px 22px rgba(0,0,0,.4);border:2px solid #fff}
+.floor.empty{min-height:200px;display:grid;place-items:center}
+.floor.empty .instr{position:static;transform:none;color:rgba(0,0,0,.4)}
+/* roster side */
+.side{display:flex;flex-direction:column;gap:14px;position:sticky;top:84px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card h3{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);padding:14px 16px 0}
+.card .ch-sub{padding:2px 16px 0;font-size:12px;color:var(--ink-3)}
+.roster{padding:10px 10px 12px;display:flex;flex-direction:column;gap:2px;max-height:430px;overflow:auto}
+.rrow{display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:10px}
+.rrow:hover{background:var(--line-2)}
+.rrow .dot{width:12px;height:12px;border-radius:50%;flex:none;border:1.5px solid rgba(0,0,0,.14)}
+.rrow .rn{flex:1;min-width:0;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrow .rn small{display:block;font-weight:500;color:var(--ink-3);font-size:11.5px}
+.rrow.absent .rn{color:var(--ink-3)}
+.rrow.absent .rn b{text-decoration:line-through}
+.chk{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);flex:none;display:grid;place-items:center;color:var(--ink-3)}
+.chk.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chk svg{width:16px;height:16px}
+.statline{display:flex;gap:0;border-top:1px solid var(--line-2)}
+.statline div{flex:1;padding:12px 10px;text-align:center;border-right:1px solid var(--line-2)}
+.statline div:last-child{border-right:0}
+.statline b{font-family:Oswald;font-size:22px;display:block;line-height:1}
+.statline span{font-size:11px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+/* profile drawer */
+.scrim{position:fixed;inset:0;background:rgba(10,14,20,.5);backdrop-filter:blur(2px);z-index:40;opacity:0;pointer-events:none;transition:.2s}
+.scrim.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(470px,96vw);background:var(--panel);z-index:50;transform:translateX(100%);transition:transform .26s cubic-bezier(.22,.61,.36,1);box-shadow:-20px 0 50px rgba(0,0,0,.25);display:flex;flex-direction:column;
+  padding-right:env(safe-area-inset-right,0px)}
+.drawer.open{transform:none}
+.dh{padding:22px 22px 18px;border-bottom:1px solid var(--line);padding-top:max(22px,env(safe-area-inset-top,0px))}
+.dh .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.closex{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);display:grid;place-items:center;flex:none}
+.avatar{width:58px;height:58px;border-radius:15px;display:grid;place-items:center;font-family:Oswald;font-weight:700;font-size:23px;color:#fff;flex:none}
+.pname{font-family:Oswald;font-size:25px;line-height:1.05}
+.pmeta{color:var(--ink-3);font-size:13px;font-weight:500;margin-top:3px}
+.belttag{display:inline-flex;align-items:center;gap:7px;margin-top:11px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:600}
+.belttag i{width:14px;height:14px;border-radius:50%;border:1.5px solid rgba(0,0,0,.15)}
+.dbody{padding:18px 22px 30px;overflow:auto;display:flex;flex-direction:column;gap:20px}
+.rtp{display:flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--ok) 13%,transparent);color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 30%,transparent);border-radius:11px;padding:10px 13px;font-size:13px;font-weight:600}
+.rtp.no{background:var(--bg);color:var(--ink-3);border-color:var(--line)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.stat{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:13px 14px}
+.stat .k{font-size:11.5px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.stat .v{font-family:Oswald;font-size:24px;margin-top:4px;line-height:1}
+.stat .v small{font-family:Inter;font-size:12px;color:var(--ink-3);font-weight:500}
+.sec-t{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:-6px;display:flex;align-items:center;gap:8px}
+.prog{height:9px;border-radius:999px;background:var(--line);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.rows{display:flex;flex-direction:column}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:13.5px}
+.row:last-child{border-bottom:0}
+.row .k{color:var(--ink-2);font-weight:500}
+.row .val{font-weight:600;text-align:right}
+.days{display:flex;gap:5px;flex-wrap:wrap}
+.day{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--ink-3);background:var(--bg)}
+.day.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--warn) 28%,transparent);border-radius:999px;padding:2px 8px}
+.bbc{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--accent)}
+.fambox{margin-top:12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+.fambox .fam-h{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:8px}
+.fambox .fam-row{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;padding:3px 0}
+.fambox .fam-row .dot{width:11px;height:11px;border-radius:50%;flex:none;border:1.5px solid rgba(0,0,0,.14)}
+.fambox .fam-row small{font-weight:500;color:var(--ink-3)}
+.fambox .fam-note{margin-top:8px;font-size:12px;color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--warn) 25%,transparent);border-radius:9px;padding:8px 10px;line-height:1.45}
+.who{display:flex;gap:14px;min-width:0}
+.hdchips{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.rdchip{font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px}
+.rdchip.yes{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 30%,transparent)}
+.rdchip.no{background:var(--bg);color:var(--ink-3);border:1px solid var(--line)}
+.ptabs{display:flex;gap:4px;margin-top:16px;background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:4px}
+.ptabs button{flex:1;border:0;background:transparent;color:var(--ink-2);font-weight:700;font-size:13.5px;padding:9px;border-radius:8px}
+.ptabs button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.grid3 .stat{padding:12px}
+.grid3 .stat .v{font-size:22px}
+.prog.mini{height:6px;margin-top:9px}
+.capline{font-size:12px;color:var(--ink-3);font-weight:500;margin-top:10px}
+.ovsec{margin-top:16px}
+.ovlabel{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center}
+.ovlabel .muted{font-weight:600;color:var(--ink-2);text-transform:none;letter-spacing:0;font-size:12.5px}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+.chip span{font-size:11px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.chip b{font-size:14px}
+.chip b.gold{color:var(--accent)}
+.chip b.att{display:inline-flex;align-items:center;gap:6px}
+.chip b.att.green{color:var(--ok)} .chip b.att.orange{color:var(--warn)} .chip b.att.red{color:var(--danger)}
+.dotpip{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+.dotpip.green{background:#2f9e52} .dotpip.orange{background:#e2a233} .dotpip.red{background:#d8362f}
+.opps{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.opp{font-size:12px;font-weight:600;padding:6px 11px;border-radius:999px;border:1px solid var(--line)}
+.opp.good{color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border-color:color-mix(in srgb,var(--accent) 28%,transparent)}
+.opp.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent);border-color:color-mix(in srgb,var(--warn) 28%,transparent)}
+.opp.bad{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border-color:color-mix(in srgb,var(--danger) 30%,transparent)}
+/* scorecard */
+.scorecard{display:flex;flex-direction:column;gap:13px}
+.scomp .sc-top{display:flex;justify-content:space-between;align-items:baseline;font-size:13.5px;font-weight:600;margin-bottom:6px}
+.scomp .sc-top b{font-family:Oswald;font-size:17px}
+.scomp .sc-top b small,.sc-overall b small{font-family:Inter;font-size:11px;color:var(--ink-3);font-weight:500}
+.sbar{display:flex;gap:3px}
+.sbar i{flex:1;height:15px;border-radius:4px;background:var(--line);cursor:pointer;transition:transform .1s,background .1s}
+.sbar i:hover{transform:scaleY(1.2)}
+.sbar i.on{background:var(--accent)}
+.sc-overall{display:flex;justify-content:space-between;align-items:center;margin-top:15px;padding-top:15px;border-top:1px solid var(--line);font-weight:700;font-size:14px}
+.sc-overall b{font-family:Oswald;font-size:25px}
+/* pass/fail (cdb) */
+.pf{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.pf .pfname{font-size:13.5px;font-weight:600}
+.pf .atts{display:flex;gap:4px;margin-top:4px}
+.pf .atts i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.pf .atts i.used{background:var(--warn)}
+.pf .atts i.passed{background:var(--ok)}
+.pf .atts i.failed{background:var(--danger)}
+.pfbtns{display:flex;gap:6px}
+.pfbtn{border:1px solid var(--line);background:var(--bg);color:var(--ink-2);border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:700}
+.pfbtn.pass.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.pfbtn.fail.on{background:var(--danger);border-color:var(--danger);color:#fff}
+.currlist{margin-top:9px;display:flex;flex-direction:column;gap:1px}
+.curit{display:flex;align-items:flex-start;gap:9px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12.5px;line-height:1.35}
+.curit:hover{background:var(--line-2)}
+.curit .tk{width:16px;height:16px;border-radius:5px;border:1.8px solid var(--line);flex:none;margin-top:1px;position:relative}
+.curit.on .tk{background:var(--accent);border-color:var(--accent)}
+.curit.on .tk::after{content:"";position:absolute;left:4.5px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.curit.on .ct{color:var(--ink-3);text-decoration:line-through}
+.sc-top .cc{font-family:Inter;font-size:11px;color:var(--ink-3);font-weight:600;margin-left:4px}
+.pf.pattern{background:color-mix(in srgb,var(--accent) 8%,transparent);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);border-radius:12px;padding:12px 13px;margin-bottom:3px}
+.pftag{font-size:10px;font-weight:700;color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);padding:2px 7px;border-radius:999px;margin-left:6px;white-space:nowrap}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex-basis:100%;margin-top:6px}
+.seg button{flex:1;border:0;background:var(--bg);color:var(--ink-2);padding:8px;font-size:12.5px;font-weight:600}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+/* settings modal */
+.modal{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:18px;opacity:0;pointer-events:none;transition:.18s}
+.modal.open{opacity:1;pointer-events:auto}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);width:min(460px,100%);max-height:88vh;overflow:auto;transform:scale(.97);transition:.18s}
+.modal.open .box{transform:none}
+.mh{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--line)}
+.mh h2{font-size:19px}
+.mbody{padding:18px 20px 22px;display:flex;flex-direction:column;gap:18px}
+.field label{font-size:12.5px;font-weight:600;color:var(--ink-2);display:block;margin-bottom:7px}
+.dimrow{display:flex;gap:10px}
+.inp{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--ink);font-family:inherit;font-weight:600}
+.inp:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+.grp-edit{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line-2)}
+.grp-edit .gi{flex:1}
+.grp-edit .gi b{font-family:Oswald;font-size:15px}
+.grp-edit .gi small{display:block;color:var(--ink-3);font-size:11.5px;font-weight:500}
+.stepper{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stepper button{width:36px;height:36px;border:0;background:var(--bg);color:var(--ink);font-size:19px;font-weight:600;display:grid;place-items:center}
+.stepper button:hover{background:var(--line-2)}
+.stepper .n{width:42px;text-align:center;font-family:Oswald;font-weight:600;font-size:17px}
+.rm{color:var(--danger);background:none;border:0;font-size:12px;font-weight:600;padding:4px}
+.btn{border:0;border-radius:11px;padding:11px 16px;font-size:14px;font-weight:600;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+.btn.block{width:100%}
+.mactions{display:flex;gap:10px;padding-top:4px}
+.note{font-size:12px;color:var(--ink-3);line-height:1.5;background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+/* sign-in / day-picker gate */
+.gate{position:fixed;inset:0;z-index:60;background:var(--bg);display:grid;place-items:center;padding:max(20px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 20px max(16px,env(safe-area-inset-left,0px));overflow:auto}
+.gate-card{background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);width:min(380px,100%);padding:30px 26px;text-align:center}
+.gate-logo{width:52px;height:52px;border-radius:14px;background:var(--accent);color:var(--accent-ink);font-family:Oswald,sans-serif;font-weight:700;font-size:26px;display:grid;place-items:center;margin:0 auto}
+.gate-sub{color:var(--ink-3);font-size:13px;margin:4px 0 20px;line-height:1.5}
+.gate-form{display:flex;flex-direction:column;gap:14px;text-align:left}
+.gate-form .field label{margin-bottom:6px}
+.gate-form input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:15px;color:var(--ink);font-family:inherit;font-weight:600}
+.gate-form input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+.gate-err{color:var(--danger);font-size:12.5px;font-weight:600;margin:0}
+.gate-dp-sub{color:var(--ink-3);font-size:13px;margin:0 0 12px}
+.daylist{display:flex;flex-direction:column;gap:9px}
+.dp-row{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer}
+.dp-row:hover{border-color:var(--accent)}
+.dp-row b{font-family:Oswald,sans-serif;font-size:16px;display:block}
+.dp-row span{color:var(--ink-3);font-size:12.5px}
+.dp-n{background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:13px;border-radius:999px;min-width:26px;height:26px;display:grid;place-items:center;padding:0 8px}
+.dp-empty{color:var(--ink-3);font-size:13px;padding:18px 4px}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(14px);background:var(--ink);color:var(--panel);font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:999px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.22s;z-index:80;max-width:88vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+
+</head>
+<body>
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <div class="gate-logo">A</div>
+    <h1 style="font-family:Oswald,sans-serif;font-size:26px;margin:14px 0 2px">Grading Floor</h1>
+    <p id="gateMsg" class="gate-sub">Sign in with your AMA hub mobile and PIN</p>
+    <form id="siForm" class="gate-form">
+      <div class="field"><label for="siEmail">Email</label><input id="siEmail" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input id="siPass" type="password" autocomplete="current-password" required></div>
+      <p id="siErr" class="gate-err" hidden></p>
+      <button class="btn primary block" id="siGo" type="submit">Sign in</button>
+    </form>
+    <div id="daypick" hidden>
+      <div class="gate-dp-sub">Choose the grading day</div>
+      <div id="dayList" class="daylist"></div>
+      <button class="btn ghost block" id="gateOut" style="margin-top:14px">Sign out</button>
+    </div>
+  </div>
+</div>
+<div class="bar"><div class="wrap">
+  <div class="brand"><div class="logo">A</div><div><b>Grading Floor</b><small id="dayLabel">—</small></div></div>
+  <div class="bar-sp"></div>
+  <div class="roleseg" id="roleSeg"><button data-role="signin">Sign-in</button><button data-role="sarah">Sarah</button><button data-role="master">Master</button><button data-role="admin">Admin</button><button data-role="super" class="supr">Super</button></div>
+  <button class="pill code" id="codePill" hidden title="Check-in code — enter it on a check-in station">Code <b id="codeVal">—</b></button>
+  <span class="pill" id="herePill">0 here</span>
+  <button class="icon-btn" id="gearBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.8-1.4-1.9-3.3-2.2.9a7.6 7.6 0 0 0-2.6-1.5L13.9 2h-3.8l-.3 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.2-.9L3.1 8.3 4.9 9.7a7.8 7.8 0 0 0 0 3l-1.8 1.4 1.9 3.3 2.2-.9a7.6 7.6 0 0 0 2.6 1.5l.3 2.4h3.8l.3-2.4a7.6 7.6 0 0 0 2.6-1.5l2.2.9 1.9-3.3z"/></svg></button>
+</div></div>
+
+<div class="wrap" id="app">
+  <div class="groups" id="groups"></div>
+  <div class="main">
+    <div class="floorwrap">
+      <div class="floorhead"><div><h2 id="flName">Group 1</h2><div class="sub" id="flSub"></div></div>
+        <div id="flCtrl" class="flctrl"></div>
+        <span class="dim" id="flDim"></span></div>
+      <div id="alertBar" class="alertbar" hidden></div>
+      <div id="floor" class="floor"></div>
+    </div>
+    <div class="side">
+      <div class="card" id="checkinCard"><h3>Check-in</h3><div class="ch-sub" id="ciSub">Tap to mark who's arrived</div>
+        <div class="roster" id="roster"></div></div>
+      <div class="card" id="currCard" hidden><h3 id="currTitle">Curriculum</h3><div class="ch-sub" id="currSub"></div>
+        <div class="currpanel" id="currPanel"></div></div>
+      <div class="card"><div class="statline">
+        <div><b id="sHere">0</b><span>Here</span></div>
+        <div><b id="sGroups">0</b><span>Groups</span></div>
+        <div><b id="sSpots">0</b><span>Spots</span></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<div id="kiosk" class="kiosk" hidden></div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+
+<div class="modal" id="modal"><div class="box">
+  <div class="mh"><h2>Floor settings</h2><button class="closex" id="mClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="mbody">
+    <div class="field"><label>Spots out (per group)</label><div class="dimrow">
+      <input class="inp" id="dsize" type="number" min="1" max="40">
+      <button class="btn ghost" id="rebal" style="white-space:nowrap">Balance evenly</button></div>
+      <div class="note" id="balNote" style="margin-top:8px"></div></div>
+    <div class="field"><label>Floor size (metres)</label><div class="dimrow">
+      <input class="inp" id="fw" type="number" min="4" max="40" step="0.5"> <span style="align-self:center;color:var(--ink-3);font-weight:700">×</span> <input class="inp" id="fh" type="number" min="4" max="40" step="0.5"></div></div>
+    <div class="field"><label>Groups &amp; spots</label><div id="grpEdit"></div>
+      <button class="btn ghost block" id="addGrp" style="margin-top:12px">+ Add group</button></div>
+    <div id="superTools"></div>
+    <div class="mactions"><button class="btn block" id="mDone">Done</button></div>
+  </div>
+</div></div>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const BELTS={ // name -> colour + rank
+  'White':{c:'#c9ccd1',r:1},'Yellow':{c:'#f2c430',r:2},'Orange':{c:'#ef8a2b',r:3},
+  'Green':{c:'#2f9e52',r:4},'Blue':{c:'#2f6fdb',r:5},'Purple':{c:'#7b4fc9',r:6},
+  'Brown':{c:'#7a4a28',r:7},'Red':{c:'#d8362f',r:8},'Red Two':{c:'#b3281f',r:9},
+  'Red Three':{c:'#8e1a16',r:10},'Cho Dan Bo':{c:'#2b2b2b',r:11}
+};
+const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat'];
+// ---- live data (loaded from cb_floor_load) ----
+const shortB=b=>String(b||'').replace(/ Belt$/,'');
+let DAYID=null, DAYINFO=null, CODE=null, id2entry={}, entry2id={};
+const STUDENTS=[];           // the day's grading students
+const absentIds=new Set();   // ids NOT yet checked in
+function mapStudents(list){
+  STUDENTS.length=0; absentIds.clear(); id2entry={}; entry2id={};
+  for(const k in scores) delete scores[k]; for(const k in patt) delete patt[k]; for(const k in ticks) delete ticks[k];
+  let i=0;
+  for(const r of (list||[])){ const id=++i, belt=shortB(r.belt_from), belt_to=shortB(r.belt_to);
+    id2entry[id]=r.entry_id; entry2id[r.entry_id]=id;
+    const min=(CURR[belt]&&CURR[belt].min)||0, prog=min?Math.min(100,Math.round((r.classes||0)/min*100)):0;
+    STUDENTS.push({ id, entry_id:r.entry_id, member_key:r.member_key, name:r.full_name||'—', belt, belt_to,
+      weeks:r.weeks||0, classes:r.classes||0, lastGap:r.weeks||0, prog, ready:!!r.ready, bbc:!!r.bbc,
+      sub:r.sub!==false, loc:r.loc||'', age:r.age||0, attend:r.attend||'green', fam:r.family||('f'+id),
+      programs:(r.programs==null?null:r.programs), referrals:(r.referrals==null?null:r.referrals), days:[], pack:null, fee:null });
+    if(r.score){ if(r.score.scores && Object.keys(r.score.scores).length) scores[id]={...r.score.scores};
+      if(r.score.pattern) patt[id]=r.score.pattern; if(Array.isArray(r.score.ticks)&&r.score.ticks.length) ticks[id]=new Set(r.score.ticks); }
+    if(!r.checked_in) absentIds.add(id);
+  }
+}
+const siblingsOf=s=>STUDENTS.filter(x=>x.fam===s.fam && x.fam && x.id!==s.id);
+
+const state={ fw:12, fh:10, spotsOut:13, autoBalance:true, groups:[], active:0, sel:null, alert:null, profTab:'ov', role:'admin' };
+let dragging=false;
+function addGroup(belt){ const spots=state.spotsOut; state.groups.push({name:belt?`${belt} → ${nextOf(belt)}`:'Group '+(state.groups.length+1), belt:belt||null, spots, rows:spots>8?2:1, status:'future', slots:spotsArr(spots)}); recone(); }
+const byId=id=>STUDENTS.find(s=>s.id===id)||null;
+const COMPONENTS=['Flexibility','Hand Techniques','Kicking Techniques','Self-Defence','One-Step Sparring','Kick Boxing','Meditation','Life Skill'];
+const CURR={"White":{"min":12,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stationary Low Block","Stationary Middle Block","Stationary High Block","Stationary Single Punch"],"Kicking Techniques":["Stationary Straight Rising Kick","Stationary Snap Kick","Stationary Axe Kick","Stationary Turning Kick","Stationary 2 Turning Kicks with landing","Master’s Choice of Technique (Optional)"],"Self-Defence":["Same Side Wrist Grab — Escape, Slide away, Side Kick","Bully Defence — Block, Defend, “Stop it I don’t like it”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to head","Step Right Leg Back, Block Left Hand Outwards, Right Leg Turning Kick to Head"],"Kick Boxing":["Jab Cross"],"Meditation":["Beginner One Minute"],"Life Skill":["Self Care.  Students must be able to:","Tie your own belt","Wear Uniform Correctly","Brush your teeth","Shower Regularly"]}},"Yellow":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block","Stepping Forward Middle Block","Stepping Forward High Block","Stationary Double Punch (Right then Left)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Turning Kicks without putting your leg down","Stepping Forward Snap Kick","Stepping Forward Two Turning Kicks","Stationary Side Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Same Side Wrist Grab — Escape, Slide away, Side Kick, Palm, “Back Away”","Opposite Side Wrist Grab","Bully Defence — Block, Defend, “Stop it I don’t like it”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to head","Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to Head","Step Right Leg Back, Block Left Hand Outwards, Right Leg Side Kick to the Ribs (Dragons/Ninjas need"],"Kick Boxing":["Jab Cross Hook Uppercut"],"Meditation":["Beginner One Minute"],"Life Skill":["Respect","Bow before you speak to teachers","Bow when you enter and leave the academy","Bow when you receive or give anything"]}},"Orange":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward then Backwards Low Block","Stepping Forward then Backwards Middle Block","Stepping Forward then Backwards High Block","Stationary Triple Punch (Tae-Kwon-Do)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Turning Kicks without putting your leg down","Stepping Forward Snap Kick then Side Kick (Different Legs)","Stepping Forward Low then High Turning Kicks (Different Legs)","Stationary Back Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Same Side Wrist Grab — Escape, Slide away, Side Kick, Palm, “Back Away”","Opposite Side Wrist Grab","Right Hand Front Collar Grab","Bully Defence — Block, Defend, “Stop it I don’t like it”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to head","Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to Head","Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to","Step Right Leg Back, Block Left Hand Inwards, Right Leg Back Kick to the Ribs (Dragons/Ninjas need"],"Kick Boxing":["Jab, Cross, Hook, Uppercut, Snap, Jumping Snap"],"Meditation":["Beginner One Minute"],"Life Skill":["Leadership","Be able to introduce yourself to a friend and an instructor"]}},"Green":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block and Punch (One Step Only)","Stepping Forward Middle Block and Punch (One Step Only)","Stepping Forward High Block and Punch (One Step Only)","Stepping Forward Triple Punch (Body, Body, Head) (One Step Only)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Four Turning Kicks without putting your leg down","Stepping Forward Snap Kick then Side Kick","Stepping Forward Double Kick (Body, Body) (Switching Legs in the air)","Stationary Reverse Turning Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Two Handed Collar Grab","Stranger Awareness — “You’re not my mum, you’re not my dad, you’re a stranger!”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Block Left Hand Inwards, Right Leg Reverse Turning Kick to the Head"],"Kick Boxing":["Jab Cross Duck to the Left Hook"],"Meditation":["Intermediate Two Minutes"],"Life Skill":["Bully Busting Quiz","What are the Five Steps to Bully Defence? — Ask nicely to Stop — Confidently say “Stop it I don’t like it” — Create a safe space and repeat “Stop it I don’t like it” — Move away — Ask for help"]}},"Blue":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block, Middle Block, and Punch (One Step Only)","Stepping Forward Low Block, High Block, and Punch (One Step Only)","Stepping Forward Middle Block, High Block, and Punch (One Step Only)","Stepping Forward Triple Punch (Body, Body, Head) (One Step Only)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Five Turning Kicks without putting your leg down","Stationary Two Back Kicks","Stepping Forward Double Kick (Body, Head) (Switching Legs in the air)","Stationary Jumping Back Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Two Handed Collar Grab","Choke","Stranger Awareness — “You’re not my mum, you’re not my dad, you’re a stranger!”"],"One-Step Sparring":["Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Block Left Hand Inwards, Right Leg Jumping Back Kick to the Ribs"],"Kick Boxing":["Jab, Cross, Duck to the Left, Hook, Right Turning Kick"],"Meditation":["Intermediate Two minutes"],"Life Skill":["Stranger Awareness"]}},"Purple":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block, Middle Block, High Block, and Punch (One Step Only) (Same Hand for","Stepping Forward Low Block, Middle Block, High Block, and Punch (One Step Only) (Alternating","Stepping Forward Double Punch (Body, Head) (One Step Only)","Stepping Forward Triple Punch (Body, Body, Head) (One Step Only)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Reverse Turning Kicks","Stationary Back Kick and Jumping Back Kick","Stepping Forward Turning Kick and Stationary Reverse Turning Kick","Stationary Hook and Instep Turning Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Two Handed Collar Grab","Choke","Front Body Lock","Stranger Awareness — “You’re not my mum, you’re not my dad, you’re a stranger!”"],"One-Step Sparring":["Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Block Left Hand Inwards, Right Hand Grab the arm, Right Leg Hook & Instep"],"Kick Boxing":["Jab, Cross, Duck to the Left, Hook, Right Turning Kick, Left Reverse"],"Meditation":["Intermediate Two Minutes"],"Life Skill":["Leadership - Look after a beginner buddy in class"]}},"Brown":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block (In Back Stance)","Stepping Forward Double Lower Form Block (In Back Stance)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Reverse Turning Kicks (Low then High)","Stationary Back Kick and Jumping Back Kick","Stepping Forward Turning Kick and Stationary Reverse Turning Kick, Followed by Stepping Forward","Stationary Reverse Hook and Instep","Master’s Choice of Technique (Optional)","First Five Moves of Pal-Jang Taeguk 8"],"Self-Defence":["Bear Hug from behind arms pinned"],"One-Step Sparring":["Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach","Step Right Leg Back, Block Left Hand Inwards, Right Leg Reverse Hook & Instep (Dragons/Ninjas"],"Kick Boxing":["Jab, Cross, Jab, Jab, Cross"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Stranger Awareness quiz on how to access help","Call out for help","Move away","Stay safe always have someone around you","Make sure your parents know where you are and who you are with at all times","If you ever feel uncomfortable call a parent"]}},"Red":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block and Elbow","Stepping Forward Double Lower Form Block and Scissor Kick"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Reverse Turning Kicks (Low, Middle, High)","Stepping Forward Back Kick and Jumping Back Kick","Stepping Forward Turning Kick and Stationary Reverse Turning Kick, Followed by Stepping Forward","Stationary Tornado Kick","Master’s Choice of Technique (Optional)","First Seven Moves of Pal-Jang Taeguk 8"],"Self-Defence":["Bear Hug from behind arms pinned","Grab From Behind Single Handed Grab"],"One-Step Sparring":["Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Block & Tornado"],"Kick Boxing":["Jab, Cross, Jab, Jab, Cross, Turning Kick"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Discipline","Memorise and say the whole student creed"]}},"Red Two":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block, Elbow, Hammer Fist","Stepping Forward Double Lower Form Block, Scissor Kick, Inner Form Block"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Reverse Turning Kicks (Head High)","Stepping Forward Two Jumping Back Kicks","Stepping Forward Turning and Tornado Kick","Stationary Jumping Reverse Hook Kick","Master’s Choice of Technique (Optional)","First Nine Moves of Pal-Jang Taeguk 8"],"Self-Defence":["Bear Hug from Behind Arms Pinned","Grab From Behind Single Handed Grab","Front Head Lock (Facing Same Way)"],"One-Step Sparring":["Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Block & Jumping Reverse (Dragons & Ninjas need this one)"],"Kick Boxing":["Jab, Cross, Jab, Jab, Cross, Turning Kick, Tornado Kick"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Discipline","Ensure shoes are put neatly away in the shoe cabinet"]}},"Red Three":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block, Elbow, Hammer Fist, Punch","Stepping Forward Double Lower Form Block, Scissor Kick, Inner Form Block, Double Punch"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Reverse Hook Kicks (Low, High, Jumping)","Stepping Forward Back Kick, Back Kick, and Jumping Back Kick","Stepping Forward Turning, Tornado and Reverse Hook Kick","Three Move Combination Move of Your Choice (Including Hands, Kicks and optional Gymnastics)","Master’s Choice of Technique (Optional)"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Left Hand Block, Right Hand Punch, Left Hand Grab, Right Elbow, Right Leg Trip (Left Hand hold"],"Kick Boxing":["Jab Cross Hook Uppercut Snap Jumping Snap","Jab Cross Duck to the Left Hook Right Turning Kick Left Reverse","Jab Cross Jab Jab Cross Turning Kick Tornado Kick"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Discipline","Help students line up on the prep zone prior to class"]}},"Cho Dan Bo":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block, Elbow, Hammer Fist, Punch","Stepping Forward Double Lower Form Block, Scissor Kick, Inner Form Block, Double Punch"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Jumping Back Kicks","Stationary Two Jumping Reverse Hook Kicks","Stationary Jumping Back Kick and Jumping Reverse Hook Kick","Stepping Forward Turning, Tornado and Reverse Hook Kick","Stepping Forward Back Kick, Back Kick and Jumping Back Kick","Stationary Three Reverse Hook Kicks (Low, High and Jumping)","Five to Seven Move Combination Move of Your Choice (Including Hands, Kicks and optional","Pal-Jang Taeguk 8 (All 23 Moves)"],"Self-Defence":["Self Defence against Beginner (Stage One), Intermediate (Stage Two), Advanced (Stage Three)"],"One-Step Sparring":["Hands Only","Kicks Only","Hand & Kicks","Takedown","Lock"],"Meditation":["Advanced Three Minutes"]}}};
+const scores={}, patt={}, ticks={}, said=new Set();
+const saidKey=(b,c,i)=>b+'|'+c+'|'+i;
+let kioskState={q:'',done:null};
+const isCDB=s=>s.belt==='Red Three';   // grading Red Three -> Cho Dan Bo: Pattern is pass/fail (3 attempts)
+const currOf=s=>(CURR[s.belt]||{cats:{},min:null});
+function scoreFor(s){ if(!scores[s.id]){ scores[s.id]={}; COMPONENTS.forEach(c=>scores[s.id][c]=0); } return scores[s.id]; }
+function pattFor(s){ if(!patt[s.id]) patt[s.id]={attempt:1,res:null}; return patt[s.id]; }
+function tickKey(id,c,ix){ return c+'#'+ix; }
+function tickedSet(id){ return ticks[id]||(ticks[id]=new Set()); }
+function pfPip(x,k){ if(k<x.attempt-1) return 'failed'; if(k===x.attempt-1) return x.res==='pass'?'passed':x.res==='fail'?'failed':'used'; return ''; }
+function scoreCardHtml(s){ const sc=scoreFor(s), avg=(COMPONENTS.reduce((a,c)=>a+sc[c],0)/COMPONENTS.length).toFixed(1);
+  const cats=currOf(s).cats, tk=tickedSet(s.id);
+  const rows=COMPONENTS.map(c=>{const v=sc[c], items=cats[c]||[];
+    const list=items.length?`<div class="currlist">${items.map((it,ix)=>`<div class="curit ${tk.has(tickKey(s.id,c,ix))?'on':''}" data-c="${c}" data-ix="${ix}"><span class="tk"></span><span class="ct">${it}</span></div>`).join('')}</div>`:'';
+    return `<div class="scomp"><div class="sc-top"><span>${c}${items.length?` <small class="cc">${[...items].filter((_,ix)=>tk.has(tickKey(s.id,c,ix))).length}/${items.length}</small>`:''}</span><b>${v}<small>/10</small></b></div><div class="sbar" data-c="${c}">${Array.from({length:10},(_,k)=>`<i class="${k<v?'on':''}" data-v="${k+1}"></i>`).join('')}</div>${list}</div>`;}).join('');
+  let pattern='';
+  if(isCDB(s)){ const x=pattFor(s);
+    pattern=`<div class="pf pattern"><div><div class="pfname">Pattern <span class="pftag">pass / fail · 3 attempts</span></div><div class="atts">${[0,1,2].map(k=>`<i class="${pfPip(x,k)}"></i>`).join('')}</div></div><div class="pfbtns"><button class="pfbtn fail ${x.res==='fail'?'on':''}" data-pf="fail">Fail</button><button class="pfbtn pass ${x.res==='pass'?'on':''}" data-pf="pass">Pass</button></div></div>`; }
+  return `<div class="scorecard" style="margin-top:12px">${pattern}${rows}</div><div class="sc-overall"><span>Overall</span><b>${avg}<small>/10</small></b></div>`; }
+
+const initials=n=>n.split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+const packageOf=n=>n>=5?'Unlimited':n+'× / week';   // package = how many classes a week they're enrolled for (from EFC enrolment)
+// show first name + last initial only when two students share a first name (Bob N / Bob C)
+function floorName(s){ const fn=s.name.split(' ')[0]; if(STUDENTS.filter(x=>x.name.split(' ')[0]===fn).length>1){ const li=(s.name.split(' ')[1]||'')[0]; return fn+(li?' '+li:''); } return fn; }
+const beltC=b=>(BELTS[b]||{c:'#999'}).c;
+const beltR=b=>(BELTS[b]||{r:0}).r;
+const attHex={green:'#2f9e52',orange:'#e2a233',red:'#d8362f'};
+const inkOn=hex=>{const h=hex.replace('#','');const L=(0.299*parseInt(h.slice(0,2),16)+0.587*parseInt(h.slice(2,4),16)+0.114*parseInt(h.slice(4,6),16))/255;return L>0.62?'#1a1a1a':'#fff';};
+function present(){ return STUDENTS.filter(s=>!absentIds.has(s.id))
+  .sort((a,b)=> a.age-b.age || beltR(a.belt)-beltR(b.belt) || a.name.localeCompare(b.name)); } // checked-in only (for the "here" count)
+function roster(){ return STUDENTS.slice()
+  .sort((a,b)=> a.age-b.age || beltR(a.belt)-beltR(b.belt) || a.name.localeCompare(b.name)); } // the full expected roster, youngest -> oldest
+const spotsArr=n=>Array(Math.max(1,n)).fill(null);
+const started=()=>state.groups.some(g=>g.status!=='future');       // has the host started any group?
+const occupied=g=>g.slots.filter(x=>x!=null).length;
+const nextOf=belt=>{ const k=Object.keys(BELTS); return k[k.indexOf(belt)+1]||belt; };
+function generateGroups(){ // one belt colour per group; split a belt into even groups only when it's over "spots out", youngest -> oldest
+  const spots=Math.max(1,state.spotsOut), p=roster();          // every booked student, age-sorted — cones are set before anyone arrives
+  const belts=[...new Set(p.map(s=>s.belt))].sort((a,b)=>beltR(a)-beltR(b));
+  const groups=[];
+  for(const belt of belts){
+    const kids=p.filter(s=>s.belt===belt), G=Math.max(1,Math.ceil(kids.length/spots)), base=Math.floor(kids.length/G), extra=kids.length%G; let i=0;
+    for(let gi=0;gi<G;gi++){ const cnt=base+(gi<extra?1:0), slots=spotsArr(spots);
+      for(let k=0;k<cnt;k++) slots[k]=kids[i++].id;
+      groups.push({name:`${belt} → ${nextOf(belt)}`+(G>1?` (${gi+1})`:''), belt, spots, rows:spots>8?2:1, status:'future', slots}); }
+  }
+  state.groups=groups.length?groups:[{name:'Group 1',belt:null,spots,rows:spots>8?2:1,status:'future',slots:spotsArr(spots)}];
+  state.active=Math.min(state.active,state.groups.length-1); state.alert=null; recone();
+}
+function recone(){ state.groups.forEach((g,i)=>g.cone=String.fromCharCode(65+i)); }   // cone labels A, B, C…
+function groupOf(id){ return state.groups.findIndex(g=>g.slots.includes(id)); }
+function reflowFuture(g){ // keep a not-yet-started group youngest -> oldest in its first spots
+  const mem=g.slots.filter(x=>x!=null).map(byId).sort((a,b)=>a.age-b.age||a.name.localeCompare(b.name));
+  g.slots=spotsArr(g.spots); mem.forEach((s,k)=>{ if(k<g.spots) g.slots[k]=s.id; });
+}
+function placeLate(id){ // a late check-in can only join a FUTURE group of their own belt (or a spare group) that has room
+  const s=byId(id);
+  for(const g of state.groups){ if(g.status==='future' && (g.belt===s.belt || g.belt==null) && occupied(g)<g.spots){ g.slots.push(id); reflowFuture(g); return true; } }
+  return false;
+}
+function removeStudent(id){ for(const g of state.groups){ const k=g.slots.indexOf(id); if(k>=0){ g.slots[k]=null; if(g.status==='future') reflowFuture(g); return; } } }
+function setStatus(gi,st){ if(st==='current'){ state.groups.forEach((g,j)=>{ if(j!==gi && g.status==='current') g.status='past'; }); state.active=gi; } state.groups[gi].status=st; persistGroup(gi,{status:st}); render(); }
+function setSpots(g,n){ n=Math.max(1,Math.min(40,n)); const ids=g.slots.filter(x=>x!=null); g.spots=n; g.slots=spotsArr(n);
+  ids.slice(0,n).forEach((id,k)=>g.slots[k]=id); ids.slice(n).forEach(id=>{ if(!placeLate(id)) state.alert=byId(id); }); }
+function layoutFor(g){ const a=g.slots.slice(0,g.spots); while(a.length<g.spots) a.push(null); return a; }
+const pad=x=>Math.max(6,Math.min(94,x));
+// stand them in one line, or two staggered (alternating) rows — back row sits in the gaps of the front
+function positions(n,rows){
+  if(n<=0) return [];
+  if(rows===1 || n<=2) return Array.from({length:n},(_,i)=>({x:pad((i+.5)/n*100),y:50}));
+  const nf=Math.ceil(n/2), nb=n-nf, y1=40, y2=66, pos=[];
+  for(let c=0;c<nf;c++) pos.push({x:pad((c+.5)/nf*100),y:y1});       // front row
+  for(let c=0;c<nb;c++) pos.push({x:pad((c+1)/nf*100),y:y2});        // back row, offset into the gaps
+  return pos;
+}
+
+// member-facing self check-in kiosk
+function kioskResults(){
+  const q=kioskState.q.trim().toLowerCase();
+  if(!q) return '<div class="ki-hint">Start typing to find your name.</div>';
+  const m=STUDENTS.filter(s=>s.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name)).slice(0,8);
+  if(!m.length) return '<div class="ki-none">No match — check your spelling, or see a staff member.</div>';
+  return m.map(s=>{const here=!absentIds.has(s.id); return `<button class="ki-res" data-id="${s.id}"><div class="ki-av" style="background:${beltC(s.belt)}">${initials(s.name)}</div><div class="ki-rt"><b>${s.name}</b><span>${s.belt} belt · age ${s.age} · ${s.loc}</span></div><span class="ki-go">${here?'Already in ›':'Check in ›'}</span></button>`;}).join('');
+}
+function wireKioskResults(){ $$('#kiResults .ki-res').forEach(b=>b.onclick=()=>kioskCheckIn(+b.dataset.id)); }
+function kioskCheckIn(id){
+  if(absentIds.has(id)){ absentIds.delete(id); persistCheckin(id,true); }   // mark arrival; group (cone) is already fixed
+  if(groupOf(id)<0) placeLate(id);                                          // safety: a student with no slot gets one
+  kioskState.done={id}; render();
+}
+function renderKiosk(){
+  const k=$('#kiosk');
+  if(kioskState.done){
+    const s=byId(kioskState.done.id), gi=groupOf(kioskState.done.id), g=state.groups[gi];
+    k.innerHTML=`<div class="ki-wrap done"><div class="ki-card">
+      <div class="ki-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></div>
+      <div class="ki-name">${s.name}</div><div class="ki-msg">You're checked in</div>
+      ${g?`<div class="ki-group" style="--bc:${g.belt?beltC(g.belt):'var(--accent)'}"><div class="ki-cone">${g.cone}</div><div class="ki-gi"><b>Group ${g.cone}</b><span>${g.belt?`${g.belt} → ${nextOf(g.belt)}`:g.name}</span></div></div>
+        <div class="ki-find">Head to the <b>Group ${g.cone}</b> cones and wait there</div>`:`<div class="ki-find">Please see a staff member for your group.</div>`}
+      <button class="ki-next" id="kiNext">Done — next person</button></div></div>`;
+    $('#kiNext').onclick=()=>{ kioskState={q:'',done:null}; render(); };
+    return;
+  }
+  const rows=[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['Z','X','C','V','B','N','M']];
+  k.innerHTML=`<div class="ki-wrap">
+    <div class="ki-head"><div class="ki-logo">A</div><div><h1>Grading Check-In</h1><p>Type your name, then tap it</p></div></div>
+    <input id="kiQ" class="ki-input" placeholder="Your name…" readonly>
+    <div class="ki-results" id="kiResults"></div>
+    <div class="ki-kb" id="kiKb">
+      ${rows.map(r=>`<div class="kb-row">${r.map(ch=>`<button class="kb-key" data-k="${ch}">${ch}</button>`).join('')}</div>`).join('')}
+      <div class="kb-row"><button class="kb-key kb-wide" data-k="back">⌫</button><button class="kb-key kb-space" data-k="space">space</button><button class="kb-key kb-wide" data-k="clear">clear</button></div>
+    </div></div>`;
+  const inp=$('#kiQ');
+  const sync=()=>{ inp.value=kioskState.q; $('#kiResults').innerHTML=kioskResults(); wireKioskResults(); };
+  sync();
+  $$('#kiKb .kb-key').forEach(key=>key.onclick=()=>{ const kk=key.dataset.k;
+    if(kk==='back') kioskState.q=kioskState.q.slice(0,-1);
+    else if(kk==='space') kioskState.q+=' ';
+    else if(kk==='clear') kioskState.q='';
+    else kioskState.q+=kk;
+    sync(); });
+}
+function render(){
+  const groups=state.groups, totalHere=present().length, ST={future:'',current:'live',past:'done'};
+  const role=state.role; document.body.dataset.role=role;
+  if(role==='signin'){ $('#kiosk').hidden=false; renderKiosk(); } else { $('#kiosk').hidden=true; }
+  if(role==='master'){ const li=groups.findIndex(gg=>gg.status==='current'); if(li>=0) state.active=li; }  // Master follows the live group
+  $('#herePill').textContent=totalHere+' here';
+  $('#sHere').textContent=totalHere;
+  $('#sGroups').textContent=groups.length;
+  $('#sSpots').textContent=groups.reduce((a,g)=>a+g.spots,0);
+  // group tabs
+  $('#groups').innerHTML=groups.map((g,i)=>{
+    const fids=g.slots.filter(x=>x!=null).map(byId), belts=[...new Set(fids.map(s=>s.belt))];
+    const foot=g.status==='current'?'<span class="gbadge live">● LIVE</span>':g.status==='past'?'<span class="gbadge done">✓ Done</span>':`<div class="gdots">${belts.slice(0,6).map(b=>`<i style="background:${beltC(b)}"></i>`).join('')}</div>`;
+    return `<button class="gtab ${ST[g.status]}" data-g="${i}" aria-selected="${i===state.active}">
+      <span class="gcount">${fids.length}/${g.spots}</span>
+      <div class="gname"><span class="cone" style="background:${g.belt?beltC(g.belt):'var(--ink)'}">${g.cone||'?'}</span>${g.name}</div>
+      <div class="gmeta">${fids.length?`ages ${Math.min(...fids.map(s=>s.age))}–${Math.max(...fids.map(s=>s.age))} · ${belts.length} belt${belts.length>1?'s':''}`:'empty'}</div>
+      ${foot}</button>`;
+  }).join('');
+  $$('#groups .gtab').forEach(b=>b.onclick=()=>{state.active=+b.dataset.g;render();});
+  // alert bar — a late check-in with nowhere to go
+  const ab=$('#alertBar');
+  if(state.alert){ ab.hidden=false; const al=state.alert; ab.innerHTML=`<div class="al-ic">!</div><div class="al-tx"><b>${al.name} (${al.belt}) checked in late</b><span>No upcoming ${al.belt} group with room — they can't join one that's up or finished. Add a group or free a spot.</span></div><button class="al-add" id="alAdd">Add ${al.belt} group</button><button class="al-x" id="alX" aria-label="dismiss">✕</button>`;
+    $('#alAdd').onclick=()=>{ const s=state.alert; addGroup(s&&s.belt); state.alert=null; if(s && !placeLate(s.id)) state.alert=s; render(); };
+    $('#alX').onclick=()=>{ state.alert=null; render(); };
+  } else ab.hidden=true;
+  // floor
+  const g=groups[state.active]||{slots:[],spots:0,rows:1,name:'',status:'future'};
+  const lay=g.spots?layoutFor(g):[], filled=lay.filter(x=>x!=null).length;
+  const masterWaiting = role==='master' && !groups.some(gg=>gg.status==='current');   // Master with no group up yet
+  $('#flName').textContent=masterWaiting?'Ready':(g.cone?`Group ${g.cone} · `:'')+g.name;
+  $('#flSub').textContent=masterWaiting?'The next group will show here the moment it starts':`${filled} on the floor · ${g.spots} spots out · ${g.rows===1?'one line':'two rows'}`;
+  // host controls: Sarah & Admin drive the flow; Super can force any state; Master just follows (no controls)
+  const canControl = role==='admin'||role==='sarah'||role==='super';
+  $('#flCtrl').innerHTML = !canControl ? '' : role==='super'
+    ? `${g.status==='current'?'<span class="statustag live">● LIVE</span>':''}<button class="sbtn start" id="stStart">Start</button><button class="sbtn done" id="stDone">Finish</button><button class="sbtn re" id="stRe">Future</button>`
+    : g.status==='future' ? `<button class="sbtn start" id="stStart">▶ They're up</button>`
+    : g.status==='current' ? `<span class="statustag live">● LIVE now</span><button class="sbtn done" id="stDone">✓ Finish</button>`
+    : `<span class="statustag done">✓ Graded</span><button class="sbtn re" id="stRe">Reopen</button>`;
+  { const a=$('#stStart'),d=$('#stDone'),r=$('#stRe');
+    if(a)a.onclick=()=>setStatus(state.active,'current'); if(d)d.onclick=()=>setStatus(state.active,'past'); if(r)r.onclick=()=>setStatus(state.active, role==='super'?'future':'current'); }
+  $('#flDim').innerHTML=`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V5a2 2 0 0 1 2-2h4M21 9V5a2 2 0 0 0-2-2h-4M3 15v4a2 2 0 0 0 2 2h4M21 15v4a2 2 0 0 1-2 2h-4"/></svg> ${state.fw}m × ${state.fh}m`;
+  const floor=$('#floor'); floor.style.aspectRatio=state.fw/state.fh;
+  if(masterWaiting){ floor.className='floor empty'; floor.innerHTML='<div class="instr">Waiting for the next group to start…</div>'; }
+  else if(!g.spots){ floor.className='floor empty'; floor.innerHTML='<div class="instr">No spots in this group</div>'; }
+  else{
+    floor.className='floor'+(g.status==='current'?' live':g.status==='past'?' past':'');
+    const pos=positions(g.spots,g.rows);
+    floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{
+      const s=byId(lay[i]);
+      if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
+      return `<div class="spot ${state.sel===s.id?'sel':''}" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%">
+        <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div>
+        <div class="nm">${floorName(s)}</div></div>`;
+    }).join('');
+    wireFloor(state.active,g);
+  }
+  // roster
+  const p=present(); const all=[...STUDENTS].sort((a,b)=>beltR(a.belt)-beltR(b.belt)||a.name.localeCompare(b.name));
+  $('#ciSub').textContent=`${p.length} of ${STUDENTS.length} checked in`;
+  $('#roster').innerHTML=all.map(s=>{
+    const here=!absentIds.has(s.id);
+    return `<div class="rrow ${here?'':'absent'}" data-s="${s.id}">
+      <span class="dot" style="background:${beltC(s.belt)}"></span>
+      <div class="rn"><b>${s.name}</b><small>${shortBelt(s.belt)} belt · age ${s.age}</small></div>
+      <button class="chk ${here?'on':''}" data-chk="${s.id}" aria-label="toggle">${here?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</button></div>`;
+  }).join('');
+  $$('#roster .chk').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const id=+b.dataset.chk; const wasAbsent=absentIds.has(id);
+    if(wasAbsent){ absentIds.delete(id); if(groupOf(id)<0 && !placeLate(id)) state.alert=byId(id); }  // mark arrived; cone already fixed
+    else { absentIds.add(id); }                                                                       // mark not-here (no un-coning)
+    persistCheckin(id,wasAbsent);
+    render(); });
+  $$('#roster .rrow').forEach(r=>r.onclick=()=>openProfile(+r.dataset.s));
+  // role gating
+  $('#gearBtn').hidden = !(role==='admin'||role==='super');     // admin + super set up the floor
+  $$('#roleSeg button').forEach(b=>b.classList.toggle('on',b.dataset.role===role));
+  const curSide = role==='sarah';
+  $('#checkinCard').hidden = curSide;
+  $('#currCard').hidden = !curSide;
+  if(curSide){                                                 // Sarah sees the group's curriculum beside the floor, checkable as she calls each one
+    const belt=g.belt, cu=belt&&CURR[belt], mc=true;
+    $('#currTitle').textContent = belt?`${g.cone?'Group '+g.cone+' · ':''}${belt} → ${nextOf(belt)}`:'Curriculum';
+    $('#currSub').textContent = mc?'Tick off as you call each one':(belt?'What this group is grading on':'');
+    $('#currPanel').innerHTML = cu?COMPONENTS.map(comp=>{const items=(cu.cats||{})[comp]||[]; return items.length?`<div class="cp-sec"><div class="cp-h">${comp}</div>${items.map((it,ix)=>{const k=saidKey(belt,comp,ix),done=mc&&said.has(k); return `<div class="cp-it ${mc?'say':''} ${done?'done':''}"${mc?` data-say="${k}"`:''}>${mc?'<span class="sk"></span>':''}<span>${it}</span></div>`;}).join('')}</div>`:'';}).join(''):'<div class="cp-it" style="color:var(--ink-3)">No curriculum for this group.</div>';
+    if(mc) $$('#currPanel .cp-it.say').forEach(el=>el.onclick=()=>{ const k=el.dataset.say; said.has(k)?said.delete(k):said.add(k); render(); });
+  }
+}
+const shortBelt=b=>b;
+// drag a student from one red dot to another (works with touch + mouse); a short press with no move opens their profile
+function wireFloor(gi,g){
+  $$('#floor .spot').forEach(el=>{
+    el.addEventListener('pointerdown',ev=>{
+      if(ev.button&&ev.button!==0) return;
+      const from=+el.dataset.i, startId=layoutFor(g)[from], sx=ev.clientX, sy=ev.clientY;
+      let moved=false, ghost=null, tgt=null;
+      const move=e=>{
+        if(!moved && Math.hypot(e.clientX-sx,e.clientY-sy)>8){ moved=true; dragging=true; if(startId!=null){ ghost=makeGhost(el); document.body.appendChild(ghost); el.style.opacity=.3; } }
+        if(ghost){ ghost.style.left=e.clientX+'px'; ghost.style.top=e.clientY+'px';
+          const t=spotUnder(e,el); if(t!==tgt){ if(tgt)tgt.classList.remove('drop'); tgt=t; if(t)t.classList.add('drop'); } }
+      };
+      const up=()=>{ document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); setTimeout(()=>dragging=false,50);
+        if(ghost){ ghost.remove(); if(tgt){ tgt.classList.remove('drop'); dropMove(gi,g,from,+tgt.dataset.i); } else render(); }
+        else if(!moved && startId!=null){ openProfile(startId); } };
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    });
+  });
+}
+function makeGhost(el){ const w=document.createElement('div'); w.className='ghost'; w.appendChild(el.querySelector('.dot').cloneNode(true)); return w; }
+function spotUnder(e,self){ for(const n of document.elementsFromPoint(e.clientX,e.clientY)){ const sp=n.closest&&n.closest('.spot'); if(sp&&sp!==self&&sp.parentElement&&sp.parentElement.id==='floor') return sp; } return null; }
+function dropMove(gi,g,from,to){ const s=state.groups[gi].slots, t=s[from]; s[from]=s[to]; s[to]=t; persistGroup(gi,{slots:1}); render(); } // swap the two dots
+
+function openProfile(id){
+  const s=STUDENTS.find(x=>x.id===id); if(!s) return; state.sel=id;
+  const role=state.role, full=role==='admin'||role==='super', hasScore=full||role==='master', hasOv=full||role==='sarah';
+  const tab=role==='master'?'sc':role==='sarah'?'ov':(state.profTab||'ov');
+  const nx=Object.keys(BELTS)[Object.keys(BELTS).indexOf(s.belt)+1]||'Black';
+  const cardHtml=scoreCardHtml(s);
+  const sibs=siblingsOf(s), subHolder=sibs.find(x=>x.sub);
+  const dash=v=>(v==null||v==='')?'—':v;
+  const packTxt=s.pack||(s.days.length?packageOf(s.days.length):'—');
+  const feeText=s.sub?dash(s.fee):(subHolder&&subHolder.fee?`${subHolder.fee} · family`:'Family plan');
+  const ATT={green:'Regular',orange:'Slipping',red:'At risk'}, className=s.age<7?'Little Dragons':s.age<13?'Juniors':'Teens & Adults';
+  const opps=[];
+  if(s.attend==='red') opps.push(['At risk — winback call','bad']); else if(s.attend==='orange') opps.push(['Attendance slipping — check in','warn']);
+  if(s.referrals!=null && s.referrals<2) opps.push(['Ask for a referral','good']);
+  const ovHtml=`<div id="ovPanel"${tab==='ov'?'':' hidden'}>
+        <div class="grid3">
+          <div class="stat"><div class="k">Weeks on belt</div><div class="v">${s.weeks}</div></div>
+          <div class="stat"><div class="k">Classes since</div><div class="v">${s.classes}</div></div>
+          <div class="stat"><div class="k">Progress</div><div class="v">${s.prog}<small>%</small></div><div class="prog mini"><i style="width:${s.prog}%"></i></div></div>
+        </div>
+        <div class="capline">${s.classes} classes since grading${currOf(s).min?` · min ${currOf(s).min} needed`:''} · last graded ${s.lastGap} wks ago</div>
+        ${s.days.length?`<div class="ovsec"><div class="ovlabel">Training <span class="muted">${packTxt}</span></div>
+          <div class="days">${DAYS.map(dn=>`<span class="day ${s.days.includes(dn)?'on':''}">${dn[0]}</span>`).join('')}</div></div>`:''}
+        <div class="ovsec"><div class="ovlabel">Membership</div>
+          <div class="chips">
+            <div class="chip"><span>Black Belt Club</span><b class="${s.bbc?'gold':''}">${s.bbc?'Member':'—'}</b></div>
+            <div class="chip"><span>Package</span><b>${packTxt}</b></div>
+            <div class="chip"><span>Fee</span><b>${feeText}</b></div>
+            <div class="chip"><span>Trains at</span><b>${dash(schoolOf(s.loc))}</b></div>
+          </div></div>
+        <div class="ovsec"><div class="ovlabel">Engagement</div>
+          <div class="chips">
+            <div class="chip"><span>Attendance</span><b class="att ${s.attend}"><i class="dotpip ${s.attend}"></i>${ATT[s.attend]}</b></div>
+            <div class="chip"><span>Programs on</span><b>${dash(s.programs)}</b></div>
+            <div class="chip"><span>Classes</span><b>${className}</b></div>
+            <div class="chip"><span>Referrals</span><b>${dash(s.referrals)}</b></div>
+          </div>
+          ${opps.length?`<div class="opps">${opps.map(o=>`<span class="opp ${o[1]}">${o[0]}</span>`).join('')}</div>`:''}
+        </div>
+        ${sibs.length?`<div class="fambox">
+          <div class="fam-h">Family</div>
+          ${sibs.map(x=>`<div class="fam-row"><span class="dot" style="background:${beltC(x.belt)}"></span>${x.name} <small>· ${x.belt}${x.sub?'':' · no own sub'}</small></div>`).join('')}
+          ${!s.sub?`<div class="fam-note">No subscription of their own — pays ${subHolder&&subHolder.fee?subHolder.fee:'the family rate'} under the family${subHolder?` (${subHolder.name.split(' ')[0]}'s plan)`:''}.</div>`:''}
+        </div>`:''}
+      </div>`;
+  const scHtml=`<div id="scPanel"${tab==='sc'?'':' hidden'}>${cardHtml}</div>`;
+  const tabsHtml=full?`<div class="ptabs"><button data-pt="ov" class="${tab==='ov'?'on':''}">Overview</button><button data-pt="sc" class="${tab==='sc'?'on':''}">Scorecard</button></div>`:'';
+  const superHtml=role==='super'?`<div class="superbar"><span class="sb-l">Super override</span><label class="sb-belt">Belt <select id="supBelt">${Object.keys(BELTS).map(bk=>`<option ${bk===s.belt?'selected':''}>${bk}</option>`).join('')}</select></label><button class="sb-rdy" id="supRdy">${s.ready?'Mark not ready':'Mark ready'}</button></div>`:'';
+  const d=$('#drawer');
+  d.innerHTML=`<div class="dh">
+    <div class="top">
+      <div class="who"><div class="avatar" style="background:${beltC(s.belt)}">${initials(s.name)}</div>
+        <div><div class="pname">${s.name}</div><div class="pmeta">Taekwondo · age ${s.age} · trains at ${s.loc}</div>
+          <div class="hdchips"><span class="belttag"><i style="background:${beltC(s.belt)}"></i>${s.belt} → ${nx}</span><span class="rdchip ${s.ready?'yes':'no'}">${s.ready?'Ready to grade':'Working toward it'}</span></div></div></div>
+      <button class="closex" id="pClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    ${tabsHtml}</div>
+    <div class="dbody">${superHtml}${hasOv?ovHtml:''}${hasScore?scHtml:''}</div>`;
+  d.classList.add('open'); d.setAttribute('aria-hidden','false'); $('#scrim').classList.add('open');
+  $('#pClose').onclick=closeProfile;
+  $$('#drawer [data-pt]').forEach(b=>b.onclick=()=>{ state.profTab=b.dataset.pt; $('#ovPanel').hidden=b.dataset.pt!=='ov'; $('#scPanel').hidden=b.dataset.pt!=='sc'; $$('#drawer [data-pt]').forEach(x=>x.classList.toggle('on',x===b)); });
+  $$('#drawer .sbar i').forEach(seg=>seg.onclick=()=>{ scoreFor(s)[seg.closest('.sbar').dataset.c]=+seg.dataset.v; persistScore(id,{scores:scoreFor(s)}); openProfile(id); });
+  $$('#drawer .pfbtn').forEach(b=>b.onclick=()=>{ const x=pattFor(s); if(b.dataset.pf==='pass'){ x.res='pass'; } else if(x.res!=='fail'){ x.res=null; if(x.attempt<3) x.attempt++; else x.res='fail'; } persistScore(id,{pattern:x}); openProfile(id); });
+  $$('#drawer .curit').forEach(el=>el.onclick=()=>{ const k=tickKey(s.id,el.dataset.c,+el.dataset.ix), set=tickedSet(s.id); set.has(k)?set.delete(k):set.add(k); persistScore(id,{ticks:[...set]}); openProfile(id); });
+  const spb=$('#supBelt'); if(spb) spb.onchange=()=>{ s.belt=spb.value; generateGroups(); persistGroups(); openProfile(id); };   // super: override belt (re-cones everyone)
+  const sr=$('#supRdy'); if(sr) sr.onclick=()=>{ s.ready=!s.ready; openProfile(id); };                                           // super: override readiness
+  render();
+}
+function closeProfile(){ state.sel=null; $('#drawer').classList.remove('open'); $('#drawer').setAttribute('aria-hidden','true'); $('#scrim').classList.remove('open'); render(); }
+$('#scrim').onclick=closeProfile;
+
+// settings
+function manual(){ state.autoBalance=false; }
+function renderSettings(){
+  $('#dsize').value=state.spotsOut; $('#fw').value=state.fw; $('#fh').value=state.fh;
+  $('#balNote').textContent=state.autoBalance
+    ? `${present().length} checked-in students, split evenly across ${state.groups.length} group${state.groups.length>1?'s':''} of ${state.spotsOut} spots.`
+    : 'Manual sizes — tap “Balance evenly” to auto-split again.';
+  $('#grpEdit').innerHTML=state.groups.map((g,i)=>`<div class="grp-edit">
+    <div class="gi"><b>${g.name}</b><small>${occupied(g)} students on ${g.spots} spots${g.status!=='future'?' · '+(g.status==='current'?'LIVE':'done'):''}</small></div>
+    <div class="stepper"><button data-dec="${i}">−</button><span class="n">${g.spots}</span><button data-inc="${i}">+</button></div>
+    ${state.groups.length>1?`<button class="rm" data-rm="${i}">Remove</button>`:''}
+    <div class="seg"><button data-rows="${i}" data-v="1" class="${g.rows===1?'on':''}">One line</button><button data-rows="${i}" data-v="2" class="${g.rows===2?'on':''}">Two rows</button></div></div>`).join('');
+  $$('#grpEdit [data-inc]').forEach(b=>b.onclick=()=>{manual();setSpots(state.groups[+b.dataset.inc],state.groups[+b.dataset.inc].spots+1);renderSettings();render();persistGroups();});
+  $$('#grpEdit [data-dec]').forEach(b=>b.onclick=()=>{manual();const g=state.groups[+b.dataset.dec];setSpots(g,g.spots-1);renderSettings();render();persistGroups();});
+  $$('#grpEdit [data-rm]').forEach(b=>b.onclick=()=>{manual();state.groups.splice(+b.dataset.rm,1);recone();state.active=Math.min(state.active,state.groups.length-1);renderSettings();render();persistGroups();});
+  $$('#grpEdit [data-rows]').forEach(b=>b.onclick=()=>{state.groups[+b.dataset.rows].rows=+b.dataset.v;renderSettings();render();persistGroups();});
+  $('#superTools').innerHTML = state.role==='super' ? `<div class="supertools"><div class="st-h">Super override</div><button class="btn ghost block" id="resetGrading">Reset grading — clear all statuses, scores and check-ins</button></div>` : '';
+  const rg=$('#resetGrading'); if(rg) rg.onclick=()=>{ for(const k in scores) delete scores[k]; for(const k in patt) delete patt[k]; for(const k in ticks) delete ticks[k]; absentIds.clear(); state.autoBalance=true; generateGroups(); renderSettings(); render(); persistGroups(); resetScoresRemote(); };
+}
+$('#dsize').oninput=e=>{state.spotsOut=Math.max(1,Math.min(40,+e.target.value||13));state.autoBalance=true;generateGroups();renderSettings();render();persistGroups();};
+$('#rebal').onclick=()=>{state.autoBalance=true;generateGroups();renderSettings();render();persistGroups();};
+$('#fw').oninput=e=>{state.fw=Math.max(4,+e.target.value||12);render();};
+$('#fh').oninput=e=>{state.fh=Math.max(4,+e.target.value||10);render();};
+$('#addGrp').onclick=()=>{manual();addGroup();renderSettings();render();persistGroups();};
+$$('#roleSeg button').forEach(b=>b.onclick=()=>{ if(b.dataset.role==='super' && !canSuper) return; state.role=b.dataset.role; if(state.sel) closeProfile(); else render(); });
+$('#gearBtn').onclick=()=>{renderSettings();$('#modal').classList.add('open');};
+$('#mClose').onclick=$('#mDone').onclick=()=>$('#modal').classList.remove('open');
+$('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').classList.remove('open');};
+
+// ================= live wiring: auth, day load, persistence, polling =================
+const CFG = window.TOOLKIT_CONFIG || {};
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+const SUPER_EMAIL = 'theggatonklenner@gmail.com';   // only this login gets the Super role
+let ME = '', PERMS = [], canSuper = false, loading = false, pollT = null;
+function toast(msg, ms) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); } t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms || 3000); }
+const SCHOOL_LABEL = { West: 'Auburn' };
+const schoolOf = s => SCHOOL_LABEL[s] || s || '';
+const fmtDay = d => { if (!d) return ''; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }); };
+if (window.AmaHub) AmaHub.mount({ sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#siForm' });
+if (window.AmaIdle) AmaIdle.watch({ sb });
+
+const slotEntries = g => g.slots.map(id => id == null ? null : (id2entry[id] || null));
+function groupsJson() { return state.groups.map((g, i) => ({ ord: i, cone: g.cone, belt: g.belt, spots: g.spots, rows: g.rows, status: g.status, slots: slotEntries(g) })); }
+let saveT = null;
+function persistGroups() { if (!DAYID || loading) return; clearTimeout(saveT); saveT = setTimeout(() => sb.rpc('cb_floor_save_groups', { p_day: DAYID, p_groups: groupsJson() }), 300); }
+function persistGroup(i, patch) { if (!DAYID || loading) return; const p = { ...patch }; if ('slots' in patch) p.slots = slotEntries(state.groups[i]); sb.rpc('cb_group_patch', { p_day: DAYID, p_ord: i, p_patch: p }); }
+function persistScore(id, patch) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_score_save', { p_entry: id2entry[id], p_patch: patch }); }
+function persistCheckin(id, on) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_floor_checkin', { p_entry: id2entry[id], p_on: !!on }); }
+function resetScoresRemote() { if (!DAYID) return; sb.rpc('cb_floor_reset', { p_day: DAYID }); }
+
+function loadGroups(gs) {
+  state.groups = (gs || []).slice().sort((a, b) => a.ord - b.ord).map(g => ({
+    name: g.belt ? `${g.belt} → ${nextOf(g.belt)}` : 'Group', belt: g.belt, spots: g.spots, rows: g.rows, status: g.status, cone: g.cone,
+    slots: (g.slots || []).map(e => e == null ? null : (entry2id[e] || null))
+  }));
+  state.active = Math.min(state.active, Math.max(0, state.groups.length - 1)); recone();
+}
+async function loadDay(dayId) {
+  loading = true; DAYID = dayId;
+  const { data, error } = await sb.rpc('cb_floor_load', { p_day: dayId });
+  if (error || !data) { loading = false; return toast('Could not load the grading day.', 6000); }
+  DAYINFO = data.day || {}; CODE = DAYINFO.checkin_code || null;
+  if (!CODE) { const { data: c } = await sb.rpc('cb_floor_set_code', { p_day: dayId }); if (c) CODE = c; }
+  showCode();
+  if (DAYINFO.floor_spots) state.spotsOut = DAYINFO.floor_spots;
+  mapStudents(data.students);
+  if (data.groups && data.groups.length) { loadGroups(data.groups); state.autoBalance = false; } else { generateGroups(); }
+  $('#dayLabel').textContent = `${schoolOf(DAYINFO.location)} · ${fmtDay(DAYINFO.date)}`;
+  loading = false;
+  if (!(data.groups && data.groups.length)) persistGroups();
+  $('#gate').hidden = true; render();
+  if (pollT) clearInterval(pollT); pollT = setInterval(pollDay, 4000);
+}
+async function pollDay() {
+  if (!DAYID || loading || state.sel || dragging || $('#modal').classList.contains('open')) return;   // don't clobber mid-action
+  const { data } = await sb.rpc('cb_floor_load', { p_day: DAYID }); if (!data) return;
+  loading = true; mapStudents(data.students); if (data.groups && data.groups.length) loadGroups(data.groups); loading = false; render();
+}
+
+// day picker + sign-in
+async function showDays() {
+  $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gateMsg').textContent = 'Choose the grading day';
+  const { data, error } = await sb.rpc('cb_floor_days');
+  if (error) { $('#dayList').innerHTML = `<div class="dp-empty">No access yet — ask a Coloured Belts admin.</div>`; return; }
+  const days = data || [];
+  $('#dayList').innerHTML = days.length ? days.map(d => `<button class="dp-row" data-day="${d.day_id}"><div><b>${schoolOf(d.location)}</b><span>${fmtDay(d.date)}</span></div><span class="dp-n">${d.entries}</span></button>`).join('') : `<div class="dp-empty">No upcoming grading days with students.</div>`;
+  $$('#dayList .dp-row').forEach(b => b.onclick = () => loadDay(b.dataset.day));
+}
+async function boot() {
+  if (window.AmaHub) { try { await AmaHub.recheck({ sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY }); } catch (e) {} }
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { $('#gate').hidden = false; $('#siForm').hidden = false; $('#daypick').hidden = true; return; }
+  ME = (session.user.email || '').toLowerCase();
+  const { data: perms } = await sb.rpc('app_my_perms', { p_app: 'cb' }); PERMS = perms || [];
+  canSuper = (ME === SUPER_EMAIL);
+  if (!canSuper) { const sx = $('#roleSeg [data-role="super"]'); if (sx) sx.remove(); if (state.role === 'super') state.role = 'admin'; }
+  if (!PERMS.length) { $('#gate').hidden = false; $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gateMsg').textContent = "You don't have Coloured Belts access yet."; $('#dayList').innerHTML = ''; return; }
+  showDays();
+}
+$('#siForm').addEventListener('submit', async e => {
+  e.preventDefault(); const go = $('#siGo'); go.disabled = true; go.textContent = 'Signing in…'; $('#siErr').hidden = true;
+  const { error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
+  if (error) { $('#siErr').textContent = 'Email or password not right.'; $('#siErr').hidden = false; go.disabled = false; go.textContent = 'Sign in'; return; }
+  boot();
+});
+function showCode() {
+  const p = $('#codePill'); if (!CODE) { p.hidden = true; return; }
+  $('#codeVal').textContent = CODE; p.hidden = false;
+}
+$('#codePill').onclick = () => {
+  const url = location.origin + '/grading/check-in';
+  toast(`Check-in code ${CODE} — open ${url} on each station and enter it`, 6000);
+};
+$('#gateOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<base href="/grading/check-in/">
+<title>Grading Check-In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../../config.js"></script>
+<style>
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#15181d; --ink-2:#4b5563; --ink-3:#8b94a1;
+  --line:#e2e6ec; --line-2:#eef1f5; --accent:#1f7a43; --accent-ink:#ffffff;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 10px 30px rgba(16,24,40,.10);
+  --danger:#c23b3b; --key:#ffffff; --key-press:#e7ebf0;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1116; --panel:#161b22; --ink:#eef1f5; --ink-2:#aeb7c2; --ink-3:#717c8a;
+  --line:#242c36; --line-2:#1c232c; --accent:#34b36a; --accent-ink:#06120b;
+  --danger:#e26d6d; --key:#1b222b; --key-press:#2a333f; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0e1116; --panel:#161b22; --ink:#eef1f5; --ink-2:#aeb7c2; --ink-3:#717c8a;
+  --line:#242c36; --line-2:#1c232c; --accent:#34b36a; --accent-ink:#06120b;
+  --danger:#e26d6d; --key:#1b222b; --key-press:#2a333f; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;
+  display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
+.screen{flex:1;min-height:0;display:none;flex-direction:column}
+.screen.on{display:flex}
+
+/* ---- code screen ---- */
+#codeScreen{align-items:center;justify-content:center;gap:0;padding:24px max(16px,env(safe-area-inset-left,0)) 24px max(16px,env(safe-area-inset-right,0))}
+.code-card{width:min(440px,100%);text-align:center}
+.logo{width:60px;height:60px;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-family:Oswald;font-weight:700;font-size:30px;display:grid;place-items:center;margin:0 auto}
+h1{font-family:Oswald;font-weight:600;font-size:30px;margin:18px 0 4px;letter-spacing:.3px}
+.sub{color:var(--ink-3);font-size:15px;margin:0 0 22px;line-height:1.5}
+.code-box{display:flex;justify-content:center;gap:10px;margin-bottom:8px}
+.code-cell{width:48px;height:62px;border:2px solid var(--line);border-radius:12px;background:var(--panel);
+  display:grid;place-items:center;font-family:Oswald;font-weight:700;font-size:30px}
+.code-cell.filled{border-color:var(--accent)}
+.code-err{color:var(--danger);font-weight:600;font-size:14px;height:20px;margin:6px 0 0}
+.kp{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:min(320px,100%);margin:18px auto 0}
+.kp button{height:58px;border:1px solid var(--line);background:var(--key);color:var(--ink);border-radius:12px;
+  font-family:Oswald;font-weight:600;font-size:24px;box-shadow:var(--shadow)}
+.kp button:active{background:var(--key-press)}
+.kp .wide{grid-column:span 1}
+
+/* ---- kiosk (name) screen ---- */
+.topbar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:14px max(16px,env(safe-area-inset-left,0)) 12px max(16px,env(safe-area-inset-right,0));border-bottom:1px solid var(--line)}
+.topbar .t b{font-family:Oswald;font-size:19px;display:block;line-height:1.1}
+.topbar .t small{color:var(--ink-3);font-size:12.5px}
+.topbar .re{border:1px solid var(--line);background:var(--panel);color:var(--ink-3);border-radius:9px;font-size:12px;font-weight:600;padding:8px 11px}
+.searchwrap{flex:0 0 auto;padding:16px max(16px,env(safe-area-inset-left,0)) 8px max(16px,env(safe-area-inset-right,0))}
+.searchbox{display:flex;align-items:center;gap:12px;background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:16px 18px;min-height:64px}
+.searchbox.active{border-color:var(--accent)}
+.searchbox .q{flex:1;font-family:Oswald;font-weight:600;font-size:26px;letter-spacing:.3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.searchbox .ph{color:var(--ink-3);font-weight:500;font-family:Inter;font-size:19px}
+.caret{display:inline-block;width:2px;height:28px;background:var(--accent);vertical-align:middle;animation:bl 1s step-end infinite}
+@keyframes bl{50%{opacity:0}}
+.results{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:4px max(16px,env(safe-area-inset-left,0)) 10px max(16px,env(safe-area-inset-right,0));display:flex;flex-direction:column;gap:8px}
+.res{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-align:left;width:100%}
+.res:active{background:var(--line-2)}
+.res .av{width:46px;height:46px;border-radius:12px;color:#fff;font-family:Oswald;font-weight:700;font-size:18px;display:grid;place-items:center;flex:0 0 auto}
+.res .rt{flex:1;min-width:0}
+.res .rt b{font-family:Oswald;font-weight:600;font-size:20px;display:block}
+.res .rt span{color:var(--ink-3);font-size:13px}
+.res .go{font-weight:700;font-size:14px;color:var(--accent)}
+.res.in .go{color:var(--ink-3)}
+.hint,.none{color:var(--ink-3);text-align:center;padding:28px 10px;font-size:15px;line-height:1.5}
+/* keyboard */
+.kbd{flex:0 0 auto;background:var(--panel);border-top:1px solid var(--line);
+  padding:8px max(6px,env(safe-area-inset-left,0)) calc(8px + env(safe-area-inset-bottom,0)) max(6px,env(safe-area-inset-right,0));
+  display:flex;flex-direction:column;gap:7px}
+.krow{display:flex;gap:6px;justify-content:center}
+.key{flex:1;max-width:58px;height:52px;border:1px solid var(--line);background:var(--key);color:var(--ink);border-radius:9px;
+  font-family:Oswald;font-weight:600;font-size:21px;box-shadow:0 1px 1px rgba(16,24,40,.05)}
+.key:active{background:var(--key-press)}
+.key.sp{max-width:none;flex:4}
+.key.bk{max-width:84px;flex:1.4;font-size:22px}
+.key.clr{max-width:84px;flex:1.4;font-size:13px;font-weight:700;color:var(--ink-3)}
+
+/* ---- confirmation overlay ---- */
+#done{position:fixed;inset:0;z-index:50;background:var(--accent);color:var(--accent-ink);
+  display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  padding:30px max(20px,env(safe-area-inset-left,0)) 30px max(20px,env(safe-area-inset-right,0))}
+#done.on{display:flex}
+#done.err{background:var(--danger)}
+.tick{width:92px;height:92px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;margin-bottom:8px}
+.tick svg{width:52px;height:52px;stroke:currentColor;stroke-width:3.4;fill:none}
+#doneName{font-family:Oswald;font-weight:700;font-size:34px;margin:14px 0 2px}
+#doneMsg{font-size:18px;opacity:.95;margin:0 0 20px}
+.cone{background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.5);border-radius:22px;padding:18px 30px;min-width:200px}
+.cone .cl{font-size:15px;letter-spacing:2px;text-transform:uppercase;opacity:.9}
+.cone .cv{font-family:Oswald;font-weight:700;font-size:72px;line-height:1}
+.belts{margin-top:18px;font-size:16px;font-weight:600;opacity:.95}
+#doneBtn{margin-top:26px;background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:14px;padding:15px 34px;font-size:17px;font-weight:700}
+#done.err #doneBtn{background:rgba(255,255,255,.22)}
+.countdot{margin-top:14px;font-size:13px;opacity:.8}
+</style>
+</head>
+<body>
+
+<!-- CODE SCREEN -->
+<section id="codeScreen" class="screen on">
+  <div class="code-card">
+    <div class="logo">A</div>
+    <h1>Grading Check-In</h1>
+    <p class="sub">Enter the code shown on the grading screen to start this station.</p>
+    <div class="code-box" id="codeBox"></div>
+    <p class="code-err" id="codeErr"></p>
+    <div class="kp" id="codeKp"></div>
+  </div>
+</section>
+
+<!-- KIOSK SCREEN -->
+<section id="kioskScreen" class="screen">
+  <div class="topbar">
+    <div class="t"><b id="kTitle">Find your name</b><small id="kSub"></small></div>
+    <button class="re" id="kReset">Change code</button>
+  </div>
+  <div class="searchwrap">
+    <div class="searchbox" id="searchBox"><span class="q" id="q"></span></div>
+  </div>
+  <div class="results" id="results"></div>
+  <div class="kbd" id="kbd"></div>
+</section>
+
+<!-- CONFIRMATION -->
+<div id="done">
+  <div class="tick"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 6"/></svg></div>
+  <div id="doneName"></div>
+  <p id="doneMsg"></p>
+  <div class="cone"><div class="cl">Your group</div><div class="cv" id="doneCone">—</div></div>
+  <div class="belts" id="doneBelts"></div>
+  <button id="doneBtn">Done</button>
+  <div class="countdot" id="doneCount"></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const CFG=window.TOOLKIT_CONFIG||{};
+const sb=supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_KEY);
+const BELTC={ 'White':'#9aa3ad','Yellow':'#f3c53b','Orange':'#f08a24','Green':'#2f9e52','Blue':'#2f74d0',
+  'Purple':'#7d3cc0','Brown':'#7a4a28','Red':'#d8362f','Red Two':'#b3281f','Red Three':'#8e1a16','Cho Dan Bo':'#2b2b2b' };
+const SCHOOL_LABEL={ West:'Auburn' };
+const schoolOf=s=>SCHOOL_LABEL[s]||s||'';
+const shortB=b=>String(b||'').replace(/ Belt$/,'');
+const beltC=b=>BELTC[shortB(b)]||'#9aa3ad';
+const initials=n=>n.split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+const fmtDay=d=>{ if(!d) return ''; const [y,m,dd]=String(d).slice(0,10).split('-').map(Number);
+  return new Date(Date.UTC(y,m-1,dd)).toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',timeZone:'UTC'}); };
+
+// ---------- state ----------
+let CODE='', STUDENTS=[], q='', feedT=null, doneT=null, codeChars='';
+const CODE_LEN=4;   // display cells (code is 4–8; cells grow as typed, min 4)
+
+// ---------- code screen ----------
+function renderCodeBox(){
+  const n=Math.max(CODE_LEN,codeChars.length||CODE_LEN), box=$('#codeBox'); box.innerHTML='';
+  for(let i=0;i<n;i++){ const c=document.createElement('div'); c.className='code-cell'+(codeChars[i]?' filled':''); c.textContent=codeChars[i]||''; box.appendChild(c); }
+}
+function buildCodeKp(){
+  const kp=$('#codeKp'); const keys=['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
+  kp.innerHTML=keys.map(k=>`<button data-k="${k}">${k}</button>`).join('');
+  // a second compact alpha strip for letter codes
+  const alpha='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const strip=document.createElement('div'); strip.className='kp'; strip.style.gridTemplateColumns='repeat(9,1fr)'; strip.style.marginTop='10px'; strip.style.width='min(360px,100%)';
+  strip.innerHTML=alpha.map(a=>`<button data-k="${a}" style="height:42px;font-size:17px">${a}</button>`).join('');
+  kp.after(strip);
+  const all=[...kp.querySelectorAll('button'),...strip.querySelectorAll('button')];
+  all.forEach(b=>b.onclick=()=>codeKey(b.dataset.k));
+}
+function codeKey(k){
+  $('#codeErr').textContent='';
+  if(k==='⌫'){ codeChars=codeChars.slice(0,-1); renderCodeBox(); return; }
+  if(k==='OK'){ submitCode(); return; }
+  if(codeChars.length>=8) return;
+  codeChars+=k.toUpperCase(); renderCodeBox();
+  if(codeChars.length>=4){}  // allow OK any time ≥4
+}
+async function submitCode(){
+  const code=codeChars.trim();
+  if(code.length<4){ $('#codeErr').textContent='Enter the full code.'; return; }
+  $('#codeErr').textContent='Checking…';
+  const {data,error}=await sb.rpc('cb_checkin_feed',{p_code:code});
+  if(error){ $('#codeErr').textContent='Could not connect — try again.'; return; }
+  if(!data || data.error){ $('#codeErr').textContent='That code isn’t right. Check the grading screen.'; codeChars=''; renderCodeBox(); return; }
+  CODE=code; try{ sessionStorage.setItem('cb_checkin_code',code); }catch(e){}
+  applyFeed(data); startKiosk();
+}
+
+// ---------- kiosk ----------
+function applyFeed(data){
+  const d=data.day||{}; STUDENTS=data.students||[];
+  $('#kSub').textContent=`${schoolOf(d.location)} · ${fmtDay(d.date)}`;
+}
+function startKiosk(){
+  $('#codeScreen').classList.remove('on'); $('#kioskScreen').classList.add('on');
+  q=''; renderQ(); renderResults(); buildKbd();
+  clearInterval(feedT); feedT=setInterval(refreshFeed,20000);
+}
+async function refreshFeed(){
+  if($('#done').classList.contains('on')) return;
+  const {data}=await sb.rpc('cb_checkin_feed',{p_code:CODE});
+  if(data && !data.error){ applyFeed(data); renderResults(); }
+}
+function renderQ(){
+  const box=$('#q');
+  if(!q){ box.innerHTML='<span class="ph">Start typing your first name…</span>'; $('#searchBox').classList.remove('active'); return; }
+  box.innerHTML=q+'<span class="caret"></span>'; $('#searchBox').classList.add('active');
+}
+function matches(){
+  const s=q.trim().toLowerCase(); if(!s) return [];
+  return STUDENTS.filter(x=>x.name.toLowerCase().includes(s)).slice(0,20);
+}
+function renderResults(){
+  const box=$('#results'); const s=q.trim();
+  if(!s){ box.innerHTML='<div class="hint">Type your name on the keyboard below, then tap it to check in.</div>'; return; }
+  const m=matches();
+  if(!m.length){ box.innerHTML='<div class="none">No match yet — keep typing, or ask a staff member for help.</div>'; return; }
+  box.innerHTML=m.map(x=>`<button class="res ${x.checked_in?'in':''}" data-id="${x.entry_id}">
+    <div class="av" style="background:${beltC(x.belt)}">${initials(x.name)}</div>
+    <div class="rt"><b>${x.name}</b><span>${shortB(x.belt)} belt${x.loc?` · ${schoolOf(x.loc)}`:''}</span></div>
+    <span class="go">${x.checked_in?'Checked in ✓':'Check in ›'}</span></button>`).join('');
+  $$('#results .res').forEach(b=>b.onclick=()=>checkIn(b.dataset.id));
+}
+function buildKbd(){
+  const rows=['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'];
+  const kbd=$('#kbd'); kbd.innerHTML='';
+  rows.forEach((r,i)=>{ const row=document.createElement('div'); row.className='krow';
+    if(i===2) row.innerHTML+=`<button class="key clr" data-k="CLR">Clear</button>`;
+    row.innerHTML+=r.split('').map(c=>`<button class="key" data-k="${c}">${c}</button>`).join('');
+    if(i===2) row.innerHTML+=`<button class="key bk" data-k="BK">⌫</button>`;
+    kbd.appendChild(row);
+  });
+  const last=document.createElement('div'); last.className='krow';
+  last.innerHTML=`<button class="key sp" data-k="SP">space</button>`;
+  kbd.appendChild(last);
+  $$('#kbd .key').forEach(b=>b.onclick=()=>typeKey(b.dataset.k));
+}
+function typeKey(k){
+  if(k==='BK') q=q.slice(0,-1);
+  else if(k==='CLR') q='';
+  else if(k==='SP'){ if(q) q+=' '; }
+  else q+=k;
+  renderQ(); renderResults();
+}
+async function checkIn(entryId){
+  const st=STUDENTS.find(x=>x.entry_id===entryId);
+  const {data,error}=await sb.rpc('cb_checkin_mark',{p_code:CODE,p_entry:entryId});
+  if(error || !data || data.error){ showDone(null,st,true); return; }
+  if(st) st.checked_in=true;
+  showDone(data,st,false);
+}
+function showDone(data,st,isErr){
+  const d=$('#done'); d.classList.toggle('err',isErr);
+  if(isErr){
+    $('.tick').style.display='none';
+    $('#doneName').textContent='Hmm, that didn’t work';
+    $('#doneMsg').textContent='Please see a staff member to check in.';
+    $('#doneCone').parentElement.style.display='none'; $('#doneBelts').textContent='';
+  } else {
+    $('.tick').style.display='';
+    $('#doneCone').parentElement.style.display='';
+    const name=(data&&data.name)||(st&&st.name)||'You';
+    const cone=(data&&data.cone)||(st&&st.cone)||null;
+    const bf=shortB(data&&data.belt_from), bt=shortB(data&&data.belt_to);
+    $('#doneName').textContent=`You’re in, ${name}!`;
+    $('#doneMsg').textContent=cone?'Go stand at your group cone:':'Take a seat — a staff member will place you.';
+    $('#doneCone').textContent=cone?('Cone '+cone):'—';
+    $('#doneBelts').textContent=(bf&&bt)?`Grading: ${bf} → ${bt}`:'';
+  }
+  d.classList.add('on');
+  let n=8; $('#doneCount').textContent=`Back to the list in ${n}s`;
+  clearInterval(doneT); doneT=setInterval(()=>{ n--; if(n<=0){ closeDone(); } else $('#doneCount').textContent=`Back to the list in ${n}s`; },1000);
+}
+function closeDone(){ clearInterval(doneT); $('#done').classList.remove('on'); q=''; renderQ(); renderResults(); }
+$('#doneBtn').onclick=closeDone;
+$('#kReset').onclick=()=>{ clearInterval(feedT); try{ sessionStorage.removeItem('cb_checkin_code'); }catch(e){} CODE=''; codeChars=''; renderCodeBox(); $('#codeErr').textContent=''; $('#kioskScreen').classList.remove('on'); $('#codeScreen').classList.add('on'); };
+
+// physical keyboard support (for a laptop station)
+addEventListener('keydown',e=>{
+  if($('#codeScreen').classList.contains('on')){
+    if(/^[a-zA-Z0-9]$/.test(e.key)) codeKey(e.key);
+    else if(e.key==='Backspace') codeKey('⌫');
+    else if(e.key==='Enter') codeKey('OK');
+    return;
+  }
+  if($('#done').classList.contains('on')){ if(e.key==='Enter'||e.key==='Escape') closeDone(); return; }
+  if($('#kioskScreen').classList.contains('on')){
+    if(/^[a-zA-Z]$/.test(e.key)) typeKey(e.key.toUpperCase());
+    else if(e.key===' '){ e.preventDefault(); typeKey('SP'); }
+    else if(e.key==='Backspace') typeKey('BK');
+  }
+});
+
+// ---------- boot ----------
+buildCodeKp(); renderCodeBox();
+(async()=>{
+  let saved=''; try{ saved=sessionStorage.getItem('cb_checkin_code')||''; }catch(e){}
+  if(saved){ const {data}=await sb.rpc('cb_checkin_feed',{p_code:saved}); if(data && !data.error){ CODE=saved; codeChars=saved; applyFeed(data); startKiosk(); } }
+})();
+</script>
+</body>
+</html>
