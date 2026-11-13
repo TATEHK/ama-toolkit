@@ -355,6 +355,15 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
   ok(link && link.body.message === 'OFFICIAL Sam https://app.train-ama.com/b#TOK', 'and texts the booking link');
   const r3 = await call(alt, { action: 'reply', key: 'rk', phone: '0412 345 678', message: '1' });
   ok(!r3.body.moved, 'a number with no offer waiting does nothing');
+  // Replying 0 keeps the original date
+  { const T0 = tables(); T0.cb_days = T.cb_days; T0.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z', school: 'Marrickville' }]; T0.efc_members[0].date_of_birth = '2017-03-01';
+    const kp = makeDb(T0), k0 = ghlCalls.length;
+    await call(kp, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Sorry, we can't make that one" });
+    const of = ghlCalls.slice(k0).find(c => c.body && c.body.type === 'SMS');
+    ok(of && /Or reply 0 to keep the original date \(Tue 8 Dec 5:15pm at AMA Marrickville\)/.test(of.body.message), 'the offer has an option to keep the original date');
+    const k1 = ghlCalls.length, rk = await call(kp, { action: 'reply', key: 'rk', phone: '0412 345 678', message: '0' });
+    const lk = ghlCalls.slice(k1).find(c => c.body && c.body.type === 'SMS'), e0 = kp.t.cb_entries[0];
+    ok(rk.body.kept === 1 && e0.day_id === 'mk' && !e0.alt_offer && !e0.cant_make_at && lk && /b#TOK/.test(lk.body.message), 'replying 0 keeps them on the original date, off the Can\'t-make list, and texts the booking link'); }
   // "We won't be grading, we'll be overseas": the date is the problem, so they get the other gradings (not a not-grading call)
   { const T3 = tables(); T3.cb_days = T.cb_days; T3.cb_entries = [{ ...base, day_id: 'mk', invited_at: '2026-11-08T05:00:00Z', school: 'Marrickville' }]; T3.efc_members[0].date_of_birth = '2017-03-01';
     const ov = makeDb(T3); const rr = await call(ov, { action: 'reply', key: 'rk', phone: '0412 345 678', message: "Hi\nWe won't be grading unfortunately\nWe will be overseas at that time" });

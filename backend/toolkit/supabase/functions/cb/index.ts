@@ -1185,17 +1185,26 @@ export async function handle(req, db, env = {}, http = fetch) {
         const low = ' ' + msg.toLowerCase() + ' ', picks = {};
         for (const e of offered) {   // per child: their first name, then a number within a few characters
           const fn = firstWord(e.full_name).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const mm = low.match(new RegExp('\\b' + fn + '\\b[^0-9]{0,8}([1-9])'));
+          const mm = low.match(new RegExp('\\b' + fn + '\\b[^0-9]{0,8}([0-9])'));
           if (mm) picks[e.entry_id] = Number(mm[1]);
         }
         if (!Object.keys(picks).length) {   // no names: a plain number picks for every shared/one-kid offer
-          const lone = msg.match(/^\s*(?:(?:option|number|no\.?|opt|choice|the)\s+|#)?([1-9])(?=[\s.,!?)]|$)/i);
+          const lone = msg.match(/^\s*(?:(?:option|number|no\.?|opt|choice|the)\s+|#)?([0-9])(?=[\s.,!?)]|$)/i);
           if (lone) for (const e of offered) if (!(e.alt_offer && e.alt_offer.split)) picks[e.entry_id] = Number(lone[1]);
         }
         if (Object.keys(picks).length) {
           const out = [], nowIso = new Date().toISOString();
           for (const e of offered) {
-            const n = picks[e.entry_id]; if (!n) continue;
+            const n = picks[e.entry_id]; if (n == null) continue;
+            if (n === 0) {   // 0 = keep their original grading date after all: back on it, and the booking link again if they haven't booked
+              const od = open.find(x => x.day_id === e.day_id), m = byKey[e.member_key];
+              if (!od) { out.push({ entry_id: e.entry_id, error: 'original grading is closed' }); continue; }
+              await db.from('cb_entries').update({ alt_offer: null, yes_at: e.yes_at || nowIso, reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: null, cant_make_at: null, cant_make_reason: null }).eq('entry_id', e.entry_id);
+              await db.from('cb_calls').update({ done: true, outcome: 'kept', outcome_note: 'Kept the original grading by text', updated_at: nowIso }).eq('entry_id', e.entry_id).eq('done', false).then(() => {}, () => {});
+              const r = (e.booked_at || e.paid) ? { already: true } : await familyText(m, e, bookText(m, e, od), 'not_booked', 'automatic: kept the original grading', `${firstWord(m.full_name || e.full_name)}'s grading booking link`);
+              out.push({ entry_id: e.entry_id, kept: od.day_id, ...r });
+              continue;
+            }
             const nd = open.find(x => x.day_id === e.alt_offer.days[n - 1]), m = byKey[e.member_key];
             if (!nd) { out.push({ entry_id: e.entry_id, error: 'not one of the choices' }); continue; }
             const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', nd.day_id).eq('member_key', e.member_key).maybeSingle();
@@ -1206,7 +1215,7 @@ export async function handle(req, db, env = {}, http = fetch) {
             const r = await familyText(m, moved, bookText(m, moved, nd), 'not_booked', 'automatic: moved to another grading', `${firstWord(m.full_name || e.full_name)}'s grading booking link`);
             out.push({ entry_id: e.entry_id, moved_to: nd.day_id, ...r });
           }
-          if (out.length) return json({ ok: true, matched: mine.length, moved: out.filter(x => x.moved_to).length, results: out });
+          if (out.length) return json({ ok: true, matched: mine.length, moved: out.filter(x => x.moved_to).length, kept: out.filter(x => x.kept).length, results: out });
         }
       }
       const stopping = /^\s*(stop|stopall|unsubscribe|end|quit)\b/i.test(msg);
@@ -1349,9 +1358,12 @@ export async function handle(req, db, env = {}, http = fetch) {
           const days = kidOpts[0].days, e0 = kidOpts[0].e;
           const who = kidOpts.length === 1 ? (selfOf(m0) ? 'You' : firstWord(e0.full_name)) : [...new Set(kidOpts.map(k => firstWord(k.e.full_name)))].join(' and ');
           const nums = days.length === 1 ? 'Reply 1' : `Reply ${days.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${days.length}`;
-          text = `Hi ${greet}, no worries. ${who} can grade on another day instead:\n${days.map((d, i) => `${i + 1}. ${dayLine(d, e0)}`).join('\n')}\n${nums} to switch and we'll send the booking link, or call us if none suit. AMA`;
+          // 0 keeps the date they were invited to (one shared original day only, so it's clear which)
+          const origIds = [...new Set(kidOpts.map(k => k.e.day_id))], od = origIds.length === 1 ? open.find(x => x.day_id === origIds[0]) : null;
+          const keep = od ? `\nOr reply 0 to keep the original date (${dayLine(od, e0)}).` : '';
+          text = `Hi ${greet}, no worries. ${who} can grade on another day instead:\n${days.map((d, i) => `${i + 1}. ${dayLine(d, e0)}`).join('\n')}\n${nums} to switch and we'll send the booking link.${keep} Or call us if none suit. AMA`;
         } else {   // kids suit different days: list each child's own options, reply with name + number
-          const blocks = kidOpts.map(k => `${firstWord(k.e.full_name)} can grade:\n${k.days.map((d, i) => `${i + 1}. ${dayLine(d, k.e)}`).join('\n')}`).join('\n\n');
+          const blocks = kidOpts.map(k => { const od = open.find(x => x.day_id === k.e.day_id); return `${firstWord(k.e.full_name)} can grade:\n${k.days.map((d, i) => `${i + 1}. ${dayLine(d, k.e)}`).join('\n')}${od ? `\n0. Keep the original date (${dayLine(od, k.e)})` : ''}`; }).join('\n\n');
           const eg = kidOpts[1] ? `e.g. "${firstWord(kidOpts[0].e.full_name)} 1, ${firstWord(kidOpts[1].e.full_name)} 2"` : `e.g. "${firstWord(kidOpts[0].e.full_name)} 1"`;
           text = `Hi ${greet}, no worries - here are the days that suit each of them:\n\n${blocks}\n\nReply with the name and number (${eg}) and we'll send the booking links, or call us if none suit. AMA`;
         }
