@@ -16,6 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../idle-logout.js"></script>
 <script src="config.js"></script>
 <script src="hub-signin.js"></script>
 <style>
@@ -738,6 +739,7 @@
 
 const CFG = window.PREP_CONFIG || {};
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+if (window.AmaIdle) AmaIdle.watch({ sb });   // signs out after an hour with no activity (shared AMA Toolkit idle sign-out)
 // Sign in with the AMA Admin Hub mobile and PIN (hub-signin.js)
 const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_ANON_KEY, form: '#loginForm' };
 if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }

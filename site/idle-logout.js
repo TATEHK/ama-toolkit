@@ -2,7 +2,7 @@
 // shared office/reception device left open can't be used by whoever walks past. Shared by every AMA
 // staff page (copied into ama-id-cards/docs and Black-belt-prep-system/docs; keep the copies the same).
 //
-//   AmaIdle.watch({ sb, minutes })   minutes defaults to 30; a 60-second "Still there?" warning shows first.
+//   AmaIdle.watch({ sb, minutes })   minutes defaults to 60; a 60-second "Still there?" warning shows first.
 //
 // Only runs while signed in. Activity in any tab resets the timer for every tab (shared via localStorage).
 // TV party/screen and the public pages don't load this — it's for logins, not the always-on displays.
@@ -13,7 +13,7 @@
 
   function watch(o) {
     var sb = o && o.sb; if (!sb || sb.__amaIdle) return; sb.__amaIdle = true;
-    var LIMIT = Math.max(1, +(o.minutes) || 30) * 60000;
+    var LIMIT = Math.max(1, +(o.minutes) || 60) * 60000;
     var WARN = Math.min(60000, Math.floor(LIMIT / 2));   // how long before sign-out the warning appears
     var signedIn = false, box = null, label = null, goneOut = false;
 
