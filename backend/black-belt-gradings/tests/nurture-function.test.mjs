@@ -234,5 +234,28 @@ ok(eo3.ok && eo3.essay === true, 'essay-only works when called with a booking me
   ghlCalls = [];
   await run('2026-11-07T23:30:00Z');
   ok(!logFor('S1', 'enrol_d1_sms') && !sentSms().length, 'when the shared daily text cap is used up, black belt texts wait'); }
+// ---- Grading helpers: staff text a 4th Dan+ student the sessions with room ----
+{ console.log('\nGrading helpers');
+  reset();
+  t.prep_overview.push({ cycle_id: 'C1', student_id: 'S9', full_name: 'Bella Up', is_grading: true, grading_to: '4th Dan', grading_fee_status: 'paid' },
+                      { cycle_id: 'C1', student_id: 'S8', full_name: 'Kat Gal', is_grading: true, grading_to: '4th Dan Level 1', grading_fee_status: 'paid' });
+  t.prep_students.push({ student_id: 'S9', full_name: 'Bella Up', contact_phone: '0412000009', contact_email: 'b@test' }, { student_id: 'S8', full_name: 'Kat Gal', contact_phone: '0412000008' });
+  t.prep_helper_slots = [{ slot_id: 'H1', cycle_id: 'C1', label: '8:00am session', grading_date: '2026-12-05', cap: 6, sort: 1 }, { slot_id: 'H2', cycle_id: 'C1', label: '12:00pm session', grading_date: '2026-12-05', cap: 6, sort: 2 }, { slot_id: 'H3', cycle_id: 'C1', label: '3:30pm session', grading_date: '2026-12-05', cap: 1, sort: 3 }];
+  t.prep_helpers = [{ cycle_id: 'C1', student_id: 'S2', slot_id: 'H3' }];   // the 3:30pm session (cap 1 here) is full
+  const hsend = (body, tok = 'tok-grader') => handle(new Request('https://x/', { method: 'POST', headers: { authorization: 'Bearer ' + tok }, body: JSON.stringify({ action: 'helper_send', cycle: 'C1', ...body }) }), db, env, http);
+  ghlCalls = [];
+  const r = await (await hsend({ student_id: 'S9' })).json();
+  const sms = sentSms().find(c => /help at the black belt grading/.test(c.body.message));
+  ok(r.ok && sms && /on Saturday 5 December at AMA Sydenham/.test(sms.body.message) && /1\. 8:00am session\n2\. 12:00pm session\nReply 1 or 2 to choose/.test(sms.body.message) && !/3:30pm/.test(sms.body.message), 'the helper text lists only the sessions with room, numbered');
+  ok(/presented your 4th Dan sword in front of everyone at the grading you help at/.test(sms.body.message), 'going for 4th Dan: the text says their sword is presented at the grading they help at');
+  const h = t.prep_helpers.find(x => x.student_id === 'S9');
+  ok(h && h.offered_at && h.offered_slots.join() === 'H1,H2', 'the offer and its numbering are saved');
+  ghlCalls = [];
+  await hsend({ student_id: 'S8' });
+  ok(sentSms().length === 1 && !/sword/.test(sentSms()[0].body.message), 'already a 4th Dan (going for a level): no sword line');
+  const r3 = await (await hsend({ student_id: 'S1' })).json();
+  ok(r3.error && /4th Dan/.test(r3.error), 'only students going for 4th Dan and above can be asked');
+  const r4 = await (await hsend({ student_id: 'S9' }, 'nope')).json();
+  ok(r4.error, 'staff only'); }
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

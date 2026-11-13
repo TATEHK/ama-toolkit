@@ -136,7 +136,19 @@ function makeDb(tables) {
   let n = 0;
   return {
     t: tables,
-    rpc: async (fn, a) => fn === 'cb_cron_ok' ? { data: a.p_secret === 'cron-secret', error: null } : { data: null, error: null },
+    rpc: async (fn, a) => {
+      if (fn === 'cb_cron_ok') return { data: a.p_secret === 'cron-secret', error: null };
+      if (fn === 'prep_helper_claim') {   // same rules as prep-update-27.sql: never past the session's cap
+        const sl = (tables.prep_helper_slots || []).find(x => x.slot_id === a.p_slot && x.cycle_id === a.p_cycle); if (!sl) return { data: 'no_slot', error: null };
+        const hs = tables.prep_helpers = tables.prep_helpers || [];
+        if (hs.filter(h => h.slot_id === a.p_slot && h.student_id !== a.p_student).length >= sl.cap) return { data: 'full', error: null };
+        const h = hs.find(x => x.cycle_id === a.p_cycle && x.student_id === a.p_student);
+        const patch = { slot_id: a.p_slot, confirmed_at: new Date().toISOString(), declined_at: null, reply_text: a.p_reply, set_by: a.p_by };
+        if (h) Object.assign(h, patch); else hs.push({ cycle_id: a.p_cycle, student_id: a.p_student, ...patch });
+        return { data: 'ok', error: null };
+      }
+      return { data: null, error: null };
+    },
     auth: { getUser: async tok => ({ data: { user: tok === 'grader' ? { email: 'grader@ama.test' } : tok === 'boss' ? { email: 'boss@ama.test' } : null } }) },
     from(table) {
       const T = tables[table] = tables[table] || [];
@@ -505,6 +517,38 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
     const before = smsN();
     const r = await handle(new Request('https://x.test/functions/v1/cb', { method: 'POST', headers: { 'content-type': 'application/json', 'x-cb-cron': 'cron-secret' }, body: JSON.stringify({ action: 'sequence' }) }), x, env, http).then(r => r.json());
     ok(smsN() - before === 1 && r.waiting === 1, 'black belt texts sent today count towards the daily text limit'); }
+}
+// ---- Grading helpers: a 4th Dan+ student replying to the helper text with a session number ----
+{
+  console.log('\nGrading helpers');
+  const smsN = () => ghlCalls.filter(c => c.body && c.body.type === 'SMS');
+  const setup = () => { const T = tables();
+    T.prep_helper_slots = [{ slot_id: 'H1', cycle_id: 'C1', label: '8:00am session', grading_date: '2026-12-05', cap: 6, sort: 1 }, { slot_id: 'H2', cycle_id: 'C1', label: '12:00pm session', grading_date: '2026-12-05', cap: 1, sort: 2 }, { slot_id: 'H3', cycle_id: 'C1', label: '3:30pm session', grading_date: '2026-12-05', cap: 6, sort: 3 }];
+    T.prep_students = [{ student_id: 'B1', full_name: 'Bella Up', contact_phone: '0499 111 222' }, { student_id: 'B2', full_name: 'Kat Gal', contact_phone: '0499 333 444' }];
+    T.prep_overview = [{ cycle_id: 'C1', student_id: 'B1', grading_to: '4th Dan' }, { cycle_id: 'C1', student_id: 'B2', grading_to: '4th Dan Level 1' }];
+    T.prep_helpers = [{ cycle_id: 'C1', student_id: 'B1', offered_at: '2026-11-13T08:00:00Z', offered_slots: ['H1', 'H2', 'H3'], slot_id: null, declined_at: null },
+                      { cycle_id: 'C1', student_id: 'B2', offered_at: '2026-11-13T08:00:00Z', offered_slots: ['H1', 'H2', 'H3'], slot_id: null, declined_at: null }];
+    return makeDb(T); };
+  Date.now = realNow;
+  { const x = setup(), k = ghlCalls.length;
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '2' });
+    const tx = smsN().slice(-1)[0];
+    ok(r.body.helper === 'ok' && x.t.prep_helpers[0].slot_id === 'H2' && x.t.prep_helpers[0].confirmed_at, 'replying 2 books them into the second session');
+    ok(ghlCalls.length > k && /You're helping at the 12:00pm session on Saturday 5 December at AMA Sydenham\. You'll be presented your 4th Dan sword/.test(tx.body.message), '...and texts a confirmation with the sword line');
+    const k2 = ghlCalls.length, r2 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
+    const tx2 = smsN().slice(-1)[0];
+    ok(r2.body.helper === 'full' && !x.t.prep_helpers[1].slot_id && ghlCalls.length > k2 && /just filled up\. These still have room:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx2.body.message), 'a full session is never overbooked: they get the sessions that still have room');
+    const r3x = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
+    ok(r3x.body.duplicate, 'the same "2" delivered again straight away is ignored');
+    x.t.cb_reply_seen.forEach(r => { r.seen_at = new Date(Date.now() - 120e3).toISOString(); });   // two minutes later
+    const r3 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
+    ok(r3.body.helper === 'ok' && x.t.prep_helpers[1].slot_id === 'H3', '...but a "2" a couple of minutes later is read against the new list');
+  }
+  { const x = setup();
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: "Sorry I can't make it that day" });
+    ok(r.body.helper === 'declined' && x.t.prep_helpers[1].declined_at && !x.t.prep_helpers[1].slot_id, '"can\'t make it" is noted as can\'t help');
+    const r2 = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: 'What time do I need to be there?' });
+    ok(!r2.body.helper && !x.t.prep_helpers[0].slot_id, 'any other reply carries on as a normal reply'); }
 }
 Date.now = realNow;
 

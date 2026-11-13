@@ -3496,6 +3496,56 @@ function bbLineup(day, entries) {
   w.document.close(); w.focus(); w.print();
 }
 // ---- The grading enrolment sequence: start/pause/skip, progress grid, test sends, and the calls list ----
+// ---- Grading helpers (prep-update-27): students going for 4th Dan and above help at the black belt grading day.
+// Staff text each one when they choose; the text lists the sessions with room (max 6 each) and their reply books them in.
+const HELPER_RANK = /^(4|5|6|7|8|9|10)(st|nd|rd|th)\s+Dan/;
+async function renderHelpers(c) {
+  const box = $('#grHelpers'); if (!box) return;
+  const cid = c.cycle_id;
+  let sq, hq;
+  try { [sq, hq] = await Promise.all([sb.from('prep_helper_slots').select('*').eq('cycle_id', cid).order('sort'), sb.from('prep_helpers').select('*').eq('cycle_id', cid)]); }
+  catch (e) { box.innerHTML = '<div class="panel-empty">Helpers aren\'t available right now.</div>'; return; }
+  if (state.view !== 'grading' || state.gr.cycle !== cid || state.gr.panel !== 'helpers') return;
+  if (sq.error || hq.error) { box.innerHTML = '<div class="panel-empty">Run supabase/prep-update-27.sql in Supabase to use grading helpers.</div>'; return; }
+  const slots = sq.data || [], hs = hq.data || [], hBy = Object.fromEntries(hs.map(h => [h.student_id, h]));
+  const slotBy = Object.fromEntries(slots.map(x => [x.slot_id, x]));
+  const cands = grRows().filter(x => x.e.is_grading && HELPER_RANK.test(x.target || '')).map(x => ({ id: x.s.student_id, name: x.s.full_name, target: x.target, mobile: x.s.contact_phone, h: hBy[x.s.student_id] || null }));
+  const inSlot = id => cands.filter(x => x.h && x.h.slot_id === id);
+  const statusOf = x => { const h = x.h; if (h && h.slot_id && slotBy[h.slot_id]) return `<span class="tag ok">Helping: ${esc(slotBy[h.slot_id].label)}</span>`; if (h && h.declined_at) return '<span class="tag">Can\'t help</span>'; if (h && h.offered_at) return `<span class="tag">Asked ${esc(fmt(h.offered_at, { day: 'numeric', month: 'short' }))}, waiting</span>`; return '<span class="tag">Not asked</span>'; };
+  const helping = cands.filter(x => x.h && x.h.slot_id).length, asked = cands.filter(x => x.h && x.h.offered_at).length;
+  const day = slots[0] ? fmt(slots[0].grading_date, { weekday: 'long', day: 'numeric', month: 'long' }) : '';
+  box.innerHTML = `<div class="day-head"><div><h3>Grading helpers</h3><p class="sub">Students going for 4th Dan and above help at the black belt grading${day ? ' on ' + esc(day) : ''}. Text each one when you're ready; they reply with a session number. Max 6 per session.</p></div></div>
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi"><b>${cands.length}</b><span>4th Dan and above</span></div>
+      <div class="kpi"><b>${asked}</b><span>Asked</span></div>
+      <div class="kpi"><b>${helping}</b><span>Helping</span></div></div>
+    ${slots.length ? `<div class="section"><h3>Sessions</h3><div class="grid2">${slots.map(x => { const who = inSlot(x.slot_id); return `<div class="card" style="margin:0"><div class="row" style="justify-content:space-between"><b>${esc(x.label)}</b><span class="tag${who.length >= x.cap ? '' : ' ok'}">${who.length} / ${x.cap}${who.length >= x.cap ? ' full' : ''}</span></div>
+        ${who.length ? `<ul class="list">${who.map(w => `<li><div class="item" style="cursor:default"><div class="main"><div class="name">${esc(w.name)}</div><div class="meta">${esc(w.target)}${w.h.set_by && w.h.set_by !== 'reply' ? ' · added by staff' : ''}</div></div><button class="btn sm ghost" data-hclear="${esc(w.id)}" aria-label="Take ${esc(w.name)} off this session">Remove</button></div></li>`).join('')}</ul>` : '<p class="hint">No one yet.</p>'}</div>`; }).join('')}</div></div>`
+      : '<p class="hint">No helper sessions are set up for this cycle yet.</p>'}
+    <div class="section"><h3>4th Dan and above <span class="muted small">${cands.length}</span></h3>
+    ${cands.length ? `<ul class="list">${cands.map(x => `<li><div class="item" style="cursor:default;flex-wrap:wrap"><div class="main"><div class="name">${esc(x.name)}</div><div class="meta">${esc(x.target)}${x.mobile ? '' : ' · <span class="bad-text">no mobile</span>'} · ${statusOf(x)}</div></div>
+        <div class="row" style="flex-wrap:wrap;gap:4px">${slots.length ? `<select data-hset="${esc(x.id)}" aria-label="Session for ${esc(x.name)}"><option value="">Set session…</option>${slots.map(sl => `<option value="${esc(sl.slot_id)}"${x.h && x.h.slot_id === sl.slot_id ? ' selected' : ''}>${esc(sl.label)} (${inSlot(sl.slot_id).length}/${sl.cap})</option>`).join('')}</select>` : ''}
+        ${x.mobile && slots.length && !(x.h && x.h.slot_id) ? `<button class="btn sm ${x.h && x.h.offered_at ? '' : 'primary'}" data-hsend="${esc(x.id)}">${x.h && x.h.offered_at ? 'Resend' : 'Send'}</button>` : ''}</div></div></li>`).join('')}</ul>` : '<p class="hint">No one going for 4th Dan or above is put forward for grading yet.</p>'}</div>`;
+  const again = () => renderHelpers(c);
+  $$('#grHelpers [data-hsend]').forEach(b => b.onclick = async () => {
+    const x = cands.find(y => y.id === b.dataset.hsend); if (!x) return;
+    if (!await ask(`Text ${x.name} asking them to help at the grading? They'll get the sessions with room and reply with a number.`, 'Send')) return;
+    b.disabled = true;
+    try { const r = await sb.functions.invoke('nurture', { body: { action: 'helper_send', cycle: cid, student_id: x.id } }); if (r.error) throw new Error(r.error.message || r.error); if (r.data && r.data.error) throw new Error(r.data.error); toast('Helper text sent to ' + x.name); again(); }
+    catch (e) { b.disabled = false; toast(errMsg(e), 7000); }
+  });
+  $$('#grHelpers [data-hset]').forEach(sel => sel.onchange = async () => {
+    const sid = sel.dataset.hset, slot = sel.value; if (!slot) return;
+    try { const { data, error } = await sb.rpc('prep_helper_claim', { p_cycle: cid, p_student: sid, p_slot: slot, p_reply: null, p_by: state.email || 'staff' }); if (error) throw error;
+      if (data === 'full') { toast('That session already has its 6 helpers.', 5000); again(); return; } toast('Session set'); again(); }
+    catch (e) { toast(errMsg(e), 7000); again(); }
+  });
+  $$('#grHelpers [data-hclear]').forEach(b => b.onclick = async () => {
+    try { const { error } = await sb.from('prep_helpers').update({ slot_id: null, confirmed_at: null, updated_at: new Date().toISOString() }).eq('cycle_id', cid).eq('student_id', b.dataset.hclear); if (error) throw error; toast('Taken off the session'); again(); }
+    catch (e) { toast(errMsg(e), 7000); }
+  });
+}
+
 async function renderNurture(c) {
   const box = $('#grNurture'); if (!box) return;
   if (!canCallsBB() || !state.nurtureReady) { box.innerHTML = '<div class="panel-empty">The enrolment sequence isn\'t set up.</div>'; return; }
@@ -3597,7 +3647,7 @@ function renderGrading() {
   if (!state.gradingReady) { v.innerHTML = `<div class="view-head"><h2>Grading</h2></div><div class="card">Run supabase/prep-update-04.sql in Supabase to use grading.</div>`; return; }
   const c = cycle(G.cycle), rows = grRows(), count = k => rows.filter(x => GR_FILTERS[k][1](x)).length;
   const staff = canGradeRole();
-  const panels = [['candidates', 'Candidates', rows.length], (canDaysBB() || canResultsBB()) && ['day', 'Grading day', null], canCallsBB() && state.nurtureReady && ['sequence', 'Sequence', null], state.scoringReady && canScoreBB() && ['scoring', 'Scoring', null]].filter(Boolean);
+  const panels = [['candidates', 'Candidates', rows.length], (canDaysBB() || canResultsBB()) && ['day', 'Grading day', null], canCallsBB() && state.nurtureReady && ['sequence', 'Sequence', null], canCallsBB() && ['helpers', 'Helpers', null], state.scoringReady && canScoreBB() && ['scoring', 'Scoring', null]].filter(Boolean);
   if (!panels.some(p => p[0] === G.panel)) G.panel = 'candidates';
   const keepFocus = document.activeElement && document.activeElement.id === 'grSearch';
   const pipe = [['decide', 'To decide', count('decide')], ['nominated', 'Put forward', count('nominated')], ['ready', 'Ready', count('ready')], ['results', 'Results', count('results')]];
@@ -3633,6 +3683,9 @@ function renderGrading() {
   } else if (G.panel === 'day') {
     box.outerHTML = '<div class="card" id="grBooking"><div class="panel-empty">Loading the grading day…</div></div>';
     renderBbBooking(c);
+  } else if (G.panel === 'helpers') {
+    box.outerHTML = '<div class="card" id="grHelpers"><div class="panel-empty">Loading helpers…</div></div>';
+    renderHelpers(c);
   } else if (G.panel === 'scoring') {
     box.outerHTML = '<div id="grScoring"><div class="card panel-empty">Loading scores…</div></div>';
     renderScoring(c);

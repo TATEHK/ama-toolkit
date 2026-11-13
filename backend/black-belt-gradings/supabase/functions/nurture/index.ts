@@ -164,6 +164,14 @@ export function fill4dan(body, v, needsEssay) {
   return stripEssay(body, needsEssay).replace(/\{(\w+)\}/g, (m, k) => (map[k] != null ? map[k] : ''));
 }
 
+// The grading helper invitation (prep-update-27). Going for 4th Dan exactly = their sword is presented at the grading they help at.
+export const helperDay = slots => { const ds = [...new Set((slots || []).map(x => String(x.grading_date || '').slice(0, 10)).filter(Boolean))]; return ds.length === 1 ? longDate(ds[0]) : ''; };
+export const swordLine = target => /^4th Dan$/.test(String(target || '').trim()) ? " You'll be presented your 4th Dan sword in front of everyone at the grading you help at." : '';
+export function helperInvite({ first_name, target, slots }) {
+  const day = helperDay(slots), nums = slots.length === 1 ? 'Reply 1' : `Reply ${slots.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${slots.length}`;
+  return `Hi ${first_name}, we'd love your help at the black belt grading${day ? ' on ' + day : ''} at AMA Sydenham.${swordLine(target)} Which session can you help at?\n${slots.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${nums} to choose. - AMA`;
+}
+
 export async function handle(req, db, env = {}, http = fetch) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return fail('Use POST.', 405);
@@ -312,6 +320,40 @@ export async function handle(req, db, env = {}, http = fetch) {
         else { try { const t = render(byEmail.body, vars, needsEssay); const subj = byEmail.subject ? render(byEmail.subject, vars, needsEssay) : 'Grading invitation'; if (!(testing && !ready)) await sendEmail(cid, subj, t, emailHtml(subj, t, vars.adult)); out.email = 'sent'; await logOne('enrol_d1_email', 'email'); } catch (e) { out.email = String(e.message || e); } }
       }
       return json({ ok: true, ...out });
+    }
+
+    // ---- Staff: text one 4th Dan+ student asking them to help at the black belt grading (prep-update-27) ----
+    // Lists the sessions that still have room, numbered; their reply ("2") is handled by the cb reply webhook.
+    if (body.action === 'helper_send') {
+      const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+      const { data: who } = token ? await db.auth.getUser(token) : { data: null };
+      const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
+      if (!me) return fail('Sign in first.', 401);
+      const { data: roleRows } = await db.from('prep_roles').select('role').eq('email', me);
+      if (!(roleRows || []).some(r => ['admin', 'grading', 'calls'].includes(r.role))) return fail('Your login cannot send helper texts.', 403);
+      if (!(ready || testing)) return fail('GoHighLevel is not set up yet.', 409);
+      const cycle = String(body.cycle || ''), student_id = String(body.student_id || '');
+      if (!cycle || !student_id) return fail('Missing cycle or student.');
+      const { data: s } = await db.from('prep_students').select('student_id, full_name, contact_phone, contact_email').eq('student_id', student_id).maybeSingle();
+      if (!s) return fail('Student not found.', 404);
+      const { data: ov } = await db.from('prep_overview').select('grading_to').eq('cycle_id', cycle).eq('student_id', student_id).maybeSingle();
+      const target = (ov && ov.grading_to) || '';
+      if (!bb4thPlus(target)) return fail('Only students going for 4th Dan and above are asked to help.');
+      const phone = phoneE164(s.contact_phone);
+      if (!phone) return fail('No mobile on file for ' + s.full_name + '.');
+      const { data: slots } = await db.from('prep_helper_slots').select('*').eq('cycle_id', cycle).order('sort');
+      const { data: hs } = await db.from('prep_helpers').select('student_id, slot_id').eq('cycle_id', cycle);
+      const taken = id => (hs || []).filter(h => h.slot_id === id && h.student_id !== student_id).length;
+      const open = (slots || []).filter(x => taken(x.slot_id) < (x.cap ?? 6));
+      if (!open.length) return fail('Every helper session is full.', 409);
+      const text = helperInvite({ first_name: first(s.full_name), target, slots: open });
+      const cid = await contactFor({ full_name: s.full_name, email: s.contact_email, phone });
+      if (!(testing && !ready)) await sendSms(cid, text);
+      const nowIso = new Date().toISOString();
+      const row = { cycle_id: cycle, student_id, offered_at: nowIso, offered_slots: open.map(x => x.slot_id), declined_at: null, updated_at: nowIso };
+      const { data: ex } = await db.from('prep_helpers').select('student_id').eq('cycle_id', cycle).eq('student_id', student_id).maybeSingle();
+      if (ex) await db.from('prep_helpers').update(row).eq('cycle_id', cycle).eq('student_id', student_id); else await db.from('prep_helpers').insert(row);
+      return json({ ok: true, sent: true, text });
     }
 
     // ---- A family replied (GoHighLevel "customer replied" workflow posts here with the hub key) ----

@@ -41,7 +41,7 @@ await db.exec(read(join(here, '../supabase/prep-update-13.sql')));
 await db.exec(read(join(here, '../supabase/prep-update-14.sql')));
 // Later updates the page now uses (polos, nurture, essays allowed late, scoring); 20 needs pg_cron, 23 and 24 need the coloured belt tables
 await db.exec(`create or replace function public.gen_random_bytes(n int) returns bytea language sql volatile as $$ select substring(decode(md5(random()::text) || md5(random()::text) || md5(random()::text) || md5(random()::text) || md5(random()::text), 'hex') from 1 for n) $$`);   // pgcrypto stand-in
-for (const i of [15, 16, 17, 18, 19, 21, 22, 25]) await db.exec(read(join(here, `../supabase/prep-update-${i}.sql`)));
+for (const i of [15, 16, 17, 18, 19, 21, 22, 25, 27]) await db.exec(read(join(here, `../supabase/prep-update-${i}.sql`)));
 await db.exec(`insert into prep_roles (email, role) values ('att@ama.test','attendance'), ('view@ama.test','viewer');
   update prep_settings set default_session_fee = 120;
   insert into prep_dan_counters (target_rank, next_number) values ('Probationary Black Belt', 501), ('1st Dan Black Belt', 701);`);
@@ -1157,6 +1157,29 @@ try {
     await page.click('#stDelete'); await confirm(page); await settle(page);
     ok((await q(`select count(*)::int n from prep_students where full_name = 'Oops Three'`))[0].n === 0 && !(await page.isVisible('#sheet[open]')), 'Delete on a student record removes them and closes the record');
     await shot(page, 'students-select');
+    await ctx.close();
+  }
+
+  console.log('\nGrading helpers');
+  {
+    // A student going for 4th Dan in the active cycle, and that cycle's three helper sessions
+    const [c0] = await q(`select cycle_id from prep_cycles where status = 'active' order by created_at desc limit 1`);
+    const [s0] = await q(`select e.student_id, s.full_name from prep_enrolments e join prep_students s using (student_id) where e.cycle_id = $1 order by s.full_name limit 1`, [c0.cycle_id]);
+    await q(`update prep_enrolments set is_grading = true where cycle_id = $1 and student_id = $2`, [c0.cycle_id, s0.student_id]);
+    await q(`insert into prep_grading (student_id, cycle_id, target_rank, current_rank, status) values ($2, $1, '4th Dan', '3rd Dan Level 3', 'nominated')
+             on conflict (student_id, cycle_id) do update set target_rank = '4th Dan'`, [c0.cycle_id, s0.student_id]).catch(async () => { await q(`update prep_grading set target_rank = '4th Dan' where cycle_id = $1 and student_id = $2`, [c0.cycle_id, s0.student_id]); });
+    await q(`insert into prep_helper_slots (cycle_id, label, grading_date, start_time, sort) values ($1, '8:00am session', '2026-12-05', '08:00', 1), ($1, '12:00pm session', '2026-12-05', '12:00', 2), ($1, '3:30pm session', '2026-12-05', '15:30', 3)`, [c0.cycle_id]);
+    const { ctx, page } = await open('owner@ama.test');
+    await tab(page, 'grading');
+    await page.selectOption('#grCycle', c0.cycle_id).catch(() => {});
+    await page.click('[data-grpanel="helpers"]'); await page.waitForSelector('#grHelpers .day-head', { timeout: 8000 }).catch(() => {});
+    const txt = await page.textContent('#grHelpers');
+    ok(/Grading helpers/.test(txt) && txt.includes(s0.full_name) && /8:00am session/.test(txt) && /3:30pm session/.test(txt) && /0 \/ 6/.test(txt), 'Helpers shows the 4th Dan+ students and the three sessions (max 6)');
+    await page.selectOption(`[data-hset="${s0.student_id}"]`, { label: '12:00pm session (0/6)' }); await settle(page); await page.waitForTimeout(600);
+    const hr = (await q(`select h.set_by, sl.label from prep_helpers h join prep_helper_slots sl using (slot_id) where h.student_id = $1`, [s0.student_id]))[0];
+    ok(hr && hr.label === '12:00pm session' && hr.set_by === 'owner@ama.test', 'staff can put a helper into a session by hand');
+    ok(/1 \/ 6/.test(await page.textContent('#grHelpers')), 'the session shows who is helping');
+    await shot(page, 'grading-helpers');
     await ctx.close();
   }
 

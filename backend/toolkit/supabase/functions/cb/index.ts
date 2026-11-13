@@ -1033,10 +1033,62 @@ export async function handle(req, db, env = {}, http = fetch) {
           try {
             await db.from('cb_reply_seen').delete().eq('who', who).lt('seen_at', new Date(Date.now() - 15 * 60e3).toISOString());
             const { error: seenErr } = await db.from('cb_reply_seen').insert({ who, h });
-            if (seenErr && (seenErr.code === '23505' || /duplicate/i.test(seenErr.message || ''))) return json({ ok: true, duplicate: true });
+            if (seenErr && (seenErr.code === '23505' || /duplicate/i.test(seenErr.message || ''))) {
+              // A short answer like "2" can be a real second reply (e.g. after "that session is full"): only treat it as the
+              // same delivery when it's within 90 seconds. Longer messages: within 15 minutes.
+              const win = msg.replace(/\s/g, '').length <= 3 ? 90e3 : 15 * 60e3;
+              const { data: prev } = await db.from('cb_reply_seen').select('seen_at').eq('who', who).eq('h', h).maybeSingle();
+              if (!prev || !prev.seen_at || Date.now() - Date.parse(prev.seen_at) < win) return json({ ok: true, duplicate: true });
+              await db.from('cb_reply_seen').update({ seen_at: new Date().toISOString() }).eq('who', who).eq('h', h);
+            }
           } catch (_) { /* no dedupe table yet: carry on */ }
         } }
       if (p9.length !== 9 && !okBodyEmail) return json({ ok: true, matched: 0, why: 'no mobile or email' });
+      // ---- A 4th Dan+ student answering the black belt grading helper text (prep-update-27): "2" books them into that
+      //      session (never past its cap of 6), "no / can't" is noted. Anything else carries on as a normal reply. ----
+      if (p9.length === 9) {
+        let hs = [];
+        try { const { data } = await db.from('prep_helpers').select('cycle_id, student_id, offered_slots').not('offered_at', 'is', null).is('slot_id', null).is('declined_at', null); hs = data || []; } catch (_) { /* no helper tables */ }
+        const num = msg.match(/^\s*(?:(?:option|number|no\.?|session)\s*|#)?([1-9])(?=[\s.,!?)]|$)/i), noWay = /^\s*(no\b|nope|can'?t|cannot|unable|not available|sorry,? (?:i|we) can'?t)/i.test(msg);
+        if (hs.length && (num || noWay)) {
+          const { data: ps } = await db.from('prep_students').select('student_id, full_name, contact_phone, contact_email').in('student_id', hs.map(h => h.student_id));
+          const stu = (ps || []).find(x => String(x.contact_phone || '').replace(/\D/g, '').slice(-9) === p9), h = stu && hs.find(x => x.student_id === stu.student_id);
+          if (h) {
+            const fn = firstWord(stu.full_name) || 'there', phone = phoneE164(stu.contact_phone);
+            const { data: slots } = await db.from('prep_helper_slots').select('*').eq('cycle_id', h.cycle_id).order('sort');
+            const { data: ov } = await db.from('prep_overview').select('grading_to').eq('cycle_id', h.cycle_id).eq('student_id', h.student_id).maybeSingle();
+            const day = (() => { const d = [...new Set((slots || []).map(x => String(x.grading_date || '').slice(0, 10)))]; if (d.length !== 1 || !d[0]) return ''; const [y, mo, dd] = d[0].split('-').map(Number); return new Date(Date.UTC(y, mo - 1, dd)).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).replace(',', ''); })();
+            const sword = /^4th Dan$/.test(String((ov && ov.grading_to) || '').trim()) ? " You'll be presented your 4th Dan sword in front of everyone at the grading." : '';
+            const reply = async text => {
+              if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return env.GHL_TEST === '1';
+              try { const cid = await contactFor({ full_name: stu.full_name, email: stu.contact_email }, phone); await sendSms(cid, text); return true; } catch (_) { return false; }
+            };
+            const nowIso = new Date().toISOString();
+            if (noWay && !num) {
+              await db.from('prep_helpers').update({ declined_at: nowIso, reply_text: msg.slice(0, 300), updated_at: nowIso }).eq('cycle_id', h.cycle_id).eq('student_id', h.student_id);
+              await reply(`No worries, ${fn}, thanks for letting us know. - AMA`);
+              return json({ ok: true, helper: 'declined' });
+            }
+            const sid = (h.offered_slots || [])[Number(num[1]) - 1], slot = (slots || []).find(x => x.slot_id === sid);
+            if (slot) {
+              const { data: res } = await db.rpc('prep_helper_claim', { p_cycle: h.cycle_id, p_student: h.student_id, p_slot: sid, p_reply: msg.slice(0, 300), p_by: 'reply' });
+              if (res === 'ok') {
+                await reply(`Thanks ${fn}! You're helping at the ${slot.label}${day ? ' on ' + day : ''} at AMA Sydenham.${sword} See you there! - AMA`);
+                return json({ ok: true, helper: 'ok', slot: slot.slot_id });
+              }
+              if (res !== 'full') return json({ ok: true, helper: res });
+            }
+            // That session just filled (or the number wasn't one of the choices): offer what still has room
+            const { data: all } = await db.from('prep_helpers').select('student_id, slot_id').eq('cycle_id', h.cycle_id);
+            const room = (slots || []).filter(x => (all || []).filter(r => r.slot_id === x.slot_id && r.student_id !== h.student_id).length < (x.cap ?? 6));
+            if (!room.length) { await reply(`Sorry ${fn}, every helper session is now full. We'll be in touch if a spot opens up. - AMA`); return json({ ok: true, helper: 'all_full' }); }
+            await db.from('prep_helpers').update({ offered_slots: room.map(x => x.slot_id), updated_at: nowIso }).eq('cycle_id', h.cycle_id).eq('student_id', h.student_id);
+            const nums = room.length === 1 ? 'Reply 1' : `Reply ${room.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${room.length}`;
+            await reply(`Sorry ${fn}, ${slot ? 'that session has just filled up' : "that isn't one of the choices"}. These still have room:\n${room.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${nums} to choose. - AMA`);
+            return json({ ok: true, helper: slot ? 'full' : 'not_a_choice' });
+          }
+        }
+      }
       const yes = isYes(msg);
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
       const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by, makeup').gte('grading_date', today);
