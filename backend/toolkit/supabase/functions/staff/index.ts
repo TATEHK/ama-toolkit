@@ -34,6 +34,7 @@ export const BB_PERMS = ['admin', 'view', 'attendance', 'readiness', 'essays', '
   'texts', 'settings'];   // 'texts' and 'settings' kept valid for legacy rows until a save replaces them with the split ticks
 export const CB_PERMS = ['admin', 'view', 'days', 'belts', 'readiness', 'results', 'calls', 'payments',
   'text_invite', 'text_result', 'text_followup', 'set_general', 'set_fees', 'set_wording',
+  'floor_admin', 'floor_sarah', 'floor_master', 'floor_signin',   // which floor plan screen they get (one at most; none = picked from their ticks)
   'texts', 'settings'];   // 'texts' and 'settings' kept valid for legacy rows until a save replaces them with the split ticks
 export const AW_PERMS = ['admin', 'view', 'edit'];
 export const WELCOME_URL = 'https://app.train-ama.com/welcome/';
@@ -81,7 +82,10 @@ const findUser = async (db, email) => (await allUsers(db)).find(u => (u.email ||
 const clean = (list, allowed) => [...new Set((list || []).filter(r => allowed.includes(r)))];
 const cardWantOf = b => b.card_perms === undefined ? undefined : clean(b.card_perms, CARD_PERMS);
 // An app's ticks: admin covers everything, so it's kept on its own; any tick also means they can open the app ("view")
-const featWant = (list, allowed) => { if (list === undefined) return undefined; const l = clean(list, allowed); return l.includes('admin') ? ['admin'] : l.length && !l.includes('view') ? ['view', ...l] : l; };
+// A floor plan screen (floor_*) is a choice, not a feature: at most one, and kept alongside admin
+const featWant = (list, allowed) => { if (list === undefined) return undefined; const all = clean(list, allowed);
+  const floor = all.filter(x => x.startsWith('floor_')).slice(0, 1), l = all.filter(x => !x.startsWith('floor_'));
+  return l.includes('admin') ? ['admin', ...floor] : (l.length || floor.length) && !l.includes('view') ? ['view', ...l, ...floor] : [...l, ...floor]; };
 const bbWantOf = b => featWant(b.bb_perms, BB_PERMS), cbWantOf = b => featWant(b.cb_perms, CB_PERMS), awWantOf = b => featWant(b.aw_perms, AW_PERMS);
 const GRADING_APPS = [['bb', bbWantOf], ['cb', cbWantOf], ['aw', awWantOf]];
 // "TV editor" includes party mode and the remote, so it's kept on its own
