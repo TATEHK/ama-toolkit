@@ -174,8 +174,8 @@ const AWF = [['admin', 'Admin', 'Everything in Long Service Awards, including se
   ['edit', 'Mark ordered and presented', 'Update awards, add people by hand and send memory links']];
 const short = defs => Object.fromEntries(defs.map(([k, t]) => [k, t]));
 // Which floor plan screen someone gets on grading day. Automatic = picked from their Coloured Belts ticks.
-const FLOOR = [['', 'Automatic (from their ticks)'], ['floor_admin', 'Admin: set up groups, cones and the floor'], ['floor_sarah', 'Sarah: groups and student profiles'],
-  ['floor_master', 'Master: the floor full-size, scoring'], ['floor_signin', 'Sign-in: the student check-in kiosk']];
+const FLOOR = [['', 'Master: the floor full-size, scoring (default)'], ['floor_admin', 'Admin: set up groups, cones and the floor'], ['floor_sarah', 'Sarah: groups and student profiles'],
+  ['floor_signin', 'Sign-in: the student check-in kiosk']];
 const CB = { ...short(CBF), floor_admin: 'Floor: Admin', floor_sarah: 'Floor: Sarah', floor_master: 'Floor: Master', floor_signin: 'Floor: Sign-in' }, BB = short(BBF), AW = short(AWF);
 
 const $ = s => document.querySelector(s);
@@ -293,7 +293,7 @@ const featPicked = id => { const l = picked(id); return l.includes('admin') ? ['
 const gradingFields = u => `
       <div class="field"><span class="label">Coloured Belts</span>${featChecks('cbChecks', CBF, u.cb_perms)}</div>
       <label class="field"><span class="label">Floor plan screen (grading day)</span><select id="cbFloor">${FLOOR.map(([k, t]) => `<option value="${k}"${(u.cb_perms.find(x => x.startsWith('floor_')) || '') === k ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
-        <span class="hint">Automatic: Coloured Belts admins and grading-day managers get Admin, results-only logins get Master, everyone else Sarah.</span></label>
+        <span class="hint">Anyone not set here gets Master.</span></label>
       <div class="field"><span class="label">Black Belt Gradings</span>${featChecks('bbChecks', BBF, u.bb_perms)}</div>
       <div class="field"><span class="label">Long Service Awards</span>${featChecks('awChecks', AWF, u.aw_perms)}</div>`;
 const floorPicked = () => { const v = (document.getElementById('cbFloor') || {}).value; return v ? [v] : []; };

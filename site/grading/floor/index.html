@@ -881,12 +881,10 @@ async function boot() {
   ME = (session.user.email || '').toLowerCase();
   const { data: perms } = await sb.rpc('app_my_perms', { p_app: 'cb' }); PERMS = perms || [];
   canSuper = (ME === SUPER_EMAIL);
-  // The screen comes from the login (no switcher): Super for the owner; Admin for Coloured Belts admins and grading-day
-  // staff (they set up the floor); Master (scoring, the floor full-size) for result-entry only; Sarah (groups + profiles) otherwise
-  // A screen set for them on the Staff logins page (floor_admin / floor_sarah / floor_master / floor_signin) wins
-  const hasP = (...k) => k.some(x => (PERMS || []).includes(x));
+  // The screen comes from the login (no switcher): Super for the owner; otherwise the screen set for them on the Staff logins
+  // page (floor_admin / floor_sarah / floor_master / floor_signin), and Master if none is set
   const setView = (PERMS || []).find(x => x.startsWith('floor_'));
-  state.role = canSuper ? 'super' : setView ? setView.slice(6) : hasP('admin', 'days') ? 'admin' : hasP('results') && !hasP('readiness', 'calls', 'texts') ? 'master' : hasP('readiness', 'calls', 'texts', 'results') ? 'sarah' : 'master';
+  state.role = canSuper ? 'super' : setView ? setView.slice(6) : 'master';   // not set on the Staff logins page: Master
   if (!PERMS.length) { $('#gate').hidden = false; $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gateMsg').textContent = "You don't have Coloured Belts access yet."; $('#dayList').innerHTML = ''; return; }
   let saved = ''; try { saved = new URLSearchParams(location.search).get('day') || localStorage.getItem('cb_floor_day') || ''; } catch (e) {}
   if (saved) { loadDay(saved); } else { showDays(); }   // reopen the day you were on, across refreshes
