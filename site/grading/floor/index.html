@@ -382,7 +382,7 @@ body[data-role="signin"]{overflow:hidden}
 <div class="bar"><div class="wrap">
   <div class="brand" id="brand" title="Switch grading day" role="button"><div class="logo">A</div><div><b>Grading Floor</b><small id="dayLabel">—</small></div></div>
   <div class="bar-sp"></div>
-  <div class="roleseg" id="roleSeg"><button data-role="signin">Sign-in</button><button data-role="sarah">Sarah</button><button data-role="master">Master</button><button data-role="admin">Admin</button><button data-role="super" class="supr">Super</button></div>
+
   <button class="pill code" id="codePill" hidden title="Check-in code — enter it on a check-in station">Code <b id="codeVal">—</b></button>
   <span class="pill" id="herePill">0 here</span>
   <button class="icon-btn" id="gearBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.8-1.4-1.9-3.3-2.2.9a7.6 7.6 0 0 0-2.6-1.5L13.9 2h-3.8l-.3 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.2-.9L3.1 8.3 4.9 9.7a7.8 7.8 0 0 0 0 3l-1.8 1.4 1.9 3.3 2.2-.9a7.6 7.6 0 0 0 2.6 1.5l.3 2.4h3.8l.3-2.4a7.6 7.6 0 0 0 2.6-1.5l2.2.9 1.9-3.3z"/></svg></button>
@@ -542,13 +542,13 @@ function positions(n,rows){
   if(rows===1 || n<=2) return Array.from({length:n},(_,i)=>({x:pad((i+.5)/n*100),y:50}));
   const nf=Math.ceil(n/2), nb=n-nf, y1=40, y2=66, pos=[];
   for(let c=0;c<nf;c++) pos.push({x:pad((c+.5)/nf*100),y:y1});       // front row
-  for(let c=0;c<nb;c++) pos.push({x:pad((c+1)/nf*100),y:y2});        // back row, offset into the gaps
+  for(let c=0;c<nb;c++) pos.push({x:pad((c+1)/(nb+1)*100),y:y2});    // back row, centred and offset into the gaps
   return pos;
 }
-// Fill from the centre out: the 1st student stands in the middle, then one either side, working outwards
-// (front row before back row at the same distance). Returns, for each spot in fill order, the place on the floor.
+// Fill the front row first, from the centre out (the 1st student in the middle, then one either side, working outwards);
+// only once the front row is full does the back row start, also centre out. Returns, for each spot in fill order, its place.
 function centreOut(pos){
-  return pos.map((p,i)=>({i,d:Math.round(Math.abs(p.x-50)*10)/10,y:p.y,x:p.x})).sort((a,b)=>(a.d-b.d)||(a.y-b.y)||(a.x-b.x)).map(o=>pos[o.i]);
+  return pos.map((p,i)=>({i,d:Math.round(Math.abs(p.x-50)*10)/10,y:p.y,x:p.x})).sort((a,b)=>(a.y-b.y)||(a.d-b.d)||(a.x-b.x)).map(o=>pos[o.i]);
 }
 
 // member-facing self check-in kiosk
@@ -644,7 +644,7 @@ function render(){
   else if(!g.spots){ floor.className='floor empty'; floor.innerHTML='<div class="instr">No spots in this group</div>'; }
   else{
     floor.className='floor'+(g.status==='current'?' live':g.status==='past'?' past':'');
-    const pos=centreOut(positions(g.spots,g.rows));   // build the line from the centre out
+    const pos=centreOut(positions(g.spots,g.rows));   // front row first, centre out; then the back row
     floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{
       const s=byId(lay[i]);
       if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
@@ -672,7 +672,6 @@ function render(){
   $$('#roster .rrow').forEach(r=>r.onclick=()=>openProfile(+r.dataset.s));
   // role gating
   $('#gearBtn').hidden = !(role==='admin'||role==='super');     // admin + super set up the floor
-  $$('#roleSeg button').forEach(b=>b.classList.toggle('on',b.dataset.role===role));
   const curSide = role==='sarah';
   $('#checkinCard').hidden = curSide;
   $('#currCard').hidden = !curSide;
@@ -803,7 +802,6 @@ $('#rebal').onclick=()=>{state.autoBalance=true;generateGroups();renderSettings(
 $('#fw').oninput=e=>{state.fw=Math.max(4,+e.target.value||12);render();};
 $('#fh').oninput=e=>{state.fh=Math.max(4,+e.target.value||10);render();};
 $('#addGrp').onclick=()=>{manual();addGroup();renderSettings();render();persistGroups();};
-$$('#roleSeg button').forEach(b=>b.onclick=()=>{ if(b.dataset.role==='super' && !canSuper) return; state.role=b.dataset.role; if(state.sel) closeProfile(); else render(); });
 $('#gearBtn').onclick=()=>{renderSettings();$('#modal').classList.add('open');};
 $('#mClose').onclick=$('#mDone').onclick=()=>$('#modal').classList.remove('open');
 $('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').classList.remove('open');};
@@ -883,7 +881,10 @@ async function boot() {
   ME = (session.user.email || '').toLowerCase();
   const { data: perms } = await sb.rpc('app_my_perms', { p_app: 'cb' }); PERMS = perms || [];
   canSuper = (ME === SUPER_EMAIL);
-  if (!canSuper) { const sx = $('#roleSeg [data-role="super"]'); if (sx) sx.remove(); if (state.role === 'super') state.role = 'admin'; }
+  // The screen comes from the login (no switcher): Super for the owner; Admin for Coloured Belts admins and grading-day
+  // staff (they set up the floor); Master (scoring, the floor full-size) for result-entry only; Sarah (groups + profiles) otherwise
+  const hasP = (...k) => k.some(x => (PERMS || []).includes(x));
+  state.role = canSuper ? 'super' : hasP('admin', 'days') ? 'admin' : hasP('results') && !hasP('readiness', 'calls', 'texts') ? 'master' : hasP('readiness', 'calls', 'texts', 'results') ? 'sarah' : 'master';
   if (!PERMS.length) { $('#gate').hidden = false; $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gateMsg').textContent = "You don't have Coloured Belts access yet."; $('#dayList').innerHTML = ''; return; }
   let saved = ''; try { saved = new URLSearchParams(location.search).get('day') || localStorage.getItem('cb_floor_day') || ''; } catch (e) {}
   if (saved) { loadDay(saved); } else { showDays(); }   // reopen the day you were on, across refreshes
