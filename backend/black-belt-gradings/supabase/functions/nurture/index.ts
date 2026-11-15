@@ -400,6 +400,57 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, sent: true, text });
     }
 
+    // ---- Staff: send (or resend) the confirmation text to a helper for the sessions they're booked into (prep-update-29) ----
+    // Used after a staff member books someone in by hand, and for a manual resend. Same wording as the reply-confirmation
+    // in the cb function: the 4th Dan sword sentence names the session, plus the arrival + uniform line.
+    if (body.action === 'helper_confirm') {
+      const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+      const { data: who } = token ? await db.auth.getUser(token) : { data: null };
+      const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
+      if (!me) return fail('Sign in first.', 401);
+      const { data: roleRows } = await db.from('prep_roles').select('role').eq('email', me);
+      if (!(roleRows || []).some(r => ['admin', 'grading', 'calls'].includes(r.role))) return fail('Your login cannot send helper texts.', 403);
+      if (!(ready || testing)) return fail('GoHighLevel is not set up yet.', 409);
+      const cycle = String(body.cycle || ''), student_id = String(body.student_id || '');
+      if (!cycle || !student_id) return fail('Missing cycle or student.');
+      const { data: h } = await db.from('prep_helpers').select('slot_ids, senior, sword_slot').eq('cycle_id', cycle).eq('student_id', student_id).maybeSingle();
+      const booked = (h && h.slot_ids) || [];
+      if (!booked.length) return fail('They are not booked into any session yet.');
+      const { data: s } = await db.from('prep_students').select('full_name, contact_phone, contact_email').eq('student_id', student_id).maybeSingle();
+      if (!s) return fail('Student not found.', 404);
+      const phone = phoneE164(s.contact_phone);
+      if (!phone) return fail('No mobile on file for ' + s.full_name + '.');
+      const { data: slots } = await db.from('prep_helper_slots').select('*').eq('cycle_id', cycle).order('sort');
+      const { data: ov } = await db.from('prep_overview').select('grading_to').eq('cycle_id', cycle).eq('student_id', student_id).maybeSingle();
+      const is4th = /^4th Dan$/.test(String((ov && ov.grading_to) || '').trim());
+      const day = helperDay(slots);
+      const clean = l => String(l || '').replace(/ session$/, '');
+      const labels = ids => { const l = (slots || []).filter(x => ids.includes(x.slot_id)).map(x => clean(x.label)); return l.length <= 1 ? (l[0] || '') + ' session' : l.slice(0, -1).join(', ') + ' and ' + l[l.length - 1] + ' sessions'; };
+      // 4th Dan: settle (once) which session their sword is presented at, keeping the three sessions ~even.
+      let swordSentence = '';
+      if (is4th) {
+        let swordSlot = h && h.sword_slot;
+        if (!(swordSlot && booked.includes(swordSlot))) {
+          const { data: allH } = await db.from('prep_helpers').select('sword_slot').eq('cycle_id', cycle);
+          const cntS = id => (allH || []).filter(r => r.sword_slot === id).length;
+          swordSlot = [...booked].sort((a, b) => (cntS(a) - cntS(b)) || ((slots || []).findIndex(x => x.slot_id === a) - (slots || []).findIndex(x => x.slot_id === b)))[0] || null;
+          if (swordSlot) await db.from('prep_helpers').update({ sword_slot: swordSlot }).eq('cycle_id', cycle).eq('student_id', student_id);
+        }
+        const lbl = clean(((slots || []).find(x => x.slot_id === swordSlot) || {}).label || '');
+        swordSentence = lbl ? ` You'll be presented your 4th Dan sword at the ${lbl} session.` : " You'll be presented your 4th Dan sword during the day.";
+      }
+      let tpl = "Thanks {first_name}! You're helping at the {sessions} on {day} at AMA Sydenham.{full_note}{sword} Please arrive 15-30 minutes before in full uniform. See you there! - AMA";
+      try { const { data: hset } = await db.from('prep_helper_settings').select('confirm_text').eq('id', 1).maybeSingle(); if (hset && String(hset.confirm_text || '').trim()) tpl = hset.confirm_text; } catch (_) { /* default wording */ }
+      const fill = { first_name: first(s.full_name), sessions: labels(booked), day, sword: swordSentence, full_note: '' };
+      const text = String(tpl).replace(/\{(\w+)\}/g, (m, k) => (fill[k] != null ? fill[k] : '')).replace(/ on  at /, ' at ').trim();
+      if (body.preview) return json({ ok: true, preview: true, text });
+      if (testing && !ready) return json({ ok: true, test: true, text });
+      const cid = await contactFor({ full_name: s.full_name, email: s.contact_email, phone });
+      await sendSms(cid, text);
+      await db.from('prep_helpers').update({ confirmed_at: new Date().toISOString() }).eq('cycle_id', cycle).eq('student_id', student_id);
+      return json({ ok: true, sent: true, text });
+    }
+
     // ---- A family replied (GoHighLevel "customer replied" workflow posts here with the hub key) ----
     // Any reply pauses that student's enrolment messages for 2 days and raises a "concern" call for an instructor.
     // STOP / unsubscribe opts them out of the sequence entirely.

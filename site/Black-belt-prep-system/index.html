@@ -3580,7 +3580,11 @@ async function renderHelpers(c) {
   $$('#grHelpers [data-hset]').forEach(sel => sel.onchange = async () => {
     const sid = sel.dataset.hset, slot = sel.value; if (!slot) return;
     try { const { data, error } = await sb.rpc('prep_helper_claim', { p_cycle: cid, p_student: sid, p_slots: [slot], p_reply: null, p_by: state.email || 'staff' }); if (error) throw error;
-      if (data && (data.full || []).length) { toast('That session already has its 6 helpers going for 4th Dan and above.', 5000); again(); return; } toast('Session added'); again(); }
+      if (data && (data.full || []).length && !(data.ok || []).length) { toast('That session is already full.', 5000); again(); return; }
+      // Booked in by hand: send them the confirmation text for the sessions they're now in.
+      try { const r = await sb.functions.invoke('nurture', { body: { action: 'helper_confirm', cycle: cid, student_id: sid } }); if (r.error || (r.data && r.data.error)) throw new Error((r.error && (r.error.message || r.error)) || r.data.error); toast('Session added — confirmation sent'); }
+      catch (e2) { toast('Session added, but the confirmation text didn\'t send: ' + errMsg(e2), 7000); }
+      again(); }
     catch (e) { toast(errMsg(e), 7000); again(); }
   });
   $$('#grHelpers [data-hclear]').forEach(b => b.onclick = async () => {
