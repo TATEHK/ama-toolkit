@@ -1109,8 +1109,14 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (p9.length === 9) {
         let hs = [];
         try { const { data } = await db.from('prep_helpers').select('cycle_id, student_id, offered_slots, senior, slot_ids').not('offered_at', 'is', null).is('declined_at', null); hs = (data || []).filter(h => !(h.slot_ids || []).length); } catch (_) { /* no helper tables */ }
-        const nums = /^\s*(?:(?:options?|numbers?|sessions?|no\.?)\s*|#)?[1-9](?:\s*(?:,|&|\+|\/|and|or|then)?\s*(?:(?:options?|numbers?|sessions?)\s*)?[1-9])*\s*(?:please|pls|thanks?|thank you|cheers)?\s*[.!]*\s*$/i.test(msg)
-          ? [...new Set((msg.match(/[1-9]/g) || []).map(Number))] : null;
+        // Read the session numbers out of the reply. A bare list ("2", "1 and 3") is read as-is; a worded pick
+        // ("Hi Eleni can do 1, 2 and 3", "available for 1 and 3") is read only when, after the intent phrase, what's
+        // left is still basically just the numbers -- so a message that merely mentions a number ("what time is session 3?",
+        // "can do 2 of them") is never misread as a session pick.
+        const NUM_ONLY = /^\s*(?:(?:options?|numbers?|sessions?|no\.?)\s*|#)?[1-9](?:\s*(?:,|&|\+|\/|and|or|then)?\s*(?:(?:options?|numbers?|sessions?)\s*)?[1-9])*\s*(?:please|pls|thanks?|thank you|cheers)?\s*[.!]*\s*$/i;
+        const PICK_LEAD = /(?:can\s+do|can\s+help(?:\s+(?:at|with|out))?|could\s+do|happy\s+to\s+(?:do|help)|keen\s+(?:to\s+do|for)|available\s+(?:for|on)|free\s+(?:for|on)|i['’]?ll\s+(?:do|take)|i\s+can\s+do|put\s+me\s+(?:down|in)\s+for)\s+/i;
+        const lead = msg.match(PICK_LEAD), numSrc = lead ? msg.slice(lead.index + lead[0].length) : msg;
+        const nums = NUM_ONLY.test(numSrc) ? [...new Set((numSrc.match(/[1-9]/g) || []).map(Number))] : null;
         const allOf = /^\s*(all|all of them|all three|all 3|every one|everything|both)\b/i.test(msg);
         const noWay = /^\s*(no\b|nope|can'?t|cannot|unable|not available|sorry,? (?:i|we) can'?t)/i.test(msg);
         if (hs.length && (nums || allOf || noWay)) {

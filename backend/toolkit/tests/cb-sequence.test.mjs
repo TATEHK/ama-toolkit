@@ -578,6 +578,19 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
     ok(r.body.helper === 'declined' && x.t.prep_helpers[1].declined_at && !(x.t.prep_helpers[1].slot_ids || []).length, '"can\'t make it" is noted as can\'t help');
     const r2 = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: 'What time do I need to be there?' });
     ok(!r2.body.helper && !(x.t.prep_helpers[0].slot_ids || []).length, 'any other reply carries on as a normal reply'); }
+  // Worded replies: a natural "can do ..." still books, as long as what follows the phrase is just the numbers
+  { const x = setup(); x.t.prep_helper_slots[1].cap = 6;
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: 'Hi, Bella can do 1, 2 and 3' });
+    ok(r.body.helper === 'ok' && x.t.prep_helpers[0].slot_ids.slice().sort().join() === 'H1,H2,H3', 'a worded reply "can do 1, 2 and 3" books all three'); }
+  { const x = setup();
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: 'Available for 1 and 3' });
+    ok(r.body.helper === 'ok' && x.t.prep_helpers[1].slot_ids.slice().sort().join() === 'H1,H3', '"available for 1 and 3" books those two'); }
+  { const x = setup();
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: "I can do it, what time is session 3?" });
+    ok(!r.body.helper && !(x.t.prep_helpers[0].slot_ids || []).length, 'a question that happens to contain a number is not misread as a session pick'); }
+  { const x = setup();
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: 'Can do 2 of them' });
+    ok(!r.body.helper && !(x.t.prep_helpers[1].slot_ids || []).length, '"2 of them" (not a session number) is left for manual handling'); }
 }
 Date.now = realNow;
 
