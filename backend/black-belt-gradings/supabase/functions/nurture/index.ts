@@ -175,13 +175,28 @@ export const HELPER_DEFAULTS = {
   invite_other: "Hi {first_name}, we'd love your help at the black belt grading on {day} at AMA Sydenham. Helping out is a great way to give back, and seeing a grading from the other side is great experience for your own. Which sessions can you help at?\n{sessions}\n{reply}. - AMA",
 };
 export const helperDay = slots => { const ds = [...new Set((slots || []).map(x => String(x.grading_date || '').slice(0, 10)).filter(Boolean))]; return ds.length === 1 ? longDate(ds[0]) : ''; };
-export const swordLine = target => /^4th Dan$/.test(String(target || '').trim()) ? " You'll be presented your 4th Dan sword in front of everyone at the grading you help at." : '';
-export const helperReplyHint = n => n === 1 ? 'Reply 1 to help' : `Reply with the number of each session you can do (e.g. ${n >= 3 ? '1 and 3' : '1 and 2'}, or just one)`;
-export function helperInvite({ first_name, target, slots, settings }) {
+// Going for 4th Dan: the sword is presented during the grading day (the exact session is settled when they confirm).
+export const swordLine = target => /^4th Dan$/.test(String(target || '').trim()) ? " You'll be presented your 4th Dan sword in front of everyone during the day." : '';
+// Sessions keep their real numbers in every message (1 = 8:00am, 2 = 12:00pm, 3 = 3:30pm), so a number always means
+// the same session. nums are the real numbers of the sessions still open. 4th Dans are nudged to do as many as they can.
+export const helperReplyHint = (nums, is4th) => {
+  const n = [...(nums || [])].sort((a, b) => a - b);
+  if (n.length <= 1) return `Reply ${n[0] || 1} to help`;
+  const list = a => a.length <= 2 ? a.join(' and ') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  const eg = n.length >= 3 ? [n[0], n[2]] : n;
+  return is4th
+    ? `Reply with every number you can do (e.g. ${list(eg)}, or ${list(n)}). The more you can do, the better`
+    : `Reply with the number of each session you can do (e.g. ${list(eg)}, or just ${n[n.length - 1]})`;
+};
+export function helperInvite({ first_name, target, slots, allSlots, settings }) {
   const t = { ...HELPER_DEFAULTS, ...Object.fromEntries(Object.entries(settings || {}).filter(([, v]) => v && String(v).trim())) };
-  const tpl = /^4th Dan$/.test(String(target || '').trim()) ? t.invite_4th : bb4thPlus(target) ? t.invite_senior : t.invite_other;
+  const is4th = /^4th Dan$/.test(String(target || '').trim());
+  const tpl = is4th ? t.invite_4th : bb4thPlus(target) ? t.invite_senior : t.invite_other;
   const day = helperDay(slots);
-  const v = { first_name, day, sessions: slots.map((x, i) => `${i + 1}. ${x.label}`).join('\n'), reply: helperReplyHint(slots.length), sword: swordLine(target) };
+  const all = (allSlots && allSlots.length) ? allSlots : slots;
+  const numOf = id => all.findIndex(x => x.slot_id === id) + 1;             // the session's real number (its place in the full session list)
+  const open = [...slots].sort((a, b) => numOf(a.slot_id) - numOf(b.slot_id));
+  const v = { first_name, day, sessions: open.map(x => `${numOf(x.slot_id)}. ${x.label}`).join('\n'), reply: helperReplyHint(open.map(x => numOf(x.slot_id)), is4th), sword: swordLine(target) };
   return String(tpl).replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : '')).replace(/ on  at /, ' at ').replace(/[ \t]+\n/g, '\n').trim();
 }
 
@@ -370,7 +385,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!open.length) return fail('No helper sessions are set up.', 409);
       if (body.options) return json({ ok: true, senior, suggested: suggested.map(x => x.slot_id), slots: (slots || []).map(x => ({ slot_id: x.slot_id, label: x.label, taken: taken(x.slot_id), cap: x.cap ?? 6, full: senior && taken(x.slot_id) >= (x.cap ?? 6) })) });
       let hset = null; try { ({ data: hset } = await db.from('prep_helper_settings').select('*').eq('id', 1).maybeSingle()); } catch (_) { /* defaults */ }
-      const text = helperInvite({ first_name: first(s.full_name), target, slots: open, settings: hset });
+      const text = helperInvite({ first_name: first(s.full_name), target, slots: open, allSlots: slots, settings: hset });
       if (body.preview) return json({ ok: true, preview: true, text });
       const cid = await contactFor({ full_name: s.full_name, email: s.contact_email, phone });
       if (!(testing && !ready)) await sendSms(cid, text);
@@ -586,6 +601,61 @@ export async function handle(req, db, env = {}, http = fetch) {
         }
       }
     }
+
+    // ---- The Friday reminder: the day before the grading, remind everyone who's confirmed as a helper (prep-update-29) ----
+    // Logged once per helper (step_code 'helper_reminder'), so a later run never sends it twice. Respects the shared text cap.
+    try {
+      for (const run of runs || []) {
+        const cycle = run.cycle_id;
+        const { data: hslots } = await db.from('prep_helper_slots').select('slot_id, label, grading_date, sort').eq('cycle_id', cycle).order('sort');
+        const gdates = [...new Set((hslots || []).map(x => String(x.grading_date || '').slice(0, 10)).filter(Boolean))].sort();
+        const gday = gdates[0] || null;
+        if (!gday || addDays(gday, -1) !== today) continue;   // only on the day before the grading
+        if (!timeReached('09:00', tnow)) continue;
+        const { data: helpers } = await db.from('prep_helpers').select('student_id, slot_ids, sword_slot, declined_at, senior').eq('cycle_id', cycle);
+        const confirmed = (helpers || []).filter(h => !h.declined_at && (h.slot_ids || []).length);
+        if (!confirmed.length) continue;
+        const ids = confirmed.map(h => h.student_id);
+        const { data: ps } = await db.from('prep_students').select('student_id, full_name, contact_phone, contact_email').in('student_id', ids);
+        const psBy = Object.fromEntries((ps || []).map(x => [x.student_id, x]));
+        const { data: ovs } = await db.from('prep_overview').select('student_id, grading_to').eq('cycle_id', cycle).in('student_id', ids);
+        const ovBy = Object.fromEntries((ovs || []).map(x => [x.student_id, x.grading_to]));
+        const clean = l => String(l || '').replace(/ session$/, '');
+        const labelOf = id => clean(((hslots || []).find(s => s.slot_id === id) || {}).label || '');
+        const sessList = sids => { const l = (hslots || []).filter(s => sids.includes(s.slot_id)).sort((a, b) => a.sort - b.sort).map(s => clean(s.label)); return l.length <= 1 ? (l[0] || '') + ' session' : l.slice(0, -1).join(', ') + ' and ' + l[l.length - 1] + ' sessions'; };
+        for (const h of confirmed) {
+          const stu = psBy[h.student_id]; if (!stu) continue;
+          const phone = phoneE164(stu.contact_phone); if (!phone) continue;
+          const is4th = /^4th Dan$/.test(String(ovBy[h.student_id] || '').trim());
+          // Make sure a 4th Dan has a sword session set (keeping the three sessions ~even), so the reminder can name it.
+          let swordSlot = h.sword_slot;
+          if (is4th && !(swordSlot && (h.slot_ids || []).includes(swordSlot))) {
+            const cntS = id => (helpers || []).filter(r => r.sword_slot === id).length;
+            swordSlot = [...(h.slot_ids || [])].sort((a, b) => (cntS(a) - cntS(b)) || ((hslots || []).findIndex(s => s.slot_id === a) - (hslots || []).findIndex(s => s.slot_id === b)))[0] || null;
+            if (swordSlot) { await db.from('prep_helpers').update({ sword_slot: swordSlot }).eq('cycle_id', cycle).eq('student_id', h.student_id); h.sword_slot = swordSlot; }
+          }
+          if (smsStop) break;                 // texting paused: leave the rest for a later run
+          if (smsLeft <= 0) break;            // out of texts for today
+          // Claim the reminder first (unique per cycle+student+step): if it's already there, it's been sent.
+          const { error: claimErr } = await db.from('prep_nurture_log').insert({ cycle_id: cycle, student_id: h.student_id, step_code: 'helper_reminder', channel: 'sms', status: 'sent' });
+          if (claimErr) continue;
+          smsLeft--;
+          if (testing && !ready) { out.sent++; continue; }
+          const swordR = is4th && swordSlot ? ` Your sword presentation is at the ${labelOf(swordSlot)} session.` : '';
+          const text = `Hi ${first(stu.full_name)}, see you tomorrow at AMA Sydenham for the black belt grading! You're helping at the ${sessList(h.slot_ids)}. Please arrive 15-30 minutes before in full uniform.${swordR} - AMA`;
+          try {
+            const cid = await contactFor({ full_name: stu.full_name, email: stu.contact_email, phone });
+            const id = await sendSms(cid, text);
+            await db.from('prep_nurture_log').update({ ghl_message_id: id }).eq('cycle_id', cycle).eq('student_id', h.student_id).eq('step_code', 'helper_reminder');
+            out.sent++;
+          } catch (e) {
+            await db.from('prep_nurture_log').update({ status: 'failed', error: String(e.message || e).slice(0, 500) }).eq('cycle_id', cycle).eq('student_id', h.student_id).eq('step_code', 'helper_reminder');
+            out.failed++;
+          }
+        }
+      }
+    } catch (e) { console.error('helper reminder', e); }
+
     return json({ ok: true, ...out });
   } catch (e) {
     console.error(e);

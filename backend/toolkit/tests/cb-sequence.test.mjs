@@ -543,17 +543,17 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
     ok(ghlCalls.length > k && /You're helping at the 12:00pm session on Saturday 5 December at AMA Sydenham\. You'll be presented your 4th Dan sword/.test(tx.body.message), '...and texts a confirmation with the sword line');
     const k2 = ghlCalls.length, r2 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
     const tx2 = smsN().slice(-1)[0];
-    ok(r2.body.helper === 'full' && !(x.t.prep_helpers[1].slot_ids || []).length && ghlCalls.length > k2 && /now has enough helpers\. These sessions still need helpers:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx2.body.message), 'a full session is never overbooked: they get the sessions that still have room');
+    ok(r2.body.helper === 'full' && !(x.t.prep_helpers[1].slot_ids || []).length && ghlCalls.length > k2 && /now has enough helpers\. These sessions still need helpers:\n1\. 8:00am session\n3\. 3:30pm session/.test(tx2.body.message), 'a full session is never overbooked: the still-open sessions keep their real numbers (1 and 3)');
     const r3x = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
     ok(r3x.body.duplicate, 'the same "2" delivered again straight away is ignored');
     x.t.cb_reply_seen.forEach(r => { r.seen_at = new Date(Date.now() - 120e3).toISOString(); });   // two minutes later
-    const r3 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
-    ok(r3.body.helper === 'ok' && (x.t.prep_helpers[1].slot_ids || []).join() === 'H3', '...but a "2" a couple of minutes later is read against the new list');
+    const r3 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '3' });
+    ok(r3.body.helper === 'ok' && (x.t.prep_helpers[1].slot_ids || []).join() === 'H3', 'replying 3 (the real number) books the 3:30pm session, read against the new list');
   }
   { const x = setup(); x.t.prep_helper_slots[1].cap = 6; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_ids: ['H2'] });
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '2' });
     const tx = ghlCalls.filter(c => c.body && c.body.type === 'SMS').slice(-1)[0];
-    ok(r.body.helper === 'full' && !(x.t.prep_helpers[0].slot_ids || []).length && /These sessions still need helpers:\n1\. 8:00am session\n2\. 3:30pm session/.test(tx.body.message), 'sessions fill evenly: one already ahead is not taken, the emptier ones are offered'); }
+    ok(r.body.helper === 'full' && !(x.t.prep_helpers[0].slot_ids || []).length && /These sessions still need helpers:\n1\. 8:00am session\n3\. 3:30pm session/.test(tx.body.message), 'sessions fill evenly: one already ahead is not taken, the emptier ones are offered (with their real numbers)'); }
   { const x = setup(); x.t.prep_helpers[1].senior = false; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_ids: ['H2'] });   // 12:00pm (cap 1) is full of 4th Dans
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
     ok(r.body.helper === 'ok' && (x.t.prep_helpers[1].slot_ids || []).join() === 'H2', "a helper who isn't going for 4th Dan doesn't count towards the cap: they can still take a full session"); }

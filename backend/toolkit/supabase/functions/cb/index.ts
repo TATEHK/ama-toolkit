@@ -1121,7 +1121,10 @@ export async function handle(req, db, env = {}, http = fetch) {
             const { data: slots } = await db.from('prep_helper_slots').select('*').eq('cycle_id', h.cycle_id).order('sort');
             const { data: ov } = await db.from('prep_overview').select('grading_to').eq('cycle_id', h.cycle_id).eq('student_id', h.student_id).maybeSingle();
             const day = (() => { const d = [...new Set((slots || []).map(x => String(x.grading_date || '').slice(0, 10)))]; if (d.length !== 1 || !d[0]) return ''; const [y, mo, dd] = d[0].split('-').map(Number); return new Date(Date.UTC(y, mo - 1, dd)).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).replace(',', ''); })();
-            const sword = /^4th Dan$/.test(String((ov && ov.grading_to) || '').trim()) ? " You'll be presented your 4th Dan sword in front of everyone at the grading." : '';
+            const is4th = /^4th Dan$/.test(String((ov && ov.grading_to) || '').trim());
+            // Sessions keep their real numbers in every message (1 = 8:00am, 2 = 12:00pm, 3 = 3:30pm), so a number always means the same session.
+            const numOf = id => (slots || []).findIndex(x => x.slot_id === id) + 1;
+            const replyHint = (nums2, four) => { const n = [...(nums2 || [])].sort((a, b) => a - b); if (n.length <= 1) return `Reply ${n[0] || 1} to help`; const list = a => a.length <= 2 ? a.join(' and ') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; const eg = n.length >= 3 ? [n[0], n[2]] : n; return four ? `Reply with every number you can do (e.g. ${list(eg)}, or ${list(n)}). The more you can do, the better` : `Reply with the number of each session you can do (e.g. ${list(eg)}, or just ${n[n.length - 1]})`; };
             const reply = async text => {
               if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return env.GHL_TEST === '1';
               try { const cid = await contactFor({ full_name: stu.full_name, email: stu.contact_email }, phone); await sendSms(cid, text); return true; } catch (_) { return false; }
@@ -1134,15 +1137,31 @@ export async function handle(req, db, env = {}, http = fetch) {
               return json({ ok: true, helper: 'declined' });
             }
             if (allOf && /^\s*both\b/i.test(msg) && offered.length !== 2) return json({ ok: true, helper: 'unclear' });
-            const want = allOf ? offered : (nums || []).map(n => offered[n - 1]).filter(Boolean);
-            const bad = allOf ? [] : (nums || []).filter(n => !offered[n - 1]);
+            const slotByNum = n => { const sl = (slots || [])[n - 1]; return sl && offered.includes(sl.slot_id) ? sl.slot_id : null; };   // typed number -> that real session, if it was offered
+            const want = allOf ? offered : (nums || []).map(slotByNum).filter(Boolean);
+            const bad = allOf ? [] : (nums || []).filter(n => !slotByNum(n));
             let res = { ok: [], full: [], uneven: [] };
             if (want.length) { const { data } = await db.rpc('prep_helper_claim', { p_cycle: h.cycle_id, p_student: h.student_id, p_slots: want, p_reply: msg.slice(0, 300), p_by: 'reply', p_balance: want.length === 1 }); res = data || res; }
             const got = res.ok || [], missed = [...(res.full || []), ...(res.uneven || [])];
             if (got.length) {
-              let tpl = "Thanks {first_name}! You're helping at the {sessions} on {day} at AMA Sydenham.{full_note}{sword} See you there! - AMA";
+              let tpl = "Thanks {first_name}! You're helping at the {sessions} on {day} at AMA Sydenham.{full_note}{sword} Please arrive 15-30 minutes before in full uniform. See you there! - AMA";
               try { const { data: hset } = await db.from('prep_helper_settings').select('confirm_text').eq('id', 1).maybeSingle(); if (hset && String(hset.confirm_text || '').trim()) tpl = hset.confirm_text; } catch (_) { /* default wording */ }
-              const fill = { first_name: fn, sessions: labels(got), day, sword, full_note: missed.length ? ` The ${labels(missed)} ${missed.length > 1 ? 'are' : 'is'} already full.` : '' };
+              // Going for 4th Dan: settle (once) which of their sessions the sword is presented at, keeping the three sessions ~even.
+              let swordSentence = '';
+              if (is4th) {
+                const { data: meRow } = await db.from('prep_helpers').select('slot_ids, sword_slot').eq('cycle_id', h.cycle_id).eq('student_id', h.student_id).maybeSingle();
+                const booked = (meRow && meRow.slot_ids && meRow.slot_ids.length) ? meRow.slot_ids : got;
+                let swordSlot = meRow && meRow.sword_slot;
+                if (!(swordSlot && booked.includes(swordSlot))) {
+                  const { data: allH } = await db.from('prep_helpers').select('sword_slot').eq('cycle_id', h.cycle_id);
+                  const cntS = id => (allH || []).filter(r => r.sword_slot === id).length;
+                  swordSlot = [...booked].sort((a, b) => (cntS(a) - cntS(b)) || ((slots || []).findIndex(s => s.slot_id === a) - (slots || []).findIndex(s => s.slot_id === b)))[0] || null;
+                  if (swordSlot) await db.from('prep_helpers').update({ sword_slot: swordSlot }).eq('cycle_id', h.cycle_id).eq('student_id', h.student_id);
+                }
+                const lbl = ((slots || []).find(s => s.slot_id === swordSlot) || {}).label || '';
+                swordSentence = lbl ? ` You'll be presented your 4th Dan sword at the ${lbl.replace(/ session$/, '')} session.` : " You'll be presented your 4th Dan sword during the day.";
+              }
+              const fill = { first_name: fn, sessions: labels(got), day, sword: swordSentence, full_note: missed.length ? ` The ${labels(missed)} ${missed.length > 1 ? 'are' : 'is'} already full.` : '' };
               await reply(String(tpl).replace(/\{(\w+)\}/g, (m, k) => (fill[k] != null ? fill[k] : '')).replace(/ on  at /, ' at ').trim());
               return json({ ok: true, helper: 'ok', slots: got, full: missed });
             }
@@ -1153,8 +1172,9 @@ export async function handle(req, db, env = {}, http = fetch) {
             const room = h.senior === false ? (slots || []) : roomAll.filter(x => cnt(x) === lowN);   // 4th Dan+ sessions fill evenly; other helpers any session
             if (!room.length) { await reply(`Sorry ${fn}, every helper session is now full. We'll be in touch if a spot opens up. - AMA`); return json({ ok: true, helper: 'all_full' }); }
             await db.from('prep_helpers').update({ offered_slots: room.map(x => x.slot_id), updated_at: nowIso }).eq('cycle_id', h.cycle_id).eq('student_id', h.student_id);
-            const ask = room.length === 1 ? 'Reply 1 to help' : `Reply with the number of each session you can do (e.g. ${room.length >= 3 ? '1 and 3' : '1 and 2'}, or just one)`;
-            await reply(`Sorry ${fn}, ${missed.length ? (missed.length > 1 ? 'those sessions now have' : 'that session now has') + ' enough helpers' : (bad.length ? "that isn't one of the choices" : 'that session now has enough helpers')}. These sessions still need helpers:\n${room.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\n${ask}. - AMA`);
+            const roomSorted = [...room].sort((a, b) => numOf(a.slot_id) - numOf(b.slot_id));
+            const ask = replyHint(roomSorted.map(x => numOf(x.slot_id)), is4th);
+            await reply(`Sorry ${fn}, ${missed.length ? (missed.length > 1 ? 'those sessions now have' : 'that session now has') + ' enough helpers' : (bad.length ? "that isn't one of the choices" : 'that session now has enough helpers')}. These sessions still need helpers:\n${roomSorted.map(x => `${numOf(x.slot_id)}. ${x.label}`).join('\n')}\n${ask}. - AMA`);
             return json({ ok: true, helper: missed.length ? 'full' : 'not_a_choice' });
           }
         }
