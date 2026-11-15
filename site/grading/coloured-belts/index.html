@@ -630,6 +630,10 @@ async function loadAll() {
   // The automated booking sequence (coloured-belts-23.sql): its steps, if the update has been run
   const sq = await sb.from('cb_seq_steps').select('*').order('sort');
   state.seqReady = !sq.error; state.seqSteps = sq.data || [];
+  // Families the sequence leaves alone (cancelled or on hold in the hub): member_key -> reason
+  const sk = await sb.from('cb_skip').select('member_key, reason, until');
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  state.skips = new Map((sk.error ? [] : sk.data || []).filter(r => !r.until || String(r.until) >= today).map(r => [r.member_key, r.reason || 'On hold']));
   if (!isAll() && !state.programmes.some(x => x.programme === state.programme)) state.programme = state.programmes[0].programme;
   if (isAll() && state.programmes.length < 2) state.programme = state.programmes[0].programme;
   applyProgramme();
@@ -1095,6 +1099,8 @@ function renderDay() {
   if (state.checkinMode) return renderCheckIn(d, shown);
   const n = k => es.filter(k).length;
   const notInvited = es.filter(e => !e.invited_at && !e.result);
+  // Who the booking sequence will still invite: not already booked and paid, not skipped, not cancelled or on hold
+  const seqToInvite = notInvited.filter(e => !e.paid && !e.seq_stopped_at && !(state.skips && state.skips.has(e.member_key)));
   const passed = es.filter(e => resultIs(e, 'pass'));
   const toCongrats = passed.filter(e => !sentTo('congrats', e.entry_id));
   const toRetest = es.filter(e => e.result === 'retest' && !sentTo('retest', e.entry_id));
@@ -1109,7 +1115,7 @@ function renderDay() {
   const stages = [];
   if ((canDays() || canTexts()) && !d.closed) stages.push(['before', 'Before', `
       ${canDays() ? '<button class="btn primary wide" id="addReady">Add everyone marked ready</button><button class="btn" id="addOne">Add a student</button>' + (notBookedOf(d).length ? `<button class="btn" id="callNB">Call the ${notBookedOf(d).length} not booked</button>` : '') : ''}
-      ${!canTexts() ? '' : seqOnFor(d) ? `<button class="btn" id="seqBtn">Booking sequence${notInvited.length ? ` (${notInvited.length} to invite)` : ''}</button>`
+      ${!canTexts() ? '' : seqOnFor(d) ? `<button class="btn" id="seqBtn">Booking sequence${seqToInvite.length ? ` (${seqToInvite.length} to invite)` : ''}</button>`
         : `<button class="btn${notInvited.length ? ' primary' : ''}" id="sendInv" ${notInvited.length ? '' : 'disabled'}>${cnt('Invite', notInvited)}</button>${state.seqReady && !d.bb ? '<button class="btn" id="seqBtn">Booking sequence</button>' : ''}`}
       ${canText('not_booked') ? `<button class="btn" id="sendNotBooked" ${notBooked.length ? '' : 'disabled'}>${cnt('Remind to book', notBooked)}</button>` : ''}
       ${canText('reminder') ? `<button class="btn" id="sendReminder" ${booked.length ? '' : 'disabled'}>${cnt('Grading day reminder', booked)}</button>` : ''}
@@ -1995,7 +2001,8 @@ async function openSequence(d) {
   const on = !!state.settings.seq_on;
   const rows = sortEntries(es, dayFilt.sort).map(e => {
     const c = callOf(e.entry_id);
-    const state2 = e.seq_stopped_at ? `<span class="tag bad">${esc(e.seq_stopped_why || 'Stopped')}</span>` : e.seq_paused_until && new Date(e.seq_paused_until) > new Date() ? '<span class="tag warn">Paused</span>' : '';
+    const hold = state.skips && state.skips.get(e.member_key);
+    const state2 = e.seq_stopped_at ? `<span class="tag bad">${esc(e.seq_stopped_why || 'Stopped')}</span>` : hold ? `<span class="tag warn">${esc(hold)}</span>` : e.seq_paused_until && new Date(e.seq_paused_until) > new Date() ? '<span class="tag warn">Paused</span>' : '';
     return `<tr data-e="${e.entry_id}"><th scope="row">${esc(e.full_name)}<br><small>${esc(short(e.belt_from))}</small> ${state2}</th>
       ${SEQ_GRID.map(([code]) => { const l = logOf(e.entry_id, code); const m = l ? SEQ_MARK[l.status] || ['?', '', l.status] : null;
         const tip = code === 'invite_sms' && !l && e.invited_at ? 'Invited by hand' : m ? `${m[2]}${l.why ? ': ' + l.why : ''}, ${whenText(l.at)}` : 'Not yet';
