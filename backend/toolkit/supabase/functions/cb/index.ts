@@ -90,7 +90,7 @@ export function beltClaim(t, ladder) {
   if (!kept.length) return null;
   const last = kept[kept.length - 1], before = s.slice(Math.max(0, last.start - 40), last.start), after = s.slice(last.end, last.end + 12);
   if (/\b(going|grading|trying|test(ing)?|up|go)\s+(for|to)\s+(the |a |an |his |her |their |)$|\bshould (be|say) (the |a |an |)$|\b(it's|it is|its) (the |a |an |)$|\bfor (his|her|their) $/.test(before)) return { belt: last.belt, as: 'target' };
-  if (/(\bis|'s|\bare|'re|\bcurrently|\balready|\bnow|\bon|\bhas|\bgot|\bhaving|\bholding|\bwearing|\bcompleted|\bpassed|\bfinished|\bachieved|\bearned|\bdid|\bgraded(?: for| to| in)?|\bwas|\bat)\s+(a |an |on |on a |at |his |her |their |)$/.test(before) || /^\s*already\b/.test(after)) return { belt: last.belt, as: 'current' };
+  if (/(\bis|'s|\bare|'re|\bcurrently|\balready|\bnow|\bon|\bhas|\bgot|\bhaving|\bholding|\bwearing|\bcompleted|\bpassed|\bfinished|\bachieved|\bearned|\bdid|\bdone|\bgraded(?: for| to| in)?|\bwas|\bat)\s+(a |an |on |on a |at |his |her |their |my |our |)$/.test(before) || /^\s*already\b/.test(after)) return { belt: last.belt, as: 'current' };
   return { belt: last.belt, as: 'target' };
 }
 // Does a reply talk about a belt? A belt colour from the programme's ladder named with "belt", or next to "grading"/"graded".
@@ -138,11 +138,14 @@ export function adultize(t) {
     .replace(/Congratulations \{first\}!/g, 'Congratulations!')
     .replace(/\{first\}'s/g, 'your')
     .replace(/\{first\} (is|are|was|passed|worked|needs|has|have|will|did)\b/g, (m, v) => 'you ' + ({ is: 'are', are: 'are', was: 'were', passed: 'passed', worked: 'worked', needs: 'need', has: 'have', have: 'have', will: 'will', did: 'did' }[v]))
+    // Questions: "How is {first} feeling" -> "How are you feeling", "Has {first} ..." -> "Have you ...", "Does {first}" -> "Do you"
+    .replace(/\b(is|was|has|does) \{first\}/gi, (m, v) => { const w = { is: 'are', was: 'were', has: 'have', does: 'do' }[v.toLowerCase()]; return (v[0] === v[0].toUpperCase() ? w[0].toUpperCase() + w.slice(1) : w) + ' you'; })
     .replace(/\{first\}/g, 'you')
     .replace(/\bis now a\b/g, 'are now a')
     .replace(/\bTheir\b/g, 'Your').replace(/\btheir\b/g, 'your')
     .replace(/\bThey'll\b/g, "You'll").replace(/\bthey'll\b/g, "you'll")
     .replace(/\bThey're\b/g, "You're").replace(/\bthey're\b/g, "you're")
+    .replace(/\babout (them|\{first\}) being\b/g, 'about being')
     .replace(/\bThey\b/g, 'You').replace(/\bthey\b/g, 'you').replace(/\bthem\b/g, 'you')
     .replace(/(^|[.!?]\s+)you\b/g, (m, p) => p + 'You');
 }
