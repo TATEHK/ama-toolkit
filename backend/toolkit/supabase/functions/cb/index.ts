@@ -1226,6 +1226,41 @@ export async function handle(req, db, env = {}, http = fetch) {
         }
         const resolveQ = how => db.from('cb_admin_q').update({ resolved_at: new Date().toISOString(), resolution: how }).eq('id', q.id);
         if (/^\s*(ignore|skip|leave|none|no)\b/i.test(rest)) { await resolveQ('ignored'); await alertAdmin('OK, left #' + q.ref + ' as it was.'); return json({ ok: true, admin: true, ignored: true }); }
+        // ---- The admin replied with a school to move them to (e.g. "6 concord"): move everyone on the check to a grading there, keeping their belt, and text their links ----
+        {
+          const LOC_WORDS = [['Marrickville', /\bmarrickville\b/], ['Sydenham', /\bsydenham\b/], ['Concord', /\bconcord\b/], ['Sylvania', /\bsylvania\b/], ['West', /\bauburn\b|\bama\s+west\b|\bwest\b/]];
+          const lowL = ' ' + rest.toLowerCase() + ' ';
+          const locHits = LOC_WORDS.filter(([, re]) => re.test(lowL));
+          const wantLoc = locHits.length === 1 ? locHits[0][0] : null;
+          if (wantLoc) {
+            const ids = q.entry_id ? [q.entry_id] : (q.entry_ids || []);
+            const { data: ents } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, yes_at, booked_at, paid').in('entry_id', ids);
+            if (!ents || !ents.length) { await resolveQ('gone'); await alertAdmin('#' + q.ref + ': those students are no longer on a grading day.'); return json({ ok: true, admin: true, gone: true }); }
+            const nowIso2 = new Date().toISOString(), movedNames = [], noFit = [], sentOk = [];
+            for (const e2 of ents) {
+              const cur2 = open.find(x => x.day_id === e2.day_id) || (await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by').eq('day_id', e2.day_id).maybeSingle()).data;
+              const m2 = (await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').eq('member_key', e2.member_key).maybeSingle()).data || { member_key: e2.member_key };
+              const age2 = ageNow(m2);
+              const target = offerable.filter(x => x.location === wantLoc && x.day_id !== e2.day_id && fitsDay(x, { day_id: '', belt_from: e2.belt_from }, age2, cur2))
+                .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')))[0];
+              if (!target) { noFit.push(firstWord(e2.full_name)); continue; }
+              const { data: clash } = await db.from('cb_entries').select('entry_id').eq('day_id', target.day_id).eq('member_key', e2.member_key).maybeSingle();
+              if (clash && clash.entry_id !== e2.entry_id) { noFit.push(firstWord(e2.full_name) + ' (already there)'); continue; }
+              await db.from('cb_entries').update({ day_id: target.day_id, moved_from_day: e2.day_id, yes_at: e2.yes_at || nowIso2, seq_paused_until: null, alt_offer: null, cant_make_at: null, cant_make_reason: null }).eq('entry_id', e2.entry_id);
+              movedNames.push(firstWord(e2.full_name));
+              const fixed2 = { ...e2, day_id: target.day_id };
+              const r2 = await familyText(m2, fixed2, bookText(m2, fixed2, target), 'not_booked', 'admin: moved school by text', `${firstWord(m2.full_name || e2.full_name)}'s grading at AMA ${schoolLabel(target.location)}`);
+              if (r2 && r2.ok) sentOk.push(firstWord(e2.full_name));
+            }
+            await resolveQ('moved to ' + schoolLabel(wantLoc));
+            const parts = [];
+            if (movedNames.length) parts.push('moved ' + movedNames.join(', ') + ' to ' + schoolLabel(wantLoc));
+            if (sentOk.length) parts.push('link' + (sentOk.length > 1 ? 's' : '') + ' sent');
+            if (noFit.length) parts.push('no ' + schoolLabel(wantLoc) + ' grading for ' + noFit.join(', '));
+            await alertAdmin('Done #' + q.ref + ': ' + (parts.join('; ') || 'nothing to move') + '.');
+            return json({ ok: true, admin: true, moved: movedNames, location: wantLoc, sent: sentOk.length });
+          }
+        }
         if (q.kind === 'test') {   // a test belt-check: show how the reply is read, change nothing
           const { data: tb } = await db.from('cb_belts').select('belt, next_belt').eq('programme', 'Taekwondo');
           const lad = tb || [], bw = b => String(b.belt).replace(/\s*belt$/i, '').trim().toLowerCase(), lw = ' ' + rest.toLowerCase() + ' ';
@@ -1392,7 +1427,7 @@ export async function handle(req, db, env = {}, http = fetch) {
           const nowIso = new Date().toISOString(), who = e ? [e] : mine, gm = byKey[who[0].member_key];
           for (const x of who) await db.from('cb_entries').update({ reply_text: msg.slice(0, 300), reply_at: nowIso, seq_paused_until: new Date(Date.now() + 2 * 864e5).toISOString() }).eq('entry_id', x.entry_id);
           const have = who.map(x => (who.length > 1 ? firstWord(x.full_name) + ' ' : '') + x.belt_from + ' to ' + x.belt_to).join('; ');
-          await askAdmin({ kind: 'unclear', ...(e ? { entry: e } : { entries: mine }), text: ref => `Belt check #${ref}: ${firstWord((gm && gm.guardian_name) || 'A family')}${e ? ' for ' + firstWord(e.full_name) : ''} said "${msg.slice(0, 120)}" (we have ${have}). Reply "${ref} ${e ? '' : firstWord(mine[0].full_name) + ' '}green to blue" to change it, or "${ref} ignore".` });
+          await askAdmin({ kind: 'unclear', ...(e ? { entry: e } : { entries: mine }), text: ref => `Belt check #${ref}: ${firstWord((gm && gm.guardian_name) || 'A family')}${e ? ' for ' + firstWord(e.full_name) : ''} said "${msg.slice(0, 120)}" (we have ${have}). Reply "${ref} ${e ? '' : firstWord(mine[0].full_name) + ' '}green to blue" to change it, "${ref} concord" to move schools, or "${ref} ignore".` });
           return json({ ok: true, matched: mine.length, belt: 'asked admin (unclear)' });
         }
       }
@@ -1535,7 +1570,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         const who = byKey[mine[0].member_key] || {};
         const fam = firstWord(who.guardian_name || who.full_name) || 'A family';
         const kids = [...new Set(mine.map(e => firstWord(e.full_name)))].join(' and ');
-        await askAdmin({ kind: 'question', entries: mine, text: ref => `#${ref} ${fam} (${kids}) replied yes but also asked: "${String(msg).slice(0, 160)}". Reply "${ref} call" to put them on the call list, or "${ref} ignore".` });
+        await askAdmin({ kind: 'question', entries: mine, text: ref => `#${ref} ${fam} (${kids}) replied yes but also asked: "${String(msg).slice(0, 160)}". Reply "${ref} call" to put them on the call list, "${ref} concord" to move schools, or "${ref} ignore".` });
       }
       return json({ ok: true, matched: mine.length, yes: true, results: out });
     }
