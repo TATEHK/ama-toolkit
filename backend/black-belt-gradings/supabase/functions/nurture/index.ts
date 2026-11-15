@@ -377,7 +377,11 @@ export async function handle(req, db, env = {}, http = fetch) {
       // Sessions fill evenly: only the ones with the fewest helpers (and room) are offered
       const withRoom = (slots || []).filter(x => taken(x.slot_id) < (x.cap ?? 6));
       if (senior && !withRoom.length) return fail('Every helper session is full.', 409);
-      const low = Math.min(...withRoom.map(x => taken(x.slot_id))), suggested = senior ? withRoom.filter(x => taken(x.slot_id) === low) : (slots || []);
+      // 4th Dans are offered every session that still has room; a session only drops off the list once it's within 2 of
+      // its cap and an emptier session has room (then only the emptier ones are offered). Everyone else: all sessions.
+      const low = withRoom.length ? Math.min(...withRoom.map(x => taken(x.slot_id))) : 0;
+      const open4th = withRoom.filter(x => taken(x.slot_id) < (x.cap ?? 6) - 2 || taken(x.slot_id) === low);
+      const suggested = senior ? (open4th.length ? open4th : withRoom) : (slots || []);
       // Staff can pick exactly which sessions to offer (e.g. only 1 and 2); a full session is never offered to a 4th Dan+ student
       const picked = Array.isArray(body.slots) && body.slots.length ? (senior ? withRoom : (slots || [])).filter(x => body.slots.includes(x.slot_id)) : null;
       if (picked && !picked.length) return fail('Those sessions are full. Pick another one.', 409);

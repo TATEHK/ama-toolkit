@@ -147,7 +147,7 @@ function makeDb(tables) {
           const s0 = sl.find(x => x.slot_id === id && x.cycle_id === a.p_cycle); if (!s0) continue;
           if (mine.includes(id)) { out.ok.push(id); continue; }
           if (sen && cnt(id) >= s0.cap) { out.full.push(id); continue; }
-          if (a.p_balance && sen && a.p_slots.length === 1) { const room = sl.filter(x => x.cycle_id === a.p_cycle && cnt(x.slot_id) < x.cap); if (room.length && cnt(id) > Math.min(...room.map(x => cnt(x.slot_id)))) { out.uneven.push(id); continue; } }
+          if (a.p_balance && sen && a.p_slots.length === 1 && cnt(id) >= s0.cap - 2) { const room = sl.filter(x => x.cycle_id === a.p_cycle && cnt(x.slot_id) < x.cap); if (room.length && cnt(id) > Math.min(...room.map(x => cnt(x.slot_id)))) { out.uneven.push(id); continue; } }
           mine.push(id); out.ok.push(id);
         }
         if (out.ok.length) { const patch = { slot_ids: mine, confirmed_at: new Date().toISOString(), declined_at: null, reply_text: a.p_reply, set_by: a.p_by }; if (me0) Object.assign(me0, patch); else hs.push({ cycle_id: a.p_cycle, student_id: a.p_student, ...patch }); }
@@ -550,10 +550,14 @@ ok(sentRow.status === 'sent' && sentRow.why === 'Recovered after a cut-off run',
     const r3 = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '3' });
     ok(r3.body.helper === 'ok' && (x.t.prep_helpers[1].slot_ids || []).join() === 'H3', 'replying 3 (the real number) books the 3:30pm session, read against the new list');
   }
-  { const x = setup(); x.t.prep_helper_slots[1].cap = 6; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_ids: ['H2'] });
+  { const x = setup(); x.t.prep_helper_slots[1].cap = 3;   // 12:00pm within 2 of its cap: 2 of 3 taken
+    x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_ids: ['H2'] }, { cycle_id: 'C1', student_id: 'Z8', slot_ids: ['H2'] });
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '2' });
     const tx = ghlCalls.filter(c => c.body && c.body.type === 'SMS').slice(-1)[0];
-    ok(r.body.helper === 'full' && !(x.t.prep_helpers[0].slot_ids || []).length && /These sessions still need helpers:\n1\. 8:00am session\n3\. 3:30pm session/.test(tx.body.message), 'sessions fill evenly: one already ahead is not taken, the emptier ones are offered (with their real numbers)'); }
+    ok(r.body.helper === 'full' && !(x.t.prep_helpers[0].slot_ids || []).length && /These sessions still need helpers:\n1\. 8:00am session\n3\. 3:30pm session/.test(tx.body.message), 'a session within 2 of its cap steers 4th Dans to the emptier sessions'); }
+  { const x = setup(); x.t.prep_helper_slots[1].cap = 10; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_ids: ['H2'] });
+    const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 111 222', message: '2' });
+    ok(r.body.helper === 'ok' && (x.t.prep_helpers[0].slot_ids || []).join() === 'H2', 'well below the cap, a 4th Dan gets the session they picked (no steering)'); }
   { const x = setup(); x.t.prep_helpers[1].senior = false; x.t.prep_helpers.push({ cycle_id: 'C1', student_id: 'Z9', slot_ids: ['H2'] });   // 12:00pm (cap 1) is full of 4th Dans
     const r = await call(x, { action: 'reply', key: 'rk', phone: '0499 333 444', message: '2' });
     ok(r.body.helper === 'ok' && (x.t.prep_helpers[1].slot_ids || []).join() === 'H2', "a helper who isn't going for 4th Dan doesn't count towards the cap: they can still take a full session"); }

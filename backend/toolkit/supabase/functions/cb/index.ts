@@ -1175,7 +1175,10 @@ export async function handle(req, db, env = {}, http = fetch) {
             const { data: all } = await db.from('prep_helpers').select('student_id, slot_ids, senior').eq('cycle_id', h.cycle_id);
             const cnt = x => (all || []).filter(r => (r.slot_ids || []).includes(x.slot_id) && r.student_id !== h.student_id && r.senior !== false).length;
             const roomAll = (slots || []).filter(x => cnt(x) < (x.cap ?? 6)), lowN = roomAll.length ? Math.min(...roomAll.map(cnt)) : 0;
-            const room = h.senior === false ? (slots || []) : roomAll.filter(x => cnt(x) === lowN);   // 4th Dan+ sessions fill evenly; other helpers any session
+            // 4th Dans: re-offer every session with room, dropping one only once it's within 2 of its cap and an emptier
+            // session has room (then the emptier ones). Other helpers: any session.
+            const open4th = roomAll.filter(x => cnt(x) < (x.cap ?? 6) - 2 || cnt(x) === lowN);
+            const room = h.senior === false ? (slots || []) : (open4th.length ? open4th : roomAll);
             if (!room.length) { await reply(`Sorry ${fn}, every helper session is now full. We'll be in touch if a spot opens up. - AMA`); return json({ ok: true, helper: 'all_full' }); }
             await db.from('prep_helpers').update({ offered_slots: room.map(x => x.slot_id), updated_at: nowIso }).eq('cycle_id', h.cycle_id).eq('student_id', h.student_id);
             const roomSorted = [...room].sort((a, b) => numOf(a.slot_id) - numOf(b.slot_id));
