@@ -1238,6 +1238,33 @@ function secondGrading(e) {
     } catch (er) { toast(errMsg(er), 6000); }
   };
 }
+// Move this grading to another day that grades their belt: changes the day, re-invites, and texts the new booking link.
+// (Same move as "Can't make grading → makeup session", available on any student's card.)
+function moveGrading(e) {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  const hosts = (d, belt) => !d.belts || !d.belts.length || d.belts.includes(belt);
+  const days = state.days.filter(d => !d.closed && String(d.grading_date) >= today && d.day_id !== e.day_id && hosts(d, e.belt_from))
+    .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || (a.location || '').localeCompare(b.location || ''));
+  openDlg(`<div class="dlg"><div class="dlg-head"><div><h3>Move to another grading &mdash; ${esc(e.full_name)}</h3><p class="sub">${esc(short(e.belt_from))} &rarr; <b>${esc(short(e.belt_to))}</b></p></div><button class="x" data-close>Close</button></div>
+    <p class="hint">Moves their grading to another day that grades ${esc(short(e.belt_from))}, and texts the family their new booking link. Their current day is replaced.</p>
+    <div class="field"><label class="label" for="mvDay">Grading day</label>
+      <select id="mvDay">${days.length ? '<option value="">Choose a day&hellip;</option>' + days.map(d => `<option value="${esc(d.day_id)}">${esc(fmtDate(d.grading_date))} &mdash; ${esc(schoolLabel(d.location))}, ${esc(beltsText(d))}</option>`).join('') : `<option value="">No other open day grades ${esc(short(e.belt_from))}</option>`}</select></div>
+    <div class="dlg-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="mvGo"${days.length ? '' : ' disabled'}>Move &amp; text link</button></div></div>`);
+  const go = $('#mvGo'); if (go) go.onclick = async () => {
+    const dayId = $('#mvDay').value; if (!dayId) return toast('Choose a day.');
+    if (state.all.entries.some(x => x.day_id === dayId && x.member_key === e.member_key && x.entry_id !== e.entry_id)) return toast('They are already on that day.', 5000);
+    const nd = dayOf(dayId); if (!nd) return toast('That day is gone.', 5000);
+    const nowIso = new Date().toISOString();
+    const restart = /^Can't make grading/.test(e.seq_stopped_why || '') ? { seq_stopped_at: null, seq_stopped_why: null } : {};
+    try {
+      const f = { day_id: dayId, moved_from_day: e.day_id, cant_make_at: null, cant_make_reason: null, alt_offer: null, seq_paused_until: null, invited_at: nowIso, yes_at: null, ...restart };
+      await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), `Moved to ${fmtDate(nd.grading_date)} at ${schoolLabel(nd.location)}`);
+      Object.assign(e, f);
+      applyProgramme(); dlg.close(); render();
+      composeTexts('not_booked', [{ member_key: e.member_key, entry_id: e.entry_id, s: student(e.member_key), e, d: nd }]);   // their new booking link (preview before it sends)
+    } catch (er) { toast(errMsg(er), 6000); }
+  };
+}
 // One text to the family covering both gradings of a double grading, each with its date and its own booking/payment line.
 function doubleText(low, high) {
   if (!canText('invite')) return toast("You don't have permission to send that kind of text.", 5000);
@@ -1311,7 +1338,8 @@ function openEntry(id) {
       ${s && canDays() ? '<button class="btn" id="editContact">Edit mobile or email</button>' : ''}
       ${canBelts() && !e.result ? '<button class="btn" id="editBelt">Edit belt</button>' : ''}
       ${canDays() && !e.result ? (e.cant_make_at ? '<button class="btn" id="backOnGrading">Back on grading</button>' : '<button class="btn" id="cantMake">Can\'t make grading</button>') : ''}
-      ${canDays() && !e.result && beltOf(e.belt_to, state.programme).next_belt ? '<button class="btn" id="secondGrading">Add second grading</button>' : ''}</div>
+      ${canDays() && !e.result && beltOf(e.belt_to, state.programme).next_belt ? '<button class="btn" id="secondGrading">Add second grading</button>' : ''}
+      ${canDays() && !e.result ? '<button class="btn" id="moveGrading">Move to another grading</button>' : ''}</div>
     <div class="section"><h3>Booking link</h3><div class="linkbox">${esc(bookingLink(e))}</div>
       <div class="row"><button class="btn sm" id="copyLink">Copy link</button>${canText('not_booked') && !e.result ? '<button class="btn sm" id="resendLink">Resend link</button>' : ''}${canDays() && !e.result && !(e.booked_at && e.paid) ? '<button class="btn sm" id="newLink">Issue new link</button>' : ''}</div>
       ${e.late_ok_until && new Date(e.late_ok_until) > new Date() ? `<p class="hint">Late booking allowed until ${esc(whenText(e.late_ok_until))}.</p>` : bookingShut(d) && !e.booked_at ? '<p class="hint">Bookings have closed for this day. Issue a new link to let them book or pay late. It works for 48 hours and the old link stops working.</p>' : ''}</div>
@@ -1342,6 +1370,7 @@ function openEntry(id) {
   const cm = $('#cantMake'); if (cm) cm.onclick = () => change({ cant_make_at: new Date().toISOString(), cant_make_reason: 'by_hand', ...(e.seq_stopped_at ? {} : { seq_stopped_at: new Date().toISOString(), seq_stopped_why: CANT_STOP }) }, 'Added to Can\'t make grading, reminder texts stopped');
   const bg = $('#backOnGrading'); if (bg) bg.onclick = () => change({ cant_make_at: null, cant_make_reason: null, ...(/^Can't make grading/.test(e.seq_stopped_why || '') ? { seq_stopped_at: null, seq_stopped_why: null } : {}) }, 'Back on grading');
   const sg = $('#secondGrading'); if (sg) sg.onclick = () => secondGrading(e);
+  const mv = $('#moveGrading'); if (mv) mv.onclick = () => moveGrading(e);
   const p = $('#paidBtn'); if (p) p.onclick = async () => { try { await run(sb.rpc('cb_set_paid', { p_entry: e.entry_id, p_paid: false }), 'Marked unpaid'); Object.assign(e, { paid: false, paid_at: null, paid_how: null }); render(); openEntry(id); } catch (er) { toast(errMsg(er), 6000); } };
   const bh = $('#byHandDone'); if (bh) bh.onclick = () => change({ efc_by_hand_done_at: new Date().toISOString() }, 'Ticked off');
   const mb = $('#markBooked'); if (mb) mb.onclick = () => change({ booked_at: new Date().toISOString(), booking_error: null }, 'Marked booked');
