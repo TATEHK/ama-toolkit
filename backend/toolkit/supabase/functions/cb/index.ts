@@ -1712,7 +1712,8 @@ export async function handle(req, db, env = {}, http = fetch) {
     if (body.action === 'record_payment') {
       if (!can('payments')) return fail('Your login cannot record payments.', 403);
       const how = String(body.how || '');
-      if (!['cash', 'eftpos', 'transfer', 'other'].includes(how)) return fail('Choose how they paid.');
+      // 'credit' = they already have a credit (e.g. paid last time but missed it): mark paid and book them, but don't send a payment-received text/email.
+      if (!['cash', 'eftpos', 'transfer', 'other', 'credit'].includes(how)) return fail('Choose how they paid.');
       const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school').eq('entry_id', String(body.entry_id || '')).maybeSingle();
       if (!e) return fail('Student not found on this grading day.', 404);
       if (e.paid) return json({ ok: true, already: true, booked: !!e.booked_at });
@@ -1721,8 +1722,8 @@ export async function handle(req, db, env = {}, http = fetch) {
       let b = { ok: !!e.booked_at };
       const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb').eq('day_id', e.day_id).maybeSingle();
       if (d && !e.booked_at) b = await bookEntry(e, d);
-      if (d) await confirmEmail(e, d, 'email_paid', { amount: await feeFor(e, d) });
-      if (d) await confirmSms(e, d, 'sms_paid');
+      if (d && how !== 'credit') await confirmEmail(e, d, 'email_paid', { amount: await feeFor(e, d) });
+      if (d && how !== 'credit') await confirmSms(e, d, 'sms_paid');
       return json({ ok: true, booked: !!b.ok, byHand: !!b.byHand, booking_error: b.ok ? null : (b.why || null) });
     }
     // The booking sequence: "Send test to me" for any step (grading staff), with a real student's details or a sample

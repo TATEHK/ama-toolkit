@@ -426,7 +426,7 @@ const SCHOOLS = ['Marrickville', 'Sydenham', 'Concord', 'West', 'Sylvania'];
 const SCHOOL_LABEL = { West: 'Auburn' };   // display-only rename; the stored school key stays 'West'
 const schoolLabel = s => SCHOOL_LABEL[s] || s || '';
 const APP_BASE = '/grading/coloured-belts/';
-const PAID_HOW = { card: 'by card', cash: '(cash)', eftpos: '(EFTPOS)', transfer: '(bank transfer)', other: '(other)', desk: 'at the desk' };
+const PAID_HOW = { card: 'by card', cash: '(cash)', eftpos: '(EFTPOS)', transfer: '(bank transfer)', credit: '(credit)', other: '(other)', desk: 'at the desk' };
 // Results are pass or fail (stored as 'retest'); older 'distinction' results show as a pass
 const RESULT = { pass: 'Pass', distinction: 'Pass', retest: 'Fail' };
 const RESULT_BUTTONS = { pass: 'Pass', retest: 'Fail' };
@@ -1386,8 +1386,8 @@ function openEntry(id) {
 // A payment taken by staff: marks them paid, then books the EFC session like a card payment
 function recordPayment(e) {
   openDlg(`<form id="rpForm" class="dlg"><div class="dlg-head"><div><h3>Record payment</h3><p class="sub">${esc(e.full_name)}, ${money(beltOf(e.belt_from).fee) || 'fee not set'}</p></div><button class="x" data-close>Close</button></div>
-    <div class="field"><span class="label">How did they pay?</span><div class="checks" id="rpHow">${[['cash', 'Cash'], ['eftpos', 'EFTPOS'], ['transfer', 'Bank transfer'], ['other', 'Other']].map(([k, t], i) => `<label class="check"><input type="radio" name="rpHow" value="${k}" ${i === 1 ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
-    <p class="hint">${e.booked_at ? 'They are already booked.' : 'This also books them into the EFC session, or flags it to do by hand for a student from another school.'}</p>
+    <div class="field"><span class="label">How did they pay?</span><div class="checks" id="rpHow">${[['cash', 'Cash'], ['eftpos', 'EFTPOS'], ['transfer', 'Bank transfer'], ['credit', 'Credit'], ['other', 'Other']].map(([k, t], i) => `<label class="check"><input type="radio" name="rpHow" value="${k}" ${i === 1 ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
+    <p class="hint">Credit: they already have a credit (e.g. paid last time but missed it) — marks them paid and books them in without taking money or sending a payment text.<br>${e.booked_at ? 'They are already booked.' : 'This also books them into the EFC session, or flags it to do by hand for a student from another school.'}</p>
     <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="rpGo" type="submit">Record payment</button></div></form>`);
   $('#rpForm').onsubmit = async ev => {
     ev.preventDefault(); $('#rpGo').disabled = true; $('#rpGo').textContent = 'Saving…';
