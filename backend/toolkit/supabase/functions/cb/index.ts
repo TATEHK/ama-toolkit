@@ -1073,6 +1073,67 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json(await runSequence());
     }
 
+    // ---- The hub sends approved Little Dragons nominations (coloured-belts-36.sql) ----
+    // { action:'ld_nominate', key, day_id?, nominations:[{ nomination_id?, efc_reference?, member_key?, full_name?, school?, belt, current_belt?, remove? }] }
+    // Each nomination becomes (or updates) an entry on the Little Dragons grading day, so the family pipeline runs. key is cb_settings.hook_key.
+    if (body.action === 'ld_nominate') {
+      const { data: st } = await db.from('cb_settings').select('hook_key').eq('id', 1).maybeSingle();
+      if (!st || !st.hook_key || String(body.key || '') !== st.hook_key) return fail('Not allowed.', 403);
+      const noms = Array.isArray(body.nominations) ? body.nominations : [];
+      if (!noms.length) return fail('No nominations.');
+      // The grading day: the one named, else the next upcoming Little Dragons day.
+      const today = sydParts(Date.now()).ymd;
+      let day = null;
+      if (body.day_id) { const { data: d } = await db.from('cb_days').select('day_id').eq('day_id', String(body.day_id)).maybeSingle(); day = d; }
+      else { const { data: ds } = await db.from('cb_days').select('day_id').eq('programme', 'Taekwondo - Little Dragon').eq('bb', false).eq('closed', false).gte('grading_date', today).order('grading_date').limit(1); day = (ds || [])[0]; }
+      if (!day) return fail('No Little Dragons grading day found.', 404);
+      // The Little Dragon belt ladder, to recognise and tidy up the belt each child is going for.
+      const { data: ladder0 } = await db.from('cb_belts').select('belt').eq('programme', 'Taekwondo - Little Dragon');
+      const norm = s => String(s || '').trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s*belt\s*$/, '').replace(/\s+/g, ' ');
+      const canon = {};
+      for (const b of (ladder0 || [])) canon[norm(b.belt)] = b.belt;
+      const alias = { 'going for master': 'Master Belt', 'going for master belt': 'Master Belt', 'master red': 'Master Belt', 'master black': 'Master Belt', 'master - red': 'Master Belt', 'master - black': 'Master Belt' };
+      const beltOf = raw => canon[norm(raw)] || alias[norm(raw)] || null;
+      const results = [];
+      for (const n of noms.slice(0, 500)) {
+        const out = { nomination_id: n.nomination_id || null, ok: false };
+        results.push(out);
+        try {
+          let member_key = String(n.member_key || '').trim();
+          let full_name = String(n.full_name || '').trim();
+          const school = String(n.school || '').trim();
+          if ((!member_key || !full_name) && String(n.efc_reference || '').trim()) {
+            const { data: m } = await db.from('efc_members').select('member_key, full_name').eq('efc_reference', String(n.efc_reference).trim()).maybeSingle();
+            if (m) { member_key = member_key || m.member_key; full_name = full_name || m.full_name || ''; }
+          }
+          if (!member_key) { out.error = 'Could not find the child (need member_key or a known efc_reference).'; continue; }
+          out.member_key = member_key;
+          const { data: ex } = await db.from('cb_entries').select('entry_id, paid, booked_at').eq('day_id', day.day_id).eq('member_key', member_key).maybeSingle();
+          // Withdraw a nomination ("Not this time") -- but never silently drop one who's already booked or paid.
+          if (n.remove === true || norm(n.belt) === 'not this time') {
+            if (!ex) { out.ok = true; out.status = 'not_found'; }
+            else if (ex.paid || ex.booked_at) { out.ok = true; out.status = 'kept_already_booked'; out.entry_id = ex.entry_id; }
+            else { await db.from('cb_entries').delete().eq('entry_id', ex.entry_id); out.ok = true; out.status = 'removed'; out.entry_id = ex.entry_id; }
+            continue;
+          }
+          const belt_to = beltOf(n.belt);
+          if (!belt_to) { out.error = 'Unknown belt "' + String(n.belt || '') + '".'; continue; }
+          if (!full_name) { out.error = "Missing the child's name."; continue; }
+          const belt_from = String(n.current_belt || '').trim() || 'White Belt';
+          const fields = { full_name, belt_from, belt_to, school: school || null, ld_nomination_id: n.nomination_id ? String(n.nomination_id) : null };
+          if (ex) {
+            await db.from('cb_entries').update(fields).eq('entry_id', ex.entry_id);
+            out.ok = true; out.status = 'updated'; out.entry_id = ex.entry_id;
+          } else {
+            const { data: ins, error: ie } = await db.from('cb_entries').insert({ day_id: day.day_id, member_key, ...fields }).select('entry_id').maybeSingle();
+            if (ie) throw ie;
+            out.ok = true; out.status = 'created'; out.entry_id = ins && ins.entry_id;
+          }
+        } catch (e) { out.error = String(e && e.message || e).slice(0, 200); }
+      }
+      return json({ ok: true, day_id: day.day_id, results });
+    }
+
     // ---- A family replied to the grading text (GoHighLevel "Customer replied" workflow, coloured-belts-16.sql) ----
     // { action: 'reply', key, phone, message }: if it's a YES, every student from that family who was invited (and hasn't
     // booked) for a coming grading day is marked "Said YES", and is texted the booking link (the "Reminder to book" wording,
