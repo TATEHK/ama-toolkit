@@ -251,7 +251,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: okCron } = await db.rpc('prep_nurture_cron_ok', { p_secret: req.headers.get('x-nurture-cron') || '' });
       if (!okCron) return fail('Not allowed.', 403);
       if (!(ready || testing)) return fail('GoHighLevel is not set up yet.', 409);
-      const kind = body.kind === 'due_soon' ? 'due_soon' : 'due_sat';
+      const kind = ['due_soon', 'due_today'].includes(body.kind) ? body.kind : 'due_sat';
       const ranks = Array.isArray(body.ranks) && body.ranks.length ? body.ranks : null;
       const { data: cyc } = await db.from('prep_cycles').select('cycle_id').eq('status', 'active').order('grading_date', { ascending: false }).limit(1).maybeSingle();
       if (!cyc) return json({ ok: true, sent: 0, skipped: 'No active cycle.' });
@@ -265,10 +265,14 @@ export async function handle(req, db, env = {}, http = fetch) {
       const sById = Object.fromEntries(students.map(s => [s.student_id, s]));
       const smsOf = (nm, link) => kind === 'due_soon'
         ? `Hi ${nm}, your black belt essay is due soon - your prep session starts in about an hour. If you haven't handed it in yet, do it here: ${link} - AMA`
+        : kind === 'due_today'
+        ? `Hi ${nm}, your black belt essay is due today, before your prep session. If you haven't handed it in yet, do it here: ${link} - AMA`
         : `Hi ${nm}, your black belt essay is due this Saturday, 21 Nov, before the December grading. Hand it in here: ${link} - AMA`;
-      const subjOf = () => kind === 'due_soon' ? 'Your black belt essay is due soon' : 'Your black belt essay is due this Saturday';
+      const subjOf = () => kind === 'due_soon' ? 'Your black belt essay is due soon' : kind === 'due_today' ? 'Your black belt essay is due today' : 'Your black belt essay is due this Saturday';
       const emailOf = (nm, link) => kind === 'due_soon'
         ? `Hi ${nm},\n\nYour black belt essay is due soon - your prep session starts in about an hour. If you haven't handed it in yet, you can do it here:\n\n${link}\n\nIf it's already on the way, you can ignore this.\n\nThanks,\nAustralian Martial Arts Academy`
+        : kind === 'due_today'
+        ? `Hi ${nm},\n\nYour black belt essay is due today, before your prep session. If you haven't handed it in yet, you can do it here:\n\n${link}\n\nIf it's already on the way, you can ignore this.\n\nThanks,\nAustralian Martial Arts Academy`
         : `Hi ${nm},\n\nYour black belt essay is due this Saturday, 21 November, before the December grading. You can hand it in here:\n\n${link}\n\nIf it's already on the way, you can ignore this.\n\nThanks,\nAustralian Martial Arts Academy`;
       const linkFor = async e => { let tok = e.token; if (!tok) { tok = essayToken(); await db.from('prep_essays').update({ token: tok }).eq('essay_id', e.essay_id); } return SITE + 'e/#' + tok; };
 
