@@ -1419,8 +1419,9 @@ function setDiscount(e) {
       <label class="check"><input type="radio" name="dcKind" value="amount" ${curPct ? '' : 'checked'}> Dollar amount ($)</label>
       <label class="check"><input type="radio" name="dcKind" value="percent" ${curPct ? 'checked' : ''}> Percentage (%)</label></div></div>
     <div class="field"><span class="label" id="dcValLbl">${curPct ? 'Percent off (%)' : 'Amount off ($)'}</span><input type="number" name="dcVal" min="0" step="0.01" value="${cur}" inputmode="decimal" autofocus><p class="hint" id="dcPreview"></p></div>
-    <div class="field"><span class="label">Reason (shows on the payment page)</span><input type="text" name="dcWhy" maxlength="80" value="${esc(e.discount_reason || '')}" placeholder="e.g. Sibling discount"></div>
-    <p class="hint">The family sees the full fee with this taken off as a <b>Discount</b> line when they pay by card, and it comes off any payment you record by hand. Set it to 0 to remove the discount.</p>
+    <div class="field"><span class="label">Label (the discount line on the payment page)</span><input type="text" name="dcWhy" maxlength="80" value="${esc(e.discount_reason || '')}" placeholder="e.g. Sibling discount"></div>
+    <div class="field"><span class="label">Note under the discount (optional)</span><input type="text" name="dcNote" maxlength="300" value="${esc(e.discount_note || '')}" placeholder="e.g. A thank-you from the AMA family"></div>
+    <p class="hint">The family sees the full fee with this taken off as its own labelled line when they pay by card (and the note with it), and it comes off any payment you record by hand. Set it to 0 to remove the discount.</p>
     <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="dcGo" type="submit">Save discount</button></div></form>`);
   const kindOf = () => ($('#dcForm input[name=dcKind]:checked') || {}).value || 'amount';
   const sync = () => {
@@ -1438,7 +1439,8 @@ function setDiscount(e) {
     try {
       const amount = Number($('#dcForm input[name=dcVal]').value || 0);
       const reason = $('#dcForm input[name=dcWhy]').value.trim();
-      const r = await fnCall({ action: 'set_discount', entry_id: e.entry_id, amount, kind: kindOf(), reason });
+      const note = $('#dcForm input[name=dcNote]').value.trim();
+      const r = await fnCall({ action: 'set_discount', entry_id: e.entry_id, amount, kind: kindOf(), reason, note });
       toast(r.discount > 0 ? `Discount set: they pay ${money(r.net)} (${money(r.off)} off)` : 'Discount removed', 5000);
       dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
     } catch (er) { toast(errMsg(er), 6000); $('#dcGo').disabled = false; $('#dcGo').textContent = 'Save discount'; }

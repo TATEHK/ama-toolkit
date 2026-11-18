@@ -3346,8 +3346,9 @@ function bbSetDiscount(c, entryId) {
       <label class="check"><input type="radio" name="bdKind" value="amount" ${curPct ? '' : 'checked'}> Dollar amount ($)</label>
       <label class="check"><input type="radio" name="bdKind" value="percent" ${curPct ? 'checked' : ''}> Percentage (%)</label></div></div>
     <div class="field"><label for="bdVal" id="bdValLbl">${curPct ? 'Percent off (%)' : 'Amount off ($)'}</label><input type="number" id="bdVal" min="0" step="0.01" value="${cur}" inputmode="decimal"><p class="hint" id="bdPreview"></p></div>
-    <div class="field"><label for="bdWhy">Reason (shows on the payment page)</label><input type="text" id="bdWhy" maxlength="80" value="${esc(e.discount_reason || '')}" placeholder="e.g. Sibling discount" autocomplete="off"></div>
-    <p class="hint">The family sees the full fee with this taken off as a <b>Discount</b> line when they pay by card, and it comes off any payment you record by hand. Set it to 0 to remove the discount.</p>
+    <div class="field"><label for="bdWhy">Label (the discount line on the payment page)</label><input type="text" id="bdWhy" maxlength="80" value="${esc(e.discount_reason || '')}" placeholder="e.g. Sibling discount" autocomplete="off"></div>
+    <div class="field"><label for="bdNote">Note under the discount (optional)</label><input type="text" id="bdNote" maxlength="300" value="${esc(e.discount_note || '')}" placeholder="e.g. A thank-you from the AMA family" autocomplete="off"></div>
+    <p class="hint">The family sees the full fee with this taken off as its own labelled line when they pay by card (and the note with it), and it comes off any payment you record by hand. Set it to 0 to remove the discount.</p>
     <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn primary" id="bdGo">Save discount</button></div></form>`);
   const kindOf = () => ($('input[name=bdKind]:checked') || {}).value || 'amount';
   const sync = () => {
@@ -3363,8 +3364,8 @@ function bbSetDiscount(c, entryId) {
   $('#bdForm').onsubmit = async ev => {
     ev.preventDefault(); $('#bdGo').disabled = true;
     try {
-      const amount = Number($('#bdVal').value || 0), reason = $('#bdWhy').value.trim();
-      const { data: res, error } = await sb.functions.invoke('cb', { body: { action: 'set_discount', entry_id: entryId, amount, kind: kindOf(), reason } });
+      const amount = Number($('#bdVal').value || 0), reason = $('#bdWhy').value.trim(), note = $('#bdNote').value.trim();
+      const { data: res, error } = await sb.functions.invoke('cb', { body: { action: 'set_discount', entry_id: entryId, amount, kind: kindOf(), reason, note } });
       if (error) throw new Error(error.message || error);
       if (res && res.error) throw new Error(res.error);
       sheet.close(); toast(res && res.discount > 0 ? `Discount set: they pay ${money(res.net)} (${money(res.off)} off)` : 'Discount removed'); await renderBbBooking(c); openBbEntry(c, entryId);

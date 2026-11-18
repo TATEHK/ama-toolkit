@@ -541,7 +541,7 @@ export function buildSeqEmail(subject, body) {
 
 async function entryByToken(db, token) {
   if (!tokenOk(token)) return null;
-  const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school, discount, discount_kind, discount_reason').eq('token', token).maybeSingle();
+  const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school, discount, discount_kind, discount_reason, discount_note').eq('token', token).maybeSingle();
   if (!e) return null;
   const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb').eq('day_id', e.day_id).maybeSingle();
   return d ? { e, d } : null;
@@ -638,8 +638,9 @@ export async function handle(req, db, env = {}, http = fetch) {
     return Math.min(n, fee);
   };
   // Make a one-off Stripe coupon (amount_off or percent_off), so the hosted checkout page shows a "Discount" line.
+  // The coupon name is the discount line's label; we show the staff's wording verbatim (e.g. "Staff Gift - 30% off").
   const discountCoupon = async (e, fee) => {
-    const name = String(e.discount_reason || '').trim() ? ('Discount: ' + String(e.discount_reason).trim().slice(0, 40)) : 'Discount';
+    const name = String(e.discount_reason || '').trim() ? String(e.discount_reason).trim().slice(0, 60) : 'Discount';
     const body = e.discount_kind === 'percent'
       ? { percent_off: Math.min(100, Number(e.discount) || 0), duration: 'once', name }
       : { amount_off: Math.round(Math.min(Number(e.discount) || 0, fee) * 100), currency: 'aud', duration: 'once', name };
@@ -1012,7 +1013,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (e.paid && e.paid_how === 'card') { const { data: rp } = await db.from('cb_payments').select('receipt_url').eq('entry_id', e.entry_id).eq('status', 'paid').maybeSingle(); receipt = (rp && rp.receipt_url) || null; }
       const etm = entryTime(d, e);
       const info = { ok: true, first: first(e.full_name), belt_to: e.belt_to, date: d.grading_date, time: etm ? String(etm).slice(0, 5) : null,
-        school: whereOf(e, d), fee, fee_full: baseFee, discount: disc, discount_reason: disc > 0 ? (e.discount_reason || null) : null,
+        school: whereOf(e, d), fee, fee_full: baseFee, discount: disc, discount_reason: disc > 0 ? (e.discount_reason || null) : null, discount_note: disc > 0 ? (e.discount_note || null) : null,
         booked: !!e.booked_at, paid: !!e.paid, paid_how: e.paid ? (e.paid_how || 'desk') : null, closed: d.closed || !!e.result,
         card: !!(env.STRIPE_SECRET_KEY && fee > 0), booking_failed: !!(e.paid && !e.booked_at && e.booking_error),
         book_by: late ? e.late_ok_until : (d.book_by || null), booking_closed: shut, phone, receipt, bring };
@@ -1046,6 +1047,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         ...(email ? { customer_email: email } : {}),
         line_items: { 0: { quantity: 1, price_data: { currency: 'aud', unit_amount: Math.round(baseFee * 100), product_data: { name: `AMA grading: ${e.belt_to}`, description: `${first(e.full_name)}, ${whereOf(e, d)}, ${d.grading_date}` } } } },
         ...(disc > 0 ? { discounts: { 0: { coupon: await discountCoupon(e, baseFee) } } } : {}),
+        ...(disc > 0 && String(e.discount_note || '').trim() ? { custom_text: { submit: { message: String(e.discount_note).trim().slice(0, 1000) } } } : {}),
         success_url: `${site}?paid=1#t=${e.token}`, cancel_url: `${site}#t=${e.token}` }) });
       const { data: had } = await db.from('cb_payments').select('payment_id').eq('entry_id', e.entry_id).eq('status', 'pending').maybeSingle();
       if (had) await db.from('cb_payments').update({ stripe_session: sess.id, amount: fee, created_at: new Date().toISOString() }).eq('payment_id', had.payment_id);
@@ -1752,7 +1754,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     // on the Stripe checkout page (and comes off any staff-recorded payment). amount 0 clears it.
     if (body.action === 'set_discount') {
       if (!can('payments', 'set_fees')) return fail('Your login cannot change fees.', 403);
-      const { data: e } = await db.from('cb_entries').select('entry_id, day_id, full_name, belt_from, belt_to, paid, discount, discount_kind, discount_reason').eq('entry_id', String(body.entry_id || '')).maybeSingle();
+      const { data: e } = await db.from('cb_entries').select('entry_id, day_id, full_name, belt_from, belt_to, paid, discount, discount_kind, discount_reason, discount_note').eq('entry_id', String(body.entry_id || '')).maybeSingle();
       if (!e) return fail('Student not found on this grading day.', 404);
       if (e.paid) return fail('This grading is already paid, so the discount can’t change now.', 409);
       const kind = body.kind === 'percent' ? 'percent' : 'amount';
@@ -1765,9 +1767,10 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (kind === 'percent') { if (amount > 100) return fail('A percentage discount can’t be over 100%.'); }
       else if (amount > baseFee) return fail(`The discount can’t be more than the $${baseFee} fee.`);
       const reason = String(body.reason || '').trim().slice(0, 80) || null;
-      await db.from('cb_entries').update({ discount: amount, discount_kind: kind, discount_reason: amount > 0 ? reason : null }).eq('entry_id', e.entry_id);
+      const note = String(body.note || '').trim().slice(0, 300) || null;
+      await db.from('cb_entries').update({ discount: amount, discount_kind: kind, discount_reason: amount > 0 ? reason : null, discount_note: amount > 0 ? note : null }).eq('entry_id', e.entry_id);
       const off = amount <= 0 ? 0 : kind === 'percent' ? Math.min(baseFee, Math.round(baseFee * Math.min(amount, 100)) / 100) : Math.min(amount, baseFee);
-      return json({ ok: true, entry_id: e.entry_id, fee_full: baseFee, discount: amount, discount_kind: kind, discount_reason: amount > 0 ? reason : null, off, net: Math.max(0, baseFee - off) });
+      return json({ ok: true, entry_id: e.entry_id, fee_full: baseFee, discount: amount, discount_kind: kind, discount_reason: amount > 0 ? reason : null, discount_note: amount > 0 ? note : null, off, net: Math.max(0, baseFee - off) });
     }
     // The booking sequence: "Send test to me" for any step (grading staff), with a real student's details or a sample
     if (body.action === 'seq_test') {

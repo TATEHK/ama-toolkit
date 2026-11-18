@@ -45,6 +45,15 @@
   .total { display: flex; justify-content: space-between; align-items: baseline; }
   .total span { color: var(--sub); }
   .total strong { font: 700 36px/1 var(--display); }
+  .total.has-disc { display: block; }
+  .total.has-disc .trow { display: flex; justify-content: space-between; align-items: baseline; }
+  .total.has-disc .trow + .trow { margin-top: 6px; }
+  .total.has-disc .trow span, .total.has-disc .trow .amt { color: var(--sub); }
+  .total.has-disc .trow.disc span, .total.has-disc .trow.disc .amt { color: var(--gold); font-weight: 600; }
+  .total.has-disc .trow.grand { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.14); }
+  .total.has-disc .trow.grand span { color: var(--ink, inherit); font-weight: 600; }
+  .total.has-disc .trow.grand strong { font: 700 32px/1 var(--display); }
+  .total.has-disc .tnote { color: var(--sub); font-size: 13px; line-height: 1.4; margin: 8px 0 0; }
   .btn { min-height: 56px; border-radius: 12px; border: 0; background: var(--gold); color: var(--on-gold); font: 700 18px var(--body); cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; width: 100%; }
   .btn:hover { background: #ffd23a; }
@@ -185,7 +194,18 @@ function show(r) {
   if (r.book_by) $('#closes span').textContent = `Bookings close ${fmtWhen(r.book_by)}`;
   // Before paying: with a fee, pay by card (which books it). Without a fee: just book. Other payments are taken by staff.
   const canPay = open && hasFee && r.card && !r.paid;
-  $('#total').hidden = !canPay; $('#totalAmt').textContent = fee;
+  const hasDisc = canPay && r.discount > 0 && r.fee_full != null;
+  const T = $('#total'); T.hidden = !canPay;
+  if (hasDisc) {
+    T.classList.add('has-disc');
+    T.innerHTML = `<div class="trow"><span>Grading fee</span><span class="amt">${money(r.fee_full)}</span></div>`
+      + `<div class="trow disc"><span>${esc(r.discount_reason || 'Discount')}</span><span class="amt">&minus;${money(r.discount)}</span></div>`
+      + (r.discount_note ? `<div class="tnote">${esc(r.discount_note)}</div>` : '')
+      + `<div class="trow grand"><span>Total</span><strong id="totalAmt">${fee}</strong></div>`;
+  } else {
+    T.classList.remove('has-disc');
+    T.innerHTML = `<span>Grading fee</span><strong id="totalAmt">${fee}</strong>`;
+  }
   $('#pay').hidden = !canPay;
   $('#pay').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>` + esc(r.booked ? `Pay the ${fee} fee` : `Pay ${fee} and book`);
   $('#secure').hidden = !canPay;
