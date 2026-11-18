@@ -110,10 +110,11 @@ function draw() {
   const days = E.due ? Math.round((new Date(E.due + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000) : null;
   $('#rules').innerHTML = [E.min_words ? `At least <b>${E.min_words}</b> words.` : '', E.due ? `Due <b>${esc(fmtDate(E.due))}</b>${days < 0 ? ` <span style="color:var(--danger)">(${-days} day${days === -1 ? '' : 's'} late)</span>` : days === 0 ? ' (today)' : days <= 7 ? ` (${days} day${days === 1 ? '' : 's'} to go)` : ''}.` : ''].filter(Boolean).join(' ');
   const st = E.status;
-  $('#status').innerHTML = E.overdue ? `<div class="banner bad"><b>The due date has passed</b><span class="small">Essays closed on ${esc(fmtDate(E.due))} and can no longer be changed. Please speak to your instructor if you need to.</span></div>`
+  $('#status').innerHTML = E.overdue ? `<div class="banner bad"><b>Essays have closed</b><span class="small">The deadline for black belt essays has passed, so they can no longer be submitted here. If you still need to hand yours in, please email us at <a href="mailto:info@australianmartialarts.com.au" style="color:var(--gold);font-weight:600">info@australianmartialarts.com.au</a>.</span></div>`
     : st === 'submitted' ? `<div class="banner ok"><b>Handed in ${esc(fmtWhen(E.submitted_at))}</b><span class="small">Thank you. You can still change it and hand it in again until it's marked.</span></div>`
     : st === 'needs_changes' ? `<div class="banner warn"><b>Your instructor has sent it back for some changes</b>${E.feedback ? `<p class="feedback">${esc(E.feedback)}</p>` : ''}<span class="small">Make the changes below, then hand it in again.</span></div>`
     : st === 'reviewed' ? `<div class="banner ok"><b>Your essay has been marked${E.mark ? ': ' + esc(E.mark) : ''}</b>${E.feedback ? `<p class="feedback">${esc(E.feedback)}</p>` : ''}<span class="small">Well done. It can't be changed now.</span></div>` : '';
+  $('#form').hidden = !!E.overdue;   // past the deadline: no form, just the "email us" message above
   const saved = st === 'not_submitted' ? store.get(draftKey) : null;
   $('#body').value = saved != null ? saved : (E.body || '');
   $('#body').disabled = $('#pick').disabled = $('#go').disabled = !!E.locked;

@@ -242,6 +242,67 @@ export async function handle(req, db, env = {}, http = fetch) {
 
     if (body.action === 'check') return json({ ready: ready || testing, testing });
 
+    // ---- Essay reminders: text + email every student who still owes their black belt essay their personal link.
+    //      Authed by the nurture cron secret, so it runs as a one-off blast or from a scheduled job.
+    //        kind:  'due_sat' (due this Saturday) | 'due_soon' (prep session ~1 hour away). Default due_sat.
+    //        ranks: optional list of target ranks to limit to (for the hour-before, per-session reminders).
+    //        test / test_to: send one SMS + email to a test contact instead of the whole list.
+    if (body.action === 'essay_remind') {
+      const { data: okCron } = await db.rpc('prep_nurture_cron_ok', { p_secret: req.headers.get('x-nurture-cron') || '' });
+      if (!okCron) return fail('Not allowed.', 403);
+      if (!(ready || testing)) return fail('GoHighLevel is not set up yet.', 409);
+      const kind = body.kind === 'due_soon' ? 'due_soon' : 'due_sat';
+      const ranks = Array.isArray(body.ranks) && body.ranks.length ? body.ranks : null;
+      const { data: cyc } = await db.from('prep_cycles').select('cycle_id').eq('status', 'active').order('grading_date', { ascending: false }).limit(1).maybeSingle();
+      if (!cyc) return json({ ok: true, sent: 0, skipped: 'No active cycle.' });
+      const { data: eqs } = await db.from('prep_essay_questions').select('target_rank');
+      const essayRanks = new Set((eqs || []).map(e => e.target_rank));
+      const essays = await allRows(() => db.from('prep_essays').select('essay_id, student_id, target_rank, status, token').eq('cycle_id', cyc.cycle_id));
+      let owe = (essays || []).filter(e => essayRanks.has(e.target_rank) && !['submitted', 'reviewed'].includes(e.status));
+      if (ranks) owe = owe.filter(e => ranks.includes(e.target_rank));
+      const sids = [...new Set(owe.map(e => e.student_id))];
+      const students = sids.length ? await allRows(() => db.from('prep_students').select('student_id, full_name, contact_phone, contact_email, is_active, is_test').in('student_id', sids)) : [];
+      const sById = Object.fromEntries(students.map(s => [s.student_id, s]));
+      const smsOf = (nm, link) => kind === 'due_soon'
+        ? `Hi ${nm}, your black belt essay is due soon - your prep session starts in about an hour. If you haven't handed it in yet, do it here: ${link} - AMA`
+        : `Hi ${nm}, your black belt essay is due this Saturday, 21 Nov, before the December grading. Hand it in here: ${link} - AMA`;
+      const subjOf = () => kind === 'due_soon' ? 'Your black belt essay is due soon' : 'Your black belt essay is due this Saturday';
+      const emailOf = (nm, link) => kind === 'due_soon'
+        ? `Hi ${nm},\n\nYour black belt essay is due soon - your prep session starts in about an hour. If you haven't handed it in yet, you can do it here:\n\n${link}\n\nIf it's already on the way, you can ignore this.\n\nThanks,\nAustralian Martial Arts Academy`
+        : `Hi ${nm},\n\nYour black belt essay is due this Saturday, 21 November, before the December grading. You can hand it in here:\n\n${link}\n\nIf it's already on the way, you can ignore this.\n\nThanks,\nAustralian Martial Arts Academy`;
+      const linkFor = async e => { let tok = e.token; if (!tok) { tok = essayToken(); await db.from('prep_essays').update({ token: tok }).eq('essay_id', e.essay_id); } return SITE + 'e/#' + tok; };
+
+      // Test: one SMS + email to the given contact, using a real outstanding essay's link as the example.
+      if (body.test) {
+        const link = owe.length ? await linkFor(owe[0]) : SITE + 'e/#sampleessay';
+        const nm = (body.test_to && body.test_to.name) || 'there';
+        const phone = phoneE164(body.test_to && body.test_to.phone), email = (body.test_to && body.test_to.email) || null;
+        if (!phone && !email) return fail('No test phone or email given.');
+        const out = { candidates: owe.length, example_link: link };
+        if (!(ready) && testing) return json({ ok: true, test: true, ...out, sms_preview: smsOf(nm, link), email_preview: emailOf(nm, link) });
+        const cid = await contactFor({ full_name: 'AMA test', phone, email });
+        if (phone) { try { await sendSms(cid, smsOf(nm, link)); out.sms = 'sent'; } catch (er) { out.sms = String(er.message || er); } }
+        if (email) { try { await sendEmail(cid, subjOf(), emailOf(nm, link)); out.email = 'sent'; } catch (er) { out.email = String(er.message || er); } }
+        return json({ ok: true, test: true, ...out });
+      }
+
+      let sent = 0, sms = 0, email = 0, skipped = 0; const errors = [];
+      for (const e of owe) {
+        const s = sById[e.student_id];
+        if (!s || !s.is_active || s.is_test) { skipped++; continue; }
+        const phone = phoneE164(s.contact_phone), em = s.contact_email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.contact_email) ? s.contact_email : null;
+        if (!phone && !em) { skipped++; continue; }
+        const link = await linkFor(e), nm = first(s.full_name);
+        let cid = null;
+        try { cid = await contactFor({ full_name: s.full_name, phone: s.contact_phone, email: em }); } catch (er) { errors.push(s.full_name + ': ' + (er.message || er)); continue; }
+        let did = false;
+        if (phone) { try { await sendSms(cid, smsOf(nm, link)); sms++; did = true; } catch (er) { errors.push(s.full_name + ' sms: ' + (er.message || er)); } }
+        if (em) { try { await sendEmail(cid, subjOf(), emailOf(nm, link)); email++; did = true; } catch (er) { errors.push(s.full_name + ' email: ' + (er.message || er)); } }
+        if (did) sent++;
+      }
+      return json({ ok: true, kind, ranks: ranks || 'all', candidates: owe.length, sent, sms, email, skipped, errors: errors.slice(0, 10) });
+    }
+
     // ---- Staff: send one step to themselves, with sample details, to proof it ----
     if (body.action === 'test') {
       const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
