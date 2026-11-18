@@ -3147,7 +3147,7 @@ async function loadBbBooking(cid) {
   const prev = bbData[cid] && bbData[cid].sel, creating = bbData[cid] && bbData[cid].creating, mode = bbData[cid] && bbData[cid].mode;
   const day = list.find(d => d.day_id === prev) || list[0] || null;   // keep the chosen day across re-renders
   let entries = [];
-  if (day) { const { data: es, error: e2 } = await sb.from('cb_entries').select('entry_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, paid, paid_how, efc_by_hand, efc_by_hand_done_at, checked_in_at, result, late_ok_until, photo_path, photo_code').eq('day_id', day.day_id); if (e2) throw e2; entries = es || []; }
+  if (day) { const { data: es, error: e2 } = await sb.from('cb_entries').select('entry_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, paid, paid_how, efc_by_hand, efc_by_hand_done_at, checked_in_at, result, late_ok_until, photo_path, photo_code, discount, discount_kind, discount_reason').eq('day_id', day.day_id); if (e2) throw e2; entries = es || []; }
   // Link each entry back to its student: cb_entries.member_key is efc_members.member_key ('efc:<uuid>'),
   // while prep_students.efc_ref is the EFC reference code — efc_members bridges the two.
   const refByKey = {};   // member_key -> efc_reference
@@ -3334,6 +3334,43 @@ async function bbRecordPaid(c, entryId) {
     } catch (e) { $$('[data-bbhow]').forEach(x => x.disabled = false); toast(errMsg(e), 6000); }
   });
 }
+// A dollar or percentage discount on a black belt candidate's grading fee. Shows as its own "Discount" line on the Stripe checkout page.
+function bbSetDiscount(c, entryId) {
+  const e = ((bbData[c.cycle_id] || {}).entries || []).find(x => x.entry_id === entryId); if (!e) return;
+  const feeBase = gradingRate(e.belt_to);
+  const had = Number(e.discount) > 0;
+  const curPct = e.discount_kind === 'percent';
+  const cur = had ? Number(e.discount) : '';
+  openSheet(`<form id="bdForm">${sheetHead(`${had ? 'Edit' : 'Add'} discount`, `${esc(e.full_name)} · fee ${money(feeBase)}`)}
+    <div class="field"><span class="label">Type of discount</span><div class="row" style="gap:12px">
+      <label class="check"><input type="radio" name="bdKind" value="amount" ${curPct ? '' : 'checked'}> Dollar amount ($)</label>
+      <label class="check"><input type="radio" name="bdKind" value="percent" ${curPct ? 'checked' : ''}> Percentage (%)</label></div></div>
+    <div class="field"><label for="bdVal" id="bdValLbl">${curPct ? 'Percent off (%)' : 'Amount off ($)'}</label><input type="number" id="bdVal" min="0" step="0.01" value="${cur}" inputmode="decimal"><p class="hint" id="bdPreview"></p></div>
+    <div class="field"><label for="bdWhy">Reason (shows on the payment page)</label><input type="text" id="bdWhy" maxlength="80" value="${esc(e.discount_reason || '')}" placeholder="e.g. Sibling discount" autocomplete="off"></div>
+    <p class="hint">The family sees the full fee with this taken off as a <b>Discount</b> line when they pay by card, and it comes off any payment you record by hand. Set it to 0 to remove the discount.</p>
+    <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn primary" id="bdGo">Save discount</button></div></form>`);
+  const kindOf = () => ($('input[name=bdKind]:checked') || {}).value || 'amount';
+  const sync = () => {
+    const pct = kindOf() === 'percent';
+    $('#bdValLbl').textContent = pct ? 'Percent off (%)' : 'Amount off ($)';
+    const v = Number($('#bdVal').value || 0);
+    let off = 0;
+    if (feeBase != null && v > 0) off = pct ? Math.min(feeBase, Math.round(feeBase * Math.min(v, 100)) / 100) : Math.min(v, feeBase);
+    $('#bdPreview').textContent = (feeBase != null && v > 0) ? `They pay ${money(feeBase - off)} (${money(off)} off).` : '';
+  };
+  $$('input[name=bdKind]').forEach(r => r.onchange = sync);
+  $('#bdVal').oninput = sync; sync();
+  $('#bdForm').onsubmit = async ev => {
+    ev.preventDefault(); $('#bdGo').disabled = true;
+    try {
+      const amount = Number($('#bdVal').value || 0), reason = $('#bdWhy').value.trim();
+      const { data: res, error } = await sb.functions.invoke('cb', { body: { action: 'set_discount', entry_id: entryId, amount, kind: kindOf(), reason } });
+      if (error) throw new Error(error.message || error);
+      if (res && res.error) throw new Error(res.error);
+      sheet.close(); toast(res && res.discount > 0 ? `Discount set: they pay ${money(res.net)} (${money(res.off)} off)` : 'Discount removed'); await renderBbBooking(c); openBbEntry(c, entryId);
+    } catch (er) { $('#bdGo').disabled = false; toast(errMsg(er), 6000); }
+  };
+}
 // A candidate's grading-day card: booking, payment, result, link — the black belt version of the coloured day entry.
 function openBbEntry(c, entryId) {
   const cid = c.cycle_id, data = bbData[cid] || {}, e = (data.entries || []).find(x => x.entry_id === entryId); if (!e) return;
@@ -3350,9 +3387,18 @@ function openBbEntry(c, entryId) {
   const booking = e.efc_by_hand && e.booked_at ? (e.efc_by_hand_done_at ? `Booked by hand in EFC, ${at(e.efc_by_hand_done_at)}` : `<span class="bad-text">Booked here, but EFC can't book them automatically — book them in EFC by hand, then press Done in EFC.</span>`)
     : e.booked_at ? `Booked ${at(e.booked_at)}` : e.booking_error ? `<span class="bad-text">Failed: ${esc(e.booking_error)}</span>` : 'Not booked yet';
   const RES = { pass: 'Passed', distinction: 'Distinction', retest: 'Retest' };
+  const feeBase = gradingRate(e.belt_to);
+  const dval = Number(e.discount) > 0 ? Number(e.discount) : 0;
+  const dpct = e.discount_kind === 'percent';
+  const disc = (dval > 0 && feeBase != null) ? (dpct ? Math.min(feeBase, Math.round(feeBase * Math.min(dval, 100)) / 100) : Math.min(dval, feeBase)) : 0;
+  const discLabel = dpct ? ` (${dval % 1 ? dval : Math.round(dval)}% off)` : '';
+  const feeHtml = feeBase == null ? 'Not set'
+    : disc > 0 ? `<s>${money(feeBase)}</s> &minus;${money(disc)} discount${discLabel} = <b>${money(feeBase - disc)}</b>${e.discount_reason ? ` <span class="small muted">(${esc(e.discount_reason)})</span>` : ''}`
+    : money(feeBase);
   openSheet(`<div class="body">${sheetHead(e.full_name, 'Grading to ' + (e.belt_to || ''))}
     <dl class="kv" style="margin:0 0 10px">
       <dt>Booking</dt><dd>${booking}</dd>
+      <dt>Fee</dt><dd>${feeHtml}</dd>
       <dt>Paid</dt><dd>${e.paid ? `<span class="tag ok">Paid${e.paid_how === 'card' ? ' by card' : e.paid_how ? ' (' + esc(e.paid_how) + ')' : ''}</span>` : '<span class="tag warn">Unpaid</span>'}</dd>
       <dt>Here</dt><dd>${e.checked_in_at ? 'Checked in ' + at(e.checked_in_at) : 'Not yet'}</dd>
       <dt>Result</dt><dd>${e.result ? RES[e.result] : 'None yet'}</dd>
@@ -3360,6 +3406,7 @@ function openBbEntry(c, entryId) {
     </dl>
     <div class="row" style="flex-wrap:wrap;gap:6px">
       ${!e.paid ? '<button class="btn primary sm" data-bba="pay">Record payment</button>' : (e.paid_how !== 'card' ? '<button class="btn sm" data-bba="unpaid">Mark unpaid</button>' : '')}
+      ${has('payments') && !e.paid && feeBase != null ? `<button class="btn sm" data-bba="discount">${disc > 0 ? 'Edit discount' : 'Add discount'}</button>` : ''}
       ${e.efc_by_hand && !e.efc_by_hand_done_at ? '<button class="btn sm" data-bba="byhand">Done in EFC</button>' : ''}
       ${!e.booked_at ? '<button class="btn sm" data-bba="booked">Mark booked</button>' : '<button class="btn sm" data-bba="unbook">Clear booking</button>'}
       <button class="btn sm" data-bba="check">${e.checked_in_at ? 'Clear check-in' : 'Check in'}</button>
@@ -3373,6 +3420,7 @@ function openBbEntry(c, entryId) {
   const change = async (f, msg) => { try { await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), msg); await refresh(); } catch (er) { toast(errMsg(er), 6000); } };
   const act = {
     pay: () => bbRecordPaid(c, e.entry_id),
+    discount: () => bbSetDiscount(c, e.entry_id),
     unpaid: async () => { try { await run(sb.rpc('cb_set_paid', { p_entry: e.entry_id, p_paid: false }), 'Marked unpaid'); await refresh(); } catch (er) { toast(errMsg(er), 6000); } },
     byhand: () => change({ efc_by_hand_done_at: now() }, 'Ticked off'),
     booked: () => change({ booked_at: now(), booking_error: null }, 'Marked booked'),
