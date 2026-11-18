@@ -117,6 +117,8 @@ export function fitsDay(d, e, age, from) {
 }
 export const ALT_DAYS = 3, ALT_VALID_MS = 7 * 864e5;   // offer up to 3 other gradings; a reply of 1, 2 or 3 works for 7 days
 const SITE = 'https://app.train-ama.com/';
+// A short url-safe essay token, matching the 12-char shape the prep system (nurture) makes.
+const essayToken = () => { const b = crypto.getRandomValues(new Uint8Array(9)); let s = ''; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').slice(0, 12); };
 const firstWord = x => String(x || '').trim().split(/\s+/)[0] || '';
 const longDay = ymd => { const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).replace(',', ''); };
 const clock = t => { const [h, mi] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(mi || 0).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`; };
@@ -543,8 +545,30 @@ async function entryByToken(db, token) {
   if (!tokenOk(token)) return null;
   const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, result, paid, paid_how, late_ok_until, school, discount, discount_kind, discount_reason, discount_note').eq('token', token).maybeSingle();
   if (!e) return null;
-  const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb').eq('day_id', e.day_id).maybeSingle();
+  const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb, prep_cycle_id').eq('day_id', e.day_id).maybeSingle();
   return d ? { e, d } : null;
+}
+
+// Black belt essay: on a black belt (Dan) grading day, work out whether this student still owes their black belt
+// essay and, if so, the link to write it. Mirrors the nurture flow: cb entry -> efc_members.efc_reference ->
+// prep_students -> prep_essays. Returns the essay page URL when one is still due, otherwise null.
+async function essayUrlFor(db, e, d) {
+  try {
+    if (!(d && d.bb && d.prep_cycle_id && e && e.member_key && e.belt_to)) return null;
+    const { data: m } = await db.from('efc_members').select('efc_reference').eq('member_key', e.member_key).maybeSingle();
+    if (!m || !m.efc_reference) return null;
+    const { data: ps } = await db.from('prep_students').select('student_id').eq('efc_ref', m.efc_reference).maybeSingle();
+    if (!ps || !ps.student_id) return null;
+    const target = e.belt_to;
+    const { data: eqs } = await db.from('prep_essay_questions').select('target_rank');
+    if (!(eqs || []).some(q => q.target_rank === target)) return null;   // this rank needs no essay
+    const { data: ess } = await db.from('prep_essays').select('target_rank, status, token').eq('cycle_id', d.prep_cycle_id).eq('student_id', ps.student_id);
+    const essRow = (ess || []).find(x => x.target_rank === target);
+    if (essRow && ['submitted', 'reviewed'].includes(essRow.status)) return null;   // already in
+    let tok = essRow && essRow.token;
+    if (!tok) { tok = essayToken(); await db.from('prep_essays').insert({ cycle_id: d.prep_cycle_id, student_id: ps.student_id, target_rank: target, token: tok }); }
+    return SITE + 'e/#' + tok;
+  } catch (_) { return null; }
 }
 
 export async function handle(req, db, env = {}, http = fetch) {
@@ -1051,6 +1075,8 @@ export async function handle(req, db, env = {}, http = fetch) {
         booked: !!e.booked_at, paid: !!e.paid, paid_how: e.paid ? (e.paid_how || 'desk') : null, closed: d.closed || !!e.result,
         card: !!(env.STRIPE_SECRET_KEY && fee > 0), booking_failed: !!(e.paid && !e.booked_at && e.booking_error),
         book_by: late ? e.late_ok_until : (d.book_by || null), booking_closed: shut, phone, receipt, bring };
+      // Black belt essay still to submit (shown on the booking page as its own section)
+      if (d.bb) { const eu = await essayUrlFor(db, e, d); if (eu) info.essay_url = eu; }
       const shutMsg = `Bookings for this grading have closed. Please call us on ${phone}.`;
       if (body.action === 'info') return json(info);
       if (body.action === 'book') {

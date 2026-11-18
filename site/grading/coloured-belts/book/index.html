@@ -61,6 +61,13 @@
   .btn svg { width: 20px; height: 20px; }
   .btn.plain { background: none; color: var(--text); border: 1px solid var(--line2); font-size: 16px; min-height: 50px; }
   .btn.plain:hover { border-color: var(--sub); }
+  .btn.essay { background: var(--green); color: #fff; }
+  .btn.essay:hover { background: #38b36b; }
+  .essaybox { border: 1px solid var(--line2); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .essaybox .eb-head { display: flex; gap: 12px; align-items: flex-start; }
+  .essaybox svg { width: 24px; height: 24px; flex: none; margin-top: 1px; color: var(--green-text); }
+  .essaybox h2 { font-size: 19px; margin: 0 0 4px; }
+  .essaybox .hint { margin: 0; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .secure { display: flex; gap: 8px; align-items: flex-start; color: var(--sub); font-size: 14px; line-height: 1.4; margin: -4px 0 0; }
   .secure svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
@@ -118,6 +125,18 @@
       </div>
       <ul class="facts" id="details"></ul>
       <div class="closes" id="closes" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span></span></div>
+
+      <!-- Black belt essay still to submit (black belt gradings only) -->
+      <div class="essaybox" id="essayBox" hidden>
+        <div class="eb-head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10a2 2 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l3 3"/></svg>
+          <div>
+            <h2>Black belt essay</h2>
+            <p class="hint">Before grading, <span id="essayWho">your student</span> needs to submit their black belt essay. It only takes a few minutes, and it's separate from booking and payment.</p>
+          </div>
+        </div>
+        <a class="btn essay" id="essayBtn" href="#" target="_blank" rel="noopener">Write the essay</a>
+      </div>
 
       <!-- Before paying -->
       <div class="total" id="total" hidden><span>Grading fee</span><strong id="totalAmt"></strong></div>
@@ -192,6 +211,10 @@ function show(r) {
   // Bookings close notice
   $('#closes').hidden = !(r.book_by && !done && open);
   if (r.book_by) $('#closes span').textContent = `Bookings close ${fmtWhen(r.book_by)}`;
+  // Black belt essay still to submit: its own section above the fee, shown until the grading is over (independent of payment)
+  const needEssay = !!r.essay_url && !r.closed;
+  $('#essayBox').hidden = !needEssay;
+  if (needEssay) { $('#essayBtn').href = r.essay_url; $('#essayWho').textContent = r.first; }
   // Before paying: with a fee, pay by card (which books it). Without a fee: just book. Other payments are taken by staff.
   const canPay = open && hasFee && r.card && !r.paid;
   const hasDisc = canPay && r.discount > 0 && r.fee_full != null;
