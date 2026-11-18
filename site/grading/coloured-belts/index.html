@@ -1324,19 +1324,28 @@ function openEntry(id) {
   const e = state.entries.find(x => x.entry_id === id); if (!e) return;
   const d = dayOf(e.day_id), s = student(e.member_key);
   const at = iso => new Date(iso).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' });
+  const feeBase = beltOf(e.belt_from).fee;
+  const dval = Number(e.discount) > 0 ? Number(e.discount) : 0;
+  const dpct = e.discount_kind === 'percent';
+  const disc = (dval > 0 && feeBase != null) ? (dpct ? Math.min(feeBase, Math.round(feeBase * Math.min(dval, 100)) / 100) : Math.min(dval, feeBase)) : 0;
+  const discLabel = dpct ? ` (${dval % 1 ? dval : Math.round(dval)}% off)` : '';
+  const feeHtml = feeBase == null ? 'Not set'
+    : disc > 0 ? `<s>${money(feeBase)}</s> &minus;${money(disc)} discount${discLabel} = <b>${money(feeBase - disc)}</b>${e.discount_reason ? ` <span class="sub">(${esc(e.discount_reason)})</span>` : ''}`
+    : money(feeBase);
   const booking = e.efc_by_hand && e.booked_at ? (e.efc_by_hand_done_at ? `Booked by hand in EFC, ${at(e.efc_by_hand_done_at)}` : `<span class="bad-text">Booked here, but they're from ${esc(s ? schoolLabel(s.location) : 'another school')}, so EFC can't book them automatically. Book them in EFC by hand, then press Done in EFC.</span>`)
     : e.booked_at ? `Booked ${at(e.booked_at)}` : e.booking_error ? `<span class="bad-text">Failed: ${esc(e.booking_error)}${e.paid ? '. They have paid, so book them in EFC by hand, then press Mark booked.' : ''}</span>` : e.yes_at ? `Said YES ${at(e.yes_at)}, booking link sent, not booked yet` : e.invited_at ? `Invited ${at(e.invited_at)}, not booked yet${e.reply_text ? '. Replied: “' + esc(e.reply_text) + '”' : ''}` : 'Not invited yet';
   openDlg(`<div class="dlg">
     <div class="dlg-head"><div><h3>${esc(e.full_name)}</h3><p class="sub">${swatch(e.belt_from)} ${esc(e.belt_from)} to <b>${esc(toText(e))}</b></p></div><button class="x" data-close>Close</button></div>
     <dl class="kv">
       <dt>Booking</dt><dd>${booking}</dd>
-      <dt>Fee</dt><dd>${money(beltOf(e.belt_from).fee) || 'Not set'} ${e.paid ? `<span class="tag ok">Paid ${esc(PAID_HOW[e.paid_how] || '')}</span>` : '<span class="tag warn">Unpaid</span>'}</dd>
+      <dt>Fee</dt><dd>${feeHtml} ${e.paid ? `<span class="tag ok">Paid ${esc(PAID_HOW[e.paid_how] || '')}</span>` : '<span class="tag warn">Unpaid</span>'}</dd>
       <dt>Result</dt><dd>${e.result ? RESULT[e.result] : e.checked_in_at ? 'Here, no result yet' : 'None yet'}</dd>
       <dt>Photo</dt><dd>${e.photo_path ? `Taken${sentTo('photo', e.entry_id) ? ', texted to the family' : ''}` : e.photo_removed_at ? 'Removed (photos are kept 30 days)' : 'None yet'}</dd>
       ${s ? contactRows(s) : ''}
     </dl>
     <div class="row">
       ${canPay() && !e.paid ? '<button class="btn primary" id="recordPay">Record payment</button>' : ''}
+      ${canPay() && !e.paid && feeBase != null ? `<button class="btn" id="discBtn">${disc > 0 ? 'Edit discount' : 'Add discount'}</button>` : ''}
       ${canDays() && e.efc_by_hand && !e.efc_by_hand_done_at ? '<button class="btn primary" id="byHandDone">Done in EFC</button>' : ''}
       ${canDays() && !e.booked_at ? '<button class="btn" id="markBooked">Mark booked</button>' : ''}
       ${canPay() && e.paid && e.paid_how !== 'card' ? '<button class="btn" id="paidBtn">Mark unpaid</button>' : ''}
@@ -1369,6 +1378,7 @@ function openEntry(id) {
   };
   const cp = $('#copyPhoto'); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(photoLink(e)); toast('Link copied'); } catch (er) { toast('Press and hold the link to copy it.'); } };
   const rp = $('#recordPay'); if (rp) rp.onclick = () => recordPayment(e);
+  const db2 = $('#discBtn'); if (db2) db2.onclick = () => setDiscount(e);
   const ec = $('#editContact'); if (ec) ec.onclick = () => editContact(e.member_key, () => openEntry(id));
   const eb = $('#editBelt'); if (eb) eb.onclick = () => editBelt(e);
   // Can't make grading also stops their automatic reminder texts; Back on grading starts them again (only if it was this that stopped them)
@@ -1396,6 +1406,42 @@ function recordPayment(e) {
       toast(r.booked ? (r.byHand ? 'Payment recorded. Book them in EFC by hand.' : 'Payment recorded and booked') : `Payment recorded. Booking failed: ${r.booking_error || 'check Settings'}`, 6000);
       dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
     } catch (er) { toast(errMsg(er), 6000); $('#rpGo').disabled = false; $('#rpGo').textContent = 'Record payment'; }
+  };
+}
+// A dollar or percentage discount on one student's grading fee. Shows as its own "Discount" line on the Stripe checkout page.
+function setDiscount(e) {
+  const feeBase = beltOf(e.belt_from).fee;
+  const had = Number(e.discount) > 0;
+  const curPct = e.discount_kind === 'percent';
+  const cur = had ? Number(e.discount) : '';
+  openDlg(`<form id="dcForm" class="dlg"><div class="dlg-head"><div><h3>${had ? 'Edit' : 'Add'} discount</h3><p class="sub">${esc(e.full_name)} &mdash; fee ${money(feeBase)}</p></div><button class="x" data-close>Close</button></div>
+    <div class="field"><span class="label">Type of discount</span><div class="checks" id="dcKind">
+      <label class="check"><input type="radio" name="dcKind" value="amount" ${curPct ? '' : 'checked'}> Dollar amount ($)</label>
+      <label class="check"><input type="radio" name="dcKind" value="percent" ${curPct ? 'checked' : ''}> Percentage (%)</label></div></div>
+    <div class="field"><span class="label" id="dcValLbl">${curPct ? 'Percent off (%)' : 'Amount off ($)'}</span><input type="number" name="dcVal" min="0" step="0.01" value="${cur}" inputmode="decimal" autofocus><p class="hint" id="dcPreview"></p></div>
+    <div class="field"><span class="label">Reason (shows on the payment page)</span><input type="text" name="dcWhy" maxlength="80" value="${esc(e.discount_reason || '')}" placeholder="e.g. Sibling discount"></div>
+    <p class="hint">The family sees the full fee with this taken off as a <b>Discount</b> line when they pay by card, and it comes off any payment you record by hand. Set it to 0 to remove the discount.</p>
+    <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="dcGo" type="submit">Save discount</button></div></form>`);
+  const kindOf = () => ($('#dcForm input[name=dcKind]:checked') || {}).value || 'amount';
+  const sync = () => {
+    const pct = kindOf() === 'percent';
+    $('#dcValLbl').textContent = pct ? 'Percent off (%)' : 'Amount off ($)';
+    const v = Number($('#dcForm input[name=dcVal]').value || 0);
+    let off = 0;
+    if (feeBase != null && v > 0) off = pct ? Math.min(feeBase, Math.round(feeBase * Math.min(v, 100)) / 100) : Math.min(v, feeBase);
+    $('#dcPreview').textContent = (feeBase != null && v > 0) ? `They pay ${money(feeBase - off)} (${money(off)} off).` : '';
+  };
+  $$('#dcForm input[name=dcKind]').forEach(r => r.onchange = sync);
+  $('#dcForm input[name=dcVal]').oninput = sync; sync();
+  $('#dcForm').onsubmit = async ev => {
+    ev.preventDefault(); $('#dcGo').disabled = true; $('#dcGo').textContent = 'Saving…';
+    try {
+      const amount = Number($('#dcForm input[name=dcVal]').value || 0);
+      const reason = $('#dcForm input[name=dcWhy]').value.trim();
+      const r = await fnCall({ action: 'set_discount', entry_id: e.entry_id, amount, kind: kindOf(), reason });
+      toast(r.discount > 0 ? `Discount set: they pay ${money(r.net)} (${money(r.off)} off)` : 'Discount removed', 5000);
+      dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
+    } catch (er) { toast(errMsg(er), 6000); $('#dcGo').disabled = false; $('#dcGo').textContent = 'Save discount'; }
   };
 }
 // Fix a wrong belt on an entry: the current belt (what they're graded from) and the belt they're grading for.
