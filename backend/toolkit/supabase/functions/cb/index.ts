@@ -1188,6 +1188,21 @@ export async function handle(req, db, env = {}, http = fetch) {
           } catch (_) { /* no dedupe table yet: carry on */ }
         } }
       if (p9.length !== 9 && !okBodyEmail) return json({ ok: true, matched: 0, why: 'no mobile or email' });
+      // ---- 4th Dan+ celebration dinner RSVP (dinner-rsvp-1): a guest replies YES/NO to the invite. A clear yes/no is
+      //      recorded (and, for a shared number, for everyone on it) and stops here; anything else — e.g. a grading
+      //      helper's session pick like "2" — falls through to the normal reply logic below. ----
+      if (p9.length === 9) {
+        let dguests = [];
+        try { const { data } = await db.from('dinner_rsvp').select('id').eq('phone9', p9).eq('status', 'invited'); dguests = data || []; } catch (_) { /* no dinner table */ }
+        if (dguests.length) {
+          const yesDin = /^\s*(yes|yep|yeah|yup|yes please|count me in|i['’]?m in|we['’]?re in|coming|see you there|attending|will be there|be there|absolutely|definitely|of course|love to|sounds? (?:good|great))\b/i.test(msg) || (/\byes\b/i.test(msg) && !/\bno\b/i.test(msg));
+          const noDin = /^\s*(no\b|nope|nah|can['’]?t|cannot|sorry|unfortunately|won['’]?t|not able|unable|afraid not)/i.test(msg) || /\b(can['’]?t make|won['’]?t make|not coming|not able to|can['’]?t attend)\b/i.test(msg);
+          if (yesDin !== noDin) {   // exactly one matched: a clear answer
+            await db.from('dinner_rsvp').update({ status: yesDin ? 'yes' : 'no', reply_text: msg.slice(0, 300), responded_at: new Date().toISOString(), synced_at: null }).eq('phone9', p9).eq('status', 'invited');
+            return json({ ok: true, dinner_rsvp: yesDin ? 'yes' : 'no', guests: dguests.length });
+          }
+        }
+      }
       // ---- A 4th Dan+ student answering the black belt grading helper text (prep-update-27, -28): "2", "1 and 3", "3, 1",
       //      "all" books them into those sessions (never past a session's cap of 6), "no / can't" is noted.
       //      Anything else carries on as a normal reply. ----
