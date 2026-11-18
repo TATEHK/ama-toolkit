@@ -973,6 +973,40 @@ export async function handle(req, db, env = {}, http = fetch) {
     return res;
   };
 
+  // ===================== 4th Dan+ celebration dinner invite (dinner-rsvp-1/2) =====================
+  // SMS (GoHighLevel) + email. One SMS per distinct number (shared numbers greet all names on it), one email per
+  // address. A test goes to the configured number/email first; the full send fires once dinner_config.send_at is set
+  // and reached. Replies are caught by the dinner block at the top of the `reply` action.
+  const dinnerGreet = names => names.length <= 1 ? (names[0] || 'there') : names.slice(0, -1).join(', ') + ' & ' + names[names.length - 1];
+  const dinnerSms = g => `Hi ${g}, Grand Master Ridvan would like to personally invite you to a celebration dinner for our 4th Dan and above students, Sat 28th Nov, 6pm at Taste of Turkey. This invitation is for you personally, and dinner is on Grand Master Ridvan. Please reply YES by Mon 23rd Nov to confirm you're coming. – AMA`;
+  const dinnerEmailSubject = 'An Invitation from Grand Master Ridvan – 4th Dan & Above Celebration Dinner';
+  const dinnerEmail = g => `Dear ${g},\n\nGrand Master Ridvan would like to personally invite you to a celebration dinner in honour of our students who hold, or are grading for, 4th Dan and above.\n\nReaching this level takes years of dedication, discipline and commitment, and Grand Master Ridvan wants to recognise each of you for what you have achieved.\n\nDate: Saturday 28th November\nTime: 6:00pm\nVenue: Taste of Turkey\n\nThis dinner is reserved for our 4th Dan and above students, and your invitation is for you personally. Dinner is Grand Master Ridvan's gift to you, so there is nothing to pay.\n\nPlease RSVP by Monday 23rd November by replying YES to the text message you've also received, to confirm you'll be attending.\n\nWe look forward to celebrating with you.\n\nKind regards,\nMark\nAustralian Martial Arts`;
+  const dinnerSendSms = async (phone, greet) => { const p = phoneE164(phone); if (!p) return false; try { const cid = await contactFor({ full_name: greet }, p); if (!cid) return false; await sendSms(cid, dinnerSms(greet)); return true; } catch (_) { return false; } };
+  const dinnerSendEmail = async (email, greet) => { if (!(email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) return false; try { const cid = await contactFor({ full_name: greet, email }, null); if (!cid) return false; await sendEmailTo(cid, buildSeqEmail(dinnerEmailSubject, dinnerEmail(greet))); return true; } catch (_) { return false; } };
+  const runDinnerSend = async (nowMs = Date.now()) => {
+    const { data: cfg } = await db.from('dinner_config').select('*').eq('id', 1).maybeSingle();
+    if (!cfg) return { dinner: 'off' };
+    if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return { dinner: 'no texting' };
+    const nowIso = new Date(nowMs).toISOString(), fw = n => String(n || '').trim().split(/\s+/)[0] || 'there';
+    if (!cfg.test_sent_at) {   // test to the configured recipient (Tate) first
+      if (cfg.test_phone9) await dinnerSendSms('+61' + cfg.test_phone9, 'Tate');
+      if (cfg.test_email) await dinnerSendEmail(cfg.test_email, 'Tate');
+      await db.from('dinner_config').update({ test_sent_at: nowIso }).eq('id', 1);
+      return { dinner: 'test sent' };
+    }
+    if (cfg.send_at && Date.parse(cfg.send_at) <= nowMs && !cfg.sent_all_at) {   // full send once armed and reached
+      const { data: gs } = await db.from('dinner_rsvp').select('id, name, phone9, email').eq('status', 'invited').is('sent_at', null);
+      const guests = gs || [], byPhone = {}, byEmail = {};
+      for (const g of guests) { if (g.phone9) (byPhone[g.phone9] = byPhone[g.phone9] || []).push(fw(g.name)); const e = (g.email || '').toLowerCase(); if (e) (byEmail[e] = byEmail[e] || []).push(fw(g.name)); }
+      for (const ph of Object.keys(byPhone)) await dinnerSendSms('+61' + ph, dinnerGreet([...new Set(byPhone[ph])]));
+      for (const em of Object.keys(byEmail)) await dinnerSendEmail(em, dinnerGreet([...new Set(byEmail[em])]));
+      await db.from('dinner_rsvp').update({ sent_at: nowIso }).eq('status', 'invited').is('sent_at', null);
+      await db.from('dinner_config').update({ sent_all_at: nowIso }).eq('id', 1);
+      return { dinner: 'sent all', numbers: Object.keys(byPhone).length, emails: Object.keys(byEmail).length };
+    }
+    return { dinner: 'idle' };
+  };
+
   try {
     const raw = await req.text();
     // ---- Stripe's webhook: a grading fee was paid ----
@@ -1094,7 +1128,9 @@ export async function handle(req, db, env = {}, http = fetch) {
     if (body.action === 'sequence') {
       const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
       if (okCron !== true) return fail('Not allowed.', 403);
-      return json(await runSequence());
+      const seq = await runSequence();
+      let dinner = null; try { dinner = await runDinnerSend(); } catch (er) { dinner = { error: String(er.message || er) }; }
+      return json({ ...seq, dinner });
     }
 
     // ---- The hub sends approved Little Dragons nominations (coloured-belts-36.sql) ----
