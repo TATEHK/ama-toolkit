@@ -404,7 +404,8 @@ const LIVE = {
   next_grading: ['Next grading', 'The next black belt grading date and how long to go'],
   month: ['Month theme', '"This is the Month of ..." for the current month'],
   events: ['Events this month', "What's left of this month's events, and next month's near the end of the month"],
-  birthdays: ['Birthdays today', 'Members with a birthday today, from EFC (first name and last initial). Only shows on days someone has one']
+  birthdays: ['Birthdays today', 'Members with a birthday today, from EFC (first name and last initial). Only shows on days someone has one'],
+  gradings: ['Grading schedule', 'Upcoming gradings for Marrickville & Sydenham — a slide per grading day and per black belt group. Fills in by itself.']
 };
 // An old slide of a kind that's since been removed still opens, so it can be deleted
 const liveInfo = k => LIVE[k] || ['Live', 'No longer shown on the TV'];
@@ -871,7 +872,7 @@ function openSlide(s, fresh) {
         <label class="check"><input type="radio" name="cdTo" value="grading" ${x.count_to === 'grading' ? 'checked' : ''}> The next black belt grading (from Black Belt Gradings)</label></div></div>
       <p class="hint" id="cdPrev"></p>
       ${themePick}`,
-    live: () => `<p class="hint">${esc(liveInfo(x.live_kind)[1])}. ${x.live_kind === 'events' ? 'It uses the events list (Edit events below).' : x.live_kind === 'month' ? 'It uses the month themes in Edit events, and changes by itself each month.' : x.live_kind === 'birthdays' ? 'It fills in by itself from EFC member birthdays, and only shows on days a current member has one.' : 'It fills in by itself from Black Belt Gradings.'}</p>
+    live: () => `<p class="hint">${esc(liveInfo(x.live_kind)[1])}. ${x.live_kind === 'events' ? 'It uses the events list (Edit events below).' : x.live_kind === 'month' ? 'It uses the month themes in Edit events, and changes by itself each month.' : x.live_kind === 'birthdays' ? 'It fills in by itself from EFC member birthdays, and only shows on days a current member has one.' : x.live_kind === 'gradings' ? 'It fills in by itself from the upcoming grading days (a slide per day, plus a slide per black belt group), and only shows while there are gradings coming up.' : 'It fills in by itself from Black Belt Gradings.'}</p>
       <div class="field"><label for="slTitle">Heading (optional)</label><input type="text" id="slTitle" maxlength="120" value="${esc(x.title || '')}" placeholder="${esc({ next_grading: 'Next black belt grading', events: "What's on at AMA", month: 'The month name', birthdays: 'AMA members’ birthdays today' }[x.live_kind] || '')}"></div>${themePick}
       ${x.live_kind === 'events' || x.live_kind === 'month' ? '<div class="row"><button type="button" class="btn" id="slEvents">Edit events</button></div>' : ''}`
   }[x.kind]();
