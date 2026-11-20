@@ -169,7 +169,7 @@
     const age = !bb && (d.audience==='kids'||d.audience==='13+') ? `<span class="ageband">${esc(AGE[d.audience])}</span>` : '';   // All ages: no label
     const [num, mon] = String(d.date||'').split(' ');
     const lft = Math.max(0,left(d)), pct = d.cap ? Math.min(100, Math.round(d.count/d.cap*100)) : 0;
-    const spots = d.cap && !d.mine ? `<div class="spots${lft<=2?' low':''}"><span class="bar"><i style="width:${pct}%"></i></span>${lft===1?'1 spot left':lft+' spots left'}</div>` : '';
+    const spots = '';   // how many spots are left isn't shown to helpers
     const ld = !bb && /little dragon/i.test(d.belts||'');
     return `<div class="day ${d.mine?'in':''} ${bb?'bb':''} ${ld?'ld':''}">
       ${ld?'<span class="ldtag">Little Dragons grading</span>':''}
