@@ -70,6 +70,25 @@
   #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(14px);background:#111b15;border:1px solid var(--line2);color:var(--fg);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:30}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   [hidden]{display:none!important}
+  /* tabs */
+  .tabs{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 62px);z-index:10}
+  .tabs button{flex:1;font:inherit;font-weight:600;font-size:15px;border:0;background:none;color:var(--muted);border-radius:9px;padding:9px 10px;cursor:pointer}
+  .tabs button[aria-selected="true"]{background:var(--raise);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line2)}
+  /* black belt sessions */
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .kpi b{font:700 24px var(--display);display:block}.kpi span{font-size:12.5px;color:var(--muted)}
+  .sess{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}
+  .scard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 15px;display:flex;flex-direction:column;gap:8px}
+  .scard .hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .scard .hd b{font:700 18px var(--display)}
+  .cnt{font-size:13px;font-weight:700;color:var(--green-text)}.cnt.full{color:var(--accent)}
+  .names{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .names li{display:flex;justify-content:space-between;gap:8px;font-size:14.5px;border-top:1px solid var(--line);padding-top:6px}
+  .names li small{color:var(--muted);font-size:12.5px;text-align:right}
+  .other{color:var(--faint)}
+  .plain{display:flex;flex-wrap:wrap;gap:6px}
+  .pill{font-size:13px;border:1px solid var(--line2);border-radius:999px;padding:3px 10px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -92,6 +111,17 @@
   <p class="msg bad" id="noaccess" hidden>Your login can't manage grading helpers. Ask an admin for the "Days" permission on Coloured Belts.</p>
 
   <div id="app" hidden>
+    <div class="tabs" role="tablist"><button role="tab" data-tab="cb" aria-selected="true">Coloured belt</button><button role="tab" data-tab="bb" aria-selected="false">Black belt</button></div>
+
+    <section id="bbPane" hidden>
+      <h2>Black belt grading</h2>
+      <p class="hint" id="bbIntro">Everyone helping at each session of the black belt grading. Students going for 4th Dan and above count towards each session's cap; other helpers don't. Texting and changes are in the Black Belt app (Grading › Helpers).</p>
+      <div id="bbBody"><p class="hint">Loading…</p></div>
+      <h2>Black belt grading day sign-ups</h2>
+      <ul class="list" id="bbDays"></ul>
+    </section>
+
+    <section id="cbPane">
     <h2>Grading days</h2>
     <p class="hint">Turn a day on to let invited helpers sign up for it. The cap is how many helpers you want; once it's reached the day drops off their list.</p>
     <ul class="list" id="days"></ul>
@@ -100,6 +130,7 @@
     <p class="hint">Invite a black belt to create their personal sign-up link, then send it to them yourself. Nobody is texted automatically.</p>
     <input class="search" id="search" placeholder="Search black belts…" autocomplete="off">
     <ul class="list" id="roster"></ul>
+    </section>
   </div>
 </main>
 <div id="toast"></div>
@@ -127,7 +158,7 @@ async function api(action, body={}){
 }
 
 function renderDays(){
-  $('#days').innerHTML = DAYS.map(d=>{
+  const row = d=>{
     const n=(d.helpers||[]).length, cap=d.helper_cap;
     const aud = d.bb ? '' : `<label>Who <select data-set="audience" data-day="${d.day_id}">
       <option value="all"${(d.helper_audience||'all')==='all'?' selected':''}>All Ages</option>
@@ -143,8 +174,10 @@ function renderDays(){
       </div>
       ${d.helper_open?`<div class="ctrls"><label>Helpers wanted <input type="number" min="0" max="50" value="${cap}" data-set="cap" data-day="${d.day_id}"></label>${aud}</div>${whoIn}`:''}
     </li>`;
-  }).join('') || '<li class="hint">No upcoming grading days.</li>';
-  $$('#days [data-set]').forEach(el=>{
+  };
+  $('#days').innerHTML = DAYS.filter(d=>!d.bb).map(row).join('') || '<li class="hint">No upcoming coloured belt grading days.</li>';
+  $('#bbDays').innerHTML = DAYS.filter(d=>d.bb).map(row).join('') || '<li class="hint">No upcoming black belt grading days.</li>';
+  $$('#days [data-set], #bbDays [data-set]').forEach(el=>{
     const ev = el.type==='number' ? 'change' : (el.tagName==='SELECT'?'change':'change');
     el.addEventListener(ev, async ()=>{
       const day_id=el.dataset.day, set=el.dataset.set;
@@ -181,13 +214,54 @@ function renderRoster(){
   $$('#roster [data-copy]').forEach(b=>b.onclick=async ()=>{ try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); }catch(e){ const i=b.previousElementSibling; i.focus(); i.select(); toast('Press copy on your keyboard'); } });
 }
 
+// ---- Black belt tab: the black belt grading day's sessions and everyone helping at each (Black Belt app helpers) ----
+const SENIOR = /^([4-9])th Dan/;
+async function loadBb(){
+  const box=$('#bbBody');
+  const today=new Date().toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'});
+  const { data: slots, error } = await sb.from('prep_helper_slots').select('*').gte('grading_date', today).order('grading_date').order('sort');
+  if(error){ box.innerHTML='<p class="hint">Your login can\'t see the black belt helpers. Ask an admin for access to the Black Belt app.</p>'; return; }
+  if(!slots||!slots.length){ box.innerHTML='<p class="hint">No black belt grading sessions are set up for helpers yet.</p>'; return; }
+  const cycles=[...new Set(slots.map(x=>x.cycle_id))];
+  const [{ data: hs }, { data: en }] = await Promise.all([
+    sb.from('prep_helpers').select('*').in('cycle_id', cycles),
+    sb.from('prep_overview').select('cycle_id, student_id, full_name, belt_rank, is_grading, grading_to').in('cycle_id', cycles)]);
+  const ov={}; for(const o of (en||[])) ov[o.cycle_id+'|'+o.student_id]=o;
+  let names={}; const ids=[...new Set((hs||[]).map(h=>h.student_id))].filter(id=>!Object.values(ov).some(o=>o.student_id===id));
+  if(ids.length){ const { data: st } = await sb.from('prep_students').select('student_id, full_name, belt_rank').in('student_id', ids); for(const x of (st||[])) names[x.student_id]=x; }
+  const who = h => { const o=ov[h.cycle_id+'|'+h.student_id]||names[h.student_id]||{}; return { name:o.full_name||h.student_id, rank:o.grading_to||o.belt_rank||'', senior:h.senior }; };
+  const cands=(en||[]).filter(o=>o.is_grading && SENIOR.test(o.grading_to||''));
+  const H=(hs||[]), byStudent={}; for(const h of H) byStudent[h.cycle_id+'|'+h.student_id]=h;
+  const helping=H.filter(h=>(h.slot_ids||[]).some(id=>slots.some(x=>x.slot_id===id)));
+  const asked=H.filter(h=>h.offered_at);
+  const waiting=asked.filter(h=>!(h.slot_ids||[]).length && !h.declined_at).map(who);
+  const cant=H.filter(h=>h.declined_at && !(h.slot_ids||[]).length).map(who);
+  const notAsked=cands.filter(o=>{ const h=byStudent[o.cycle_id+'|'+o.student_id]; return !h || (!h.offered_at && !(h.slot_ids||[]).length); }).map(o=>({name:o.full_name,rank:o.grading_to}));
+  const day=fmtDate(slots[0].grading_date);
+  $('#bbIntro').textContent=`Everyone helping at each session of the black belt grading on ${day}. Students going for 4th Dan and above count towards each session's cap; other helpers don't. Texting and changes are in the Black Belt app (Grading › Helpers).`;
+  const byName=(a,b)=>a.name.localeCompare(b.name);
+  box.innerHTML=`<div class="kpis"><div class="kpi"><b>${cands.length}</b><span>4th Dan and above</span></div><div class="kpi"><b>${asked.length}</b><span>Asked</span></div><div class="kpi"><b>${helping.length}</b><span>Helping</span></div></div>
+    <div class="sess" style="margin-top:12px">${slots.map(sl=>{ const inS=H.filter(h=>(h.slot_ids||[]).includes(sl.slot_id)).map(who).sort((a,b)=>(b.senior-a.senior)||byName(a,b)); const sen=inS.filter(x=>x.senior).length;
+      return `<div class="scard"><div class="hd"><b>${esc(sl.label.replace(/ session$/,''))}</b><span class="cnt${sen>=sl.cap?' full':''}">${sen} / ${sl.cap}${inS.length>sen?` + ${inS.length-sen}`:''}</span></div>
+        ${inS.length?`<ul class="names">${inS.map(x=>`<li><span class="${x.senior?'':'other'}">${esc(x.name)}</span><small>${esc(x.rank)}${x.senior?'':' · other helper'}</small></li>`).join('')}</ul>`:'<p class="hint">No one yet.</p>'}</div>`; }).join('')}</div>
+    ${waiting.length?`<h2 style="font-size:18px">Asked, waiting to hear back <span class="hint">${waiting.length}</span></h2><div class="plain">${waiting.sort(byName).map(x=>`<span class="pill">${esc(x.name)}</span>`).join('')}</div>`:''}
+    ${cant.length?`<h2 style="font-size:18px">Can't help <span class="hint">${cant.length}</span></h2><div class="plain">${cant.sort(byName).map(x=>`<span class="pill">${esc(x.name)}</span>`).join('')}</div>`:''}
+    ${notAsked.length?`<h2 style="font-size:18px">Not asked yet <span class="hint">${notAsked.length}</span></h2><div class="plain">${notAsked.sort(byName).map(x=>`<span class="pill">${esc(x.name)}</span>`).join('')}</div>`:''}`;
+}
+let TAB = (()=>{ try{ const h=location.hash.replace('#',''); return h==='bb'||h==='cb' ? h : (localStorage.getItem('helpers_admin_tab')||'cb'); }catch(e){ return 'cb'; } })();
+function showTab(t){ TAB=t==='bb'?'bb':'cb';
+  $$('.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===TAB)));
+  $('#cbPane').hidden=TAB!=='cb'; $('#bbPane').hidden=TAB!=='bb';
+  try{ localStorage.setItem('helpers_admin_tab',TAB); history.replaceState(null,'','#'+TAB); }catch(e){}
+  if(TAB==='bb') loadBb(); }
+$$('.tabs [data-tab]').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 async function load(){
   $('#loading').hidden=false;
   const [d,r] = await Promise.all([api('helper_admin_days'), api('helper_roster')]);
   $('#loading').hidden=true;
   if((d&&d.error&&/not allowed|cannot/i.test(d.error))||(r&&r.error&&/not allowed|cannot/i.test(r.error))){ $('#noaccess').hidden=false; return; }
   DAYS = (d&&d.days)||[]; ROSTER = (r&&r.helpers)||[];
-  $('#app').hidden=false; renderDays(); renderRoster();
+  $('#app').hidden=false; renderDays(); renderRoster(); showTab(TAB);
 }
 
 async function boot(){
