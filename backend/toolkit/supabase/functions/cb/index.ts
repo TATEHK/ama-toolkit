@@ -1031,6 +1031,90 @@ export async function handle(req, db, env = {}, http = fetch) {
     return { dinner: 'idle' };
   };
 
+  // ===================== Black Belt Club welcome flow (coloured-belts-40) =====================
+  // Invited students (efc_members.bbc_invited_at) get a welcome + touch points once their grading closes,
+  // and stop the moment they join: by signing up on the landing page, or by showing up in the Black Belt Club
+  // programme in EFC (bbc_seen_at within 3 days, the same signal cb_students.black_belt_club uses).
+  const BBC_SEEN_MS = 3 * 24 * 60 * 60e3;
+  const bbcLink = token => SITE + 'black-belt-club/#t=' + token;
+  const bbcFill = (t, name, link) => String(t || '').replace(/\{\{\s*name\s*\}\}/g, name || 'there').replace(/\{\{\s*link\s*\}\}/g, link);
+  const bbcInBbc = m => !!(m && m.bbc_seen_at && Date.now() - new Date(m.bbc_seen_at).getTime() < BBC_SEEN_MS);
+  const bbcSendStep = async (flow, step, m) => {
+    if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return { status: 'failed', why: 'Texting not set up' };
+    const name = first(flow.full_name || (m && m.full_name) || ''), link = bbcLink(flow.token);
+    const phone = phoneE164(flow.phone || (m && (m.phone || m.guardian_phone)));
+    const email = (flow.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(flow.email)) ? flow.email : emailOf(m || {});
+    const log = (channel, status, bodyText, extra = {}) => db.from('cb_messages').insert({ member_key: flow.member_key, kind: 'bbc',
+      phone: channel === 'sms' ? phone : null, email: channel === 'email' ? email : null, body: bodyText, status, sent_by: 'automatic: bbc step ' + step.step, ...extra });
+    let sent = false, why = '';
+    if (step.channel === 'sms' || step.channel === 'both') {
+      const text = bbcFill(step.sms_body, name, link);
+      if (text && phone) {
+        try {
+          const cid = await contactFor({ ...(m || {}), email }, phone); if (!cid) throw new Error('no contact');
+          const c = await ghl('/contacts/' + cid, { method: 'GET' }); const ct = (c && c.contact) || {};
+          if (ct.dnd === true || (ct.dndSettings && ct.dndSettings.SMS && ct.dndSettings.SMS.status === 'active')) { await log('sms', 'skipped', text, { error: 'DND in GoHighLevel' }); }
+          else { const gid = await sendSms(cid, text); await log('sms', 'sent', text, gid ? { ghl_id: gid } : {}); sent = true; }
+        } catch (er) { why = String(er.message || er); await log('sms', 'failed', text, { error: why.slice(0, 400) }); }
+      } else if (!phone) why = 'no mobile number';
+    }
+    if ((step.channel === 'email' || step.channel === 'both') && step.email_subject) {
+      const subject = bbcFill(step.email_subject, name, link), bodyText = bbcFill(step.email_body, name, link);
+      if (email) {
+        try { const cid = await contactFor({ ...(m || {}), email }, phone); if (!cid) throw new Error('no contact');
+          await sendEmailTo(cid, buildSeqEmail(subject, bodyText)); await log('email', 'sent', subject + '\n\n' + bodyText); sent = true;
+        } catch (er) { why = String(er.message || er); await log('email', 'failed', subject + '\n\n' + bodyText, { error: why.slice(0, 400) }); }
+      } else if (!why) why = 'no email address';
+    }
+    return sent ? { status: 'sent' } : { status: 'failed', why: why || 'nothing sent' };
+  };
+  const runBbc = async (nowMs = Date.now()) => {
+    const res = { flows_created: 0, sent: 0, joined: 0, signed: 0, done: 0, failed: 0 };
+    // Master switch: the welcome flow stays dark until Black Belt Club is turned on (cb_settings.bbc_on).
+    // The hub feed and the landing page (bbc_feed / bbc_info / bbc_signup) do not go through here, so they work regardless.
+    const { data: bcfg } = await db.from('cb_settings').select('bbc_on').eq('id', 1).maybeSingle();
+    if (!(bcfg && bcfg.bbc_on)) return { ...res, off: true };
+    const nowIso = new Date(nowMs).toISOString();
+    // 1) Newly-closed coloured-belt days -> a flow for each invited, not-yet-in-BBC student
+    const { data: days } = await db.from('cb_days').select('day_id').eq('closed', true).eq('bb', false).is('bbc_welcomed_at', null);
+    for (const d of days || []) {
+      const ents = await allRows(() => db.from('cb_entries').select('member_key, full_name').eq('day_id', d.day_id));
+      const keys = [...new Set((ents || []).map(e => e.member_key).filter(Boolean))];
+      if (keys.length) {
+        const mem = await selectIn('efc_members', 'member_key, full_name, phone, guardian_phone, email, guardian_email, bbc_invited_at, bbc_seen_at', 'member_key', keys);
+        for (const m of mem) {
+          if (!m.bbc_invited_at || bbcInBbc(m)) continue;
+          const { error } = await db.from('cb_bbc_flow').insert({ member_key: m.member_key, full_name: m.full_name,
+            phone: m.phone || m.guardian_phone || null, email: m.email || m.guardian_email || null,
+            day_id: d.day_id, started_at: nowIso, step: 0, status: 'active' });
+          if (!error) res.flows_created++;   // a duplicate (already in a flow) is fine
+        }
+      }
+      await db.from('cb_days').update({ bbc_welcomed_at: nowIso }).eq('day_id', d.day_id);
+    }
+    // 2) Send due touch points for active flows; stop anyone who has joined or signed
+    const steps = ((await db.from('cb_bbc_steps').select('*').eq('active', true).order('step')).data) || [];
+    if (!steps.length) return res;
+    const last = steps[steps.length - 1].step;
+    const flows = await allRows(() => db.from('cb_bbc_flow').select('*').eq('status', 'active').order('member_key'));
+    const memMap = {};
+    if (flows.length) (await selectIn('efc_members', 'member_key, full_name, phone, guardian_phone, email, guardian_email, bbc_seen_at', 'member_key', flows.map(f => f.member_key))).forEach(m => memMap[m.member_key] = m);
+    for (const f of flows) {
+      const m = memMap[f.member_key];
+      if (f.signed_at) { await db.from('cb_bbc_flow').update({ status: 'signed', updated_at: nowIso }).eq('member_key', f.member_key); res.signed++; continue; }
+      if (bbcInBbc(m)) { await db.from('cb_bbc_flow').update({ status: 'joined', updated_at: nowIso }).eq('member_key', f.member_key); res.joined++; continue; }
+      const ageDays = (nowMs - new Date(f.started_at).getTime()) / 86400e3;
+      const due = steps.filter(s => s.step > f.step && s.offset_days <= ageDays).sort((a, b) => a.step - b.step)[0];
+      if (!due) continue;
+      const r = await bbcSendStep(f, due, m);
+      const patch = { step: due.step, updated_at: nowIso };
+      if (due.step >= last) { patch.status = 'done'; res.done++; }
+      await db.from('cb_bbc_flow').update(patch).eq('member_key', f.member_key);
+      res[r.status === 'sent' ? 'sent' : 'failed']++;
+    }
+    return res;
+  };
+
   try {
     const raw = await req.text();
     // ---- Stripe's webhook: a grading fee was paid ----
@@ -1156,7 +1240,40 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (okCron !== true) return fail('Not allowed.', 403);
       const seq = await runSequence();
       let dinner = null; try { dinner = await runDinnerSend(); } catch (er) { dinner = { error: String(er.message || er) }; }
-      return json({ ...seq, dinner });
+      let bbc = null; try { bbc = await runBbc(); } catch (er) { bbc = { error: String(er.message || er) }; }
+      return json({ ...seq, dinner, bbc });
+    }
+
+    // ---- Families (no sign-in): the Black Belt Club welcome landing page (coloured-belts-40) ----
+    if (body.action === 'bbc_info' || body.action === 'bbc_signup') {
+      const tok = String(body.token || '');
+      if (!/^[A-Za-z0-9_-]{10,}$/.test(tok)) return json({ ok: false, error: 'This link isn\'t valid.' }, 404);
+      const { data: f } = await db.from('cb_bbc_flow').select('*').eq('token', tok).maybeSingle();
+      if (!f) return json({ ok: false, error: 'This link isn\'t valid.' }, 404);
+      const { data: m } = await db.from('efc_members').select('full_name, bbc_seen_at').eq('member_key', f.member_key).maybeSingle();
+      const enrolled = bbcInBbc(m);
+      if (body.action === 'bbc_signup') {
+        if (!enrolled && !f.signed_at) await db.from('cb_bbc_flow').update({ signed_at: new Date().toISOString(), uniform_claim: !!body.uniform, sub_consent: true, status: 'signed', updated_at: new Date().toISOString() }).eq('member_key', f.member_key);
+        return json({ ok: true });
+      }
+      const { data: cs } = await db.from('cb_settings').select('bbc_video_url, bbc_weekly, bbc_uniform_full, bbc_uniform_now').eq('id', 1).maybeSingle();
+      return json({ ok: true, first_name: first(f.full_name || (m && m.full_name) || ''), video_url: (cs && cs.bbc_video_url) || '',
+        weekly: (cs && cs.bbc_weekly) || 20, uniform_full: cs && cs.bbc_uniform_full, uniform_now: cs && cs.bbc_uniform_now, enrolled, signed: !!f.signed_at });
+    }
+
+    // ---- Black Belt Club sign-ups feed for Mark's hub (coloured-belts-40). key is cb_settings.hook_key. ----
+    // Returns new sign-ups to action on the hub's "my day / main" view. Pass { ack:[member_key,...] } to mark them picked up.
+    if (body.action === 'bbc_feed') {
+      const { data: st } = await db.from('cb_settings').select('hook_key').eq('id', 1).maybeSingle();
+      if (!st || !st.hook_key || String(body.key || '') !== st.hook_key) return fail('Not allowed.', 403);
+      if (Array.isArray(body.ack) && body.ack.length) {
+        await db.from('cb_bbc_flow').update({ feed_seen_at: new Date().toISOString() }).in('member_key', body.ack.map(String).slice(0, 500));
+        return json({ ok: true, acked: body.ack.length });
+      }
+      const rows = await allRows(() => db.from('cb_bbc_flow').select('member_key, full_name, phone, email, signed_at, uniform_claim, sub_consent, day_id').eq('status', 'signed').is('feed_seen_at', null).order('signed_at'));
+      const signups = (rows || []).map(f => ({ member_key: f.member_key, name: f.full_name, phone: f.phone, email: f.email,
+        signed_at: f.signed_at, wants_uniform: !!f.uniform_claim, agreed_weekly: !!f.sub_consent, day_id: f.day_id }));
+      return json({ ok: true, signups });
     }
 
     // ---- The hub sends approved Little Dragons nominations (coloured-belts-36.sql) ----
