@@ -61,6 +61,9 @@
   .day{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 0 rgba(0,0,0,.03);transition:border-color .15s,box-shadow .15s}
   .day.in{border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
   .day.bb{border-top:4px solid var(--gold)}
+  .day.ld{border-top:4px solid #e2542b}
+  .ldtag{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;background:#fdece6;color:#b5381a;border-radius:999px;padding:4px 11px;font:700 12px var(--body);letter-spacing:1.2px;text-transform:uppercase}
+  .ldtag svg{width:14px;height:14px}
   .day .head{display:flex;align-items:center;gap:14px}
   .badge{flex:none;width:58px;border-radius:12px;background:var(--cream);border:1px solid var(--line);text-align:center;padding:6px 0 7px;line-height:1.05}
   .badge small{display:block;font:700 10.5px var(--body);letter-spacing:1.5px;text-transform:uppercase;color:var(--green)}
@@ -168,11 +171,13 @@
     const [num, mon] = String(d.date||'').split(' ');
     const lft = Math.max(0,left(d)), pct = d.cap ? Math.min(100, Math.round(d.count/d.cap*100)) : 0;
     const spots = d.cap && !d.mine ? `<div class="spots${lft<=2?' low':''}"><span class="bar"><i style="width:${pct}%"></i></span>${lft===1?'1 spot left':lft+' spots left'}</div>` : '';
-    return `<div class="day ${d.mine?'in':''} ${bb?'bb':''}">
+    const ld = !bb && /little dragon/i.test(d.belts||'');
+    return `<div class="day ${d.mine?'in':''} ${bb?'bb':''} ${ld?'ld':''}">
+      ${ld?'<span class="ldtag"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg>Little Dragons grading</span>':''}
       <div class="head">
         <div class="badge"><small>${esc(DOW3(d.wd))}</small><b>${esc(num||'')}</b><i>${esc(mon||'')}</i></div>
         <div class="info"><div class="where"><span class="pin" style="background:${LOCCOL[d.loc]||'#9fb3a6'}"></span>AMA ${esc(SHOW(d.loc))}</div>
-          <div class="meta">${d.time?`<span>${esc(d.time)}</span>`:''}${d.belts?`<span>${esc(beltsShort(d.belts))}</span>`:''}${age}</div></div>
+          <div class="meta">${d.time?`<span>${esc(d.time)}</span>`:''}${d.belts && !ld?`<span>${esc(beltsShort(d.belts))}</span>`:''}${age}</div></div>
       </div>
       ${spots}
       ${btn}</div>`;
@@ -184,7 +189,7 @@
     const mine = [...state.blackbelt, ...state.coloured].filter(d=>d.mine);
     $('#mineBox').hidden = !mine.length;
     $('#mineList').innerHTML = mine.map(d=>`<div class="row"><span class="tk">${tick}</span>
-      <span class="d"><b>${esc(d.wd)} ${esc(d.date)}</b><small>AMA ${esc(SHOW(d.loc))}${d.time?' · '+esc(d.time):''}</small></span>
+      <span class="d"><b>${esc(d.wd)} ${esc(d.date)}</b><small>${/little dragon/i.test(d.belts||'')?'Little Dragons · ':''}AMA ${esc(SHOW(d.loc))}${d.time?' · '+esc(d.time):''}</small></span>
       <button class="pull" data-t="${d.id}" data-on="0">Can't make it</button></div>`).join('');
     // black belt grading section
     $('#bbWrap').hidden = !state.blackbelt.length;
