@@ -3557,8 +3557,53 @@ function bbLineup(day, entries) {
 // wording, and they don't count towards the 6. Staff text each one when they choose; their reply ("1 and 3") books them in.
 const HELPER_RANK = /^(4|5|6|7|8|9|10)(st|nd|rd|th)\s+Dan/;
 let helpersView = { cid: null, html: '' };   // the last drawn Helpers panel, shown at once while a background reload refreshes it
+// Helpers has two tabs: Black belt (the black belt grading day's sessions) and Coloured belt (each coloured belt grading)
+const helpTab = () => { try { return localStorage.getItem('bb_help_tab') === 'cb' ? 'cb' : 'bb'; } catch (e) { return 'bb'; } };
+const helpTabsHtml = t => `<div class="seg" role="tablist" style="margin-bottom:14px"><button data-htab="bb" aria-pressed="${t === 'bb'}">Black belt</button><button data-htab="cb" aria-pressed="${t === 'cb'}">Coloured belt</button></div>`;
+function wireHelpTabs(c) { $$('#grHelpers [data-htab]').forEach(b => b.onclick = () => { try { localStorage.setItem('bb_help_tab', b.dataset.htab); } catch (e) {} helpersView = { cid: null, html: '' }; renderHelpers(c); }); }
+// Coloured belt gradings: who's helping at each one. Saved on the grading day (cb_days.helpers), so the same names
+// show on the floor plan's helper list on the day.
+async function renderCbHelpers(c, box) {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  const { data: days, error } = await sb.from('cb_days').select('day_id, grading_date, location, start_time, helpers, closed, bb').gte('grading_date', today).order('grading_date').order('start_time');
+  if (helpTab() !== 'cb' || state.view !== 'grading' || state.gr.panel !== 'helpers' || !document.body.contains(box)) return;
+  if (error) { box.innerHTML = helpTabsHtml('cb') + '<div class="panel-empty">Coloured belt gradings aren\'t available right now.</div>'; wireHelpTabs(c); return; }
+  const list = (days || []).filter(d => !d.bb && !d.closed);
+  const namesOf = d => (d.helpers && Array.isArray(d.helpers.names)) ? d.helpers.names : [];
+  const total = list.reduce((n, d) => n + namesOf(d).length, 0);
+  const clock = t => { if (!t) return ''; const [h, m] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`; };
+  const pickable = state.students.filter(st => st.is_active !== false && !st.is_test).sort((a, b) => a.full_name.localeCompare(b.full_name));
+  const html = helpTabsHtml('cb') + `<div class="day-head"><div><h3>Coloured belt grading helpers</h3><p class="sub">Who's helping at each coloured belt grading. The names also show on the floor plan's helper list on the day.</p></div></div>
+    <div class="kpis" style="grid-template-columns:repeat(2,1fr)"><div class="kpi"><b>${list.length}</b><span>Gradings coming up</span></div><div class="kpi"><b>${total}</b><span>Helper spots filled</span></div></div>
+    ${list.length ? `<div class="section" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:10px">${list.map(d => { const ns = namesOf(d); return `<div class="card" style="margin:0">
+      <div class="row" style="justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><b>${esc(fmt(d.grading_date, { weekday: 'short', day: 'numeric', month: 'short' }))}</b><span class="muted small">AMA ${esc(d.location || '')}${d.start_time ? ' · ' + clock(d.start_time) : ''}</span></div>
+      <p class="muted small" style="margin:4px 0 8px">${ns.length} helping</p>
+      ${ns.length ? `<ul class="list">${ns.map(n => `<li><div class="item" style="cursor:default"><div class="main"><div class="name">${esc(n)}</div></div><button class="btn sm ghost" data-cbrm="${esc(d.day_id)}" data-n="${esc(n)}" aria-label="Remove ${esc(n)}">Remove</button></div></li>`).join('')}</ul>` : '<p class="hint">No one yet.</p>'}
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><input list="cbHelpNames" data-cbadd="${esc(d.day_id)}" placeholder="Add a helper…" aria-label="Add a helper" style="flex:1 1 160px;min-width:0"><button class="btn sm primary" data-cbgo="${esc(d.day_id)}">Add</button></div>
+    </div>`; }).join('')}</div>` : '<p class="hint">No coloured belt gradings coming up.</p>'}
+    <datalist id="cbHelpNames">${pickable.map(st => `<option value="${esc(st.full_name)}">`).join('')}</datalist>`;
+  if (helpersView.cid === 'cb' && helpersView.html === html && box.dataset.wired === '1') return;
+  helpersView = { cid: 'cb', html };
+  box.innerHTML = html; box.dataset.wired = '1';
+  wireHelpTabs(c);
+  const save = async (d, names) => {
+    const assign = { ...((d.helpers && d.helpers.assign) || {}) };
+    for (const k of Object.keys(assign)) if (!names.includes(assign[k])) delete assign[k];   // their floor plan picks go with them
+    const { error: e2 } = await sb.rpc('cb_floor_helpers_save', { p_day: d.day_id, p_helpers: { names, assign } });
+    if (e2) { toast(e2.message || 'Could not save'); return; }
+    helpersView = { cid: null, html: '' }; renderHelpers(c);
+  };
+  $$('#grHelpers [data-cbgo]').forEach(b => b.onclick = () => {
+    const d = list.find(x => x.day_id === b.dataset.cbgo), inp = $(`#grHelpers [data-cbadd="${b.dataset.cbgo}"]`), v = (inp.value || '').trim().replace(/\s+/g, ' ');
+    if (!d || !v) return; const ns = namesOf(d); if (ns.some(n => n.toLowerCase() === v.toLowerCase())) { toast(v + ' is already helping'); return; }
+    b.disabled = true; save(d, [...ns, v.slice(0, 60)]);
+  });
+  $$('#grHelpers [data-cbadd]').forEach(inp => inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const b = $(`#grHelpers [data-cbgo="${inp.dataset.cbadd}"]`); if (b) b.click(); } });
+  $$('#grHelpers [data-cbrm]').forEach(b => b.onclick = () => { const d = list.find(x => x.day_id === b.dataset.cbrm); if (!d) return; b.disabled = true; save(d, namesOf(d).filter(n => n !== b.dataset.n)); });
+}
 async function renderHelpers(c) {
   const box = $('#grHelpers'); if (!box) return;
+  if (helpTab() === 'cb') return renderCbHelpers(c, box);
   const cid = c.cycle_id;
   let sq, hq;
   try { [sq, hq] = await Promise.all([sb.from('prep_helper_slots').select('*').eq('cycle_id', cid).order('sort'), sb.from('prep_helpers').select('*').eq('cycle_id', cid)]); }
@@ -3583,7 +3628,7 @@ async function renderHelpers(c) {
       <div class="row" style="flex-wrap:wrap;gap:4px">${free.length ? `<select data-hset="${esc(x.id)}" aria-label="Add a session for ${esc(x.name)}" style="max-width:100%"><option value="">${m.length ? 'Add another session…' : 'Add to a session…'}</option>${free.map(sl => `<option value="${esc(sl.slot_id)}">${esc(sl.label)}${x.senior ? ` (${seniorsIn(sl.slot_id).length}/${sl.cap})` : ''}</option>`).join('')}</select>` : ''}
       ${x.mobile && slots.length && !m.length ? `<button class="btn sm ${x.h && x.h.offered_at ? '' : 'primary'}" data-hsend="${esc(x.id)}">${x.h && x.h.offered_at ? 'Resend' : 'Send'}</button>` : ''}</div></div></li>`; };
   const pickable = state.students.filter(st => st.is_active !== false && !candIds.has(st.student_id) && !hBy[st.student_id]).sort((a, b) => a.full_name.localeCompare(b.full_name));
-  const html = `<div class="day-head"><div><h3>Grading helpers</h3><p class="sub">Students going for 4th Dan and above help at the black belt grading${day ? ' on ' + esc(day) : ''}. Text each one when you're ready; they reply with the session numbers they can do (one or more, e.g. "1 and 3"). The text offers the sessions with the fewest helpers, so they fill evenly (max 6 each). You can also ask anyone else below.</p></div><button class="btn sm" id="hSettings">Settings</button></div>
+  const html = helpTabsHtml('bb') + `<div class="day-head"><div><h3>Grading helpers</h3><p class="sub">Students going for 4th Dan and above help at the black belt grading${day ? ' on ' + esc(day) : ''}. Text each one when you're ready; they reply with the session numbers they can do (one or more, e.g. "1 and 3"). The text offers the sessions with the fewest helpers, so they fill evenly (max 6 each). You can also ask anyone else below.</p></div><button class="btn sm" id="hSettings">Settings</button></div>
     <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
       <div class="kpi"><b>${cands.length}</b><span>4th Dan and above</span></div>
       <div class="kpi"><b>${asked}</b><span>Asked</span></div>
@@ -3601,6 +3646,7 @@ async function renderHelpers(c) {
   if (helpersView.cid === cid && helpersView.html === html && box.dataset.wired === '1') return;
   helpersView = { cid, html };
   box.innerHTML = html; box.dataset.wired = '1';
+  wireHelpTabs(c);
   const again = () => renderHelpers(c);
   $('#hSettings').onclick = () => openHelperSettings(c, slots, everyone, again);
   // Send: tick which sessions to offer (the even-split suggestion is ticked to start with), see the exact text, then send
@@ -3845,7 +3891,7 @@ function renderGrading() {
     box.outerHTML = '<div class="card" id="grBooking"><div class="panel-empty">Loading the grading day…</div></div>';
     renderBbBooking(c);
   } else if (G.panel === 'helpers') {
-    box.outerHTML = `<div class="card" id="grHelpers">${helpersView.cid === c.cycle_id && helpersView.html ? helpersView.html : '<div class="panel-empty">Loading helpers…</div>'}</div>`;
+    box.outerHTML = `<div class="card" id="grHelpers">${(helpersView.cid === (helpTab() === 'cb' ? 'cb' : c.cycle_id)) && helpersView.html ? helpersView.html : '<div class="panel-empty">Loading helpers…</div>'}</div>`;
     renderHelpers(c);
   } else if (G.panel === 'scoring') {
     box.outerHTML = '<div id="grScoring"><div class="card panel-empty">Loading scores…</div></div>';
