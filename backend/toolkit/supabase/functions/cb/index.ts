@@ -319,6 +319,64 @@ const PREP = { closes: '2026-11-19', url: 'https://train.australianmartialarts.c
   text: 'A 2-hour workshop with Mr Mark and Master Hakan covering only grading material, on Sunday 22 November at AMA Marrickville. Students from every AMA school are welcome.' };
 function prepUrlFor(age) { return PREP.url + (age == null ? '' : age >= 13 ? '?s=teens' : '?s=kids'); }
 
+// The grading helper invitation (Grading Helpers admin > Invite > Send): a text and an AMA house-style email with the
+// helper's personal sign-up link. v = { first, parent (set when they're under 18: worded for the parent), link, phone, days:[{ day, date, mon, where, time, belts }], more }
+export function buildHelperInvite(v) {
+  const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const kid = !!v.parent, who = kid ? v.first : 'you', whose = kid ? `${v.first}'s` : 'your';
+  const sms = kid
+    ? `Hi ${v.parent}, we'd love ${v.first}'s help at our coloured belt gradings over the next few weeks. They can pick the gradings they can help at here: ${v.link} Thank you! - AMA`
+    : `Hi ${v.first}, we'd love your help at our coloured belt gradings over the next few weeks. Pick the gradings you can help at here: ${v.link} Thank you! - AMA`;
+  const subject = kid ? `${v.first}'s invitation to help at our coloured belt gradings` : 'Help at our coloured belt gradings';
+  const greet = kid ? v.parent : v.first;
+  const p1 = kid ? `We'd love ${v.first}'s help at our coloured belt gradings over the next few weeks. Helping out is a great way to give back to the younger students, and seeing a grading from the other side is great experience for ${v.first}'s own.`
+    : "We'd love your help at our coloured belt gradings over the next few weeks. Helping out is a great way to give back to the younger students, and seeing a grading from the other side is great experience for your own.";
+  const p2 = kid ? `${v.first}'s personal link shows the gradings that still need helpers. They can pick as many as they like.` : 'Your personal link shows the gradings that still need helpers. Pick as many as you like.';
+  const days = v.days || [], tel = String(v.phone || '').replace(/[^\d+]/g, '');
+  const ink = '#1c1c1c', gold = '#FFD200', green = '#0B6A35', night = '#0E0E0E', cream = '#F4F2EC', creamLine = '#E3DFD4';
+  const btn = (label) => `<a href="${esc(v.link)}" style="display:inline-block;background:${green};color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:16px;padding:14px 30px;border-radius:8px;">${esc(label)}</a>`;
+  const dayRows = days.map((d, i) => `<tr><td style="padding:11px 0;${i ? `border-top:1px solid ${creamLine};` : ''}width:58px;" valign="top">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid ${creamLine};border-radius:8px;width:48px;"><tr><td align="center" style="padding:5px 0;font-family:Arial,Helvetica,sans-serif;line-height:1.1;">
+        <div style="font-size:10px;font-weight:bold;letter-spacing:1px;color:${green};text-transform:uppercase;">${esc(d.day)}</div><div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:20px;font-weight:700;color:${ink};">${esc(d.date)}</div><div style="font-size:10px;font-weight:bold;letter-spacing:1px;color:#666;text-transform:uppercase;">${esc(d.mon || '')}</div></td></tr></table></td>
+    <td style="padding:11px 0 11px 12px;${i ? `border-top:1px solid ${creamLine};` : ''}font-family:Arial,Helvetica,sans-serif;" valign="middle">
+      <div style="font-size:15px;font-weight:bold;color:${ink};">AMA ${esc(d.where)}${d.time ? ' &middot; ' + esc(d.time) : ''}</div>${d.belts ? `<div style="font-size:13px;color:#666;margin-top:2px;">${esc(d.belts)}</div>` : ''}</td></tr>`).join('');
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(subject)}</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap');body{margin:0;padding:0;background:#E9E6DE;}a{color:${green};}@media (max-width:620px){.wrap{width:100%!important;}.pad{padding-left:22px!important;padding-right:22px!important;}.hero-title{font-size:34px!important;}}</style></head>
+<body style="margin:0;padding:0;background:#E9E6DE;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(p1)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E9E6DE;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:4px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:${ink};">
+  <tr><td style="background:${night};padding:26px 40px 22px;" align="center">
+    <img src="${LOGO2}" width="72" alt="Australian Martial Arts Academy" style="display:block;width:72px;height:auto;border:0;margin:0 auto;">
+    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:4px;color:#FFFFFF;padding-top:12px;text-transform:uppercase;">Australian Martial Arts Academy</div>
+    <div style="font-weight:bold;font-size:10px;letter-spacing:3px;color:${gold};padding-top:6px;">Sydney &middot; Since 1982</div></td></tr>
+  <tr><td style="padding:0;" align="center"><img src="${HERO2}" width="600" alt="AMA students and instructor" style="display:block;width:100%;max-width:600px;height:auto;border:0;"></td></tr>
+  <tr><td class="pad" style="background:${night};padding:22px 32px 26px;">
+    <div style="color:${gold};font-size:12px;letter-spacing:3px;text-transform:uppercase;font-weight:bold;">Grading helpers</div>
+    <div class="hero-title" style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;color:#ffffff;font-weight:700;font-size:40px;line-height:1.05;text-transform:uppercase;margin-top:8px;">${kid ? esc(`We'd love ${v.first}'s help.`) : "We'd love your help."}</div></td></tr>
+  <tr><td class="pad" style="padding:30px 32px 4px;">
+    <p style="margin:0;font-size:16px;line-height:1.55;color:#333;">Hi ${esc(greet)},</p>
+    <p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#333;">${esc(p1)}</p>
+    <p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#333;">${esc(p2)}</p></td></tr>
+  <tr><td class="pad" align="center" style="padding:22px 32px 6px;">${btn(kid ? `Pick ${v.first}'s gradings` : 'Pick my gradings')}</td></tr>
+  ${days.length ? `<tr><td class="pad" style="padding:22px 32px 0;">
+    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:17px;font-weight:600;text-transform:uppercase;color:#14321f;">Gradings that need helpers</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;background:${cream};border-radius:10px;border:1px solid ${creamLine};"><tr><td style="padding:4px 18px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${dayRows}</table></td></tr></table>
+    ${v.more ? `<p style="margin:10px 0 0;font-size:13px;color:#666;">And ${v.more} more on ${whose} list.</p>` : ''}</td></tr>` : ''}
+  <tr><td class="pad" style="padding:20px 32px 28px;">
+    <p style="margin:0;font-size:14px;line-height:1.55;color:#555;">Once a grading has all the helpers it needs, it comes off the list, so it's best to pick early. ${kid ? `${v.first} can` : 'You can'} come back to the same link any time to change ${kid ? 'their' : 'your'} picks.</p>
+    <p style="margin:16px 0 0;font-size:16px;line-height:1.55;color:#333;">Thank you,<br><b>Australian Martial Arts Academy</b></p></td></tr>
+  <tr><td style="background:${night};padding:22px 32px;" align="center">
+    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;color:#ffffff;font-size:14px;letter-spacing:2px;text-transform:uppercase;">Australian Martial Arts Academy</div>
+    <div style="color:#9aa39a;font-size:13px;margin-top:8px;line-height:1.5;">Questions? Call us on ${tel ? `<a href="tel:${esc(tel)}" style="color:${gold};text-decoration:none;">${esc(v.phone)}</a>` : esc(v.phone || 'the front desk')}</div></td></tr>
+</table></td></tr></table></body></html>`;
+  const text = [`Hi ${greet},`, '', p1, '', p2, '', `Pick ${kid ? v.first + "'s" : 'your'} gradings: ${v.link}`, '',
+    ...(days.length ? ['Gradings that need helpers:', ...days.map(d => `- ${d.day} ${d.date} ${d.mon || ''}: AMA ${d.where}${d.time ? ' at ' + d.time : ''}${d.belts ? ' (' + d.belts + ')' : ''}`), ...(v.more ? [`And ${v.more} more.`] : []), ''] : []),
+    'Once a grading has all the helpers it needs, it comes off the list.', '', 'Thank you,', 'Australian Martial Arts Academy'].join('\n');
+  return { sms, subject, html, text, who };
+}
+
 // The family grading invitation email, in AMA's house style (matches Mark's GHL template: black header, Oswald, #FFD200 gold, green buttons).
 // v = { parent, school, phone, bring:[], prepOpen, prepUrl, children:[{ first, beltTo, programme, when, where, bookUrl, videoUrl }] }
 const LOGO2 = 'https://www.australianmartialarts.com.au/wp-content/uploads/2019/12/logo1.png';
@@ -2046,11 +2104,13 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: ps } = await db.from('prep_students').select('student_id, full_name, efc_ref, belt_rank').eq('is_active', true).eq('is_test', false).order('full_name');
       const refs = [...new Set((ps || []).map(p => p.efc_ref).filter(Boolean))], memByRef = {};
       if (refs.length) { const { data: mem } = await db.from('efc_members').select('member_key, efc_reference, date_of_birth').in('efc_reference', refs); for (const m of (mem || [])) memByRef[m.efc_reference] = m; }
-      const { data: helpers } = await db.from('cb_helpers').select('member_key, token, active'), hByKey = {};
+      let { data: helpers, error: hErr } = await db.from('cb_helpers').select('member_key, token, active, sent_at');
+      if (hErr) ({ data: helpers } = await db.from('cb_helpers').select('member_key, token, active'));   // before cb-helpers-send.sql
+      const hByKey = {};
       for (const h of (helpers || [])) hByKey[h.member_key] = h;
       const list = (ps || []).map(p => { const m = memByRef[p.efc_ref], key = m && m.member_key, h = key && hByKey[key];
         const age = (m && typeof m.date_of_birth === 'string' && /^\d{4}-\d{2}-\d{2}/.test(m.date_of_birth)) ? Math.floor((Date.now() - Date.parse(m.date_of_birth.slice(0, 10))) / 31557600000) : null;
-        return { student_id: p.student_id, full_name: p.full_name, belt_rank: p.belt_rank, efc_ref: p.efc_ref, member_key: key || null, age, invited: !!(h && h.active), link: h && h.active ? SITE + 'grading/helpers/#' + h.token : null };
+        return { student_id: p.student_id, full_name: p.full_name, belt_rank: p.belt_rank, efc_ref: p.efc_ref, member_key: key || null, age, invited: !!(h && h.active), link: h && h.active ? SITE + 'grading/helpers/#' + h.token : null, sent_at: (h && h.sent_at) || null };
       });
       return json({ ok: true, helpers: list });
     }
@@ -2070,6 +2130,54 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (existing) { tok = existing.token; const patch = { active: true }; if (!existing.active) patch.invited_at = new Date().toISOString(); await db.from('cb_helpers').update(patch).eq('helper_id', existing.helper_id); }
       else { tok = essayToken(); await db.from('cb_helpers').insert({ member_key, efc_ref, full_name: full_name || 'Helper', token: tok, active: true, invited_at: new Date().toISOString() }); }
       return json({ ok: true, active: true, link: SITE + 'grading/helpers/#' + tok });
+    }
+
+    // Text and email an invited helper their sign-up link. { student_id, preview: true } returns the exact messages without sending.
+    if (body.action === 'helper_send') {
+      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      const { data: p } = await db.from('prep_students').select('full_name, efc_ref').eq('student_id', String(body.student_id || '')).maybeSingle();
+      const { data: m } = p && p.efc_ref ? await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').eq('efc_reference', p.efc_ref).maybeSingle() : { data: null };
+      if (!m) return fail("Could not find this black belt's member record.", 404);
+      const { data: h } = await db.from('cb_helpers').select('helper_id, token, active').eq('member_key', m.member_key).maybeSingle();
+      if (!h || !h.active) return fail('Invite them first (turn them on), then send.', 409);
+      const dob = String(m.date_of_birth || ''), age = /^\d{4}-\d{2}-\d{2}/.test(dob) ? Math.floor((Date.now() - Date.parse(dob.slice(0, 10))) / 31557600000) : null;
+      const kid = age != null && age < 18 && !!(m.guardian_name || m.guardian_phone || m.guardian_email);
+      const okE = v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) ? v : null;
+      const phone = kid ? phoneE164(m.guardian_phone || m.phone) : phoneE164(m.phone || m.guardian_phone);
+      const email = kid ? (okE(m.guardian_email) || okE(m.email)) : (okE(m.email) || okE(m.guardian_email));
+      // The gradings still taking helpers that they can see (same as their sign-up page)
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+      const { data: days } = await db.from('cb_days').select('day_id, grading_date, start_time, location, bb, belts, programme, helper_cap, helper_audience').eq('helper_open', true).eq('closed', false).gte('grading_date', today).order('grading_date').order('start_time');
+      const ids = (days || []).map(d => d.day_id), counts = {};
+      if (ids.length) { const { data: su } = await db.from('cb_helper_signups').select('day_id').in('day_id', ids); for (const r of (su || [])) counts[r.day_id] = (counts[r.day_id] || 0) + 1; }
+      const sb = b => String(b || '').replace(/ Belt$/, '');
+      const avail = (days || []).filter(d => !d.bb && helperCanSee(d.helper_audience, age) && (!d.helper_cap || (counts[d.day_id] || 0) < d.helper_cap)).map(d => {
+        const dt = new Date(d.grading_date + 'T00:00:00Z'), b = Array.isArray(d.belts) ? d.belts : [];
+        const t = d.start_time ? String(d.start_time).slice(0, 5).split(':').map(Number) : null;
+        return { day: dt.toLocaleDateString('en-AU', { weekday: 'short', timeZone: 'UTC' }), date: String(dt.getUTCDate()), mon: dt.toLocaleDateString('en-AU', { month: 'short', timeZone: 'UTC' }),
+          where: d.location === 'West' ? 'Auburn' : d.location, time: t ? `${((t[0] + 11) % 12) + 1}:${String(t[1]).padStart(2, '0')}${t[0] < 12 ? 'am' : 'pm'}` : '',
+          belts: b.length > 2 ? `${sb(b[0])} to ${sb(b[b.length - 1])}` : b.map(sb).join(' & ') };
+      });
+      const { data: cs } = await db.from('cb_settings').select('contact_phone').eq('id', 1).maybeSingle();
+      const msg = buildHelperInvite({ first: first(m.full_name || p.full_name), parent: kid ? (first(m.guardian_name) || 'there') : null, link: SITE + 'grading/helpers/#' + h.token,
+        phone: (cs && cs.contact_phone) || '(02) 9569 1943', days: avail.slice(0, 8), more: Math.max(0, avail.length - 8) });
+      const to = { phone, email, parent: kid };
+      if (body.preview) return json({ ok: true, preview: true, to, sms: msg.sms, subject: msg.subject, html: msg.html });
+      if (!phone && !email) return fail('There is no mobile or email for them in EFC.', 409);
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
+      const out = { sms: null, email: null };
+      const log = (kind, status, extra = {}) => db.from('cb_messages').insert({ entry_id: null, member_key: m.member_key, kind: 'helper_invite', phone: kind === 'sms' ? phone : null, email: kind === 'email' ? email : null,
+        body: kind === 'sms' ? msg.sms : msg.subject + '\n\n' + msg.text, status, sent_by: me || 'staff', ...extra }).then(() => {}, () => {});
+      let cid = null;
+      try { cid = await contactFor({ guardian_name: kid ? m.guardian_name : m.full_name, full_name: m.full_name, email }, phone); } catch (er) { return fail('Could not find or add them in GoHighLevel: ' + String(er.message || er)); }
+      if (!cid) return fail('Could not find or add them in GoHighLevel.');
+      if (phone) { try { const gid = await sendSms(cid, msg.sms); out.sms = 'sent'; await log('sms', 'sent', { ghl_id: gid }); } catch (er) { out.sms = String(er.message || er).slice(0, 300); await log('sms', 'failed', { error: out.sms }); } }
+      else out.sms = 'no mobile';
+      if (email) { try { await sendEmailTo(cid, { subject: msg.subject, html: msg.html, text: msg.text }); out.email = 'sent'; await log('email', 'sent'); } catch (er) { out.email = String(er.message || er).slice(0, 300); await log('email', 'failed', { error: out.email }); } }
+      else out.email = 'no email';
+      const sentAt = new Date().toISOString();
+      if (out.sms === 'sent' || out.email === 'sent') await db.from('cb_helpers').update({ sent_at: sentAt }).eq('helper_id', h.helper_id).then(() => {}, () => {});
+      return json({ ok: out.sms === 'sent' || out.email === 'sent', ...out, to, sent_at: sentAt });
     }
 
     // Staff: set or clear a dollar discount on a student's grading fee. It shows as its own "Discount" line

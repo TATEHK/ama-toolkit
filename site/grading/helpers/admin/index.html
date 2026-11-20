@@ -119,6 +119,16 @@
   .inv{display:flex;align-items:center;gap:10px;padding:10px 12px}
   .inv .ri b{white-space:normal}
   .tabs button{white-space:nowrap}
+  /* send sheet */
+  .sheet{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center}
+  .sheet .box{background:var(--surface);border:1px solid var(--line2);border-radius:16px 16px 0 0;width:100%;max-width:680px;max-height:92vh;overflow:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+  @media (min-width:700px){ .sheet{align-items:center} .sheet .box{border-radius:16px} }
+  .sheet h3{margin:0;font:700 20px var(--display)}
+  .sheet .lbl{font-size:12.5px;font-weight:700;color:var(--faint);margin-bottom:4px}
+  .sheet .smsbox{background:var(--raise);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:14.5px;white-space:pre-wrap;word-break:break-word}
+  .sheet iframe{width:100%;height:520px;border:1px solid var(--line);border-radius:12px;background:#E9E6DE}
+  .sheet .acts{display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:-18px;background:var(--surface);padding-top:8px}
+  .sent{font-size:12px;color:var(--green-text)}
   @media (max-width:520px){ .det{padding-left:12px} .fill{width:48px} .who{display:none} .tabs button{font-size:14px;padding:9px 4px} .appbar h1{font-size:19px} }
 </style>
 </head>
@@ -156,7 +166,7 @@
     </section>
 
     <section id="invPane" hidden style="display:flex;flex-direction:column;gap:10px">
-      <p class="hint">Turn someone on to make their personal sign-up link, then copy it and send it to them yourself. Nobody is texted automatically.</p>
+      <p class="hint">Turn someone on to make their personal sign-up link, then tap Send to text and email it to them (you'll see the messages first). Nothing goes until you tap Send.</p>
       <div class="sum"><div class="seg2" id="invFilter"><button data-f="in" aria-pressed="true">Invited</button><button data-f="all" aria-pressed="false">All black belts</button></div></div>
       <input class="search" id="search" placeholder="Search black belts…" autocomplete="off">
       <ul class="rows" id="roster"></ul>
@@ -246,8 +256,9 @@ function renderRoster(){
   const list = (INV_F==='in'&&!q ? invited : ROSTER).filter(h=>!q || (h.full_name||'').toLowerCase().includes(q));
   $('#roster').innerHTML = list.map(h=>{
     const ageTxt = h.age==null ? '' : ` · ${h.age}${h.age<18?' (under 18)':''}`;
-    return `<li class="inv"><div class="ri"><b>${esc(h.full_name)}</b><small>${esc(h.belt_rank||'')}${ageTxt}</small></div>
-      ${h.invited&&h.link?`<button class="btn sm" data-copy="${esc(h.link)}">Copy link</button>`:''}
+    const sentTxt = h.sent_at ? `<span class="sent">Sent ${new Date(h.sent_at).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</span>` : '';
+    return `<li class="inv"><div class="ri"><b>${esc(h.full_name)}</b><small>${esc(h.belt_rank||'')}${ageTxt}</small>${sentTxt}</div>
+      ${h.invited&&h.link?`<button class="btn sm${h.sent_at?'':' primary'}" data-send="${esc(h.student_id)}">${h.sent_at?'Resend':'Send'}</button><button class="btn sm" data-copy="${esc(h.link)}">Copy</button>`:''}
       <input type="checkbox" class="sw" data-invite="${esc(h.student_id)}" ${h.invited?'checked':''} ${h.member_key?'':'disabled title="No member record"'} aria-label="Invite ${esc(h.full_name)}"></li>`;
   }).join('') || `<li class="inv"><span class="hint">${INV_F==='in'&&!q?'No one invited yet. Tap “All black belts” to invite someone.':'No black belts found.'}</span></li>`;
   $$('#roster [data-invite]').forEach(el=>el.addEventListener('change', async ()=>{
@@ -260,9 +271,38 @@ function renderRoster(){
     renderRoster();
     toast(r.active?'Invited. Tap Copy link to send it':'Removed');
   }));
+  $$('#roster [data-send]').forEach(b=>b.onclick=()=>openSend(b.dataset.send, b));
   $$('#roster [data-copy]').forEach(b=>b.onclick=async ()=>{ try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); }catch(e){ prompt('Copy their link:', b.dataset.copy); } });
 }
 $$('#invFilter [data-f]').forEach(b=>b.onclick=()=>{ INV_F=b.dataset.f; renderRoster(); });
+// Send: show the exact text and email (with their name, link and the gradings needing helpers), then text + email them
+async function openSend(id, btn){
+  const h = ROSTER.find(x=>x.student_id===id); if(!h) return;
+  btn.disabled=true; const pv = await api('helper_send', { student_id:id, preview:true }); btn.disabled=false;
+  if(pv.error){ toast(pv.error); return; }
+  const to = pv.to||{}, none = !to.phone && !to.email;
+  const el=document.createElement('div'); el.className='sheet';
+  el.innerHTML=`<div class="box" role="dialog" aria-modal="true" aria-label="Send ${esc(h.full_name)} their link">
+    <h3>Send ${esc(h.full_name)} their link</h3>
+    <p class="hint">${to.parent?'They\'re under 18, so this goes to their parent. ':''}${to.phone?'Text to <b>'+esc(to.phone)+'</b>':'No mobile in EFC, so no text'} · ${to.email?'email to <b>'+esc(to.email)+'</b>':'no email in EFC'}</p>
+    ${to.phone?`<div><div class="lbl">TEXT</div><div class="smsbox">${esc(pv.sms)}</div></div>`:''}
+    ${to.email?`<div><div class="lbl">EMAIL · ${esc(pv.subject)}</div><iframe title="Email preview" sandbox></iframe></div>`:''}
+    ${none?'<p class="msg bad">There\'s no mobile or email for them in EFC. Copy the link and send it another way.</p>':''}
+    <div class="acts"><button class="btn" data-x>Cancel</button>${none?'':`<button class="btn primary" data-go>${to.phone&&to.email?'Send text & email':to.phone?'Send text':'Send email'}</button>`}</div></div>`;
+  document.body.appendChild(el);
+  const fr=el.querySelector('iframe'); if(fr) fr.srcdoc=pv.html;
+  const close=()=>el.remove();
+  el.onclick=e=>{ if(e.target===el) close(); };
+  el.querySelector('[data-x]').onclick=close;
+  const go=el.querySelector('[data-go]');
+  if(go) go.onclick=async()=>{
+    go.disabled=true; go.textContent='Sending…';
+    const r=await api('helper_send',{ student_id:id });
+    if(r.error||!r.ok){ go.disabled=false; go.textContent='Try again'; toast(r.error||('Not sent: '+[r.sms,r.email].filter(x=>x&&x!=='sent').join(', '))); return; }
+    h.sent_at=r.sent_at; close(); renderRoster();
+    toast([r.sms==='sent'?'Text sent':null, r.email==='sent'?'Email sent':null].filter(Boolean).join(' · ') + ([r.sms,r.email].some(x=>x&&x!=='sent'&&!/^no /.test(x))?' (something failed, check GHL)':''));
+  };
+}
 
 // ---- Black belt tab: the black belt grading day's sessions and everyone helping at each (Black Belt app helpers) ----
 const SENIOR = /^([4-9])th Dan/;
