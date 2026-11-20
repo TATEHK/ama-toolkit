@@ -213,7 +213,7 @@ function dayRow(d){
       <option value="13+"${d.helper_audience==='13+'?' selected':''}>Teens &amp; Adults</option></select></label>`;
   return `<li class="${open?'open':''}"><div class="r ${d.helper_open?'':'off'}" data-row="${d.day_id}">
       <div class="dt"><small>${wd}</small><b>${dt.getDate()}</b><small>${mo}</small></div>
-      <div class="ri"><b>${esc(SHOW(d.location))}${fmtTime(d.start_time)?' · '+fmtTime(d.start_time):''}${/little dragon/i.test(d.programme||'')?'<span class="ldtag">Little Dragons</span>':''}</b><small>${/little dragon/i.test(d.programme||'')?'Only helpers you tick for Little Dragons':esc(beltsLine(d))||'&nbsp;'}</small></div>
+      <div class="ri"><b>${esc(SHOW(d.location))}${fmtTime(d.start_time)?' · '+fmtTime(d.start_time):''}</b><small>${/little dragon/i.test(d.programme||'')?'Little Dragons · only helpers you tick':esc(beltsLine(d))||'&nbsp;'}</small></div>
       ${d.helper_open?`<div class="fill${full?' full':''}">${n}/${cap}<span class="bar"><i style="width:${cap?Math.min(100,Math.round(n/cap*100)):0}%"></i></span></div>`:'<div class="fill" style="color:var(--faint);font-weight:600">Off</div>'}
       <input type="checkbox" class="sw" data-set="open" data-day="${d.day_id}" ${d.helper_open?'checked':''} aria-label="Open for helpers">
     </div>

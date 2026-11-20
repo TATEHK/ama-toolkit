@@ -655,7 +655,7 @@ const helpDate = s => { const d = new Date(s + 'T00:00:00'); return d.getDate() 
 const helpTime = t => { if (!t) return null; let [H, M] = String(t).split(':').map(Number); const ap = H >= 12 ? 'pm' : 'am'; H = H % 12 || 12; return H + (M ? ':' + String(M).padStart(2, '0') : '') + ap; };
 const helperDayRow = (d, counts, mine) => ({
   id: d.day_id, wd: helpDow(d.grading_date), date: helpDate(d.grading_date), loc: d.location, time: helpTime(d.start_time),
-  belts: Array.isArray(d.belts) && d.belts.length ? d.belts.join(', ') : (d.programme || ''),
+  belts: /little dragon/i.test(String(d.programme || '')) ? 'Little Dragons' : Array.isArray(d.belts) && d.belts.length ? d.belts.join(', ') : (d.programme || ''),
   audience: d.bb ? null : (d.helper_audience || 'all'), cap: d.helper_cap, count: counts[d.day_id] || 0, mine: mine.has(d.day_id)
 });
 
