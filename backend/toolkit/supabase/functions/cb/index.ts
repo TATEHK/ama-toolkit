@@ -571,6 +571,32 @@ async function essayUrlFor(db, e, d) {
   } catch (_) { return null; }
 }
 
+// ---- Grading helpers (invite-only black belt sign-up) ----
+async function helperByToken(db, token) {
+  if (!tokenOk(token)) return null;
+  const { data } = await db.from('cb_helpers').select('helper_id, member_key, full_name, active').eq('token', token).maybeSingle();
+  return (data && data.active) ? data : null;
+}
+async function helperAgeOf(db, member_key) {
+  const { data: m } = await db.from('efc_members').select('date_of_birth').eq('member_key', member_key).maybeSingle();
+  const dob = m && m.date_of_birth;
+  return (typeof dob === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dob)) ? Math.floor((Date.now() - Date.parse(dob.slice(0, 10))) / 31557600000) : null;
+}
+// A coloured-belt day is visible to a helper of this age: 'kids' and 'all' show to everyone,
+// '13+' (teens & adults) is hidden from under-18s. Unknown age is treated as an adult.
+const helperCanSee = (aud, age) => aud !== '13+' || age == null || age >= 18;
+// Friendly date/time bits for the helper page
+const HELP_DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const HELP_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const helpDow = s => HELP_DOW[new Date(s + 'T00:00:00').getDay()];
+const helpDate = s => { const d = new Date(s + 'T00:00:00'); return d.getDate() + ' ' + HELP_MON[d.getMonth()]; };
+const helpTime = t => { if (!t) return null; let [H, M] = String(t).split(':').map(Number); const ap = H >= 12 ? 'pm' : 'am'; H = H % 12 || 12; return H + (M ? ':' + String(M).padStart(2, '0') : '') + ap; };
+const helperDayRow = (d, counts, mine) => ({
+  id: d.day_id, wd: helpDow(d.grading_date), date: helpDate(d.grading_date), loc: d.location, time: helpTime(d.start_time),
+  belts: Array.isArray(d.belts) && d.belts.length ? d.belts.join(', ') : (d.programme || ''),
+  audience: d.bb ? null : (d.helper_audience || 'all'), cap: d.helper_cap, count: counts[d.day_id] || 0, mine: mine.has(d.day_id)
+});
+
 export async function handle(req, db, env = {}, http = fetch) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return fail('Use POST.', 405);
@@ -1354,6 +1380,37 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, day_id: day.day_id, results });
     }
 
+    // ---- Grading helpers: a select black belt opens their personal link, sees the grading days they can help at,
+    // and taps to put their hand up (or pull out). { action: 'helper_info' | 'helper_toggle', token, day_id?, on? } ----
+    if (body.action === 'helper_info' || body.action === 'helper_toggle') {
+      const h = await helperByToken(db, body.token);
+      if (!h) return json({ ok: false, error: "This link isn't valid any more. Please contact the office." }, 404);
+      const age = await helperAgeOf(db, h.member_key);
+      const today = new Date().toISOString().slice(0, 10);
+      if (body.action === 'helper_toggle') {
+        const dayId = String(body.day_id || '');
+        const { data: d } = await db.from('cb_days').select('day_id, bb, helper_open, helper_cap, helper_audience, closed, grading_date').eq('day_id', dayId).maybeSingle();
+        if (!d || !d.helper_open || d.closed || d.grading_date < today) return json({ ok: false, error: "That day isn't open for helpers." }, 400);
+        if (!d.bb && !helperCanSee(d.helper_audience, age)) return json({ ok: false, error: "That day isn't available for you." }, 403);
+        if (body.on !== false) {
+          const { data: mineRow } = await db.from('cb_helper_signups').select('helper_id').eq('day_id', dayId).eq('helper_id', h.helper_id).maybeSingle();
+          if (!mineRow) {
+            const { count } = await db.from('cb_helper_signups').select('helper_id', { count: 'exact', head: true }).eq('day_id', dayId);
+            if ((count || 0) >= (d.helper_cap || 0)) return json({ ok: false, full: true, error: 'That day is full now.' });
+            await db.from('cb_helper_signups').insert({ helper_id: h.helper_id, day_id: dayId });
+          }
+        } else {
+          await db.from('cb_helper_signups').delete().eq('helper_id', h.helper_id).eq('day_id', dayId);
+        }
+      }
+      const { data: days } = await db.from('cb_days').select('day_id, grading_date, start_time, location, bb, programme, belts, helper_cap, helper_audience').eq('helper_open', true).eq('closed', false).gte('grading_date', today).order('grading_date');
+      const ids = (days || []).map(d => d.day_id), counts = {}, mine = new Set();
+      if (ids.length) { const { data: su } = await db.from('cb_helper_signups').select('day_id, helper_id').in('day_id', ids); for (const r of (su || [])) { counts[r.day_id] = (counts[r.day_id] || 0) + 1; if (r.helper_id === h.helper_id) mine.add(r.day_id); } }
+      const coloured = (days || []).filter(d => !d.bb && helperCanSee(d.helper_audience, age)).map(d => helperDayRow(d, counts, mine));
+      const blackbelt = (days || []).filter(d => d.bb).map(d => helperDayRow(d, counts, mine));
+      return json({ ok: true, name: first(h.full_name), age, coloured, blackbelt });
+    }
+
     // ---- A family replied to the grading text (GoHighLevel "Customer replied" workflow, coloured-belts-16.sql) ----
     // { action: 'reply', key, phone, message }: if it's a YES, every student from that family who was invited (and hasn't
     // booked) for a coming grading day is marked "Said YES", and is texted the booking link (the "Reminder to book" wording,
@@ -1961,6 +2018,60 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (d && how !== 'credit') await confirmSms(e, d, 'sms_paid');
       return json({ ok: true, booked: !!b.ok, byHand: !!b.byHand, booking_error: b.ok ? null : (b.why || null) });
     }
+
+    // ---- Grading helpers admin (staff) ----
+    // List upcoming grading days with their helper settings + who's signed up
+    if (body.action === 'helper_admin_days') {
+      if (!can('days', 'settings')) return fail('Your login cannot manage grading helpers.', 403);
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: days } = await db.from('cb_days').select('day_id, grading_date, start_time, location, bb, programme, belts, closed, helper_open, helper_cap, helper_audience').gte('grading_date', today).order('grading_date');
+      const ids = (days || []).map(d => d.day_id), byDay = {};
+      if (ids.length) { const { data: su } = await db.from('cb_helper_signups').select('day_id, cb_helpers(full_name)').in('day_id', ids); for (const r of (su || [])) (byDay[r.day_id] = byDay[r.day_id] || []).push((r.cb_helpers && r.cb_helpers.full_name) || ''); }
+      return json({ ok: true, days: (days || []).map(d => ({ ...d, helpers: (byDay[d.day_id] || []).filter(Boolean).sort() })) });
+    }
+    // Open/close a day for helpers, set the cap and the audience band
+    if (body.action === 'helper_admin_day_set') {
+      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      const patch = {};
+      if (body.open !== undefined) patch.helper_open = !!body.open;
+      if (body.cap !== undefined) { const c = parseInt(body.cap, 10); if (Number.isFinite(c) && c >= 0 && c <= 50) patch.helper_cap = c; }
+      if (body.audience !== undefined) patch.helper_audience = ['kids', '13+', 'all'].includes(body.audience) ? body.audience : null;
+      if (!Object.keys(patch).length) return json({ ok: true });
+      await db.from('cb_days').update(patch).eq('day_id', String(body.day_id || ''));
+      return json({ ok: true });
+    }
+    // The black belt roster to invite from, with each one's invite state + personal link
+    if (body.action === 'helper_roster') {
+      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      const { data: ps } = await db.from('prep_students').select('student_id, full_name, efc_ref, belt_rank').eq('is_active', true).eq('is_test', false).order('full_name');
+      const refs = [...new Set((ps || []).map(p => p.efc_ref).filter(Boolean))], memByRef = {};
+      if (refs.length) { const { data: mem } = await db.from('efc_members').select('member_key, efc_reference, date_of_birth').in('efc_reference', refs); for (const m of (mem || [])) memByRef[m.efc_reference] = m; }
+      const { data: helpers } = await db.from('cb_helpers').select('member_key, token, active'), hByKey = {};
+      for (const h of (helpers || [])) hByKey[h.member_key] = h;
+      const list = (ps || []).map(p => { const m = memByRef[p.efc_ref], key = m && m.member_key, h = key && hByKey[key];
+        const age = (m && typeof m.date_of_birth === 'string' && /^\d{4}-\d{2}-\d{2}/.test(m.date_of_birth)) ? Math.floor((Date.now() - Date.parse(m.date_of_birth.slice(0, 10))) / 31557600000) : null;
+        return { student_id: p.student_id, full_name: p.full_name, belt_rank: p.belt_rank, efc_ref: p.efc_ref, member_key: key || null, age, invited: !!(h && h.active), link: h && h.active ? SITE + 'grading/helpers/#' + h.token : null };
+      });
+      return json({ ok: true, helpers: list });
+    }
+    // Invite (or un-invite) a black belt: makes/activates their personal helper link
+    if (body.action === 'helper_invite') {
+      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      let member_key = String(body.member_key || '').trim(), full_name = '', efc_ref = String(body.efc_ref || '').trim() || null;
+      if (!member_key && body.student_id) {
+        const { data: p } = await db.from('prep_students').select('full_name, efc_ref').eq('student_id', String(body.student_id)).maybeSingle();
+        if (p) { efc_ref = efc_ref || p.efc_ref; full_name = p.full_name; if (p.efc_ref) { const { data: m } = await db.from('efc_members').select('member_key, full_name').eq('efc_reference', p.efc_ref).maybeSingle(); if (m) { member_key = m.member_key; full_name = full_name || m.full_name; } } }
+      }
+      if (!member_key) return fail("Could not find this black belt's member record.", 404);
+      const on = body.on !== false;
+      const { data: existing } = await db.from('cb_helpers').select('helper_id, token, active').eq('member_key', member_key).maybeSingle();
+      if (!on) { if (existing) await db.from('cb_helpers').update({ active: false }).eq('helper_id', existing.helper_id); return json({ ok: true, active: false }); }
+      let tok;
+      if (existing) { tok = existing.token; const patch = { active: true }; if (!existing.active) patch.invited_at = new Date().toISOString(); await db.from('cb_helpers').update(patch).eq('helper_id', existing.helper_id); }
+      else { tok = essayToken(); await db.from('cb_helpers').insert({ member_key, efc_ref, full_name: full_name || 'Helper', token: tok, active: true, invited_at: new Date().toISOString() }); }
+      return json({ ok: true, active: true, link: SITE + 'grading/helpers/#' + tok });
+    }
+
     // Staff: set or clear a dollar discount on a student's grading fee. It shows as its own "Discount" line
     // on the Stripe checkout page (and comes off any staff-recorded payment). amount 0 clears it.
     if (body.action === 'set_discount') {

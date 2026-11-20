@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>Grading Helpers · Admin</title>
+<link rel="icon" href="../../../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../../../config.js"></script>
+<script src="../../../hub-signin.js"></script>
+<script src="../../../idle-logout.js"></script>
+<style>
+  :root{
+    --bg:#0f1713; --surface:#15201a; --raise:#1b2821; --fg:#edf2ee; --muted:#a3b5a9; --faint:#74897b; --line:#253629; --line2:#31473a;
+    --accent:#f5c518; --on-accent:#14130a; --green:#2f9e5b; --green-text:#7fd6a2; --danger:#ef8a73;
+    --display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif; --body:Barlow,"Segoe UI",Arial,sans-serif;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--bg);color:var(--fg);font:16px/1.45 var(--body);-webkit-tap-highlight-color:transparent}
+  .appbar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px}
+  .appbar-inner{max-width:820px;margin:0 auto;display:flex;align-items:center;gap:10px}
+  .appbar h1{font:700 21px var(--display);margin:0}
+  .grow{flex:1}
+  .who{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
+  main{max-width:820px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left,0px)) 48px max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+  .intro{font-size:14px;color:var(--muted);margin:0}
+  h2{font:700 22px var(--display);margin:12px 0 0}
+  .card{background:var(--surface);border-radius:14px;box-shadow:0 0 0 1px var(--line);padding:16px;display:flex;flex-direction:column;gap:12px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:14px;font-weight:600}
+  input[type=email],input[type=password]{font:inherit;width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--raise);color:var(--fg)}
+  .btn{font:inherit;font-weight:600;white-space:nowrap;min-height:40px;padding:8px 14px;border-radius:10px;border:1px solid var(--line2);background:var(--surface);color:var(--fg);cursor:pointer}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+  .btn.sm{min-height:0;padding:5px 11px;font-size:13px}
+  .btn.link{border:0;background:none;color:var(--accent);padding:0;min-height:0;text-decoration:underline}
+  .msg{font-size:14px;margin:0}.msg.bad{color:var(--danger)}
+  .hint{font-size:13.5px;color:var(--muted);margin:0}
+  /* day rows */
+  .list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+  .drow{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 15px;display:flex;flex-direction:column;gap:10px}
+  .drow.off{opacity:.62}
+  .drow .top{display:flex;align-items:flex-start;gap:12px}
+  .drow .nm{flex:1;min-width:0}
+  .drow .nm b{font:700 17px var(--display);display:block}
+  .drow .nm small{color:var(--muted);font-size:13px}
+  .bbtag{color:var(--accent);font-weight:700;font-size:12px;border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line2));border-radius:999px;padding:2px 9px;flex:none}
+  .ctrls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+  .ctrls label{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:7px}
+  .ctrls input[type=number]{width:62px;min-height:38px;padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:var(--raise);color:var(--fg);font:inherit}
+  .ctrls select{min-height:38px;padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:var(--raise);color:var(--fg);font:inherit}
+  .sw{appearance:none;width:44px;height:26px;border-radius:999px;background:var(--line2);position:relative;cursor:pointer;flex:none;transition:.15s}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#cfe0d5;transition:.15s}
+  .sw:checked{background:var(--green)}.sw:checked::after{transform:translateX(18px);background:#fff}
+  .who-in{font-size:13px;color:var(--green-text);background:rgba(47,158,91,.1);border:1px solid color-mix(in srgb,var(--green) 30%,var(--line));border-radius:9px;padding:7px 10px}
+  .who-in.none{color:var(--faint);background:transparent;border-color:var(--line)}
+  /* roster */
+  .rrow{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+  .rrow .nm{flex:1;min-width:0}
+  .rrow .nm b{font-weight:700;display:block}
+  .rrow .nm small{color:var(--muted);font-size:13px}
+  .rrow .lk{display:flex;gap:8px;align-items:center;margin-top:6px}
+  .rrow .lk input{flex:1;min-width:0;font:12px var(--body);background:var(--raise);border:1px solid var(--line);border-radius:8px;color:var(--muted);padding:5px 8px}
+  .search{width:100%;min-height:42px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--raise);color:var(--fg);font:inherit}
+  #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(14px);background:#111b15;border:1px solid var(--line2);color:var(--fg);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:30}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="appbar"><div class="appbar-inner"><h1>Grading Helpers</h1><span class="grow"></span><span class="who" id="who" hidden></span><button class="btn sm" id="signOut" hidden>Sign out</button></div></header>
+<main>
+  <p class="intro" id="intro">Open grading days for helpers, set how many you want, and invite the black belts who can sign up.</p>
+
+  <section id="signIn" class="card" hidden>
+    <h2 style="margin:0">Sign in</h2>
+    <p class="hint">Sign in with your AMA login.</p>
+    <form id="siForm" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="siEmail">Email</label><input type="email" id="siEmail" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input type="password" id="siPass" autocomplete="current-password" required></div>
+      <p class="msg bad" id="siMsg" hidden></p>
+      <button class="btn primary" id="siGo" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <p class="hint" id="loading">Loading…</p>
+  <p class="msg bad" id="noaccess" hidden>Your login can't manage grading helpers. Ask an admin for the "Days" permission on Coloured Belts.</p>
+
+  <div id="app" hidden>
+    <h2>Grading days</h2>
+    <p class="hint">Turn a day on to let invited helpers sign up for it. The cap is how many helpers you want; once it's reached the day drops off their list.</p>
+    <ul class="list" id="days"></ul>
+
+    <h2>Invite helpers</h2>
+    <p class="hint">Invite a black belt to create their personal sign-up link, then send it to them yourself. Nobody is texted automatically.</p>
+    <input class="search" id="search" placeholder="Search black belts…" autocomplete="off">
+    <ul class="list" id="roster"></ul>
+  </div>
+</main>
+<div id="toast"></div>
+
+<script>
+const CFG = window.TOOLKIT_CONFIG || {};
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+const FN = CFG.SUPABASE_URL + '/functions/v1/cb';
+const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#siForm' };
+if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
+if (window.AmaIdle) AmaIdle.watch({ sb });
+const $ = (s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc = v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const SHOW = l => l==='West' ? 'Auburn' : l;
+const AUD = { kids:'Dragons & Ninjas', '13+':'Teens & Adults', all:'All Ages' };
+const fmtDate = s => { const d=new Date(s+'T00:00:00'); return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]; };
+const fmtTime = t => { if(!t) return ''; let [H,M]=String(t).split(':').map(Number); const ap=H>=12?'pm':'am'; H=H%12||12; return H+(M?':'+String(M).padStart(2,'0'):'')+ap; };
+let toastT; const toast = (m)=>{ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); };
+
+let DAYS=[], ROSTER=[];
+async function api(action, body={}){
+  const { data:{session} } = await sb.auth.getSession();
+  try{ const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json',apikey:CFG.SUPABASE_KEY,...(session?{Authorization:'Bearer '+session.access_token}:{})},body:JSON.stringify({action,...body})}); return await r.json(); }
+  catch(e){ return { error:'Network error. Try again.' }; }
+}
+
+function renderDays(){
+  $('#days').innerHTML = DAYS.map(d=>{
+    const n=(d.helpers||[]).length, cap=d.helper_cap;
+    const aud = d.bb ? '' : `<label>Who <select data-set="audience" data-day="${d.day_id}">
+      <option value="all"${(d.helper_audience||'all')==='all'?' selected':''}>All Ages</option>
+      <option value="kids"${d.helper_audience==='kids'?' selected':''}>Dragons &amp; Ninjas</option>
+      <option value="13+"${d.helper_audience==='13+'?' selected':''}>Teens &amp; Adults</option></select></label>`;
+    const belts = Array.isArray(d.belts)&&d.belts.length ? d.belts.join(', ') : (d.programme||'');
+    const whoIn = d.helper_open ? (n ? `<div class="who-in">${n}/${cap} helping — ${esc((d.helpers||[]).join(', '))}</div>` : `<div class="who-in none">No helpers yet (${cap} wanted)</div>`) : '';
+    return `<li class="drow ${d.helper_open?'':'off'}">
+      <div class="top">
+        <div class="nm"><b>${fmtDate(d.grading_date)} · ${esc(SHOW(d.location))}${fmtTime(d.start_time)?' · '+fmtTime(d.start_time):''}</b><small>${esc(belts)||'&nbsp;'}</small></div>
+        ${d.bb?'<span class="bbtag">Black belt</span>':''}
+        <input type="checkbox" class="sw" data-set="open" data-day="${d.day_id}" ${d.helper_open?'checked':''} title="Open for helpers">
+      </div>
+      ${d.helper_open?`<div class="ctrls"><label>Helpers wanted <input type="number" min="0" max="50" value="${cap}" data-set="cap" data-day="${d.day_id}"></label>${aud}</div>${whoIn}`:''}
+    </li>`;
+  }).join('') || '<li class="hint">No upcoming grading days.</li>';
+  $$('#days [data-set]').forEach(el=>{
+    const ev = el.type==='number' ? 'change' : (el.tagName==='SELECT'?'change':'change');
+    el.addEventListener(ev, async ()=>{
+      const day_id=el.dataset.day, set=el.dataset.set;
+      const val = set==='open' ? el.checked : set==='cap' ? el.value : el.value;
+      const r = await api('helper_admin_day_set', { day_id, [set]: val });
+      if(r.error){ toast(r.error); return; }
+      const d = DAYS.find(x=>x.day_id===day_id); if(d){ if(set==='open') d.helper_open=el.checked; if(set==='cap') d.helper_cap=parseInt(el.value,10)||0; if(set==='audience') d.helper_audience=el.value; }
+      if(set==='open') renderDays(); else toast('Saved');
+    });
+  });
+}
+
+function renderRoster(){
+  const q = ($('#search').value||'').toLowerCase().trim();
+  const list = ROSTER.filter(h=>!q || (h.full_name||'').toLowerCase().includes(q));
+  $('#roster').innerHTML = list.map(h=>{
+    const ageTxt = h.age==null ? '' : ` · ${h.age}${h.age<18?' (under 18)':''}`;
+    return `<li class="rrow">
+      <div class="nm"><b>${esc(h.full_name)}</b><small>${esc(h.belt_rank||'')}${ageTxt}</small>
+        ${h.invited&&h.link?`<div class="lk"><input readonly value="${esc(h.link)}"><button class="btn sm" data-copy="${esc(h.link)}">Copy</button></div>`:''}</div>
+      <input type="checkbox" class="sw" data-invite="${esc(h.student_id)}" ${h.invited?'checked':''} ${h.member_key?'':'disabled title="No member record"'}>
+    </li>`;
+  }).join('') || '<li class="hint">No black belts found.</li>';
+  $$('#roster [data-invite]').forEach(el=>el.addEventListener('change', async ()=>{
+    el.disabled=true;
+    const r = await api('helper_invite', { student_id: el.dataset.invite, on: el.checked });
+    el.disabled=false;
+    if(r.error){ toast(r.error); el.checked=!el.checked; return; }
+    const h = ROSTER.find(x=>x.student_id===el.dataset.invite);
+    if(h){ h.invited=!!r.active; h.link=r.link||null; }
+    renderRoster();
+    toast(r.active?'Invited — copy their link to send':'Removed');
+  }));
+  $$('#roster [data-copy]').forEach(b=>b.onclick=async ()=>{ try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); }catch(e){ const i=b.previousElementSibling; i.focus(); i.select(); toast('Press copy on your keyboard'); } });
+}
+
+async function load(){
+  $('#loading').hidden=false;
+  const [d,r] = await Promise.all([api('helper_admin_days'), api('helper_roster')]);
+  $('#loading').hidden=true;
+  if((d&&d.error&&/not allowed|cannot/i.test(d.error))||(r&&r.error&&/not allowed|cannot/i.test(r.error))){ $('#noaccess').hidden=false; return; }
+  DAYS = (d&&d.days)||[]; ROSTER = (r&&r.helpers)||[];
+  $('#app').hidden=false; renderDays(); renderRoster();
+}
+
+async function boot(){
+  const { data:{session} } = await sb.auth.getSession();
+  if(!session){ $('#signIn').hidden=false; $('#app').hidden=true; $('#loading').hidden=true; $('#who').hidden=$('#signOut').hidden=true; return; }
+  $('#signIn').hidden=true; $('#who').textContent=(session.user.user_metadata||{}).full_name||session.user.email; $('#who').hidden=$('#signOut').hidden=false;
+  load();
+}
+$('#search').oninput = () => renderRoster();
+$('#siForm').onsubmit = async e => {
+  e.preventDefault(); $('#siGo').disabled=true; $('#siMsg').hidden=true;
+  const { error } = await sb.auth.signInWithPassword({ email:$('#siEmail').value.trim(), password:$('#siPass').value });
+  $('#siGo').disabled=false;
+  if(error){ $('#siMsg').textContent=/invalid/i.test(error.message)?'Wrong email or password.':error.message; $('#siMsg').hidden=false; return; }
+  boot();
+};
+$('#signOut').onclick = async () => { await sb.auth.signOut(); boot(); };
+sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'||ev==='SIGNED_OUT') boot(); });
+boot();
+</script>
+</body>
+</html>

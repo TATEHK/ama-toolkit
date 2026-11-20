@@ -139,7 +139,9 @@ function draw(a) {
   const admin = a.card.includes('admin') && a.prep.includes('admin');
   const tvAny = a.edit || a.party || a.remote;
   const groups = [
-    ['Gradings', [(a.prep.length || a.cb.length || a.card.length) && { href: 'grading/', icon: 'belt', name: 'Gradings', meta: 'Coloured belts and every program, Black Belt Gradings and ID cards' }]],
+    ['Gradings', [
+      (a.prep.length || a.cb.length || a.card.length) && { href: 'grading/', icon: 'belt', name: 'Gradings', meta: 'Coloured belts and every program, Black Belt Gradings and ID cards' },
+      (a.cb.includes('admin') || a.cb.includes('days') || a.cb.includes('settings')) && { href: 'grading/helpers/admin/', icon: 'staff', name: 'Grading Helpers', meta: 'Open grading days for helpers and invite black belts to sign up' }]],
     ['Members', [a.aw.length > 0 && { href: 'awards/', icon: 'medal', name: 'Long service awards', meta: 'Who reaches 5, 10, 15 years and more in time for the December order' }]],
     ['Dojang TV', [
       a.party && { href: 'tv/edit/', icon: 'tv', name: a.edit ? 'TV Display' : 'TV party mode', meta: a.edit ? 'Change the photos, videos and notices on the dojang TV' : 'Birthday posters and messages on the dojang TV' },

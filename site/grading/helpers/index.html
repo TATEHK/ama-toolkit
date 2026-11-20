@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>Grading Helpers · AMA</title>
+<link rel="icon" href="../../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="../../config.js"></script>
+<style>
+  :root{
+    --bg:#0f1713; --panel:#15201a; --raise:#1b2821; --line:#253629; --line2:#31473a;
+    --text:#edf2ee; --sub:#a3b5a9; --faint:#74897b;
+    --gold:#f5c518; --on-gold:#14130a; --green:#2f9e5b; --green-text:#7fd6a2; --red:#ef8a73;
+    --display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif; --body:Barlow,"Segoe UI",Arial,sans-serif;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:17px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:560px;margin:0 auto;padding:22px max(16px,env(safe-area-inset-left,0px)) 48px max(16px,env(safe-area-inset-right,0px))}
+  .brand{display:flex;align-items:center;gap:11px;margin-bottom:22px}
+  .brand .mark{width:40px;height:40px;border-radius:10px;background:linear-gradient(145deg,#2f9e5b,#1d6b3d);display:grid;place-items:center;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+  .brand .mark b{font:700 20px var(--display);color:#fff}
+  .brand .bt b{display:block;font:700 15px/1.1 var(--display);letter-spacing:.3px}
+  .brand .bt span{font-size:12.5px;color:var(--sub)}
+  h1{font:700 30px/1.08 var(--display);margin:0 0 6px}
+  .lede{color:var(--sub);margin:0 0 20px;font-size:15.5px}
+  .lede b{color:var(--green-text);font-weight:600}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin:0 -2px 16px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:none;border:1.5px solid var(--line2);background:var(--panel);color:var(--sub);border-radius:999px;padding:8px 15px;font:600 14px var(--body);cursor:pointer;white-space:nowrap}
+  .chip.on{background:var(--text);color:#101a14;border-color:var(--text)}
+  .mine{background:linear-gradient(160deg,#17251d,#132019);border:1px solid var(--line2);border-radius:14px;padding:16px 17px;margin-bottom:22px}
+  .mine h2{font:700 13px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--green-text);margin:0 0 11px}
+  .mine .row{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--line)}
+  .mine .row:first-of-type{border-top:0;padding-top:2px}
+  .mine .row .d{flex:1;min-width:0}
+  .mine .row b{font:600 15.5px var(--body);display:block}
+  .mine .row small{color:var(--sub);font-size:13px}
+  .mine .pull{border:0;background:transparent;color:var(--faint);font:600 13px var(--body);cursor:pointer;padding:6px 4px;text-decoration:underline;text-underline-offset:2px}
+  .mine .pull:hover{color:var(--red)}
+  .sect{font:700 13px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:26px 2px 12px;display:flex;align-items:center;gap:9px}
+  .sect:first-of-type{margin-top:0}
+  .sect .bb{color:var(--gold)}
+  .days{display:flex;flex-direction:column;gap:13px}
+  .day{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:17px 18px;display:flex;flex-direction:column;gap:13px;transition:.15s}
+  .day.in{border-color:color-mix(in srgb,var(--green) 55%,var(--line));background:linear-gradient(170deg,#16241c,var(--panel))}
+  .day.bb{border-color:color-mix(in srgb,var(--gold) 30%,var(--line))}
+  .day .head{display:flex;align-items:flex-start;gap:13px}
+  .day .wd{min-width:0;flex:1}
+  .day .wd .big{font:700 22px/1 var(--display)}
+  .day .wd .date{color:var(--sub);font-size:13.5px;margin-top:3px}
+  .loc{display:inline-flex;align-items:center;gap:7px;flex:none;background:var(--raise);border:1px solid var(--line2);border-radius:999px;padding:6px 12px;font:600 13px var(--body)}
+  .loc .pin{width:9px;height:9px;border-radius:50%;flex:none}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 16px;color:var(--sub);font-size:14px}
+  .meta span{display:inline-flex;align-items:center;gap:7px}
+  .meta svg{width:16px;height:16px;flex:none;color:var(--faint)}
+  .ageband{background:var(--raise);border:1px solid var(--line2);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;letter-spacing:.03em}
+  .ageband.k{color:#8fd0ff}.ageband.t{color:var(--gold)}.ageband.a{color:var(--green-text)}
+  .act{min-height:50px;border-radius:11px;border:0;font:700 16px var(--body);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;width:100%}
+  .act.help{background:var(--gold);color:var(--on-gold)}
+  .act.help:hover{background:#ffd23a}
+  .act.inq{background:transparent;border:1.5px solid color-mix(in srgb,var(--green) 60%,var(--line2));color:var(--green-text)}
+  .act.inq:hover{border-color:var(--red);color:var(--red)}
+  .act.inq:hover .lbl-in{display:none}
+  .act.inq:hover .lbl-out{display:inline}
+  .act .lbl-out{display:none}
+  .act svg{width:18px;height:18px}
+  .act[disabled]{opacity:.6;cursor:default}
+  .empty{color:var(--faint);text-align:center;padding:24px 10px;font-size:15px}
+  .foot{color:var(--faint);font-size:12.5px;text-align:center;line-height:1.6;margin:28px 0 0}
+  .big-msg{min-height:60vh;display:grid;place-items:center;text-align:center;color:var(--sub);padding:0 10px}
+  .big-msg .inner b{display:block;font:700 24px var(--display);color:var(--text);margin-bottom:8px}
+  #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(14px);background:#111b15;border:1px solid var(--line2);color:var(--text);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:90vw}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="big-msg" id="loading"><span class="inner">Loading…</span></p>
+
+  <div id="app" hidden>
+    <div class="brand">
+      <span class="mark"><b>AMA</b></span>
+      <span class="bt"><b>Australian Martial Arts</b><span>Grading helpers</span></span>
+    </div>
+    <h1>Lend a hand on the mat</h1>
+    <p class="lede">Hi <b id="who">there</b> — put your hand up to help run our gradings. Tap any day you can make it.</p>
+
+    <section class="mine" id="mineBox" hidden><h2>You're helping at</h2><div id="mineList"></div></section>
+
+    <div id="bbWrap" hidden>
+      <div class="sect"><span class="bb">★</span> Black belt grading</div>
+      <div class="days" id="bbDays"></div>
+    </div>
+
+    <div id="colWrap" hidden>
+      <div class="sect">Coloured belt gradings</div>
+      <div class="chips" id="locChips"></div>
+      <div class="days" id="colDays"></div>
+    </div>
+
+    <p class="foot">This page is just for you — please don't share the link.<br>Need to change something? Message the office and we'll sort it.</p>
+  </div>
+
+  <div class="big-msg" id="dead" hidden><span class="inner"><b>This link isn't working</b><span id="deadMsg">Please contact the office and we'll send you a new one.</span></span></div>
+</div>
+<div id="toast"></div>
+
+<script>
+  const CFG = window.TOOLKIT_CONFIG || {};
+  const $ = (s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+  const esc = v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const token = location.hash.replace(/^#/,'').trim();
+  const LOCCOL = { Marrickville:'#4fa3ff', Concord:'#f5c518', Sydenham:'#c98bff', West:'#ff9d6b', Auburn:'#ff9d6b' };
+  const SHOW = l => l==='West' ? 'Auburn' : l;             // members see "Auburn"
+  const AGE = { kids:'Dragons & Ninjas', '13+':'Teens & Adults', all:'All Ages' };
+  const clock='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  const belt='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h16v8H4z"/><path d="M9 8v8M15 8v8"/></svg>';
+  const tick='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg>';
+  const plus='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+
+  let state = { name:'there', coloured:[], blackbelt:[], filter:'All' };
+  let busy = false;
+  const toast = m => { const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),2600); };
+
+  async function call(action, extra={}){
+    try{ const r=await fetch(CFG.SUPABASE_URL+'/functions/v1/cb',{method:'POST',headers:{'Content-Type':'application/json',apikey:CFG.SUPABASE_KEY},body:JSON.stringify({action,token,...extra})}); return await r.json(); }
+    catch(e){ return { ok:false, error:'Something went wrong. Please try again.' }; }
+  }
+
+  function dead(msg){ $('#loading').hidden=true; $('#app').hidden=true; const d=$('#dead'); d.hidden=false; if(msg) $('#deadMsg').textContent=msg; }
+
+  const left = d => d.cap - d.count;                        // spots remaining (count already includes this helper when mine)
+
+  function card(d, bb){
+    const isFull = left(d) <= 0 && !d.mine;
+    const btn = d.mine
+      ? `<button class="act inq" data-t="${d.id}" data-on="0">${tick}<span class="lbl-in">You're in</span><span class="lbl-out">Pull out</span></button>`
+      : `<button class="act help" data-t="${d.id}" data-on="1">${plus}I'll help</button>`;
+    const age = !bb ? `<span class="ageband ${d.audience==='kids'?'k':d.audience==='all'?'a':'t'}">${esc(AGE[d.audience]||'All Ages')}</span>` : '';
+    return `<div class="day ${d.mine?'in':''} ${bb?'bb':''}">
+      <div class="head">
+        <div class="wd"><div class="big">${esc(d.wd)}</div><div class="date">${esc(d.date)}</div></div>
+        <span class="loc"><span class="pin" style="background:${LOCCOL[d.loc]||'#9fb3a6'}"></span>${esc(SHOW(d.loc))}</span>
+      </div>
+      <div class="meta"><span>${clock}${esc(d.time||'')}</span>${d.belts?`<span>${belt}${esc(d.belts)}</span>`:''}${age}</div>
+      ${btn}</div>`;
+  }
+
+  function render(){
+    $('#who').textContent = state.name || 'there';
+    // summary across both sections
+    const mine = [...state.blackbelt, ...state.coloured].filter(d=>d.mine);
+    $('#mineBox').hidden = !mine.length;
+    $('#mineList').innerHTML = mine.map(d=>`<div class="row"><span class="pin" style="width:9px;height:9px;border-radius:50%;background:${LOCCOL[d.loc]||'#9fb3a6'};flex:none"></span>
+      <span class="d"><b>${esc(d.wd)} ${esc(d.date)}</b><small>${esc(SHOW(d.loc))} · ${esc(d.time||'')}</small></span>
+      <button class="pull" data-t="${d.id}" data-on="0">Can't make it</button></div>`).join('');
+    // black belt grading section
+    $('#bbWrap').hidden = !state.blackbelt.length;
+    $('#bbDays').innerHTML = state.blackbelt.map(d=>card(d,true)).join('');
+    // coloured belt section (hide full days that aren't yours)
+    const visible = state.coloured.filter(d=>!(left(d)<=0 && !d.mine));
+    const locs = ['All', ...[...new Set(visible.map(d=>d.loc))]];
+    $('#colWrap').hidden = !state.coloured.length;
+    $('#locChips').innerHTML = locs.length>2 ? locs.map(l=>`<button class="chip ${state.filter===l?'on':''}" data-l="${esc(l)}">${esc(SHOW(l))}</button>`).join('') : '';
+    const list = visible.filter(d=>state.filter==='All'||d.loc===state.filter);
+    $('#colDays').innerHTML = list.length ? list.map(d=>card(d,false)).join('') : '<div class="empty">No coloured belt days open right now.</div>';
+    // wire
+    $$('#locChips .chip').forEach(b=>b.onclick=()=>{ state.filter=b.dataset.l; render(); });
+    $$('[data-t]').forEach(b=>b.onclick=()=>toggle(b.dataset.t, b.dataset.on==='1'));
+  }
+
+  async function toggle(dayId, on){
+    if(busy) return; busy=true;
+    const r = await call('helper_toggle', { day_id:dayId, on });
+    busy=false;
+    if(!r || !r.ok){ toast((r&&r.full)?'That day just filled up.':(r&&r.error)||'Could not update. Try again.'); if(r&&r.full){ apply(await call('helper_info')); } return; }
+    apply(r);
+  }
+  function apply(r){ if(r&&r.ok){ state.name=r.name||state.name; state.coloured=r.coloured||[]; state.blackbelt=r.blackbelt||[]; render(); } }
+
+  async function start(){
+    if(!token){ dead('This link is missing its code. Please use the link we sent you.'); return; }
+    const r = await call('helper_info');
+    if(!r || !r.ok){ dead(r&&r.error); return; }
+    $('#loading').hidden=true; $('#app').hidden=false;
+    apply(r);
+  }
+  start();
+</script>
+</body>
+</html>
