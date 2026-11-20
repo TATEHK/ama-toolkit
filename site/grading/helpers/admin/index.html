@@ -129,6 +129,9 @@
   .sheet iframe{width:100%;height:520px;border:1px solid var(--line);border-radius:12px;background:#E9E6DE}
   .sheet .acts{display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:-18px;background:var(--surface);padding-top:8px}
   .sent{font-size:12px;color:var(--green-text)}
+  .ld{font:inherit;font-size:12px;font-weight:600;border:1px solid var(--line2);background:none;color:var(--faint);border-radius:999px;padding:3px 9px;cursor:pointer;margin-top:5px}
+  .ld.on{border-color:var(--accent);color:var(--accent)}
+  .ldtag{font-size:11px;font-weight:700;color:var(--accent);margin-left:6px}
   @media (max-width:520px){ .det{padding-left:12px} .fill{width:48px} .who{display:none} .tabs button{font-size:14px;padding:9px 4px} .appbar h1{font-size:19px} }
 </style>
 </head>
@@ -166,7 +169,7 @@
     </section>
 
     <section id="invPane" hidden style="display:flex;flex-direction:column;gap:10px">
-      <p class="hint">Turn someone on to make their personal sign-up link, then tap Send to text and email it to them (you'll see the messages first). Nothing goes until you tap Send.</p>
+      <p class="hint">Turn someone on to make their personal sign-up link, then tap Send to text and email it to them (you'll see the messages first). Nothing goes until you tap Send. Little Dragons gradings only show to helpers you tick for Little Dragons.</p>
       <div class="sum"><div class="seg2" id="invFilter"><button data-f="in" aria-pressed="true">Invited</button><button data-f="all" aria-pressed="false">All black belts</button></div></div>
       <input class="search" id="search" placeholder="Search black belts…" autocomplete="off">
       <ul class="rows" id="roster"></ul>
@@ -210,7 +213,7 @@ function dayRow(d){
       <option value="13+"${d.helper_audience==='13+'?' selected':''}>Teens &amp; Adults</option></select></label>`;
   return `<li class="${open?'open':''}"><div class="r ${d.helper_open?'':'off'}" data-row="${d.day_id}">
       <div class="dt"><small>${wd}</small><b>${dt.getDate()}</b><small>${mo}</small></div>
-      <div class="ri"><b>${esc(SHOW(d.location))}${fmtTime(d.start_time)?' · '+fmtTime(d.start_time):''}</b><small>${esc(beltsLine(d))||'&nbsp;'}</small></div>
+      <div class="ri"><b>${esc(SHOW(d.location))}${fmtTime(d.start_time)?' · '+fmtTime(d.start_time):''}${/little dragon/i.test(d.programme||'')?'<span class="ldtag">Little Dragons</span>':''}</b><small>${/little dragon/i.test(d.programme||'')?'Only helpers you tick for Little Dragons':esc(beltsLine(d))||'&nbsp;'}</small></div>
       ${d.helper_open?`<div class="fill${full?' full':''}">${n}/${cap}<span class="bar"><i style="width:${cap?Math.min(100,Math.round(n/cap*100)):0}%"></i></span></div>`:'<div class="fill" style="color:var(--faint);font-weight:600">Off</div>'}
       <input type="checkbox" class="sw" data-set="open" data-day="${d.day_id}" ${d.helper_open?'checked':''} aria-label="Open for helpers">
     </div>
@@ -257,7 +260,8 @@ function renderRoster(){
   $('#roster').innerHTML = list.map(h=>{
     const ageTxt = h.age==null ? '' : ` · ${h.age}${h.age<18?' (under 18)':''}`;
     const sentTxt = h.sent_at ? `<span class="sent">Sent ${new Date(h.sent_at).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</span>` : '';
-    return `<li class="inv"><div class="ri"><b>${esc(h.full_name)}</b><small>${esc(h.belt_rank||'')}${ageTxt}</small>${sentTxt}</div>
+    const ld = h.invited ? `<button class="ld${h.little_dragons?' on':''}" data-ld="${esc(h.student_id)}" aria-pressed="${!!h.little_dragons}">${h.little_dragons?'✓ ':''}Little Dragons</button>` : '';
+    return `<li class="inv"><div class="ri"><b>${esc(h.full_name)}</b><small>${esc(h.belt_rank||'')}${ageTxt}</small>${sentTxt}${ld}</div>
       ${h.invited&&h.link?`<button class="btn sm${h.sent_at?'':' primary'}" data-send="${esc(h.student_id)}">${h.sent_at?'Resend':'Send'}</button><button class="btn sm" data-copy="${esc(h.link)}">Copy</button>`:''}
       <input type="checkbox" class="sw" data-invite="${esc(h.student_id)}" ${h.invited?'checked':''} ${h.member_key?'':'disabled title="No member record"'} aria-label="Invite ${esc(h.full_name)}"></li>`;
   }).join('') || `<li class="inv"><span class="hint">${INV_F==='in'&&!q?'No one invited yet. Tap “All black belts” to invite someone.':'No black belts found.'}</span></li>`;
@@ -272,6 +276,9 @@ function renderRoster(){
     toast(r.active?'Invited. Tap Copy link to send it':'Removed');
   }));
   $$('#roster [data-send]').forEach(b=>b.onclick=()=>openSend(b.dataset.send, b));
+  $$('#roster [data-ld]').forEach(b=>b.onclick=async()=>{ const h=ROSTER.find(x=>x.student_id===b.dataset.ld); if(!h) return; b.disabled=true;
+    const r=await api('helper_ld',{ student_id:h.student_id, on:!h.little_dragons }); b.disabled=false;
+    if(r.error){ toast(r.error); return; } h.little_dragons=!!r.little_dragons; renderRoster(); toast(h.little_dragons?`${h.full_name} can now see Little Dragons gradings`:'Little Dragons hidden for them'); });
   $$('#roster [data-copy]').forEach(b=>b.onclick=async ()=>{ try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); }catch(e){ prompt('Copy their link:', b.dataset.copy); } });
 }
 $$('#invFilter [data-f]').forEach(b=>b.onclick=()=>{ INV_F=b.dataset.f; renderRoster(); });

@@ -632,9 +632,13 @@ async function essayUrlFor(db, e, d) {
 // ---- Grading helpers (invite-only black belt sign-up) ----
 async function helperByToken(db, token) {
   if (!tokenOk(token)) return null;
-  const { data } = await db.from('cb_helpers').select('helper_id, member_key, full_name, active').eq('token', token).maybeSingle();
+  let { data, error } = await db.from('cb_helpers').select('helper_id, member_key, full_name, active, little_dragons').eq('token', token).maybeSingle();
+  if (error) ({ data } = await db.from('cb_helpers').select('helper_id, member_key, full_name, active').eq('token', token).maybeSingle());   // before cb-helpers-send.sql
   return (data && data.active) ? data : null;
 }
+// Little Dragons gradings are only shown to the helpers staff pick (cb_helpers.little_dragons)
+const isLittleDragons = d => /little dragon/i.test(String((d && d.programme) || ''));
+const helperSeesDay = (h, d) => !isLittleDragons(d) || !!(h && h.little_dragons);
 async function helperAgeOf(db, member_key) {
   const { data: m } = await db.from('efc_members').select('date_of_birth').eq('member_key', member_key).maybeSingle();
   const dob = m && m.date_of_birth;
@@ -1447,9 +1451,9 @@ export async function handle(req, db, env = {}, http = fetch) {
       const today = new Date().toISOString().slice(0, 10);
       if (body.action === 'helper_toggle') {
         const dayId = String(body.day_id || '');
-        const { data: d } = await db.from('cb_days').select('day_id, bb, helper_open, helper_cap, helper_audience, closed, grading_date').eq('day_id', dayId).maybeSingle();
+        const { data: d } = await db.from('cb_days').select('day_id, bb, programme, helper_open, helper_cap, helper_audience, closed, grading_date').eq('day_id', dayId).maybeSingle();
         if (!d || !d.helper_open || d.closed || d.grading_date < today) return json({ ok: false, error: "That day isn't open for helpers." }, 400);
-        if (!d.bb && !helperCanSee(d.helper_audience, age)) return json({ ok: false, error: "That day isn't available for you." }, 403);
+        if (!d.bb && (!helperCanSee(d.helper_audience, age) || !helperSeesDay(h, d))) return json({ ok: false, error: "That day isn't available for you." }, 403);
         if (body.on !== false) {
           const { data: mineRow } = await db.from('cb_helper_signups').select('helper_id').eq('day_id', dayId).eq('helper_id', h.helper_id).maybeSingle();
           if (!mineRow) {
@@ -1464,7 +1468,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: days } = await db.from('cb_days').select('day_id, grading_date, start_time, location, bb, programme, belts, helper_cap, helper_audience').eq('helper_open', true).eq('closed', false).gte('grading_date', today).order('grading_date');
       const ids = (days || []).map(d => d.day_id), counts = {}, mine = new Set();
       if (ids.length) { const { data: su } = await db.from('cb_helper_signups').select('day_id, helper_id').in('day_id', ids); for (const r of (su || [])) { counts[r.day_id] = (counts[r.day_id] || 0) + 1; if (r.helper_id === h.helper_id) mine.add(r.day_id); } }
-      const coloured = (days || []).filter(d => !d.bb && helperCanSee(d.helper_audience, age)).map(d => helperDayRow(d, counts, mine));
+      const coloured = (days || []).filter(d => !d.bb && helperCanSee(d.helper_audience, age) && (helperSeesDay(h, d) || mine.has(d.day_id))).map(d => helperDayRow(d, counts, mine));
       const blackbelt = (days || []).filter(d => d.bb).map(d => helperDayRow(d, counts, mine));
       return json({ ok: true, name: first(h.full_name), age, coloured, blackbelt });
     }
@@ -2104,13 +2108,13 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: ps } = await db.from('prep_students').select('student_id, full_name, efc_ref, belt_rank').eq('is_active', true).eq('is_test', false).order('full_name');
       const refs = [...new Set((ps || []).map(p => p.efc_ref).filter(Boolean))], memByRef = {};
       if (refs.length) { const { data: mem } = await db.from('efc_members').select('member_key, efc_reference, date_of_birth').in('efc_reference', refs); for (const m of (mem || [])) memByRef[m.efc_reference] = m; }
-      let { data: helpers, error: hErr } = await db.from('cb_helpers').select('member_key, token, active, sent_at');
+      let { data: helpers, error: hErr } = await db.from('cb_helpers').select('member_key, token, active, sent_at, little_dragons');
       if (hErr) ({ data: helpers } = await db.from('cb_helpers').select('member_key, token, active'));   // before cb-helpers-send.sql
       const hByKey = {};
       for (const h of (helpers || [])) hByKey[h.member_key] = h;
       const list = (ps || []).map(p => { const m = memByRef[p.efc_ref], key = m && m.member_key, h = key && hByKey[key];
         const age = (m && typeof m.date_of_birth === 'string' && /^\d{4}-\d{2}-\d{2}/.test(m.date_of_birth)) ? Math.floor((Date.now() - Date.parse(m.date_of_birth.slice(0, 10))) / 31557600000) : null;
-        return { student_id: p.student_id, full_name: p.full_name, belt_rank: p.belt_rank, efc_ref: p.efc_ref, member_key: key || null, age, invited: !!(h && h.active), link: h && h.active ? SITE + 'grading/helpers/#' + h.token : null, sent_at: (h && h.sent_at) || null };
+        return { student_id: p.student_id, full_name: p.full_name, belt_rank: p.belt_rank, efc_ref: p.efc_ref, member_key: key || null, age, invited: !!(h && h.active), link: h && h.active ? SITE + 'grading/helpers/#' + h.token : null, sent_at: (h && h.sent_at) || null, little_dragons: !!(h && h.little_dragons) };
       });
       return json({ ok: true, helpers: list });
     }
@@ -2130,6 +2134,17 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (existing) { tok = existing.token; const patch = { active: true }; if (!existing.active) patch.invited_at = new Date().toISOString(); await db.from('cb_helpers').update(patch).eq('helper_id', existing.helper_id); }
       else { tok = essayToken(); await db.from('cb_helpers').insert({ member_key, efc_ref, full_name: full_name || 'Helper', token: tok, active: true, invited_at: new Date().toISOString() }); }
       return json({ ok: true, active: true, link: SITE + 'grading/helpers/#' + tok });
+    }
+
+    // Let an invited helper see Little Dragons gradings (hidden from everyone else). { student_id, on }
+    if (body.action === 'helper_ld') {
+      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      const { data: p } = await db.from('prep_students').select('efc_ref').eq('student_id', String(body.student_id || '')).maybeSingle();
+      const { data: m } = p && p.efc_ref ? await db.from('efc_members').select('member_key').eq('efc_reference', p.efc_ref).maybeSingle() : { data: null };
+      if (!m) return fail("Could not find this black belt's member record.", 404);
+      const { error: e1 } = await db.from('cb_helpers').update({ little_dragons: body.on === true }).eq('member_key', m.member_key);
+      if (e1) return fail(e1.message);
+      return json({ ok: true, little_dragons: body.on === true });
     }
 
     // Text and email an invited helper their sign-up link. { student_id, preview: true } returns the exact messages without sending.
