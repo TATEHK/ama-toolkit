@@ -247,8 +247,8 @@ function show(r) {
   const bring = Array.isArray(r.bring) && r.bring.length ? r.bring : ['Full long-sleeve uniform', 'Belt', 'Drink bottle'];
   $('#bring').innerHTML = bring.map(b => `<li>${esc(b)}</li>`).join('');
   $('#bringCard').hidden = !!r.closed || (!done && !open);
-  // Once they're booked/paid, offer the optional Colour Belt Prep Session for extra practice
-  $('#prepCard').hidden = !done || !!r.closed;
+  // Once they're booked/paid, offer the optional Colour Belt Prep Session for extra practice (coloured belts only — not black belt gradings)
+  $('#prepCard').hidden = !done || !!r.closed || !!r.bb;
   if (open && hasFee && !r.card && !r.paid && !r.booked) showError(`Online payment isn't available for this grading. Please call us on ${r.phone || PHONE} to book.`, r.phone);
   if (r.closed && !done) showError('This grading has finished.');
   else if (r.booking_closed && !done) showError(`Bookings for this grading have closed. Please call us on ${r.phone || PHONE}.`, r.phone);

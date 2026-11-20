@@ -1156,7 +1156,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const etm = entryTime(d, e);
       const info = { ok: true, first: first(e.full_name), belt_to: e.belt_to, date: d.grading_date, time: etm ? String(etm).slice(0, 5) : null,
         school: whereOf(e, d), fee, fee_full: baseFee, discount: disc, discount_reason: disc > 0 ? (e.discount_reason || null) : null, discount_note: disc > 0 ? (e.discount_note || null) : null,
-        booked: !!e.booked_at, paid: !!e.paid, paid_how: e.paid ? (e.paid_how || 'desk') : null, closed: d.closed || !!e.result,
+        booked: !!e.booked_at, paid: !!e.paid, paid_how: e.paid ? (e.paid_how || 'desk') : null, closed: d.closed || !!e.result, bb: !!d.bb,
         card: !!(env.STRIPE_SECRET_KEY && fee > 0), booking_failed: !!(e.paid && !e.booked_at && e.booking_error),
         book_by: late ? e.late_ok_until : (d.book_by || null), booking_closed: shut, phone, receipt, bring };
       // Black belt essay still to submit (shown on the booking page as its own section)
