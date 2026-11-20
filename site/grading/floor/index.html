@@ -318,7 +318,7 @@ body[data-role="signin"]{overflow:hidden}
 .dimrow{display:flex;gap:10px}
 .inp{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--ink);font-family:inherit;font-weight:600}
 .inp:focus{outline:2px solid var(--accent);border-color:var(--accent)}
-.grp-edit{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line-2)}
+.grp-edit{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line-2)}
 .grp-edit .gi{flex:1}
 .grp-edit .gi b{font-family:"Barlow Semi Condensed";font-size:15px}
 .grp-edit .gi small{display:block;color:var(--ink-3);font-size:11.5px;font-weight:500}
@@ -414,6 +414,16 @@ body[data-role="signin"]{overflow:hidden}
 .sg-dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:11px;flex:none;font-family:"Barlow Semi Condensed"}
 .sg-nm{flex:1;min-width:0;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sg-help{background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap;flex:none}
+  .gx{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px 12px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line-2)}
+  .gx-f{display:flex;flex-direction:column;gap:4px;font-size:12px;min-width:0}
+  .gx-f>span{opacity:.7}
+  .gx-f input,.gx-f select{font:inherit;font-size:14px;padding:7px 9px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--panel);color:inherit;min-width:0}
+  .gx-belts{grid-column:1/-1}
+  .gx-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .gx-chip{font:inherit;font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid var(--line,#ddd);background:transparent;color:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .gx-chip::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--bc);border:1px solid rgba(0,0,0,.2)}
+  .gx-chip.on{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+  .gx-chip:disabled{opacity:.5;cursor:default}
 </style>
 
 </head>
@@ -529,7 +539,20 @@ const siblingsOf=s=>STUDENTS.filter(x=>x.fam===s.fam && x.fam && x.id!==s.id);
 
 const state={ fw:12, fh:10, spotsOut:13, autoBalance:true, groups:[], active:0, sel:null, alert:null, profTab:'ov', role:'admin', baseRole:'admin', callout:null, staffHelper:null };
 let dragging=false;
-function addGroup(belt){ const spots=state.spotsOut; state.groups.push({name:belt?`${belt} → ${nextOf(belt)}`:'Group '+(state.groups.length+1), belt:belt||null, spots, rows:spots>8?2:1, status:'future', slots:spotsArr(spots)}); recone(); }
+function addGroup(belt){ const spots=state.spotsOut; state.groups.push({name:'', belt:belt||null, belts:belt?[belt]:[], title:'', order:'young', spots, rows:spots>8?2:1, status:'future', slots:spotsArr(spots)}); recone(); return state.groups[state.groups.length-1]; }
+// ---- group settings: its belts (several belts can share a group, each standing together), a name, and the order students stand in
+const beltsOf=g=>(g.belts&&g.belts.length)?g.belts:(g.belt?[g.belt]:[]);
+const ORDERS={young:'Youngest to oldest',old:'Oldest to youngest',az:'A to Z',manual:'Manual (drag to arrange)'};
+function autoName(g){ const b=beltsOf(g); return !b.length?'Group':b.length===1?`${b[0]} → ${nextOf(b[0])}`:b.join(' + '); }
+function memberSort(g){ const o=g.order||'young';
+  return (a,b)=> beltR(a.belt)-beltR(b.belt) || (o==='old'?b.age-a.age:o==='az'?0:a.age-b.age) || a.name.localeCompare(b.name); }
+// Where each spot stands. Front row first either way: a single-belt group fills it from the centre out; a mixed group
+// fills it left to right by belt (lowest belt on the left), so each belt stands together, then the back row
+function slotPos(g,n,rows){ const pos=positions(n,rows);
+  // (the back row runs right to left, so a belt that wraps over stays on the same side)
+  if(beltsOf(g).length<2) return centreOut(pos);
+  const ys=[...new Set(pos.map(p=>p.y))].sort((a,b)=>a-b);
+  return pos.slice().sort((a,b)=>(a.y-b.y)||(ys.indexOf(a.y)%2?b.x-a.x:a.x-b.x)); }
 const byId=id=>STUDENTS.find(s=>s.id===id)||null;
 const COMPONENTS=['Flexibility','Hand Techniques','Kicking Techniques','Self-Defence','One-Step Sparring','Kick Boxing','Meditation','Life Skill'];
 const CURR={"White":{"min":12,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stationary Low Block","Stationary Middle Block","Stationary High Block","Stationary Single Punch"],"Kicking Techniques":["Stationary Straight Rising Kick","Stationary Snap Kick","Stationary Axe Kick","Stationary Turning Kick","Stationary 2 Turning Kicks with landing","Master’s Choice of Technique (Optional)"],"Self-Defence":["Same Side Wrist Grab — Escape, Slide away, Side Kick","Bully Defence — Block, Defend, “Stop it I don’t like it”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to head","Step Right Leg Back, Block Left Hand Outwards, Right Leg Turning Kick to Head"],"Kick Boxing":["Jab Cross"],"Meditation":["Beginner One Minute"],"Life Skill":["Self Care.  Students must be able to:","Tie your own belt","Wear Uniform Correctly","Brush your teeth","Shower Regularly"]}},"Yellow":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block","Stepping Forward Middle Block","Stepping Forward High Block","Stationary Double Punch (Right then Left)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Turning Kicks without putting your leg down","Stepping Forward Snap Kick","Stepping Forward Two Turning Kicks","Stationary Side Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Same Side Wrist Grab — Escape, Slide away, Side Kick, Palm, “Back Away”","Opposite Side Wrist Grab","Bully Defence — Block, Defend, “Stop it I don’t like it”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to head","Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to Head","Step Right Leg Back, Block Left Hand Outwards, Right Leg Side Kick to the Ribs (Dragons/Ninjas need"],"Kick Boxing":["Jab Cross Hook Uppercut"],"Meditation":["Beginner One Minute"],"Life Skill":["Respect","Bow before you speak to teachers","Bow when you enter and leave the academy","Bow when you receive or give anything"]}},"Orange":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward then Backwards Low Block","Stepping Forward then Backwards Middle Block","Stepping Forward then Backwards High Block","Stationary Triple Punch (Tae-Kwon-Do)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Turning Kicks without putting your leg down","Stepping Forward Snap Kick then Side Kick (Different Legs)","Stepping Forward Low then High Turning Kicks (Different Legs)","Stationary Back Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Same Side Wrist Grab — Escape, Slide away, Side Kick, Palm, “Back Away”","Opposite Side Wrist Grab","Right Hand Front Collar Grab","Bully Defence — Block, Defend, “Stop it I don’t like it”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to head","Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to Head","Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to","Step Right Leg Back, Block Left Hand Inwards, Right Leg Back Kick to the Ribs (Dragons/Ninjas need"],"Kick Boxing":["Jab, Cross, Hook, Uppercut, Snap, Jumping Snap"],"Meditation":["Beginner One Minute"],"Life Skill":["Leadership","Be able to introduce yourself to a friend and an instructor"]}},"Green":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block and Punch (One Step Only)","Stepping Forward Middle Block and Punch (One Step Only)","Stepping Forward High Block and Punch (One Step Only)","Stepping Forward Triple Punch (Body, Body, Head) (One Step Only)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Four Turning Kicks without putting your leg down","Stepping Forward Snap Kick then Side Kick","Stepping Forward Double Kick (Body, Body) (Switching Legs in the air)","Stationary Reverse Turning Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Two Handed Collar Grab","Stranger Awareness — “You’re not my mum, you’re not my dad, you’re a stranger!”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Block Left Hand Inwards, Right Leg Reverse Turning Kick to the Head"],"Kick Boxing":["Jab Cross Duck to the Left Hook"],"Meditation":["Intermediate Two Minutes"],"Life Skill":["Bully Busting Quiz","What are the Five Steps to Bully Defence? — Ask nicely to Stop — Confidently say “Stop it I don’t like it” — Create a safe space and repeat “Stop it I don’t like it” — Move away — Ask for help"]}},"Blue":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block, Middle Block, and Punch (One Step Only)","Stepping Forward Low Block, High Block, and Punch (One Step Only)","Stepping Forward Middle Block, High Block, and Punch (One Step Only)","Stepping Forward Triple Punch (Body, Body, Head) (One Step Only)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Five Turning Kicks without putting your leg down","Stationary Two Back Kicks","Stepping Forward Double Kick (Body, Head) (Switching Legs in the air)","Stationary Jumping Back Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Two Handed Collar Grab","Choke","Stranger Awareness — “You’re not my mum, you’re not my dad, you’re a stranger!”"],"One-Step Sparring":["Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Block Left Hand Inwards, Right Leg Jumping Back Kick to the Ribs"],"Kick Boxing":["Jab, Cross, Duck to the Left, Hook, Right Turning Kick"],"Meditation":["Intermediate Two minutes"],"Life Skill":["Stranger Awareness"]}},"Purple":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block, Middle Block, High Block, and Punch (One Step Only) (Same Hand for","Stepping Forward Low Block, Middle Block, High Block, and Punch (One Step Only) (Alternating","Stepping Forward Double Punch (Body, Head) (One Step Only)","Stepping Forward Triple Punch (Body, Body, Head) (One Step Only)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Reverse Turning Kicks","Stationary Back Kick and Jumping Back Kick","Stepping Forward Turning Kick and Stationary Reverse Turning Kick","Stationary Hook and Instep Turning Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Two Handed Collar Grab","Choke","Front Body Lock","Stranger Awareness — “You’re not my mum, you’re not my dad, you’re a stranger!”"],"One-Step Sparring":["Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Block Left Hand Inwards, Right Hand Grab the arm, Right Leg Hook & Instep"],"Kick Boxing":["Jab, Cross, Duck to the Left, Hook, Right Turning Kick, Left Reverse"],"Meditation":["Intermediate Two Minutes"],"Life Skill":["Leadership - Look after a beginner buddy in class"]}},"Brown":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block (In Back Stance)","Stepping Forward Double Lower Form Block (In Back Stance)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Reverse Turning Kicks (Low then High)","Stationary Back Kick and Jumping Back Kick","Stepping Forward Turning Kick and Stationary Reverse Turning Kick, Followed by Stepping Forward","Stationary Reverse Hook and Instep","Master’s Choice of Technique (Optional)","First Five Moves of Pal-Jang Taeguk 8"],"Self-Defence":["Bear Hug from behind arms pinned"],"One-Step Sparring":["Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach","Step Right Leg Back, Block Left Hand Inwards, Right Leg Reverse Hook & Instep (Dragons/Ninjas"],"Kick Boxing":["Jab, Cross, Jab, Jab, Cross"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Stranger Awareness quiz on how to access help","Call out for help","Move away","Stay safe always have someone around you","Make sure your parents know where you are and who you are with at all times","If you ever feel uncomfortable call a parent"]}},"Red":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block and Elbow","Stepping Forward Double Lower Form Block and Scissor Kick"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Reverse Turning Kicks (Low, Middle, High)","Stepping Forward Back Kick and Jumping Back Kick","Stepping Forward Turning Kick and Stationary Reverse Turning Kick, Followed by Stepping Forward","Stationary Tornado Kick","Master’s Choice of Technique (Optional)","First Seven Moves of Pal-Jang Taeguk 8"],"Self-Defence":["Bear Hug from behind arms pinned","Grab From Behind Single Handed Grab"],"One-Step Sparring":["Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Block & Tornado"],"Kick Boxing":["Jab, Cross, Jab, Jab, Cross, Turning Kick"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Discipline","Memorise and say the whole student creed"]}},"Red Two":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block, Elbow, Hammer Fist","Stepping Forward Double Lower Form Block, Scissor Kick, Inner Form Block"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Reverse Turning Kicks (Head High)","Stepping Forward Two Jumping Back Kicks","Stepping Forward Turning and Tornado Kick","Stationary Jumping Reverse Hook Kick","Master’s Choice of Technique (Optional)","First Nine Moves of Pal-Jang Taeguk 8"],"Self-Defence":["Bear Hug from Behind Arms Pinned","Grab From Behind Single Handed Grab","Front Head Lock (Facing Same Way)"],"One-Step Sparring":["Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Block & Jumping Reverse (Dragons & Ninjas need this one)"],"Kick Boxing":["Jab, Cross, Jab, Jab, Cross, Turning Kick, Tornado Kick"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Discipline","Ensure shoes are put neatly away in the shoe cabinet"]}},"Red Three":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block, Elbow, Hammer Fist, Punch","Stepping Forward Double Lower Form Block, Scissor Kick, Inner Form Block, Double Punch"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Reverse Hook Kicks (Low, High, Jumping)","Stepping Forward Back Kick, Back Kick, and Jumping Back Kick","Stepping Forward Turning, Tornado and Reverse Hook Kick","Three Move Combination Move of Your Choice (Including Hands, Kicks and optional Gymnastics)","Master’s Choice of Technique (Optional)"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Left Hand Block, Right Hand Punch, Left Hand Grab, Right Elbow, Right Leg Trip (Left Hand hold"],"Kick Boxing":["Jab Cross Hook Uppercut Snap Jumping Snap","Jab Cross Duck to the Left Hook Right Turning Kick Left Reverse","Jab Cross Jab Jab Cross Turning Kick Tornado Kick"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Discipline","Help students line up on the prep zone prior to class"]}},"Cho Dan Bo":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block, Elbow, Hammer Fist, Punch","Stepping Forward Double Lower Form Block, Scissor Kick, Inner Form Block, Double Punch"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Jumping Back Kicks","Stationary Two Jumping Reverse Hook Kicks","Stationary Jumping Back Kick and Jumping Reverse Hook Kick","Stepping Forward Turning, Tornado and Reverse Hook Kick","Stepping Forward Back Kick, Back Kick and Jumping Back Kick","Stationary Three Reverse Hook Kicks (Low, High and Jumping)","Five to Seven Move Combination Move of Your Choice (Including Hands, Kicks and optional","Pal-Jang Taeguk 8 (All 23 Moves)"],"Self-Defence":["Self Defence against Beginner (Stage One), Intermediate (Stage Two), Advanced (Stage Three)"],"One-Step Sparring":["Hands Only","Kicks Only","Hand & Kicks","Takedown","Lock"],"Meditation":["Advanced Three Minutes"]}}};
@@ -569,28 +592,36 @@ const spotsArr=n=>Array(Math.max(1,n)).fill(null);
 const started=()=>state.groups.some(g=>g.status!=='future');       // has the host started any group?
 const occupied=g=>g.slots.filter(x=>x!=null).length;
 const nextOf=belt=>{ const k=Object.keys(BELTS); return k[k.indexOf(belt)+1]||belt; };
-function generateGroups(){ // one belt colour per group; split a belt into even groups only when it's over "spots out", youngest -> oldest
-  const spots=Math.max(1,state.spotsOut), p=roster();          // every booked student, age-sorted — cones are set before anyone arrives
+function generateGroups(){ // belts in order; small belts share a group (each belt standing together); a belt bigger than "spots out" is split evenly
+  const spots=Math.max(1,state.spotsOut), p=roster();          // every booked student — cones are set before anyone arrives
   const belts=[...new Set(p.map(s=>s.belt))].sort((a,b)=>beltR(a)-beltR(b));
-  const groups=[];
+  const groups=[], mk=(bs,ids)=>{ const g={name:'',belt:bs[0],belts:bs.slice(),title:'',order:'young',spots,rows:spots>8?2:1,status:'future',slots:spotsArr(spots)};
+    ids.forEach((id,k)=>g.slots[k]=id); groups.push(g); return g; };
+  let open=null;   // the last group, while it still has room for a whole belt
   for(const belt of belts){
-    const kids=p.filter(s=>s.belt===belt), G=Math.max(1,Math.ceil(kids.length/spots)), base=Math.floor(kids.length/G), extra=kids.length%G; let i=0;
-    for(let gi=0;gi<G;gi++){ const cnt=base+(gi<extra?1:0), slots=spotsArr(spots);
-      for(let k=0;k<cnt;k++) slots[k]=kids[i++].id;
-      groups.push({name:`${belt} → ${nextOf(belt)}`+(G>1?` (${gi+1})`:''), belt, spots, rows:spots>8?2:1, status:'future', slots}); }
+    const kids=p.filter(s=>s.belt===belt).map(s=>s.id);
+    if(kids.length>spots){   // too big for one group: split evenly, each part its own group
+      const G=Math.ceil(kids.length/spots), base=Math.floor(kids.length/G), extra=kids.length%G; let i=0;
+      for(let gi=0;gi<G;gi++){ const cnt=base+(gi<extra?1:0); mk([belt],kids.slice(i,i+cnt)); i+=cnt; }
+      open=null; continue;
+    }
+    if(open && occupied(open)+kids.length<=spots){ open.belts.push(belt); kids.forEach(id=>{ const k=open.slots.indexOf(null); open.slots[k]=id; }); }
+    else open=mk([belt],kids);
   }
-  state.groups=groups.length?groups:[{name:'Group 1',belt:null,spots,rows:spots>8?2:1,status:'future',slots:spotsArr(spots)}];
+  groups.forEach(reflowFuture);
+  state.groups=groups.length?groups:[{name:'',belt:null,belts:[],title:'',order:'young',spots,rows:spots>8?2:1,status:'future',slots:spotsArr(spots)}];
   state.active=Math.min(state.active,state.groups.length-1); state.alert=null; recone();
 }
-function recone(){ state.groups.forEach((g,i)=>g.cone=String.fromCharCode(65+i)); }   // cone labels A, B, C…
+function recone(){ state.groups.forEach((g,i)=>{ g.cone=String.fromCharCode(65+i); g.name=g.title||autoName(g); }); }   // cone labels A, B, C… and names
 function groupOf(id){ return state.groups.findIndex(g=>g.slots.includes(id)); }
-function reflowFuture(g){ // keep a not-yet-started group youngest -> oldest in its first spots
-  const mem=g.slots.filter(x=>x!=null).map(byId).sort((a,b)=>a.age-b.age||a.name.localeCompare(b.name));
+function reflowFuture(g){ // keep a not-yet-started group in its order (belt by belt) in its first spots; manual order keeps where staff put them
+  if(g.order==='manual') return;
+  const mem=g.slots.filter(x=>x!=null).map(byId).filter(Boolean).sort(memberSort(g));
   g.slots=spotsArr(g.spots); mem.forEach((s,k)=>{ if(k<g.spots) g.slots[k]=s.id; });
 }
 function placeLate(id){ // a late check-in can only join a FUTURE group of their own belt (or a spare group) that has room
   const s=byId(id);
-  for(const g of state.groups){ if(g.status==='future' && (g.belt===s.belt || g.belt==null) && occupied(g)<g.spots){ g.slots.push(id); reflowFuture(g); return true; } }
+  for(const g of state.groups){ if(g.status==='future' && (beltsOf(g).includes(s.belt) || !beltsOf(g).length) && occupied(g)<g.spots){ const k=g.slots.indexOf(null); if(k>=0) g.slots[k]=id; else g.slots.push(id); reflowFuture(g); return true; } }
   return false;
 }
 function removeStudent(id){ for(const g of state.groups){ const k=g.slots.indexOf(id); if(k>=0){ g.slots[k]=null; if(g.status==='future') reflowFuture(g); return; } } }
@@ -635,7 +666,7 @@ function renderKiosk(){
     k.innerHTML=`<div class="ki-wrap done"><div class="ki-card">
       <div class="ki-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></div>
       <div class="ki-name">${s.name}</div><div class="ki-msg">You're checked in</div>
-      ${g?`<div class="ki-group" style="--bc:${g.belt?beltC(g.belt):'var(--accent)'}"><div class="ki-cone">${g.cone}</div><div class="ki-gi"><b>Group ${g.cone}</b><span>${g.belt?`${g.belt} → ${nextOf(g.belt)}`:g.name}</span></div></div>
+      ${g?`<div class="ki-group" style="--bc:${g.belt?beltC(g.belt):'var(--accent)'}"><div class="ki-cone">${g.cone}</div><div class="ki-gi"><b>Group ${g.cone}</b><span>${g.name}</span></div></div>
         <div class="ki-find">Head to the <b>Group ${g.cone}</b> cones and wait there</div>`:`<div class="ki-find">Please see a staff member for your group.</div>`}
       <button class="ki-next" id="kiNext">Done — next person</button></div></div>`;
     $('#kiNext').onclick=()=>{ kioskState={q:'',done:null}; render(); };
@@ -680,7 +711,7 @@ function renderStaff(){
         const tag=g.status==='current'?' · LIVE':g.status==='past'?' · done':'';
         return `<div class="sg ${g.status}">
           <div class="sg-h"><span class="cone" style="background:${g.belt?beltC(g.belt):'var(--ink)'}">${g.cone||'?'}</span>
-            <div class="sg-t"><b>${g.belt?`${g.belt} → ${nextOf(g.belt)}`:g.name}</b><small>${mem.length} booked · ${here} here${tag}</small></div></div>
+            <div class="sg-t"><b>${g.name}</b><small>${mem.length} booked · ${here} here${tag}</small></div></div>
           <div class="sg-list">${mem.length?mem.map(s=>{ const asg=HELPERS.assign[id2entry[s.id]], hereS=!absentIds.has(s.id);
             return `<button class="sg-row ${hereS?'':'away'} ${asg?'asg':''}" data-s="${s.id}">
               <span class="sg-dot" style="background:${beltC(s.belt)}">${initials(s.name)}</span>
@@ -770,7 +801,7 @@ function render(){
   const masterWaiting = role==='master' && liveIdx<0;                              // Master with no group up yet
   // header
   if(sMode==='next'){ $('#flName').textContent='Who’s next?'; $('#flSub').textContent='Tap the next group to call it out'; }
-  else if(sMode==='callout'){ $('#flName').textContent=`Call out · Group ${g.cone||'?'}`; $('#flSub').textContent=`${hereIds.length} of ${booked.length} here · ${g.belt?`${g.belt} → ${nextOf(g.belt)}`:g.name}`; }
+  else if(sMode==='callout'){ $('#flName').textContent=`Call out · Group ${g.cone||'?'}`; $('#flSub').textContent=`${hereIds.length} of ${booked.length} here · ${g.name}`; }
   else { $('#flName').textContent=masterWaiting?'Ready':(g.cone?`Group ${g.cone} · `:'')+g.name;
     $('#flSub').textContent=masterWaiting?'The next group will show here the moment it starts'
       :cleanLive?`${hereIds.length} on the floor · ${booked.length} in this group`
@@ -800,7 +831,7 @@ function render(){
     const futs=groups.map((gg,i)=>({gg,i})).filter(o=>o.gg.status==='future');
     floor.innerHTML = futs.length ? `<div class="whonext">${futs.map(o=>{ const mem=o.gg.slots.filter(x=>x!=null), here=mem.filter(id=>!absentIds.has(id)).length;
         return `<button class="wn-row" data-call="${o.i}"><span class="cone" style="background:${o.gg.belt?beltC(o.gg.belt):'var(--ink)'}">${o.gg.cone||'?'}</span>
-          <span class="wn-main"><b>${o.gg.belt?`${o.gg.belt} → ${nextOf(o.gg.belt)}`:o.gg.name}</b><small>${here} of ${mem.length} here</small></span>
+          <span class="wn-main"><b>${o.gg.name}</b><small>${here} of ${mem.length} here</small></span>
           <span class="wn-go">Call out ›</span></button>`; }).join('')}</div>`
       : `<div class="co-done">All groups done — great work. ✓</div>`;
     $$('#floor .wn-row').forEach(b=>b.onclick=()=>{ state.callout=+b.dataset.call; render(); });
@@ -821,7 +852,7 @@ function render(){
   else if(!g.spots){ floor.className='floor empty'; floor.innerHTML='<div class="instr">No spots in this group</div>'; }
   else if(cleanLive){
     floor.className='floor live';
-    const n=Math.max(hereIds.length,1), pos=centreOut(positions(n,hereIds.length>8?2:1));
+    const n=Math.max(hereIds.length,1), pos=slotPos(g,n,hereIds.length>8?2:1);
     floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+(hereIds.length?pos.map((p,i)=>{ const s=byId(hereIds[i]); if(!s) return '';
       return `<div class="spot ${state.sel===s.id?'sel':''}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%;cursor:pointer">
         <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div>
@@ -829,7 +860,7 @@ function render(){
     $$('#floor .spot').forEach(el=>el.onclick=()=>openProfile(+el.dataset.s));
   } else {
     floor.className='floor'+(g.status==='current'?' live':g.status==='past'?' past':'');
-    const pos=centreOut(positions(g.spots,g.rows));   // front row first, centre out; then the back row
+    const pos=slotPos(g,g.spots,g.rows);   // front row first, centre out; then the back row
     floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{
       const s=byId(lay[i]);
       if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
@@ -890,7 +921,7 @@ function wireFloor(gi,g){
 }
 function makeGhost(el){ const w=document.createElement('div'); w.className='ghost'; w.appendChild(el.querySelector('.dot').cloneNode(true)); return w; }
 function spotUnder(e,self){ for(const n of document.elementsFromPoint(e.clientX,e.clientY)){ const sp=n.closest&&n.closest('.spot'); if(sp&&sp!==self&&sp.parentElement&&sp.parentElement.id==='floor') return sp; } return null; }
-function dropMove(gi,g,from,to){ const s=state.groups[gi].slots, t=s[from]; s[from]=s[to]; s[to]=t; persistGroup(gi,{slots:1}); render(); } // swap the two dots
+function dropMove(gi,g,from,to){ const s=state.groups[gi].slots, t=s[from]; s[from]=s[to]; s[to]=t; if(state.groups[gi].status==='future') state.groups[gi].order='manual'; persistGroups(); render(); } // swap the two dots
 
 function openProfile(id){
   const s=STUDENTS.find(x=>x.id===id); if(!s) return; state.sel=id;
@@ -965,6 +996,40 @@ $('#scrim').onclick=closeProfile;
 
 // settings
 function manual(){ state.autoBalance=false; }
+// The belts grading today, lowest first
+function dayBelts(){ return [...new Set(STUDENTS.map(s=>s.belt))].sort((a,b)=>beltR(a)-beltR(b)); }
+// Add a belt to a group (its students move in from other not-started groups while there's room) or take it out
+// (its students move to another not-started group with that belt and room, or a new group of their own)
+// A new group goes in belt order (before the first not-started group of a higher belt), so the cones still run lowest belt first
+function placeNew(g){ const gs=state.groups, i=gs.indexOf(g); gs.splice(i,1);
+  const at=gs.findIndex(o=>o.status==='future'&&beltsOf(o).length&&beltR(beltsOf(o)[0])>beltR(beltsOf(g)[0]));
+  gs.splice(at<0?gs.length:at,0,g); return g; }
+function setGroupBelt(gi,belt,on){
+  const g=state.groups[gi]; if(!g||g.status!=='future') return;
+  const act=state.groups[state.active], mine=beltsOf(g).slice();
+  if(on){
+    if(mine.includes(belt)) return;
+    g.belts=[...mine,belt].sort((a,b)=>beltR(a)-beltR(b)); g.belt=g.belts[0];
+    state.groups.forEach((o,oi)=>{ if(oi===gi||o.status!=='future') return;
+      o.slots.forEach((id,k)=>{ const st=id!=null&&byId(id); if(st&&st.belt===belt&&occupied(g)<g.spots){ o.slots[k]=null; const f=g.slots.indexOf(null); if(f>=0) g.slots[f]=id; else g.slots.push(id); } });
+      if(!occupied(o) && beltsOf(o).every(b=>b===belt)) o.dead=true;
+      else if(!o.slots.some(id=>id!=null&&byId(id)&&byId(id).belt===belt)&&beltsOf(o).length>1){ o.belts=beltsOf(o).filter(b=>b!==belt); o.belt=o.belts[0]; }
+      reflowFuture(o); });
+  } else {
+    if(!mine.includes(belt)) return;
+    g.belts=mine.filter(b=>b!==belt); g.belt=g.belts[0]||null;
+    const out=g.slots.filter(id=>id!=null&&byId(id)&&byId(id).belt===belt);
+    g.slots=g.slots.map(id=>out.includes(id)?null:id);
+    let home=null;
+    for(const id of out){
+      if(!home||occupied(home)>=home.spots) home=state.groups.find((o,oi)=>oi!==gi&&o.status==='future'&&beltsOf(o).includes(belt)&&occupied(o)<o.spots)||placeNew(addGroup(belt));
+      const f=home.slots.indexOf(null); if(f>=0) home.slots[f]=id; else home.slots.push(id); reflowFuture(home);
+    }
+  }
+  reflowFuture(g);
+  state.groups=state.groups.filter(o=>!o.dead);
+  state.active=Math.max(0,state.groups.indexOf(act)>=0?state.groups.indexOf(act):Math.min(state.active,state.groups.length-1)); recone();
+}
 function renderSettings(){
   $('#dsize').value=state.spotsOut; $('#fw').value=state.fw; $('#fh').value=state.fh;
   $('#balNote').textContent=state.autoBalance
@@ -974,11 +1039,19 @@ function renderSettings(){
     <div class="gi"><b>${g.name}</b><small>${occupied(g)} students on ${g.spots} spots${g.status!=='future'?' · '+(g.status==='current'?'LIVE':'done'):''}</small></div>
     <div class="stepper"><button data-dec="${i}">−</button><span class="n">${g.spots}</span><button data-inc="${i}">+</button></div>
     ${state.groups.length>1?`<button class="rm" data-rm="${i}">Remove</button>`:''}
-    <div class="seg"><button data-rows="${i}" data-v="1" class="${g.rows===1?'on':''}">One line</button><button data-rows="${i}" data-v="2" class="${g.rows===2?'on':''}">Two rows</button></div></div>`).join('');
+    <div class="seg"><button data-rows="${i}" data-v="1" class="${g.rows===1?'on':''}">One line</button><button data-rows="${i}" data-v="2" class="${g.rows===2?'on':''}">Two rows</button></div>
+    <div class="gx">
+      <label class="gx-f"><span>Name</span><input type="text" data-title="${i}" value="${(g.title||'').replace(/"/g,'&quot;')}" placeholder="${autoName(g).replace(/"/g,'&quot;')}" maxlength="40"></label>
+      <label class="gx-f"><span>Order</span><select data-order="${i}">${Object.entries(ORDERS).map(([k,t])=>`<option value="${k}"${(g.order||'young')===k?' selected':''}>${t}</option>`).join('')}</select></label>
+      <div class="gx-f gx-belts"><span>Belts${g.status!=='future'?' (locked once started)':''}</span><div class="gx-chips">${dayBelts().map(b=>{ const on=beltsOf(g).includes(b); return `<button class="gx-chip${on?' on':''}" data-gbelt="${i}" data-b="${b}" style="--bc:${beltC(b)}"${g.status!=='future'?' disabled':''}>${b}</button>`; }).join('')}</div></div>
+    </div></div>`).join('');
   $$('#grpEdit [data-inc]').forEach(b=>b.onclick=()=>{manual();setSpots(state.groups[+b.dataset.inc],state.groups[+b.dataset.inc].spots+1);renderSettings();render();persistGroups();});
   $$('#grpEdit [data-dec]').forEach(b=>b.onclick=()=>{manual();const g=state.groups[+b.dataset.dec];setSpots(g,g.spots-1);renderSettings();render();persistGroups();});
   $$('#grpEdit [data-rm]').forEach(b=>b.onclick=()=>{manual();state.groups.splice(+b.dataset.rm,1);recone();state.active=Math.min(state.active,state.groups.length-1);renderSettings();render();persistGroups();});
   $$('#grpEdit [data-rows]').forEach(b=>b.onclick=()=>{state.groups[+b.dataset.rows].rows=+b.dataset.v;renderSettings();render();persistGroups();});
+  $$('#grpEdit [data-title]').forEach(inp=>inp.onchange=()=>{ const g=state.groups[+inp.dataset.title]; g.title=inp.value.trim().slice(0,40); recone(); renderSettings(); render(); persistGroups(); });
+  $$('#grpEdit [data-order]').forEach(sel=>sel.onchange=()=>{ const g=state.groups[+sel.dataset.order]; g.order=sel.value; if(g.status==='future') reflowFuture(g); renderSettings(); render(); persistGroups(); });
+  $$('#grpEdit [data-gbelt]').forEach(b=>b.onclick=()=>{ manual(); setGroupBelt(+b.dataset.gbelt, b.dataset.b, !b.classList.contains('on')); renderSettings(); render(); persistGroups(); });
   $('#superTools').innerHTML = state.role==='super' ? `<div class="supertools"><div class="st-h">Super override</div><button class="btn ghost block" id="resetGrading">Reset grading — clear all statuses, scores and check-ins</button></div>` : '';
   const rg=$('#resetGrading'); if(rg) rg.onclick=()=>{ for(const k in scores) delete scores[k]; for(const k in patt) delete patt[k]; for(const k in ticks) delete ticks[k]; absentIds.clear(); state.autoBalance=true; generateGroups(); renderSettings(); render(); persistGroups(); resetScoresRemote(); };
 }
@@ -1004,7 +1077,7 @@ const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#siForm' 
 try { if (window.AmaIdle) AmaIdle.watch({ sb }); } catch (e) {}
 
 const slotEntries = g => g.slots.map(id => id == null ? null : (id2entry[id] || null));
-function groupsJson() { return state.groups.map((g, i) => ({ ord: i, cone: g.cone, belt: g.belt, spots: g.spots, rows: g.rows, status: g.status, slots: slotEntries(g) })); }
+function groupsJson() { return state.groups.map((g, i) => ({ ord: i, cone: g.cone, belt: beltsOf(g)[0] || null, spots: g.spots, rows: g.rows, status: g.status, slots: slotEntries(g), opts: { title: g.title || '', belts: beltsOf(g), order: g.order || 'young' } })); }
 let saveT = null;
 function persistGroups() { if (!DAYID || loading) return; clearTimeout(saveT); saveT = setTimeout(() => sb.rpc('cb_floor_save_groups', { p_day: DAYID, p_groups: groupsJson() }), 300); }
 function persistGroup(i, patch) { if (!DAYID || loading) return; const p = { ...patch }; if ('slots' in patch) p.slots = slotEntries(state.groups[i]); sb.rpc('cb_group_patch', { p_day: DAYID, p_ord: i, p_patch: p }); }
@@ -1017,7 +1090,8 @@ function loadHelpers(h) { HELPERS = (h && typeof h === 'object') ? { names: Arra
 
 function loadGroups(gs) {
   state.groups = (gs || []).slice().sort((a, b) => a.ord - b.ord).map(g => ({
-    name: g.belt ? `${g.belt} → ${nextOf(g.belt)}` : 'Group', belt: g.belt, spots: g.spots, rows: g.rows, status: g.status, cone: g.cone,
+    name: '', belt: g.belt, belts: (g.opts && Array.isArray(g.opts.belts) && g.opts.belts.length) ? g.opts.belts : (g.belt ? [g.belt] : []),
+    title: (g.opts && g.opts.title) || '', order: (g.opts && g.opts.order) || 'young', spots: g.spots, rows: g.rows, status: g.status, cone: g.cone,
     slots: (g.slots || []).map(e => e == null ? null : (entry2id[e] || null))
   }));
   state.active = Math.min(state.active, Math.max(0, state.groups.length - 1)); recone();

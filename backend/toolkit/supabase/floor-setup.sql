@@ -92,7 +92,7 @@ begin
     'day', (select jsonb_build_object('day_id',d.day_id,'date',d.grading_date,'location',d.location,'start_time',d.start_time,
               'belt_times',d.belt_times,'floor_spots',d.floor_spots,'checkin_code',d.checkin_code,'belts',d.belts,'closed',d.closed) from public.cb_days d where d.day_id = p_day),
     'helpers', coalesce((select d2.helpers from public.cb_days d2 where d2.day_id = p_day), '{}'::jsonb),
-    'groups', (select coalesce(jsonb_agg(jsonb_build_object('ord',g.ord,'cone',g.cone,'belt',g.belt,'spots',g.spots,'rows',g.rows,'status',g.status,'slots',g.slots) order by g.ord),'[]'::jsonb) from public.cb_groups g where g.day_id = p_day),
+    'groups', (select coalesce(jsonb_agg(jsonb_build_object('ord',g.ord,'cone',g.cone,'belt',g.belt,'spots',g.spots,'rows',g.rows,'status',g.status,'slots',g.slots,'opts',g.opts) order by g.ord),'[]'::jsonb) from public.cb_groups g where g.day_id = p_day),
     'students', (select coalesce(jsonb_agg(q.s order by q.full_name),'[]'::jsonb) from (
         select e.full_name, jsonb_build_object(
           'entry_id',e.entry_id,'member_key',e.member_key,'full_name',e.full_name,'belt_from',e.belt_from,'belt_to',e.belt_to,
