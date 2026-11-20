@@ -36,8 +36,10 @@ create table if not exists public.cb_groups (
   rows       int  not null default 2,
   status     text not null default 'future' check (status in ('future','current','past')),
   slots      jsonb not null default '[]'::jsonb,   -- ordered array of entry_id text (or null for an empty spot)
+  opts       jsonb not null default '{}'::jsonb,   -- {title, belts, order} (floor-group-settings.sql)
   updated_at timestamptz not null default now()
 );
+alter table public.cb_groups add column if not exists opts jsonb not null default '{}'::jsonb;
 create index if not exists cb_groups_day_idx on public.cb_groups (day_id, ord);
 
 create table if not exists public.cb_scores (
