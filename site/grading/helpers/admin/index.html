@@ -89,13 +89,42 @@
   .other{color:var(--faint)}
   .plain{display:flex;flex-wrap:wrap;gap:6px}
   .pill{font-size:13px;border:1px solid var(--line2);border-radius:999px;padding:3px 10px;color:var(--muted)}
+  /* cleaner layout */
+  .home{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--fg);font-weight:600;font-size:14px;border:1px solid var(--line2);border-radius:10px;padding:6px 11px;min-height:36px}
+  .home svg{width:16px;height:16px}
+  .tabs .n{font-size:12px;color:var(--faint);margin-left:4px;font-weight:600}
+  .sum{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .sum p{margin:0;font-size:14px;color:var(--muted)}.sum b{color:var(--fg)}
+  .group-h{font:700 13px var(--body);letter-spacing:.02em;color:var(--faint);margin:6px 2px -2px;text-transform:none}
+  .rows{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .rows>li+li{border-top:1px solid var(--line)}
+  .r{display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer}
+  .r.off{opacity:.55}
+  .dt{flex:none;width:46px;text-align:center;line-height:1.05;border-radius:10px;background:var(--raise);padding:5px 0}
+  .dt small{display:block;font-size:10.5px;font-weight:700;color:var(--faint);letter-spacing:.04em}
+  .dt b{font:700 19px var(--display);display:block}
+  .ri{flex:1;min-width:0}
+  .ri b{display:block;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ri small{display:block;color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fill{flex:none;width:58px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:13px;font-weight:700}
+  .bar{width:100%;height:4px;border-radius:4px;background:var(--line2);overflow:hidden}.bar i{display:block;height:100%;background:var(--green)}
+  .fill.full{color:var(--accent)}.fill.full .bar i{background:var(--accent)}
+  .det{padding:4px 12px 12px 70px;display:flex;flex-direction:column;gap:10px}
+  .det .ctrls{gap:8px 16px}
+  .names-in{font-size:13.5px;color:var(--muted)}.names-in b{color:var(--fg);font-weight:600}
+  .chev{flex:none;color:var(--faint);transition:transform .15s}.open .chev{transform:rotate(90deg)}
+  .seg2{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:2px;gap:2px;background:var(--bg)}
+  .seg2 button{font:inherit;font-size:13px;font-weight:600;border:0;background:none;color:var(--muted);border-radius:8px;padding:6px 11px;cursor:pointer}
+  .seg2 button[aria-pressed="true"]{background:var(--raise);color:var(--fg)}
+  .inv{display:flex;align-items:center;gap:10px;padding:10px 12px}
+  .inv .ri b{white-space:normal}
+  .tabs button{white-space:nowrap}
+  @media (max-width:520px){ .det{padding-left:12px} .fill{width:48px} .who{display:none} .tabs button{font-size:14px;padding:9px 4px} .appbar h1{font-size:19px} }
 </style>
 </head>
 <body>
-<header class="appbar"><div class="appbar-inner"><h1>Grading Helpers</h1><span class="grow"></span><span class="who" id="who" hidden></span><button class="btn sm" id="signOut" hidden>Sign out</button></div></header>
+<header class="appbar"><div class="appbar-inner"><a class="home" href="../../../" aria-label="Back to the AMA Toolkit home page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Home</a><h1>Grading Helpers</h1><span class="grow"></span><span class="who" id="who" hidden></span><button class="btn sm" id="signOut" hidden>Sign out</button></div></header>
 <main>
-  <p class="intro" id="intro">Open grading days for helpers, set how many you want, and invite the black belts who can sign up.</p>
-
   <section id="signIn" class="card" hidden>
     <h2 style="margin:0">Sign in</h2>
     <p class="hint">Sign in with your AMA login.</p>
@@ -110,26 +139,27 @@
   <p class="hint" id="loading">Loading…</p>
   <p class="msg bad" id="noaccess" hidden>Your login can't manage grading helpers. Ask an admin for the "Days" permission on Coloured Belts.</p>
 
-  <div id="app" hidden>
-    <div class="tabs" role="tablist"><button role="tab" data-tab="cb" aria-selected="true">Coloured belt</button><button role="tab" data-tab="bb" aria-selected="false">Black belt</button></div>
+  <div id="app" hidden style="display:flex;flex-direction:column;gap:14px">
+    <div class="tabs" role="tablist"><button role="tab" data-tab="cb" aria-selected="true">Coloured belt</button><button role="tab" data-tab="bb" aria-selected="false">Black belt</button><button role="tab" data-tab="inv" aria-selected="false">Invite<span class="n" id="invN"></span></button></div>
 
-    <section id="bbPane" hidden>
-      <h2>Black belt grading</h2>
-      <p class="hint" id="bbIntro">Everyone helping at each session of the black belt grading. Students going for 4th Dan and above count towards each session's cap; other helpers don't. Texting and changes are in the Black Belt app (Grading › Helpers).</p>
-      <div id="bbBody"><p class="hint">Loading…</p></div>
-      <h2>Black belt grading day sign-ups</h2>
-      <ul class="list" id="bbDays"></ul>
+    <section id="cbPane" style="display:flex;flex-direction:column;gap:10px">
+      <div class="sum"><p id="cbSum"></p></div>
+      <div id="days"></div>
+      <p class="hint">Tap a grading to change how many helpers you want or who can help. Switch it off to stop sign-ups.</p>
     </section>
 
-    <section id="cbPane">
-    <h2>Grading days</h2>
-    <p class="hint">Turn a day on to let invited helpers sign up for it. The cap is how many helpers you want; once it's reached the day drops off their list.</p>
-    <ul class="list" id="days"></ul>
+    <section id="bbPane" hidden style="display:flex;flex-direction:column;gap:12px">
+      <p class="hint" id="bbIntro"></p>
+      <div id="bbBody"><p class="hint">Loading…</p></div>
+      <div class="group-h">Black belt grading day sign-ups</div>
+      <div id="bbDays"></div>
+    </section>
 
-    <h2>Invite helpers</h2>
-    <p class="hint">Invite a black belt to create their personal sign-up link, then send it to them yourself. Nobody is texted automatically.</p>
-    <input class="search" id="search" placeholder="Search black belts…" autocomplete="off">
-    <ul class="list" id="roster"></ul>
+    <section id="invPane" hidden style="display:flex;flex-direction:column;gap:10px">
+      <p class="hint">Turn someone on to make their personal sign-up link, then copy it and send it to them yourself. Nobody is texted automatically.</p>
+      <div class="sum"><div class="seg2" id="invFilter"><button data-f="in" aria-pressed="true">Invited</button><button data-f="all" aria-pressed="false">All black belts</button></div></div>
+      <input class="search" id="search" placeholder="Search black belts…" autocomplete="off">
+      <ul class="rows" id="roster"></ul>
     </section>
   </div>
 </main>
@@ -157,50 +187,69 @@ async function api(action, body={}){
   catch(e){ return { error:'Network error. Try again.' }; }
 }
 
-function renderDays(){
-  const row = d=>{
-    const n=(d.helpers||[]).length, cap=d.helper_cap;
-    const aud = d.bb ? '' : `<label>Who <select data-set="audience" data-day="${d.day_id}">
-      <option value="all"${(d.helper_audience||'all')==='all'?' selected':''}>All Ages</option>
+const OPEN = new Set();   // gradings whose details are showing
+const shortBelt = b => String(b||'').replace(/ Belt$/,'');
+function beltsLine(d){ const b=Array.isArray(d.belts)?d.belts:[]; if(!b.length) return d.programme||''; return b.length>2 ? `${shortBelt(b[0])} to ${shortBelt(b[b.length-1])}` : b.map(shortBelt).join(' & '); }
+function dayRow(d){
+  const n=(d.helpers||[]).length, cap=d.helper_cap||0, full=cap&&n>=cap, dt=new Date(d.grading_date+'T00:00:00');
+  const wd=['SUN','MON','TUE','WED','THU','FRI','SAT'][dt.getDay()], mo=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][dt.getMonth()];
+  const open=OPEN.has(d.day_id);
+  const aud = d.bb ? '' : `<label>Who can help <select data-set="audience" data-day="${d.day_id}">
+      <option value="all"${(d.helper_audience||'all')==='all'?' selected':''}>All ages</option>
       <option value="kids"${d.helper_audience==='kids'?' selected':''}>Dragons &amp; Ninjas</option>
       <option value="13+"${d.helper_audience==='13+'?' selected':''}>Teens &amp; Adults</option></select></label>`;
-    const belts = Array.isArray(d.belts)&&d.belts.length ? d.belts.join(', ') : (d.programme||'');
-    const whoIn = d.helper_open ? (n ? `<div class="who-in">${n}/${cap} helping — ${esc((d.helpers||[]).join(', '))}</div>` : `<div class="who-in none">No helpers yet (${cap} wanted)</div>`) : '';
-    return `<li class="drow ${d.helper_open?'':'off'}">
-      <div class="top">
-        <div class="nm"><b>${fmtDate(d.grading_date)} · ${esc(SHOW(d.location))}${fmtTime(d.start_time)?' · '+fmtTime(d.start_time):''}</b><small>${esc(belts)||'&nbsp;'}</small></div>
-        ${d.bb?'<span class="bbtag">Black belt</span>':''}
-        <input type="checkbox" class="sw" data-set="open" data-day="${d.day_id}" ${d.helper_open?'checked':''} title="Open for helpers">
-      </div>
-      ${d.helper_open?`<div class="ctrls"><label>Helpers wanted <input type="number" min="0" max="50" value="${cap}" data-set="cap" data-day="${d.day_id}"></label>${aud}</div>${whoIn}`:''}
-    </li>`;
-  };
-  $('#days').innerHTML = DAYS.filter(d=>!d.bb).map(row).join('') || '<li class="hint">No upcoming coloured belt grading days.</li>';
-  $('#bbDays').innerHTML = DAYS.filter(d=>d.bb).map(row).join('') || '<li class="hint">No upcoming black belt grading days.</li>';
+  return `<li class="${open?'open':''}"><div class="r ${d.helper_open?'':'off'}" data-row="${d.day_id}">
+      <div class="dt"><small>${wd}</small><b>${dt.getDate()}</b><small>${mo}</small></div>
+      <div class="ri"><b>${esc(SHOW(d.location))}${fmtTime(d.start_time)?' · '+fmtTime(d.start_time):''}</b><small>${esc(beltsLine(d))||'&nbsp;'}</small></div>
+      ${d.helper_open?`<div class="fill${full?' full':''}">${n}/${cap}<span class="bar"><i style="width:${cap?Math.min(100,Math.round(n/cap*100)):0}%"></i></span></div>`:'<div class="fill" style="color:var(--faint);font-weight:600">Off</div>'}
+      <input type="checkbox" class="sw" data-set="open" data-day="${d.day_id}" ${d.helper_open?'checked':''} aria-label="Open for helpers">
+    </div>
+    ${open?`<div class="det">
+      ${d.helper_open?`<div class="ctrls"><label>Helpers wanted <input type="number" min="0" max="50" value="${cap}" data-set="cap" data-day="${d.day_id}"></label>${aud}</div>`:'<p class="hint">Switch it on to let invited helpers sign up.</p>'}
+      <div class="names-in">${n?`<b>Helping:</b> ${esc((d.helpers||[]).join(', '))}`:'No one has signed up yet.'}</div>
+    </div>`:''}</li>`;
+}
+function weekLabel(ymd){
+  const d=new Date(ymd+'T00:00:00'), t=new Date(new Date().toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'})+'T00:00:00');
+  const mon=x=>{ const m=new Date(x); m.setDate(m.getDate()-((m.getDay()+6)%7)); return m; };
+  const wk=Math.round((mon(d)-mon(t))/6048e5);
+  return wk<=0?'This week':wk===1?'Next week':'Week of '+fmtDate(mon(d).toISOString().slice(0,10)).replace(/^\w+ /,'');
+}
+function renderDays(){
+  const cb=DAYS.filter(d=>!d.bb), bb=DAYS.filter(d=>d.bb);
+  const openD=cb.filter(d=>d.helper_open), spots=openD.reduce((a,d)=>a+(d.helper_cap||0),0), filled=openD.reduce((a,d)=>a+(d.helpers||[]).length,0);
+  $('#cbSum').innerHTML = cb.length ? `<b>${openD.length}</b> of ${cb.length} gradings open · <b>${filled}</b> of ${spots} helper spots filled` : '';
+  const groups=[]; for(const d of cb){ const w=weekLabel(d.grading_date); let g=groups.find(x=>x.w===w); if(!g) groups.push(g={w,days:[]}); g.days.push(d); }
+  $('#days').innerHTML = groups.map(g=>`<div class="group-h">${esc(g.w)}</div><ul class="rows" style="margin-top:8px;margin-bottom:6px">${g.days.map(dayRow).join('')}</ul>`).join('') || '<p class="hint">No upcoming coloured belt grading days.</p>';
+  $('#bbDays').innerHTML = bb.length ? `<ul class="rows">${bb.map(dayRow).join('')}</ul>` : '<p class="hint">No upcoming black belt grading days.</p>';
+  $$('[data-row]').forEach(r=>r.onclick=e=>{ if(e.target.closest('.sw')) return; const id=r.dataset.row; OPEN.has(id)?OPEN.delete(id):OPEN.add(id); renderDays(); });
   $$('#days [data-set], #bbDays [data-set]').forEach(el=>{
-    const ev = el.type==='number' ? 'change' : (el.tagName==='SELECT'?'change':'change');
-    el.addEventListener(ev, async ()=>{
+    el.addEventListener('click', e=>e.stopPropagation());
+    el.addEventListener('change', async ()=>{
       const day_id=el.dataset.day, set=el.dataset.set;
-      const val = set==='open' ? el.checked : set==='cap' ? el.value : el.value;
+      const val = set==='open' ? el.checked : el.value;
       const r = await api('helper_admin_day_set', { day_id, [set]: val });
-      if(r.error){ toast(r.error); return; }
+      if(r.error){ toast(r.error); if(set==='open') el.checked=!el.checked; return; }
       const d = DAYS.find(x=>x.day_id===day_id); if(d){ if(set==='open') d.helper_open=el.checked; if(set==='cap') d.helper_cap=parseInt(el.value,10)||0; if(set==='audience') d.helper_audience=el.value; }
-      if(set==='open') renderDays(); else toast('Saved');
+      renderDays(); toast('Saved');
     });
   });
 }
 
+let INV_F = null;   // 'in' (invited) or 'all'
 function renderRoster(){
+  const invited=ROSTER.filter(h=>h.invited);
+  $('#invN').textContent = invited.length ? String(invited.length) : '';
+  if(INV_F==null) INV_F = invited.length ? 'in' : 'all';
+  $$('#invFilter [data-f]').forEach(b=>{ b.setAttribute('aria-pressed', String(b.dataset.f===INV_F)); b.textContent = b.dataset.f==='in' ? `Invited (${invited.length})` : `All black belts (${ROSTER.length})`; });
   const q = ($('#search').value||'').toLowerCase().trim();
-  const list = ROSTER.filter(h=>!q || (h.full_name||'').toLowerCase().includes(q));
+  const list = (INV_F==='in'&&!q ? invited : ROSTER).filter(h=>!q || (h.full_name||'').toLowerCase().includes(q));
   $('#roster').innerHTML = list.map(h=>{
     const ageTxt = h.age==null ? '' : ` · ${h.age}${h.age<18?' (under 18)':''}`;
-    return `<li class="rrow">
-      <div class="nm"><b>${esc(h.full_name)}</b><small>${esc(h.belt_rank||'')}${ageTxt}</small>
-        ${h.invited&&h.link?`<div class="lk"><input readonly value="${esc(h.link)}"><button class="btn sm" data-copy="${esc(h.link)}">Copy</button></div>`:''}</div>
-      <input type="checkbox" class="sw" data-invite="${esc(h.student_id)}" ${h.invited?'checked':''} ${h.member_key?'':'disabled title="No member record"'}>
-    </li>`;
-  }).join('') || '<li class="hint">No black belts found.</li>';
+    return `<li class="inv"><div class="ri"><b>${esc(h.full_name)}</b><small>${esc(h.belt_rank||'')}${ageTxt}</small></div>
+      ${h.invited&&h.link?`<button class="btn sm" data-copy="${esc(h.link)}">Copy link</button>`:''}
+      <input type="checkbox" class="sw" data-invite="${esc(h.student_id)}" ${h.invited?'checked':''} ${h.member_key?'':'disabled title="No member record"'} aria-label="Invite ${esc(h.full_name)}"></li>`;
+  }).join('') || `<li class="inv"><span class="hint">${INV_F==='in'&&!q?'No one invited yet. Tap “All black belts” to invite someone.':'No black belts found.'}</span></li>`;
   $$('#roster [data-invite]').forEach(el=>el.addEventListener('change', async ()=>{
     el.disabled=true;
     const r = await api('helper_invite', { student_id: el.dataset.invite, on: el.checked });
@@ -209,10 +258,11 @@ function renderRoster(){
     const h = ROSTER.find(x=>x.student_id===el.dataset.invite);
     if(h){ h.invited=!!r.active; h.link=r.link||null; }
     renderRoster();
-    toast(r.active?'Invited — copy their link to send':'Removed');
+    toast(r.active?'Invited. Tap Copy link to send it':'Removed');
   }));
-  $$('#roster [data-copy]').forEach(b=>b.onclick=async ()=>{ try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); }catch(e){ const i=b.previousElementSibling; i.focus(); i.select(); toast('Press copy on your keyboard'); } });
+  $$('#roster [data-copy]').forEach(b=>b.onclick=async ()=>{ try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); }catch(e){ prompt('Copy their link:', b.dataset.copy); } });
 }
+$$('#invFilter [data-f]').forEach(b=>b.onclick=()=>{ INV_F=b.dataset.f; renderRoster(); });
 
 // ---- Black belt tab: the black belt grading day's sessions and everyone helping at each (Black Belt app helpers) ----
 const SENIOR = /^([4-9])th Dan/;
@@ -238,7 +288,7 @@ async function loadBb(){
   const cant=H.filter(h=>h.declined_at && !(h.slot_ids||[]).length).map(who);
   const notAsked=cands.filter(o=>{ const h=byStudent[o.cycle_id+'|'+o.student_id]; return !h || (!h.offered_at && !(h.slot_ids||[]).length); }).map(o=>({name:o.full_name,rank:o.grading_to}));
   const day=fmtDate(slots[0].grading_date);
-  $('#bbIntro').textContent=`Everyone helping at each session of the black belt grading on ${day}. Students going for 4th Dan and above count towards each session's cap; other helpers don't. Texting and changes are in the Black Belt app (Grading › Helpers).`;
+  $('#bbIntro').textContent=`Black belt grading, ${day}. 4th Dan and above count towards each session's cap. Texting and changes are in the Black Belt app (Grading › Helpers).`;
   const byName=(a,b)=>a.name.localeCompare(b.name);
   box.innerHTML=`<div class="kpis"><div class="kpi"><b>${cands.length}</b><span>4th Dan and above</span></div><div class="kpi"><b>${asked.length}</b><span>Asked</span></div><div class="kpi"><b>${helping.length}</b><span>Helping</span></div></div>
     <div class="sess" style="margin-top:12px">${slots.map(sl=>{ const inS=H.filter(h=>(h.slot_ids||[]).includes(sl.slot_id)).map(who).sort((a,b)=>(b.senior-a.senior)||byName(a,b)); const sen=inS.filter(x=>x.senior).length;
@@ -248,10 +298,10 @@ async function loadBb(){
     ${cant.length?`<h2 style="font-size:18px">Can't help <span class="hint">${cant.length}</span></h2><div class="plain">${cant.sort(byName).map(x=>`<span class="pill">${esc(x.name)}</span>`).join('')}</div>`:''}
     ${notAsked.length?`<h2 style="font-size:18px">Not asked yet <span class="hint">${notAsked.length}</span></h2><div class="plain">${notAsked.sort(byName).map(x=>`<span class="pill">${esc(x.name)}</span>`).join('')}</div>`:''}`;
 }
-let TAB = (()=>{ try{ const h=location.hash.replace('#',''); return h==='bb'||h==='cb' ? h : (localStorage.getItem('helpers_admin_tab')||'cb'); }catch(e){ return 'cb'; } })();
-function showTab(t){ TAB=t==='bb'?'bb':'cb';
+let TAB = (()=>{ try{ const h=location.hash.replace('#',''); return ['bb','cb','inv'].includes(h) ? h : (localStorage.getItem('helpers_admin_tab')||'cb'); }catch(e){ return 'cb'; } })();
+function showTab(t){ TAB=['bb','inv'].includes(t)?t:'cb';
   $$('.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===TAB)));
-  $('#cbPane').hidden=TAB!=='cb'; $('#bbPane').hidden=TAB!=='bb';
+  $('#cbPane').hidden=TAB!=='cb'; $('#bbPane').hidden=TAB!=='bb'; $('#invPane').hidden=TAB!=='inv';
   try{ localStorage.setItem('helpers_admin_tab',TAB); history.replaceState(null,'','#'+TAB); }catch(e){}
   if(TAB==='bb') loadBb(); }
 $$('.tabs [data-tab]').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
