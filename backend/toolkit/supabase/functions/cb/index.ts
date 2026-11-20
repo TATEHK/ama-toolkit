@@ -2145,22 +2145,9 @@ export async function handle(req, db, env = {}, http = fetch) {
       const okE = v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) ? v : null;
       const phone = kid ? phoneE164(m.guardian_phone || m.phone) : phoneE164(m.phone || m.guardian_phone);
       const email = kid ? (okE(m.guardian_email) || okE(m.email)) : (okE(m.email) || okE(m.guardian_email));
-      // The gradings still taking helpers that they can see (same as their sign-up page)
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-      const { data: days } = await db.from('cb_days').select('day_id, grading_date, start_time, location, bb, belts, programme, helper_cap, helper_audience').eq('helper_open', true).eq('closed', false).gte('grading_date', today).order('grading_date').order('start_time');
-      const ids = (days || []).map(d => d.day_id), counts = {};
-      if (ids.length) { const { data: su } = await db.from('cb_helper_signups').select('day_id').in('day_id', ids); for (const r of (su || [])) counts[r.day_id] = (counts[r.day_id] || 0) + 1; }
-      const sb = b => String(b || '').replace(/ Belt$/, '');
-      const avail = (days || []).filter(d => !d.bb && helperCanSee(d.helper_audience, age) && (!d.helper_cap || (counts[d.day_id] || 0) < d.helper_cap)).map(d => {
-        const dt = new Date(d.grading_date + 'T00:00:00Z'), b = Array.isArray(d.belts) ? d.belts : [];
-        const t = d.start_time ? String(d.start_time).slice(0, 5).split(':').map(Number) : null;
-        return { day: dt.toLocaleDateString('en-AU', { weekday: 'short', timeZone: 'UTC' }), date: String(dt.getUTCDate()), mon: dt.toLocaleDateString('en-AU', { month: 'short', timeZone: 'UTC' }),
-          where: d.location === 'West' ? 'Auburn' : d.location, time: t ? `${((t[0] + 11) % 12) + 1}:${String(t[1]).padStart(2, '0')}${t[0] < 12 ? 'am' : 'pm'}` : '',
-          belts: b.length > 2 ? `${sb(b[0])} to ${sb(b[b.length - 1])}` : b.map(sb).join(' & ') };
-      });
       const { data: cs } = await db.from('cb_settings').select('contact_phone').eq('id', 1).maybeSingle();
       const msg = buildHelperInvite({ first: first(m.full_name || p.full_name), parent: kid ? (first(m.guardian_name) || 'there') : null, link: SITE + 'grading/helpers/#' + h.token,
-        phone: (cs && cs.contact_phone) || '(02) 9569 1943', days: avail.slice(0, 8), more: Math.max(0, avail.length - 8) });
+        phone: (cs && cs.contact_phone) || '(02) 9569 1943' });   // no list of gradings in the email: their link shows them
       const to = { phone, email, parent: kid };
       if (body.preview) return json({ ok: true, preview: true, to, sms: msg.sms, subject: msg.subject, html: msg.html });
       if (!phone && !email) return fail('There is no mobile or email for them in EFC.', 409);
