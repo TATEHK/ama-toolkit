@@ -20,6 +20,7 @@
 -- ---------------------------------------------------------------- cb_days additions
 alter table public.cb_days add column if not exists floor_spots int default 13;
 alter table public.cb_days add column if not exists checkin_code text;
+alter table public.cb_days add column if not exists helpers jsonb not null default '{}'::jsonb;  -- Floor-staff screen: {names:[...], assign:{entry_id:helper}}
 alter table public.cb_days drop constraint if exists cb_days_checkin_code_chk;
 alter table public.cb_days add constraint cb_days_checkin_code_chk check (checkin_code is null or checkin_code ~ '^[A-Z0-9]{4,8}$');
 create unique index if not exists cb_days_checkin_code_uq on public.cb_days (checkin_code) where checkin_code is not null;
@@ -90,6 +91,7 @@ begin
   select jsonb_build_object(
     'day', (select jsonb_build_object('day_id',d.day_id,'date',d.grading_date,'location',d.location,'start_time',d.start_time,
               'belt_times',d.belt_times,'floor_spots',d.floor_spots,'checkin_code',d.checkin_code,'belts',d.belts,'closed',d.closed) from public.cb_days d where d.day_id = p_day),
+    'helpers', coalesce((select d2.helpers from public.cb_days d2 where d2.day_id = p_day), '{}'::jsonb),
     'groups', (select coalesce(jsonb_agg(jsonb_build_object('ord',g.ord,'cone',g.cone,'belt',g.belt,'spots',g.spots,'rows',g.rows,'status',g.status,'slots',g.slots) order by g.ord),'[]'::jsonb) from public.cb_groups g where g.day_id = p_day),
     'students', (select coalesce(jsonb_agg(q.s order by q.full_name),'[]'::jsonb) from (
         select e.full_name, jsonb_build_object(
@@ -201,6 +203,14 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- save the day's helper names + {entry_id: helper} assignments (Floor-staff screen)
+create or replace function public.cb_floor_helpers_save(p_day uuid, p_helpers jsonb)
+returns void language plpgsql security definer set search_path to 'public' as $$
+begin
+  if not public.cb_has_cb(array['view','days','readiness','results']) then raise exception 'not allowed' using errcode='42501'; end if;
+  update public.cb_days set helpers = coalesce(p_helpers, '{}'::jsonb) where day_id = p_day;
+end $$;
+
 -- ---------------------------------------------------------------- member kiosk (anon, gated by the day's code)
 create or replace function public.cb_checkin_feed(p_code text)
 returns jsonb language plpgsql stable security definer set search_path to 'public' as $$
@@ -244,6 +254,7 @@ grant execute on function public.cb_group_patch(uuid, integer, jsonb) to authent
 grant execute on function public.cb_score_save(uuid, jsonb) to authenticated;
 grant execute on function public.cb_floor_checkin(uuid, boolean) to authenticated;
 grant execute on function public.cb_floor_reset(uuid) to authenticated;
+grant execute on function public.cb_floor_helpers_save(uuid, jsonb) to authenticated;
 -- kiosk is anon:
 grant execute on function public.cb_checkin_feed(text) to anon, authenticated;
 grant execute on function public.cb_checkin_mark(text, uuid) to anon, authenticated;

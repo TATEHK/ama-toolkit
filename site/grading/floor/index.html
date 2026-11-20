@@ -43,6 +43,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .pill{display:inline-flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .pill.code{cursor:pointer;color:var(--ink-3)}
 .pill.code b{font-family:"Barlow Semi Condensed",sans-serif;font-size:15px;letter-spacing:1.5px;color:var(--accent)}
+.pill.viewas{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line));font-size:12px;white-space:nowrap}
 .roleseg{display:flex;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px}
 .roleseg button{border:0;background:transparent;color:var(--ink-2);font-weight:700;font-size:12.5px;padding:6px 12px;border-radius:999px}
 .roleseg button.on{background:var(--accent);color:var(--accent-ink)}
@@ -121,7 +122,7 @@ body[data-role="signin"]{overflow:hidden}
 .gtab{flex:none;min-width:150px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 15px;transition:.14s;position:relative}
 .gtab:hover{border-color:var(--ink-3)}
 .gtab[aria-selected="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.gtab .gname{font-family:"Barlow Semi Condensed";font-weight:600;font-size:16px}
+.gtab .gname{font-family:"Barlow Semi Condensed";font-weight:600;font-size:16px;padding-right:40px}
 .gtab .gmeta{font-size:12px;color:var(--ink-3);margin-top:3px;font-weight:500}
 .gtab .gdots{display:flex;gap:3px;margin-top:9px}
 .gtab .gdots i{width:13px;height:13px;border-radius:50%;border:1.5px solid rgba(0,0,0,.12)}
@@ -357,6 +358,62 @@ body[data-role="signin"]{overflow:hidden}
 .dp-empty{color:var(--ink-3);font-size:13px;padding:18px 4px}
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(14px);background:var(--ink);color:var(--panel);font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:999px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.22s;z-index:80;max-width:88vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* Sarah call-out flow: who's-next picker + arrival list */
+.floor.callout{position:static;aspect-ratio:auto!important;margin:16px;min-height:200px;padding:14px;background:var(--bg);border:1px solid var(--line);box-shadow:none;display:block;overflow:auto}
+.whonext{display:flex;flex-direction:column;gap:10px}
+.wn-row{display:flex;align-items:center;gap:12px;text-align:left;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 15px;cursor:pointer}
+.wn-row:hover{border-color:var(--accent)}
+.wn-row .cone{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;font-family:"Barlow Semi Condensed";font-weight:700;font-size:16px;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+.wn-main{flex:1;min-width:0}
+.wn-main b{font-family:"Barlow Semi Condensed";font-size:17px;display:block}
+.wn-main small{color:var(--ink-3);font-size:12.5px;font-weight:600}
+.wn-go{color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap}
+.co-done{color:var(--ink-3);font-size:14px;font-weight:600;text-align:center;padding:26px 8px}
+.colist{display:flex;flex-direction:column;gap:8px}
+.co-head{display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--ink-3);font-size:12.5px;font-weight:600;padding:2px 2px 6px}
+.co-count{color:var(--accent);font-weight:700;white-space:nowrap}
+.co-row{display:flex;align-items:center;gap:12px;text-align:left;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px 13px;cursor:pointer;transition:.12s}
+.co-row.away{opacity:.6}
+.co-row.here{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.co-dot{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none;font-family:"Barlow Semi Condensed"}
+.co-nm{flex:1;min-width:0}
+.co-nm b{font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.co-nm small{color:var(--ink-3);font-size:12px;font-weight:500}
+.co-state{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:var(--ink-3);white-space:nowrap}
+.co-row.here .co-state{color:var(--accent)}
+.co-state svg{width:15px;height:15px}
+/* Floor-staff screen: group counts + helper assignment */
+#staffView{padding-top:16px;padding-bottom:40px}
+.staff-help{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:16px}
+.sh-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.sh-top h2{font-size:18px}
+.sh-hint{color:var(--ink-3);font-size:12.5px;font-weight:600}
+.sh-hint b{color:var(--accent)}
+.hchips{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.hchip{display:inline-flex;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--line);border-radius:999px;padding:8px 8px 8px 14px;font-weight:700;font-size:13.5px;color:var(--ink)}
+.hchip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.hchip .hc-n{min-width:21px;height:21px;padding:0 6px;border-radius:999px;background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink-2);font-size:12px;display:grid;place-items:center}
+.hchip.on .hc-n{background:rgba(255,255,255,.26);color:#fff}
+.hadd{background:transparent;border:1.5px dashed var(--line);color:var(--ink-2);border-radius:999px;padding:8px 14px;font-weight:700;font-size:13px}
+.hadd:hover{border-color:var(--accent);color:var(--accent)}
+.haddrow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.haddrow .inp{flex:1;min-width:160px}
+.staff-groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.sg{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.sg.past{opacity:.6}
+.sg.current{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+.sg-h{display:flex;align-items:center;gap:11px;padding:13px 15px;border-bottom:1px solid var(--line-2)}
+.sg-h .cone{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;font-family:"Barlow Semi Condensed";font-weight:700;font-size:16px;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+.sg-t{min-width:0}
+.sg-t b{font-family:"Barlow Semi Condensed";font-size:16px;display:block}
+.sg-t small{color:var(--ink-3);font-size:12px;font-weight:600}
+.sg-list{padding:8px;display:flex;flex-direction:column;gap:5px;max-height:360px;overflow:auto}
+.sg-row{display:flex;align-items:center;gap:10px;text-align:left;width:100%;background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:8px 10px;cursor:pointer;transition:.1s}
+.sg-row.away{opacity:.5}
+.sg-row.asg{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.sg-dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:11px;flex:none;font-family:"Barlow Semi Condensed"}
+.sg-nm{flex:1;min-width:0;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sg-help{background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap;flex:none}
 </style>
 
 </head>
@@ -383,6 +440,8 @@ body[data-role="signin"]{overflow:hidden}
   <div class="brand" id="brand" title="Switch grading day" role="button"><div class="logo">A</div><div><b>Grading Floor</b><small id="dayLabel">—</small></div></div>
   <div class="bar-sp"></div>
 
+  <div class="roleseg" id="viewSwitch" hidden></div>
+  <span class="pill viewas" id="viewAsNote" hidden></span>
   <button class="pill code" id="codePill" hidden title="Check-in code — enter it on a check-in station">Code <b id="codeVal">—</b></button>
   <span class="pill" id="herePill">0 here</span>
   <button class="icon-btn" id="gearBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.8-1.4-1.9-3.3-2.2.9a7.6 7.6 0 0 0-2.6-1.5L13.9 2h-3.8l-.3 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.2-.9L3.1 8.3 4.9 9.7a7.8 7.8 0 0 0 0 3l-1.8 1.4 1.9 3.3 2.2-.9a7.6 7.6 0 0 0 2.6 1.5l.3 2.4h3.8l.3-2.4a7.6 7.6 0 0 0 2.6-1.5l2.2.9 1.9-3.3z"/></svg></button>
@@ -412,6 +471,8 @@ body[data-role="signin"]{overflow:hidden}
   </div>
 </div>
 
+<div class="wrap" id="staffView" hidden></div>
+
 <div id="kiosk" class="kiosk" hidden></div>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true"></aside>
@@ -434,6 +495,8 @@ body[data-role="signin"]{overflow:hidden}
 
 <script>
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let HELPERS={names:[],assign:{}};   // Floor-staff screen: helper names + {entry_id: helper}
 const BELTS={ // name -> colour + rank
   'White':{c:'#c9ccd1',r:1},'Yellow':{c:'#f2c430',r:2},'Orange':{c:'#ef8a2b',r:3},
   'Green':{c:'#2f9e52',r:4},'Blue':{c:'#2f6fdb',r:5},'Purple':{c:'#7b4fc9',r:6},
@@ -464,7 +527,7 @@ function mapStudents(list){
 }
 const siblingsOf=s=>STUDENTS.filter(x=>x.fam===s.fam && x.fam && x.id!==s.id);
 
-const state={ fw:12, fh:10, spotsOut:13, autoBalance:true, groups:[], active:0, sel:null, alert:null, profTab:'ov', role:'admin' };
+const state={ fw:12, fh:10, spotsOut:13, autoBalance:true, groups:[], active:0, sel:null, alert:null, profTab:'ov', role:'admin', baseRole:'admin', callout:null, staffHelper:null };
 let dragging=false;
 function addGroup(belt){ const spots=state.spotsOut; state.groups.push({name:belt?`${belt} → ${nextOf(belt)}`:'Group '+(state.groups.length+1), belt:belt||null, spots, rows:spots>8?2:1, status:'future', slots:spotsArr(spots)}); recone(); }
 const byId=id=>STUDENTS.find(s=>s.id===id)||null;
@@ -597,10 +660,83 @@ function renderKiosk(){
     else kioskState.q+=kk;
     sync(); });
 }
+// ---- Floor-staff screen: upcoming groups with counts + helper assignment ----
+function renderStaff(){
+  const sv=$('#staffView'), groups=state.groups, active=state.staffHelper;
+  const countFor=n=>Object.values(HELPERS.assign).filter(x=>x===n).length;
+  sv.innerHTML=`
+    <div class="staff-help">
+      <div class="sh-top"><h2>Helpers</h2><span class="sh-hint">${active?`Tap students to add them to <b>${esc(active)}</b> — tap again to remove`:'Pick a helper, then tap their students'}</span></div>
+      <div class="hchips">
+        ${HELPERS.names.map(n=>`<button class="hchip ${active===n?'on':''}" data-h="${encodeURIComponent(n)}"><span class="hc-name">${esc(n)}</span><span class="hc-n">${countFor(n)}</span></button>`).join('')}
+        <button class="hadd" id="hAddBtn">+ Add helper</button>
+      </div>
+      <div class="haddrow" id="hAddRow" hidden><input id="hAddInp" class="inp" placeholder="Helper's name" maxlength="24" autocomplete="off"><button class="btn" id="hAddGo">Add</button><button class="btn ghost" id="hAddX">Cancel</button></div>
+    </div>
+    <div class="staff-groups">
+      ${groups.map(g=>{
+        const mem=g.slots.filter(x=>x!=null).map(byId).filter(Boolean).sort((a,b)=>a.age-b.age||beltR(a.belt)-beltR(b.belt)||a.name.localeCompare(b.name));
+        const here=mem.filter(s=>!absentIds.has(s.id)).length;
+        const tag=g.status==='current'?' · LIVE':g.status==='past'?' · done':'';
+        return `<div class="sg ${g.status}">
+          <div class="sg-h"><span class="cone" style="background:${g.belt?beltC(g.belt):'var(--ink)'}">${g.cone||'?'}</span>
+            <div class="sg-t"><b>${g.belt?`${g.belt} → ${nextOf(g.belt)}`:g.name}</b><small>${mem.length} booked · ${here} here${tag}</small></div></div>
+          <div class="sg-list">${mem.length?mem.map(s=>{ const asg=HELPERS.assign[id2entry[s.id]], hereS=!absentIds.has(s.id);
+            return `<button class="sg-row ${hereS?'':'away'} ${asg?'asg':''}" data-s="${s.id}">
+              <span class="sg-dot" style="background:${beltC(s.belt)}">${initials(s.name)}</span>
+              <span class="sg-nm">${floorName(s)}</span>
+              ${asg?`<span class="sg-help">${esc(asg)}</span>`:''}</button>`; }).join(''):'<div class="co-done" style="padding:14px">No students in this group.</div>'}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  $$('#staffView .hchip').forEach(b=>b.onclick=()=>{ const n=decodeURIComponent(b.dataset.h); state.staffHelper=(state.staffHelper===n?null:n); renderStaff(); });
+  const ab=$('#hAddBtn'); if(ab) ab.onclick=()=>{ $('#hAddRow').hidden=false; const i=$('#hAddInp'); if(i) i.focus(); };
+  const ax=$('#hAddX'); if(ax) ax.onclick=()=>{ $('#hAddRow').hidden=true; $('#hAddInp').value=''; };
+  const ag=$('#hAddGo'); if(ag) ag.onclick=()=>{ const inp=$('#hAddInp'), v=(inp.value||'').trim();
+    if(v && !HELPERS.names.includes(v)){ HELPERS.names.push(v); state.staffHelper=v; persistHelpers(); }
+    inp.value=''; $('#hAddRow').hidden=true; renderStaff(); };
+  const ai=$('#hAddInp'); if(ai) ai.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); $('#hAddGo').click(); } };
+  $$('#staffView .sg-row').forEach(b=>b.onclick=()=>{ const id=+b.dataset.s, e=id2entry[id]; if(!e) return;
+    if(!state.staffHelper){ toast('Pick a helper first, then tap their students'); return; }
+    if(HELPERS.assign[e]===state.staffHelper) delete HELPERS.assign[e]; else HELPERS.assign[e]=state.staffHelper;
+    persistHelpers(); renderStaff(); });
+}
+
+// ---- admin view switcher (preview the Sarah / Master / Floor-staff screens) ----
+const VIEW_LABELS={ admin:'My view', super:'My view', sarah:'Sarah', master:'Master', staff:'Floor staff' };
+function mineRole(){ return state.baseRole==='super'?'super':'admin'; }
+function canSwitchView(){ return state.baseRole==='admin'||state.baseRole==='super'; }
+function renderSwitch(){
+  const sw=$('#viewSwitch'), note=$('#viewAsNote'), can=canSwitchView();
+  sw.hidden=!can; if(!can){ note.hidden=true; return; }
+  const mine=mineRole(), opts=[{v:mine,label:'My view'},{v:'sarah',label:'Sarah'},{v:'master',label:'Master'},{v:'staff',label:'Floor staff'}];
+  sw.innerHTML=opts.map(o=>`<button data-v="${o.v}" class="${state.role===o.v?'on':''}">${o.label}</button>`).join('');
+  $$('#viewSwitch button').forEach(b=>b.onclick=()=>applyView(b.dataset.v));
+  if(state.role===mine){ note.hidden=true; } else { note.hidden=false; note.textContent='Viewing as '+(VIEW_LABELS[state.role]||state.role); }
+}
+function applyView(v){
+  if(state.sel) closeProfile();
+  $('#modal').classList.remove('open');
+  state.role=v; state.callout=null; state.staffHelper=null;
+  try{ if(v===mineRole()) localStorage.removeItem('cb_floor_view'); else localStorage.setItem('cb_floor_view',v); }catch(e){}
+  render();
+}
 function render(){
   const groups=state.groups, totalHere=present().length, ST={future:'',current:'live',past:'done'};
   const role=state.role; document.body.dataset.role=role;
+  renderSwitch();
+  // Sarah's call-out flow mode is settled first, so the group tabs and the floor agree on which group is active
+  const liveIdx=groups.findIndex(gg=>gg.status==='current');
+  let sMode=null;
+  if(role==='sarah'){
+    if(state.callout!=null && groups[state.callout]) { sMode='callout'; state.active=state.callout; }
+    else if(liveIdx>=0) { sMode='floor'; state.active=liveIdx; }
+    else sMode='next';
+  }
   if(role==='signin'){ $('#kiosk').hidden=false; renderKiosk(); } else { $('#kiosk').hidden=true; }
+  $('#app').hidden = (role==='staff');
+  $('#staffView').hidden = (role!=='staff');
+  if(role==='staff') renderStaff();
   if(role==='master'){ const li=groups.findIndex(gg=>gg.status==='current'); if(li>=0) state.active=li; }  // Master follows the live group
   $('#herePill').textContent=totalHere+' here';
   $('#sHere').textContent=totalHere;
@@ -616,33 +752,82 @@ function render(){
       <div class="gmeta">${fids.length?`ages ${Math.min(...fids.map(s=>s.age))}–${Math.max(...fids.map(s=>s.age))} · ${belts.length} belt${belts.length>1?'s':''}`:'empty'}</div>
       ${foot}</button>`;
   }).join('');
-  $$('#groups .gtab').forEach(b=>b.onclick=()=>{state.active=+b.dataset.g;render();});
+  $$('#groups .gtab').forEach(b=>b.onclick=()=>{ const gi=+b.dataset.g; state.active=gi;
+    if(role==='sarah') state.callout = state.groups[gi] && state.groups[gi].status==='future' ? gi : null;   // Sarah: tapping a future group calls it out
+    render(); });
   // alert bar — a late check-in with nowhere to go
   const ab=$('#alertBar');
   if(state.alert){ ab.hidden=false; const al=state.alert; ab.innerHTML=`<div class="al-ic">!</div><div class="al-tx"><b>${al.name} (${al.belt}) checked in late</b><span>No upcoming ${al.belt} group with room — they can't join one that's up or finished. Add a group or free a spot.</span></div><button class="al-add" id="alAdd">Add ${al.belt} group</button><button class="al-x" id="alX" aria-label="dismiss">✕</button>`;
     $('#alAdd').onclick=()=>{ const s=state.alert; addGroup(s&&s.belt); state.alert=null; if(s && !placeLate(s.id)) state.alert=s; render(); };
     $('#alX').onclick=()=>{ state.alert=null; render(); };
   } else ab.hidden=true;
-  // floor
+  // ---- main floor area ---- (sMode / liveIdx were settled at the top of render)
   const g=groups[state.active]||{slots:[],spots:0,rows:1,name:'',status:'future'};
   const lay=g.spots?layoutFor(g):[], filled=lay.filter(x=>x!=null).length;
-  const masterWaiting = role==='master' && !groups.some(gg=>gg.status==='current');   // Master with no group up yet
-  $('#flName').textContent=masterWaiting?'Ready':(g.cone?`Group ${g.cone} · `:'')+g.name;
-  $('#flSub').textContent=masterWaiting?'The next group will show here the moment it starts':`${filled} on the floor · ${g.spots} spots out · ${g.rows===1?'one line':'two rows'}`;
-  // host controls: Sarah & Admin drive the flow; Super can force any state; Master just follows (no controls)
-  const canControl = role==='admin'||role==='sarah'||role==='super';
-  $('#flCtrl').innerHTML = !canControl ? '' : role==='super'
-    ? `${g.status==='current'?'<span class="statustag live">● LIVE</span>':''}<button class="sbtn start" id="stStart">Start</button><button class="sbtn done" id="stDone">Finish</button><button class="sbtn re" id="stRe">Future</button>`
-    : g.status==='future' ? `<button class="sbtn start" id="stStart">▶ They're up</button>`
-    : g.status==='current' ? `<span class="statustag live">● LIVE now</span><button class="sbtn done" id="stDone">✓ Finish</button>`
-    : `<span class="statustag done">✓ Graded</span><button class="sbtn re" id="stRe">Reopen</button>`;
-  { const a=$('#stStart'),d=$('#stDone'),r=$('#stRe');
-    if(a)a.onclick=()=>setStatus(state.active,'current'); if(d)d.onclick=()=>setStatus(state.active,'past'); if(r)r.onclick=()=>setStatus(state.active, role==='super'?'future':'current'); }
+  const booked=g.slots?g.slots.filter(x=>x!=null):[];                              // everyone assigned to this group
+  const hereIds=booked.filter(id=>!absentIds.has(id));                             // of those, who's actually here
+  const cleanLive=(role==='sarah'||role==='master') && g.status==='current';       // live floor = present-only, packed
+  const masterWaiting = role==='master' && liveIdx<0;                              // Master with no group up yet
+  // header
+  if(sMode==='next'){ $('#flName').textContent='Who’s next?'; $('#flSub').textContent='Tap the next group to call it out'; }
+  else if(sMode==='callout'){ $('#flName').textContent=`Call out · Group ${g.cone||'?'}`; $('#flSub').textContent=`${hereIds.length} of ${booked.length} here · ${g.belt?`${g.belt} → ${nextOf(g.belt)}`:g.name}`; }
+  else { $('#flName').textContent=masterWaiting?'Ready':(g.cone?`Group ${g.cone} · `:'')+g.name;
+    $('#flSub').textContent=masterWaiting?'The next group will show here the moment it starts'
+      :cleanLive?`${hereIds.length} on the floor · ${booked.length} in this group`
+      :`${filled} on the floor · ${g.spots} spots out · ${g.rows===1?'one line':'two rows'}`; }
+  // host controls
+  $('#flCtrl').innerHTML = sMode==='next' ? ''
+    : sMode==='callout' ? `<button class="sbtn start" id="stGo">▶ Start grading</button>`
+    : role==='super'
+      ? `${g.status==='current'?'<span class="statustag live">● LIVE</span>':''}<button class="sbtn start" id="stStart">Start</button><button class="sbtn done" id="stDone">Finish</button><button class="sbtn re" id="stRe">Future</button>`
+    : role==='sarah'
+      ? (g.status==='current' ? `<span class="statustag live">● LIVE now</span><button class="sbtn done" id="stDone">✓ Finish group</button>` : '')
+    : role==='admin'
+      ? ( g.status==='future' ? `<button class="sbtn start" id="stStart">▶ They're up</button>`
+        : g.status==='current' ? `<span class="statustag live">● LIVE now</span><button class="sbtn done" id="stDone">✓ Finish</button>`
+        : `<span class="statustag done">✓ Graded</span><button class="sbtn re" id="stRe">Reopen</button>` )
+    : '';   // master / signin / staff: no flow controls here
+  { const a=$('#stStart'),d=$('#stDone'),r=$('#stRe'),go=$('#stGo');
+    if(a)a.onclick=()=>setStatus(state.active,'current');
+    if(d)d.onclick=()=>{ setStatus(state.active,'past'); if(role==='sarah'){ state.callout=null; render(); } };   // finish → back to "who's next"
+    if(r)r.onclick=()=>setStatus(state.active, role==='super'?'future':'current');
+    if(go)go.onclick=()=>{ const gi=state.callout; state.callout=null; setStatus(gi,'current'); }; }             // start the called-out group
   $('#flDim').innerHTML=`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V5a2 2 0 0 1 2-2h4M21 9V5a2 2 0 0 0-2-2h-4M3 15v4a2 2 0 0 0 2 2h4M21 15v4a2 2 0 0 1-2 2h-4"/></svg> ${state.fw}m × ${state.fh}m`;
-  const floor=$('#floor'); floor.style.aspectRatio=state.fw/state.fh;
-  if(masterWaiting){ floor.className='floor empty'; floor.innerHTML='<div class="instr">Waiting for the next group to start…</div>'; }
+  $('#flDim').style.display = (sMode==='next'||sMode==='callout') ? 'none' : '';
+  const floor=$('#floor'); floor.style.aspectRatio = (sMode==='next'||sMode==='callout') ? '' : state.fw/state.fh;
+  if(sMode==='next'){
+    floor.className='floor callout';
+    const futs=groups.map((gg,i)=>({gg,i})).filter(o=>o.gg.status==='future');
+    floor.innerHTML = futs.length ? `<div class="whonext">${futs.map(o=>{ const mem=o.gg.slots.filter(x=>x!=null), here=mem.filter(id=>!absentIds.has(id)).length;
+        return `<button class="wn-row" data-call="${o.i}"><span class="cone" style="background:${o.gg.belt?beltC(o.gg.belt):'var(--ink)'}">${o.gg.cone||'?'}</span>
+          <span class="wn-main"><b>${o.gg.belt?`${o.gg.belt} → ${nextOf(o.gg.belt)}`:o.gg.name}</b><small>${here} of ${mem.length} here</small></span>
+          <span class="wn-go">Call out ›</span></button>`; }).join('')}</div>`
+      : `<div class="co-done">All groups done — great work. ✓</div>`;
+    $$('#floor .wn-row').forEach(b=>b.onclick=()=>{ state.callout=+b.dataset.call; render(); });
+  } else if(sMode==='callout'){
+    floor.className='floor callout';
+    const mem=booked.map(byId).filter(Boolean).sort((a,b)=>a.age-b.age||beltR(a.belt)-beltR(b.belt)||a.name.localeCompare(b.name));
+    floor.innerHTML=`<div class="colist">
+      <div class="co-head"><span>Tap anyone who’s arrived to check them in</span><span class="co-count">${hereIds.length}/${mem.length} here</span></div>
+      ${mem.map(s=>{ const here=!absentIds.has(s.id); return `<button class="co-row ${here?'here':'away'}" data-co="${s.id}">
+        <span class="co-dot" style="background:${beltC(s.belt)}">${initials(s.name)}</span>
+        <span class="co-nm"><b>${s.name}</b><small>${s.belt} · age ${s.age}</small></span>
+        <span class="co-state">${here?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg> Here':'Not here'}</span></button>`; }).join('')}
+    </div>`;
+    $$('#floor .co-row').forEach(b=>b.onclick=()=>{ const id=+b.dataset.co, wasAbsent=absentIds.has(id);
+      if(wasAbsent){ absentIds.delete(id); if(groupOf(id)<0) placeLate(id); } else { absentIds.add(id); }
+      persistCheckin(id,wasAbsent); render(); });
+  } else if(masterWaiting){ floor.className='floor empty'; floor.innerHTML='<div class="instr">Waiting for the next group to start…</div>'; }
   else if(!g.spots){ floor.className='floor empty'; floor.innerHTML='<div class="instr">No spots in this group</div>'; }
-  else{
+  else if(cleanLive){
+    floor.className='floor live';
+    const n=Math.max(hereIds.length,1), pos=centreOut(positions(n,hereIds.length>8?2:1));
+    floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+(hereIds.length?pos.map((p,i)=>{ const s=byId(hereIds[i]); if(!s) return '';
+      return `<div class="spot ${state.sel===s.id?'sel':''}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%;cursor:pointer">
+        <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div>
+        <div class="nm">${floorName(s)}</div></div>`; }).join(''):'<div class="co-done" style="color:rgba(0,0,0,.5)">No one from this group has checked in yet.</div>');
+    $$('#floor .spot').forEach(el=>el.onclick=()=>openProfile(+el.dataset.s));
+  } else {
     floor.className='floor'+(g.status==='current'?' live':g.status==='past'?' past':'');
     const pos=centreOut(positions(g.spots,g.rows));   // front row first, centre out; then the back row
     floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{
@@ -672,8 +857,8 @@ function render(){
   $$('#roster .rrow').forEach(r=>r.onclick=()=>openProfile(+r.dataset.s));
   // role gating
   $('#gearBtn').hidden = !(role==='admin'||role==='super');     // admin + super set up the floor
-  const curSide = role==='sarah';
-  $('#checkinCard').hidden = curSide;
+  const curSide = role==='sarah' && sMode==='floor';           // curriculum only once a group is actually live
+  $('#checkinCard').hidden = (role==='sarah');                 // Sarah checks people in from the call-out list, not the roster
   $('#currCard').hidden = !curSide;
   if(curSide){                                                 // Sarah sees the group's curriculum beside the floor, checkable as she calls each one
     const belt=g.belt, cu=belt&&CURR[belt], mc=true;
@@ -826,6 +1011,9 @@ function persistGroup(i, patch) { if (!DAYID || loading) return; const p = { ...
 function persistScore(id, patch) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_score_save', { p_entry: id2entry[id], p_patch: patch }); }
 function persistCheckin(id, on) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_floor_checkin', { p_entry: id2entry[id], p_on: !!on }); }
 function resetScoresRemote() { if (!DAYID) return; sb.rpc('cb_floor_reset', { p_day: DAYID }); }
+let helpT = null;
+function persistHelpers() { if (!DAYID || loading) return; clearTimeout(helpT); helpT = setTimeout(() => { helpT = null; sb.rpc('cb_floor_helpers_save', { p_day: DAYID, p_helpers: HELPERS }); }, 300); }
+function loadHelpers(h) { HELPERS = (h && typeof h === 'object') ? { names: Array.isArray(h.names) ? h.names : [], assign: (h.assign && typeof h.assign === 'object') ? h.assign : {} } : { names: [], assign: {} }; }
 
 function loadGroups(gs) {
   state.groups = (gs || []).slice().sort((a, b) => a.ord - b.ord).map(g => ({
@@ -843,6 +1031,7 @@ async function loadDay(dayId) {
   if (!CODE) { const { data: c } = await sb.rpc('cb_floor_set_code', { p_day: dayId }); if (c) CODE = c; }
   showCode();
   if (DAYINFO.floor_spots) state.spotsOut = DAYINFO.floor_spots;
+  loadHelpers(data.helpers);
   mapStudents(data.students);
   if (data.groups && data.groups.length) { loadGroups(data.groups); state.autoBalance = false; } else { generateGroups(); }
   $('#dayLabel').textContent = `${schoolOf(DAYINFO.location)} · ${fmtDay(DAYINFO.date)}`;
@@ -854,7 +1043,7 @@ async function loadDay(dayId) {
 async function pollDay() {
   if (!DAYID || loading || state.sel || dragging || $('#modal').classList.contains('open')) return;   // don't clobber mid-action
   const { data } = await sb.rpc('cb_floor_load', { p_day: DAYID }); if (!data) return;
-  loading = true; mapStudents(data.students); if (data.groups && data.groups.length) loadGroups(data.groups); loading = false; render();
+  loading = true; if (!helpT) loadHelpers(data.helpers); mapStudents(data.students); if (data.groups && data.groups.length) loadGroups(data.groups); loading = false; render();
 }
 
 // day picker + sign-in
@@ -885,6 +1074,9 @@ async function boot() {
   // page (floor_admin / floor_sarah / floor_master / floor_signin), and Master if none is set
   const setView = (PERMS || []).find(x => x.startsWith('floor_'));
   state.role = canSuper ? 'super' : setView ? setView.slice(6) : 'master';   // not set on the Staff logins page: Master
+  state.baseRole = state.role;
+  // admins/super can preview the Sarah / Master / Floor-staff screens; the choice sticks on this device
+  try { const sv = localStorage.getItem('cb_floor_view'); if (sv && canSwitchView() && sv !== mineRole()) state.role = sv; } catch (e) {}
   if (!PERMS.length) { $('#gate').hidden = false; $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gateMsg').textContent = "You don't have Coloured Belts access yet."; $('#dayList').innerHTML = ''; return; }
   let saved = ''; try { saved = new URLSearchParams(location.search).get('day') || localStorage.getItem('cb_floor_day') || ''; } catch (e) {}
   if (saved) { loadDay(saved); } else { showDays(); }   // reopen the day you were on, across refreshes
