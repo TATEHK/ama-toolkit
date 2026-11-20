@@ -365,15 +365,14 @@ export function buildHelperInvite(v) {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${dayRows}</table></td></tr></table>
     ${v.more ? `<p style="margin:10px 0 0;font-size:13px;color:#666;">And ${v.more} more on ${whose} list.</p>` : ''}</td></tr>` : ''}
   <tr><td class="pad" style="padding:20px 32px 28px;">
-    <p style="margin:0;font-size:14px;line-height:1.55;color:#555;">Once a grading has all the helpers it needs, it comes off the list, so it's best to pick early. ${kid ? `${v.first} can` : 'You can'} come back to the same link any time to change ${kid ? 'their' : 'your'} picks.</p>
-    <p style="margin:16px 0 0;font-size:16px;line-height:1.55;color:#333;">Thank you,<br><b>Australian Martial Arts Academy</b></p></td></tr>
+    <p style="margin:0;font-size:16px;line-height:1.55;color:#333;">Thank you,<br><b>Australian Martial Arts Academy</b></p></td></tr>
   <tr><td style="background:${night};padding:22px 32px;" align="center">
     <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;color:#ffffff;font-size:14px;letter-spacing:2px;text-transform:uppercase;">Australian Martial Arts Academy</div>
     <div style="color:#9aa39a;font-size:13px;margin-top:8px;line-height:1.5;">Questions? Call us on ${tel ? `<a href="tel:${esc(tel)}" style="color:${gold};text-decoration:none;">${esc(v.phone)}</a>` : esc(v.phone || 'the front desk')}</div></td></tr>
 </table></td></tr></table></body></html>`;
   const text = [`Hi ${greet},`, '', p1, '', p2, '', `Pick ${kid ? v.first + "'s" : 'your'} gradings: ${v.link}`, '',
     ...(days.length ? ['Gradings that need helpers:', ...days.map(d => `- ${d.day} ${d.date} ${d.mon || ''}: AMA ${d.where}${d.time ? ' at ' + d.time : ''}${d.belts ? ' (' + d.belts + ')' : ''}`), ...(v.more ? [`And ${v.more} more.`] : []), ''] : []),
-    'Once a grading has all the helpers it needs, it comes off the list.', '', 'Thank you,', 'Australian Martial Arts Academy'].join('\n');
+    'Thank you,', 'Australian Martial Arts Academy'].join('\n');
   return { sms, subject, html, text, who };
 }
 
