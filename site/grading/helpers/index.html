@@ -143,7 +143,7 @@
     const btn = d.mine
       ? `<button class="act inq" data-t="${d.id}" data-on="0">${tick}<span class="lbl-in">You're in</span><span class="lbl-out">Pull out</span></button>`
       : `<button class="act help" data-t="${d.id}" data-on="1">${plus}I'll help</button>`;
-    const age = !bb ? `<span class="ageband ${d.audience==='kids'?'k':d.audience==='all'?'a':'t'}">${esc(AGE[d.audience]||'All Ages')}</span>` : '';
+    const age = !bb && (d.audience==='kids'||d.audience==='13+') ? `<span class="ageband ${d.audience==='kids'?'k':'t'}">${esc(AGE[d.audience])}</span>` : '';   // All ages: no label
     return `<div class="day ${d.mine?'in':''} ${bb?'bb':''}">
       <div class="head">
         <div class="wd"><div class="big">${esc(d.wd)}</div><div class="date">${esc(d.date)}</div></div>
