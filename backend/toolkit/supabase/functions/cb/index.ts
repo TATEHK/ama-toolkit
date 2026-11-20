@@ -1244,6 +1244,23 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ...seq, dinner, bbc });
     }
 
+    // Admin (cron-authed): book one already-paid entry into EFC. For a student whose payment was recorded
+    // out-of-band (e.g. a credit applied directly) so the normal pay-then-book flow never ran, and who is
+    // still unbooked. Uses the same bookEntry logic as a card/desk payment (right session, idempotent,
+    // falls back to efc_by_hand when something's missing).
+    if (body.action === 'book_entry') {
+      const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
+      if (okCron !== true) return fail('Not allowed.', 403);
+      const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, paid, paid_how, school').eq('entry_id', String(body.entry_id || '')).maybeSingle();
+      if (!e) return fail('Entry not found.', 404);
+      if (!e.paid) return fail('Entry is not paid, so it should not be booked.', 409);
+      if (e.booked_at) return json({ ok: true, already: true, booked: true });
+      const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, efc_session_id, efc_sessions, efc_belt_sessions, efc_school_belt_sessions, belt_times, closed, programme, book_by, bb').eq('day_id', e.day_id).maybeSingle();
+      if (!d) return fail('Grading day not found.', 404);
+      const b = await bookEntry(e, d);
+      return json({ ok: !!b.ok, booked: !!(b.ok && e.booked_at), byHand: !!b.byHand, booking_error: b.ok ? null : (b.why || null), full_name: e.full_name });
+    }
+
     // ---- Families (no sign-in): the Black Belt Club welcome landing page (coloured-belts-40) ----
     if (body.action === 'bbc_info' || body.action === 'bbc_signup') {
       const tok = String(body.token || '');
