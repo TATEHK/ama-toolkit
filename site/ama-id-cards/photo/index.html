@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E0E0E">
+<meta name="robots" content="noindex">
+<title>ID Card Photo · AMA</title>
+<link rel="icon" href="../icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Barlow:wght@400;500;600&display=swap">
+<script src="../../config.js"></script>
+<style>
+  /* One column on a phone: black AMA header, then a white card with the steps. Green is the one action colour. */
+  :root{
+    --night:#0E0E0E; --gold:#FFD200; --green:#0B6A35; --green-2:#0d7d3f; --page:#ECE9E1; --card:#fff; --cream:#F6F4EE;
+    --line:rgba(28,28,28,.1); --ink:#1c1c1c; --sub:#55594f; --faint:#83877f; --bad:#a8402a;
+    --display:Oswald,"Arial Narrow",Arial,sans-serif; --body:Barlow,"Segoe UI",Arial,sans-serif; color-scheme:light;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--page);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+  .hero{background:var(--night);color:#fff}
+  .hero .in{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 20px) max(20px,env(safe-area-inset-right,0px)) 28px max(20px,env(safe-area-inset-left,0px))}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand img{width:44px;height:auto}
+  .brand span{font:500 14px/1.25 var(--display);letter-spacing:.06em;text-transform:uppercase}
+  .brand small{display:block;color:var(--gold);font:500 12px var(--body);letter-spacing:.02em;text-transform:none}
+  .eyebrow{color:var(--gold);font:600 13px var(--body);margin-top:24px}
+  h1{font:600 36px/1.05 var(--display);text-transform:uppercase;margin:8px 0 0}
+  .wrap{max-width:560px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px}
+  .card p{margin:0;color:var(--sub)}
+  .tips{list-style:none;margin:0;padding:12px 16px;background:var(--cream);border-radius:12px;display:flex;flex-direction:column;gap:6px}
+  .tips li{display:flex;gap:8px;font-size:15px}
+  .tips li::before{content:"✓";color:var(--green);font-weight:600}
+  .btn{min-height:52px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 16px var(--body);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:0 16px;transition:background-color .15s,transform .1s}
+  .btn:active{transform:scale(.99)}
+  .btn.primary{background:var(--green);border-color:var(--green);color:#fff}
+  .btn.primary:hover{background:var(--green-2)}
+  .btn:disabled{opacity:.6;cursor:default}
+  .btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .btn svg{width:20px;height:20px}
+  .row{display:flex;gap:12px}
+  .row .btn{flex:1}
+  .preview{align-self:center;width:min(260px,70vw);aspect-ratio:82.2/110.4;border-radius:12px;overflow:hidden;background:var(--cream);border:1px solid var(--line)}
+  .preview img{width:100%;height:100%;object-fit:cover;display:block}
+  .msg{font-size:15px;border-radius:12px;padding:12px 16px;background:var(--cream)}
+  .msg.bad{background:#f8ebe7;color:var(--bad)}
+  .done{align-items:center;text-align:center}
+  .done .tick{width:56px;height:56px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center}
+  .done .tick svg{width:28px;height:28px}
+  .done h2{font:600 24px var(--display);text-transform:uppercase;margin:0}
+  .foot{color:var(--faint);font-size:13px;text-align:center}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="hero"><div class="in">
+  <div class="brand"><img src="https://www.australianmartialarts.com.au/wp-content/uploads/2019/12/logo1.png" alt="AMA"><span>Australian Martial Arts Academy<small>Sydney, since 1982</small></span></div>
+  <div class="eyebrow">Black belt ID card</div>
+  <h1 id="title">Your card photo</h1>
+</div></header>
+
+<main class="wrap">
+  <p class="msg" id="loading">Loading…</p>
+  <p class="msg bad" id="dead" hidden></p>
+
+  <section class="card" id="step1" hidden>
+    <p id="intro">Take or choose a photo for the ID card. It only takes a minute.</p>
+    <ul class="tips">
+      <li>Head and shoulders, looking straight at the camera</li>
+      <li>A plain, light background, like a wall</li>
+      <li>Good light on the face, no hats or sunglasses</li>
+      <li>Wearing the uniform (dobok) if possible</li>
+    </ul>
+    <p class="msg" id="already" hidden>We already have a photo from this link. Sending another one replaces it.</p>
+    <div class="row">
+      <button class="btn primary" id="takeBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Take photo</button>
+      <button class="btn" id="chooseBtn" type="button">Choose photo</button>
+    </div>
+  </section>
+
+  <section class="card" id="step2" hidden>
+    <p>This is how it will sit on the card. Happy with it?</p>
+    <div class="preview"><img id="prevImg" alt="Photo preview"></div>
+    <p class="msg bad" id="upErr" hidden></p>
+    <button class="btn primary" id="sendBtn" type="button">Send photo</button>
+    <button class="btn" id="againBtn" type="button">Try a different photo</button>
+  </section>
+
+  <section class="card done" id="step3" hidden>
+    <span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+    <h2>Thank you</h2>
+    <p>We've got the photo. Our team will check it and put it on the card.</p>
+  </section>
+
+  <p class="foot">This link is just for this card, so please don't share it.</p>
+</main>
+
+<input type="file" id="fileCam" accept="image/*" capture="user" hidden>
+<input type="file" id="fileLib" accept="image/*" hidden>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const CFG = window.TOOLKIT_CONFIG || {};
+  const token = location.hash.replace('#', '').trim();
+  let photo = null;   // the cropped JPEG, as a data: URL
+
+  async function call(action, extra = {}) {
+    try {
+      const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/cb', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY }, body: JSON.stringify({ action, token, ...extra }) });
+      return await r.json();
+    } catch (e) { return { ok: false, error: 'No connection. Check your internet and try again.' }; }
+  }
+  const show = id => ['#step1', '#step2', '#step3'].forEach(s => { $(s).hidden = s !== id; });
+
+  // Crop to the card's photo shape (portrait), centred, at a size that prints sharply
+  function crop(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const W = 900, H = Math.round(900 * 110.4 / 82.2), c = document.createElement('canvas');
+        c.width = W; c.height = H;
+        const s = Math.max(W / img.naturalWidth, H / img.naturalHeight), w = img.naturalWidth * s, h = img.naturalHeight * s;
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+        g.drawImage(img, (W - w) / 2, Math.min(0, (H - h) / 3), w, h);   // keep a little more of the top, where the face is
+        URL.revokeObjectURL(url); resolve(c.toDataURL('image/jpeg', 0.88));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad')); };
+      img.src = url;
+    });
+  }
+  async function picked(input) {
+    const f = input.files && input.files[0]; input.value = '';
+    if (!f) return;
+    try { photo = await crop(f); } catch (e) { alertMsg('That file could not be opened as a photo. Please try another.'); return; }
+    $('#prevImg').src = photo; $('#upErr').hidden = true; show('#step2');
+  }
+  function alertMsg(t) { $('#upErr').textContent = t; $('#upErr').hidden = false; show('#step2'); }
+
+  $('#takeBtn').onclick = () => $('#fileCam').click();
+  $('#chooseBtn').onclick = () => $('#fileLib').click();
+  $('#fileCam').onchange = e => picked(e.target);
+  $('#fileLib').onchange = e => picked(e.target);
+  $('#againBtn').onclick = () => { photo = null; show('#step1'); };
+  $('#sendBtn').onclick = async () => {
+    if (!photo) { show('#step1'); return; }
+    const b = $('#sendBtn'); b.disabled = true; b.textContent = 'Sending…'; $('#upErr').hidden = true;
+    const r = await call('idphoto_upload', { image: photo });
+    b.disabled = false; b.textContent = 'Send photo';
+    if (!r.ok) { $('#upErr').textContent = r.error || 'The photo could not be sent. Please try again.'; $('#upErr').hidden = false; return; }
+    show('#step3');
+  };
+
+  (async () => {
+    if (!token) { $('#loading').hidden = true; $('#dead').textContent = 'This link is missing its code. Please use the link from your message.'; $('#dead').hidden = false; return; }
+    const r = await call('idphoto_info');
+    $('#loading').hidden = true;
+    if (!r.ok) { $('#dead').textContent = r.error || 'This link is not working. Please ask AMA for a new one.'; $('#dead').hidden = false; return; }
+    $('#title').textContent = `${r.first}'s card photo`;
+    $('#intro').textContent = `Take or choose a photo of ${r.first} for their black belt ID card. It only takes a minute.`;
+    $('#already').hidden = !r.sent;
+    show('#step1');
+  })();
+})();
+</script>
+</body>
+</html>

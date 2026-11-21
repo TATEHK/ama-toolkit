@@ -319,6 +319,49 @@ const PREP = { closes: '2026-11-19', url: 'https://train.australianmartialarts.c
   text: 'A 2-hour workshop with Mr Mark and Master Hakan covering only grading material, on Sunday 22 November at AMA Marrickville. Students from every AMA school are welcome.' };
 function prepUrlFor(age) { return PREP.url + (age == null ? '' : age >= 13 ? '?s=teens' : '?s=kids'); }
 
+// ID card photo request (AMA ID Cards > Ask for photo): a text and an AMA house-style email with a link to upload a photo.
+// v = { first, parent (set for under-18s: worded for the parent), link, phone }
+export function buildPhotoRequest(v) {
+  const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const kid = !!v.parent, greet = kid ? v.parent : v.first;
+  const sms = kid
+    ? `Hi ${v.parent}, we need a photo of ${v.first} for their AMA black belt ID card. You can upload one here: ${v.link} Thank you! - AMA`
+    : `Hi ${v.first}, we need a photo for your AMA black belt ID card. You can upload one here: ${v.link} Thank you! - AMA`;
+  const subject = kid ? `A photo of ${v.first} for their black belt ID card` : 'A photo for your black belt ID card';
+  const p1 = kid ? `We need a photo of ${v.first} for their AMA black belt ID card. It only takes a minute: tap the button below, take or choose a photo, and send it.` : 'We need a photo for your AMA black belt ID card. It only takes a minute: tap the button below, take or choose a photo, and send it.';
+  const tips = ['Head and shoulders, looking straight at the camera', 'A plain, light background, like a wall', 'Good light on the face, no hats or sunglasses', 'Wearing the uniform (dobok) if possible'];
+  const ink = '#1c1c1c', gold = '#FFD200', green = '#0B6A35', night = '#0E0E0E', cream = '#F4F2EC', creamLine = '#E3DFD4', tel = String(v.phone || '').replace(/[^\d+]/g, '');
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(subject)}</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap');body{margin:0;padding:0;background:#E9E6DE;}a{color:${green};}@media (max-width:620px){.wrap{width:100%!important;}.pad{padding-left:22px!important;padding-right:22px!important;}.hero-title{font-size:34px!important;}}</style></head>
+<body style="margin:0;padding:0;background:#E9E6DE;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(p1)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E9E6DE;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:4px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:${ink};">
+  <tr><td style="background:${night};padding:26px 40px 22px;" align="center">
+    <img src="${LOGO2}" width="72" alt="Australian Martial Arts Academy" style="display:block;width:72px;height:auto;border:0;margin:0 auto;">
+    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:4px;color:#FFFFFF;padding-top:12px;text-transform:uppercase;">Australian Martial Arts Academy</div>
+    <div style="font-weight:bold;font-size:10px;letter-spacing:3px;color:${gold};padding-top:6px;">Sydney &middot; Since 1982</div></td></tr>
+  <tr><td class="pad" style="background:${night};padding:10px 32px 28px;">
+    <div style="color:${gold};font-size:12px;letter-spacing:3px;text-transform:uppercase;font-weight:bold;">Black belt ID card</div>
+    <div class="hero-title" style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;color:#ffffff;font-weight:700;font-size:40px;line-height:1.05;text-transform:uppercase;margin-top:8px;">${kid ? esc(`We need a photo of ${v.first}.`) : 'We need your photo.'}</div></td></tr>
+  <tr><td class="pad" style="padding:30px 32px 4px;">
+    <p style="margin:0;font-size:16px;line-height:1.55;color:#333;">Hi ${esc(greet)},</p>
+    <p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#333;">${esc(p1)}</p></td></tr>
+  <tr><td class="pad" align="center" style="padding:22px 32px 6px;"><a href="${esc(v.link)}" style="display:inline-block;background:${green};color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:16px;padding:14px 30px;border-radius:8px;">${kid ? esc(`Upload ${v.first}'s photo`) : 'Upload my photo'}</a></td></tr>
+  <tr><td class="pad" style="padding:22px 32px 0;">
+    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-size:17px;font-weight:600;text-transform:uppercase;color:#14321f;">For a good photo</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;background:${cream};border-radius:10px;border:1px solid ${creamLine};"><tr><td style="padding:10px 18px;">
+      ${tips.map(t => `<div style="font-size:15px;line-height:1.5;color:#333;padding:5px 0;">&#10003;&nbsp; ${esc(t)}</div>`).join('')}</td></tr></table></td></tr>
+  <tr><td class="pad" style="padding:20px 32px 28px;">
+    <p style="margin:0;font-size:16px;line-height:1.55;color:#333;">Thank you,<br><b>Australian Martial Arts Academy</b></p></td></tr>
+  <tr><td style="background:${night};padding:22px 32px;" align="center">
+    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;color:#ffffff;font-size:14px;letter-spacing:2px;text-transform:uppercase;">Australian Martial Arts Academy</div>
+    <div style="color:#9aa39a;font-size:13px;margin-top:8px;line-height:1.5;">Questions? Call us on ${tel ? `<a href="tel:${esc(tel)}" style="color:${gold};text-decoration:none;">${esc(v.phone)}</a>` : esc(v.phone || 'the front desk')}</div></td></tr>
+</table></td></tr></table></body></html>`;
+  const text = [`Hi ${greet},`, '', p1, '', `Upload the photo: ${v.link}`, '', 'For a good photo:', ...tips.map(t => '- ' + t), '', 'Thank you,', 'Australian Martial Arts Academy'].join('\n');
+  return { sms, subject, html, text };
+}
+
 // The grading helper invitation (Grading Helpers admin > Invite > Send): a text and an AMA house-style email with the
 // helper's personal sign-up link. v = { first, parent (set when they're under 18: worded for the parent), link, phone, days:[{ day, date, mon, where, time, belts }], more }
 export function buildHelperInvite(v) {
@@ -1443,6 +1486,26 @@ export async function handle(req, db, env = {}, http = fetch) {
 
     // ---- Grading helpers: a select black belt opens their personal link, sees the grading days they can help at,
     // and taps to put their hand up (or pull out). { action: 'helper_info' | 'helper_toggle', token, day_id?, on? } ----
+    // ID card photo link (public, by token): who it's for, and upload the photo (waits for staff to approve in AMA ID Cards)
+    if (body.action === 'idphoto_info' || body.action === 'idphoto_upload') {
+      const tok = String(body.token || '');
+      if (!/^[A-Za-z0-9_-]{8,40}$/.test(tok)) return json({ ok: false, error: 'This link is not valid.' }, 404);
+      const { data: pp } = await db.from('people').select('id, name, photo_pending_at').eq('photo_token', tok).maybeSingle();
+      if (!pp) return json({ ok: false, error: 'This link has expired. Please ask AMA for a new one.' }, 404);
+      if (body.action === 'idphoto_info') return json({ ok: true, first: first(pp.name), sent: !!pp.photo_pending_at });
+      const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(body.image || ''));
+      if (!m) return json({ ok: false, error: 'Please choose a photo.' }, 400);
+      const bytes = Uint8Array.from(atob(m[1]), c => c.charCodeAt(0));
+      if (bytes.length < 5000 || bytes.length > 4_000_000) return json({ ok: false, error: 'That photo is too small or too large. Please try another.' }, 400);
+      const path = `photos/pending-${pp.id}-${Date.now()}.jpg`;
+      const { error: ue } = await db.storage.from('cards').upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
+      if (ue) return json({ ok: false, error: 'The photo could not be saved. Please try again.' }, 500);
+      const { data: old } = await db.from('people').select('photo_pending_path').eq('id', pp.id).maybeSingle();
+      await db.from('people').update({ photo_pending_path: path, photo_pending_at: new Date().toISOString() }).eq('id', pp.id);
+      if (old && old.photo_pending_path && old.photo_pending_path !== path) await db.storage.from('cards').remove([old.photo_pending_path]).catch(() => {});
+      return json({ ok: true });
+    }
+
     if (body.action === 'helper_info' || body.action === 'helper_toggle') {
       const h = await helperByToken(db, body.token);
       if (!h) return json({ ok: false, error: "This link isn't valid any more. Please contact the office." }, 404);
@@ -2028,6 +2091,52 @@ export async function handle(req, db, env = {}, http = fetch) {
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
     if (!me) return fail('Sign in first.', 401);
+    // AMA ID Cards: text and email people a link to upload a photo for their card. Needs ID Cards "Edit people" (or Admin).
+    // { person_ids: [...], preview: true } returns the messages for the first person without sending.
+    if (body.action === 'idphoto_send') {
+      const { data: sp } = await db.from('staff_permissions').select('permission').eq('email', me);
+      const idp = (sp || []).map(r => r.permission);
+      if (!idp.includes('admin') && !idp.includes('edit')) return fail('Your login cannot ask for ID card photos. You need "Edit people" in AMA ID Cards.', 403);
+      const ids = (Array.isArray(body.person_ids) ? body.person_ids : []).map(String).slice(0, 200);
+      if (!ids.length) return fail('Pick at least one person.');
+      const { data: ppl } = await db.from('people').select('id, name, dob, student_id, photo_token').in('id', ids);
+      const sids = [...new Set((ppl || []).map(p => p.student_id).filter(Boolean))];
+      const { data: pss } = sids.length ? await db.from('prep_students').select('student_id, full_name, dob, contact_name, contact_phone, contact_email, efc_ref').in('student_id', sids) : { data: [] };
+      const psBy = Object.fromEntries((pss || []).map(x => [x.student_id, x]));
+      const refs = [...new Set((pss || []).map(x => x.efc_ref).filter(Boolean))];
+      const { data: mems } = refs.length ? await db.from('efc_members').select('efc_reference, member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').in('efc_reference', refs) : { data: [] };
+      const memBy = Object.fromEntries((mems || []).map(x => [x.efc_reference, x]));
+      const { data: cs } = await db.from('cb_settings').select('contact_phone').eq('id', 1).maybeSingle();
+      const okE = v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) ? v : null;
+      const prep = async p => {
+        const ps = psBy[p.student_id] || {}, m = memBy[ps.efc_ref] || {};
+        const dob = String(p.dob || ps.dob || m.date_of_birth || ''), age = /^\d{4}-\d{2}-\d{2}/.test(dob) ? Math.floor((Date.now() - Date.parse(dob.slice(0, 10))) / 31557600000) : null;
+        const kid = age != null && age < 18 && !!(m.guardian_name || m.guardian_phone || m.guardian_email || ps.contact_name);
+        const phone = kid ? phoneE164(m.guardian_phone || ps.contact_phone || m.phone) : phoneE164(m.phone || ps.contact_phone || m.guardian_phone);
+        const email = kid ? (okE(m.guardian_email) || okE(ps.contact_email) || okE(m.email)) : (okE(m.email) || okE(ps.contact_email) || okE(m.guardian_email));
+        let tok = p.photo_token;
+        if (!tok) { tok = essayToken(); await db.from('people').update({ photo_token: tok }).eq('id', p.id); }
+        const msg = buildPhotoRequest({ first: first(p.name), parent: kid ? (first(m.guardian_name || ps.contact_name) || 'there') : null, link: SITE + 'ama-id-cards/photo/#' + tok, phone: (cs && cs.contact_phone) || '(02) 9569 1943' });
+        return { p, phone, email, kid, msg, member_key: m.member_key || null, guardian: m.guardian_name || ps.contact_name || null };
+      };
+      const list = (ppl || []).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+      if (!list.length) return fail('Those people were not found.', 404);
+      if (body.preview) { const x = await prep(list[0]); return json({ ok: true, preview: true, name: x.p.name, to: { phone: x.phone, email: x.email, parent: x.kid }, sms: x.msg.sms, subject: x.msg.subject, html: x.msg.html, count: list.length }); }
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
+      const results = [];
+      for (const p of list) {
+        const x = await prep(p), r = { id: p.id, name: p.name, sms: null, email: null };
+        if (!x.phone && !x.email) { r.sms = r.email = 'no contact in EFC'; results.push(r); continue; }
+        let cid = null;
+        try { cid = await contactFor({ guardian_name: x.kid ? x.guardian : p.name, full_name: p.name, email: x.email }, x.phone); } catch (er) { r.sms = r.email = 'GoHighLevel: ' + String(er.message || er).slice(0, 120); results.push(r); continue; }
+        if (!cid) { r.sms = r.email = 'not found in GoHighLevel'; results.push(r); continue; }
+        if (x.phone) { try { await sendSms(cid, x.msg.sms); r.sms = 'sent'; } catch (er) { r.sms = String(er.message || er).slice(0, 160); } } else r.sms = 'no mobile';
+        if (x.email) { try { await sendEmailTo(cid, { subject: x.msg.subject, html: x.msg.html, text: x.msg.text }); r.email = 'sent'; } catch (er) { r.email = String(er.message || er).slice(0, 160); } } else r.email = 'no email';
+        if (r.sms === 'sent' || r.email === 'sent') await db.from('people').update({ photo_sent_at: new Date().toISOString() }).eq('id', p.id);
+        results.push(r);
+      }
+      return json({ ok: true, results });
+    }
     const { data: permRows } = await db.from('app_permissions').select('perm').eq('email', me).eq('app', 'cb');
     const perms = (permRows || []).map(r => r.perm);
     const can = (...want) => perms.includes('admin') || want.some(w => perms.includes(w));

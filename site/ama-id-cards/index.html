@@ -126,6 +126,17 @@
   .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--gold); color: var(--on-gold); white-space: nowrap; }
   .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
   .tag.warn { color: var(--warn); }
+  .check-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; font: inherit; text-align: left; cursor: pointer;
+    background: var(--raise); color: var(--fg); border: 1px solid var(--warn); border-radius: 12px; padding: 12px 16px; }
+  .check-banner b { color: var(--warn); white-space: nowrap; }
+  .pending-photo { display: flex; gap: 12px; align-items: center; background: var(--raise); border: 1px solid var(--warn); border-radius: 12px; padding: 12px; }
+  .pending-photo img { width: 72px; aspect-ratio: 82.2 / 110.4; object-fit: cover; border-radius: 8px; background: var(--surface); flex: none; }
+  .pp-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+  .pp-text span { color: var(--muted); font-size: 14px; }
+  .pp-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .askdlg .smsbox { background: var(--raise); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 15px; white-space: pre-wrap; word-break: break-word; }
+  .askdlg iframe { width: 100%; height: 420px; border: 1px solid var(--line); border-radius: 12px; background: #E9E6DE; }
+  .askdlg .lbl { font-size: 12.5px; font-weight: 700; color: var(--faint); margin-bottom: 4px; }
   .tag.muted { color: var(--muted); }
 
   /* ---------- People list ---------- */
@@ -359,6 +370,7 @@
     <div class="seg print-seg" id="printSeg" role="group" aria-label="Printed" hidden>
       <button data-v="todo" aria-pressed="true">To print</button><button data-v="done" aria-pressed="false">Printed</button><button data-v="" aria-pressed="false">All</button>
     </div>
+    <button class="check-banner need-edit" id="checkBanner" hidden><span id="checkBannerText"></span><b>Check now</b></button>
     <div class="swipe-tip" id="swipeTip" hidden><span id="swipeTipText"></span><button id="swipeTipOk">Got it</button></div>
     <ul class="people" id="people"></ul>
     <div class="empty" id="emptyMsg" hidden>
@@ -527,6 +539,7 @@
       <button class="btn primary need-print" id="selPrintBtn">Print</button>
       <button class="btn" id="selPdfBtn">Download PDF</button>
       <button class="btn need-edit" id="selMarkBtn" hidden>Mark printed</button>
+      <button class="btn need-edit" id="selAskBtn">Ask for photo</button>
       <button class="btn danger need-delete" id="selDeleteBtn">Delete</button>
     </div>
   </div>
@@ -557,6 +570,11 @@
     </div>
     <button class="close" id="pClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
+  <div class="pending-photo need-edit" id="pPending" hidden>
+    <img id="pPendingImg" alt="Photo sent in">
+    <div class="pp-text"><b>Photo sent in</b><span id="pPendingWhen"></span>
+      <div class="pp-acts"><button class="btn primary" id="pApprove">Use this photo</button><button class="btn" id="pDecline">Don't use</button></div></div>
+  </div>
   <div class="row" style="justify-content:space-between">
     <span class="label">Card</span>
     <div class="seg" role="group" aria-label="Card side"><button id="pSideBack" aria-pressed="true">Back</button><button id="pSideFront" aria-pressed="false">Front</button></div>
@@ -565,6 +583,7 @@
   <div class="actions-grid">
     <button class="btn primary big need-print" id="pPrint">Print card</button>
     <button class="btn need-edit" id="pPhotoBtn">Change photo</button>
+    <button class="btn need-edit" id="pAskBtn">Ask for photo</button>
     <button class="btn need-edit" id="pEdit">Edit details</button>
     <button class="btn" id="pPdf">Download PDF</button>
     <button class="btn need-edit" id="pMark" hidden>Mark as printed</button>
@@ -1062,7 +1081,8 @@ function fmtWhen(iso) {
 
 /* ---------- Data ---------- */
 const toRow = p => ({ id: p.id, name: p.name, dob: p.dob || null, dan: p.dan || null, issued: p.issued || null, photo_path: p.photo || null, updated_at: nowISO() });
-const fromRow = r => ({ id: r.id, name: r.name || '', dob: r.dob || '', dan: r.dan || '', issued: r.issued || '', photo: r.photo_path || null, printed: r.printed_at || null });
+const fromRow = r => ({ id: r.id, name: r.name || '', dob: r.dob || '', dan: r.dan || '', issued: r.issued || '', photo: r.photo_path || null, printed: r.printed_at || null,
+  photoPending: r.photo_pending_path || null, photoPendingAt: r.photo_pending_at || null, photoSent: r.photo_sent_at || null });
 
 async function loadPeople() {
   let data = null, error = null;
@@ -1234,7 +1254,7 @@ function visiblePeople() {
   const printed = state.printTracking ? printView : '';
   return state.people.filter(p => (!q || String(p.name).toLowerCase().includes(q))
     && (!dan || (p.dan || '') === dan)
-    && (!photo || (photo === 'has' ? hasPhoto(p) : !hasPhoto(p)))
+    && (!photo || (photo === 'check' ? !!p.photoPending : photo === 'has' ? hasPhoto(p) : !hasPhoto(p)))
     && (!printed || (printed === 'done' ? !!p.printed : !p.printed)));
 }
 function renderFilters() {
@@ -1246,7 +1266,10 @@ function renderFilters() {
   sel.value = opts.some(([v]) => v === cur) ? cur : '';
   const pf = $('#photoFilter'), pv = pf.value;
   const withPhoto = state.people.filter(hasPhoto).length;
-  pf.innerHTML = `<option value="">Any photo</option><option value="none">No photo (${state.people.length - withPhoto})</option><option value="has">Has photo (${withPhoto})</option>`;
+  const toCheck = state.people.filter(p => p.photoPending).length;
+  pf.innerHTML = `<option value="">Any photo</option>${toCheck ? `<option value="check">Photo to check (${toCheck})</option>` : ''}<option value="none">No photo (${state.people.length - withPhoto})</option><option value="has">Has photo (${withPhoto})</option>`;
+  if (pv === 'check' && !toCheck) pf.value = ''; else pf.value = pv;
+  const cb = $('#checkBanner'); if (cb) { cb.hidden = !toCheck || pv === 'check' || !can('edit'); $('#checkBannerText').textContent = `${toCheck} new photo${toCheck === 1 ? '' : 's'} sent in to check`; }
   pf.value = pv;
   $('#printSeg').hidden = !state.printTracking;
   if (state.printTracking) {
@@ -1270,7 +1293,8 @@ function renderList() {
     const who = document.createElement('div'); who.className = 'who';
     const bits = [];
     if (p.dob) bits.push(`<span>${esc(fmtShort(p.dob))}</span>`);
-    if (!hasPhoto(p)) bits.push('<span class="tag muted">No photo</span>');
+    if (p.photoPending) bits.push('<span class="tag warn">Photo to check</span>');
+    else if (!hasPhoto(p)) bits.push(p.photoSent ? `<span class="tag muted">Photo asked for ${esc(fmtDay(p.photoSent))}</span>` : '<span class="tag muted">No photo</span>');
     if (p.printed) bits.push(`<span class="tag ok">Printed ${esc(fmtDay(p.printed))}</span>`);
     if (p._pending) bits.push('<span class="tag warn">Not uploaded</span>');
     who.innerHTML = `<strong>${esc(p.name)}</strong><span class="meta">${bits.join('')}</span>`;
@@ -1400,7 +1424,7 @@ function renderSelBar() {
   $('#selBar').hidden = !state.selecting;
   const n = state.checked.size;
   $('#selCount').textContent = `${n} selected`;
-  ['#selPrintBtn', '#selPdfBtn', '#selDeleteBtn', '#selMarkBtn'].forEach(s => { $(s).disabled = n === 0; });
+  ['#selPrintBtn', '#selPdfBtn', '#selDeleteBtn', '#selMarkBtn', '#selAskBtn'].forEach(s => { $(s).disabled = n === 0; });
   $('#selMarkBtn').hidden = !state.printTracking;
   const sel = selectedPeople();
   $('#selMarkBtn').textContent = sel.length && sel.every(p => p.printed) ? 'Mark not printed' : 'Mark printed';
@@ -1443,6 +1467,9 @@ function renderPersonSheet() {
   $('#pDob').textContent = fmtShort(p.dob) || 'Not entered';
   $('#pIssued').textContent = fmtLong(p.issued || state.settings.issuedDefault) + (p.issued ? '' : ' (default)');
   $('#pPhotoBtn').textContent = hasPhoto(p) ? 'Retake photo' : 'Take photo';
+  $('#pAskBtn').textContent = p.photoSent ? `Ask for photo again (asked ${fmtDay(p.photoSent)})` : 'Ask for photo';
+  $('#pPending').hidden = !p.photoPending;
+  if (p.photoPending) { $('#pPendingImg').removeAttribute('src'); fileUrl(p.photoPending).then(u => { if (u && currentPerson() === p) $('#pPendingImg').src = u; }); $('#pPendingWhen').textContent = p.photoPendingAt ? `Sent ${fmtDay(p.photoPendingAt, true)}` : ''; }
   $('#pPrintedLabel').hidden = $('#pPrinted').hidden = !state.printTracking;
   $('#pPrinted').textContent = p.printed ? fmtDay(p.printed, true) : 'Not yet';
   $('#pMark').hidden = !state.printTracking;
@@ -1463,6 +1490,74 @@ $('#pPrint').onclick = async () => { const p = currentPerson(); if (p && await s
 $('#pPdf').onclick = () => { const p = currentPerson(); if (p) downloadPdf([p]); };
 $('#pMark').onclick = async () => { const p = currentPerson(); if (p) await setPrinted([p], !p.printed); };
 $('#pPhotoBtn').onclick = () => { const p = currentPerson(); if (p) askRetake(p); };
+$('#pAskBtn').onclick = () => { const p = currentPerson(); if (p) askForPhotos([p]); };
+$('#selAskBtn').onclick = () => { const l = selectedPeople(); if (l.length) askForPhotos(l); else toast('Pick people first.'); };
+$('#checkBanner').onclick = () => { $('#photoFilter').value = 'check'; renderList(); };
+// A photo sent in through the link: crop it like any other photo, save it on the card, then clear it
+$('#pApprove').onclick = async () => {
+  const p = currentPerson(); if (!p || !p.photoPending) return;
+  try {
+    const { data, error } = await sb.storage.from(BUCKET).download(p.photoPending); if (error) throw error;
+    const cropped = await cropPhoto(new File([data], 'photo.jpg', { type: 'image/jpeg' }));
+    if (!cropped) return;
+    toast('Saving photo...', 0);
+    const pending = p.photoPending;
+    await savePerson({ ...p }, cropped);
+    await sb.from('people').update({ photo_pending_path: null, photo_pending_at: null }).eq('id', p.id);
+    await removeFile(pending).catch(() => {});
+    await loadPeople(); if ($('#personDlg').open) renderPersonSheet();
+    toast(`Photo saved for ${p.name}`);
+  } catch (err) { toast('Could not use the photo: ' + errMsg(err), 6000); }
+};
+$('#pDecline').onclick = async () => {
+  const p = currentPerson(); if (!p || !p.photoPending) return;
+  if (!await ask(`Don't use the photo ${p.name} sent? You can ask them for another one.`, "Don't use")) return;
+  try {
+    const pending = p.photoPending;
+    const { error } = await sb.from('people').update({ photo_pending_path: null, photo_pending_at: null }).eq('id', p.id); if (error) throw error;
+    await removeFile(pending).catch(() => {});
+    await loadPeople(); if ($('#personDlg').open) renderPersonSheet();
+    toast('Photo removed. Tap Ask for photo to send them the link again.');
+  } catch (err) { toast('Could not remove it: ' + errMsg(err), 6000); }
+};
+// Text and email people a link to upload their own photo (shows the messages first)
+async function askForPhotos(list) {
+  const call = async extra => {
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch((window.AMA_CONFIG.SUPABASE_URL || '').replace(/\/$/, '') + '/functions/v1/cb', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: window.AMA_CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + (session ? session.access_token : '') },
+      body: JSON.stringify({ action: 'idphoto_send', person_ids: list.map(p => p.id), ...extra }) });
+    return r.json().catch(() => ({ error: 'Could not reach the server.' }));
+  };
+  toast('Getting the message ready...', 0);
+  const pv = await call({ preview: true });
+  if (pv.error || !pv.ok) { toast(pv.error || 'Could not get the message ready.', 6000); return; }
+  $('#toast').hidden = true;
+  const d = document.createElement('dialog'); d.className = 'sheet askdlg';
+  const to = pv.to || {}, one = list.length === 1;
+  d.innerHTML = `<div class="sheet-head"><div style="flex:1"><div class="p-name">${one ? `Ask ${esc(list[0].name)} for a photo` : `Ask ${list.length} people for a photo`}</div>
+      <p class="hint" style="margin:6px 0 0">${one ? (to.parent ? 'They\'re under 18, so this goes to their parent. ' : '') + (to.phone ? `Text to <b>${esc(to.phone)}</b>` : 'No mobile in EFC') + ' · ' + (to.email ? `email to <b>${esc(to.email)}</b>` : 'no email in EFC') : `Each gets a text and an email with their own link, like this one for ${esc(pv.name)}. Under-18s go to their parent.`}</p></div></div>
+    <p class="hint" id="askProg" hidden></p>
+    <div class="askpv"><div class="lbl">TEXT</div><div class="smsbox">${esc(pv.sms)}</div></div>
+    <div class="askpv"><div class="lbl">EMAIL · ${esc(pv.subject)}</div><iframe title="Email preview" sandbox></iframe></div>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-x>Cancel</button><button class="btn primary" data-go>${one ? 'Send' : `Send to all ${list.length}`}</button></div>`;
+  document.body.appendChild(d); d.querySelector('iframe').srcdoc = pv.html; d.showModal();
+  const close = () => { d.close(); d.remove(); };
+  d.querySelector('[data-x]').onclick = close;
+  d.querySelector('[data-go]').onclick = async () => {
+    const go = d.querySelector('[data-go]'), prog = d.querySelector('#askProg');
+    go.disabled = true; go.textContent = 'Sending...'; d.querySelectorAll('.askpv').forEach(n => n.hidden = true);
+    prog.hidden = false; prog.textContent = `Sending to ${list.length}... this can take a few seconds each.`;
+    const r = await call({});
+    if (r.error || !r.ok) { prog.textContent = r.error || 'Not sent.'; go.disabled = false; go.textContent = 'Try again'; return; }
+    const res = r.results || [], ok = res.filter(x => x.sms === 'sent' || x.email === 'sent');
+    const part = res.filter(x => (x.sms === 'sent') !== (x.email === 'sent')), bad = res.filter(x => x.sms !== 'sent' && x.email !== 'sent');
+    prog.innerHTML = `<b>Sent to ${ok.length} of ${res.length}.</b>${part.length ? `<br>Only part went to: ${esc(part.map(x => `${x.name} (${x.sms !== 'sent' ? 'text: ' + x.sms : 'email: ' + x.email})`).join('; '))}` : ''}${bad.length ? `<br>Not sent: ${esc(bad.map(x => `${x.name} (${x.sms})`).join('; '))}` : ''}`;
+    go.hidden = true; const x = d.querySelector('[data-x]'); x.textContent = 'Done'; x.onclick = close;
+    await loadPeople(); if ($('#personDlg').open) renderPersonSheet();
+    if (state.selecting && ok.length) setSelecting(false);
+  };
+}
 $('#pDelete').onclick = async () => {
   const p = currentPerson(); if (!p) return;
   if (!await ask(`Delete ${p.name}? Their photo is deleted too.`)) return;

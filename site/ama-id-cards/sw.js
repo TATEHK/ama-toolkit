@@ -3,7 +3,7 @@
 // Libraries and fonts never change at the same address, so they are kept once downloaded.
 // Supabase requests (member data) are never stored here.
 
-const CACHE = 'ama-cards-v10';
+const CACHE = 'ama-cards-v11';
 const SHELL = ['./', './index.html', './config.js', './hub-signin.js', './manifest.webmanifest', './icon-192.png', './apple-touch-icon.png'];
 const LIB_HOSTS = /(^|\.)(cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
 
