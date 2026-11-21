@@ -362,12 +362,15 @@ body[data-role="signin"]{overflow:hidden}
 .gate.board .gate-logo,.gate.board h1,.gate.board #gateMsg{display:none}
 .pk-head{display:flex;align-items:center;gap:12px;margin-bottom:20px}
 .pk-head>div:nth-child(2){min-width:0}
-@media (max-width:480px){ .pk-head h2{font-size:24px} .pk-head p{display:none} .btn.pk-out{padding:8px 12px} }
+.btn.pk-out{white-space:nowrap}
+@media (max-width:480px){ .pk-head{gap:8px} .pk-head h2{font-size:22px;white-space:nowrap} .pk-head p,.gate.board .pk-head .gate-logo{display:none!important} .btn.pk-out{padding:8px 12px} }
 .pk-head .gate-logo{display:grid!important;margin:0;width:40px;height:40px;border-radius:12px;font-size:20px}
 .pk-head h2{font-family:"Barlow Semi Condensed",sans-serif;font-size:28px;font-weight:700;margin:0;line-height:1}
 .pk-head p{margin:2px 0 0;color:var(--ink-3);font-size:13.5px}
 .pk-head .grow{flex:1}
 .btn.pk-out{background:var(--panel);color:var(--ink-2);border:1px solid var(--line)}
+.pk-hub{display:inline-flex;align-items:center;gap:4px;text-decoration:none;color:var(--ink)!important}
+.pk-hub svg{width:16px;height:16px}
 .pk-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 0 20px;padding-bottom:2px}
 .pk-chips::-webkit-scrollbar{display:none}
 .pk-chip{flex:none;font:inherit;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);border-radius:20px;padding:8px 16px;cursor:pointer}
@@ -475,7 +478,7 @@ body[data-role="signin"]{overflow:hidden}
       <button class="btn primary block" id="siGo" type="submit">Sign in</button>
     </form>
     <div id="daypick" hidden>
-      <div class="pk-head"><div class="gate-logo">A</div><div><h2>Grading Floor</h2><p>Pick a grading to open its floor plan</p></div><span class="grow"></span><button class="btn pk-out" id="gateOut">Sign out</button></div>
+      <div class="pk-head"><div class="gate-logo">A</div><div><h2>Grading Floor</h2><p>Pick a grading to open its floor plan</p></div><span class="grow"></span><a class="btn pk-out pk-hub" href="https://train.australianmartialarts.com.au/admin" aria-label="Back to the hub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Hub</a><button class="btn pk-out" id="gateOut">Sign out</button></div>
       <div class="pk-chips" id="pkChips"></div>
       <div id="dayList"></div>
     </div>
@@ -1198,8 +1201,9 @@ async function boot() {
   // admins/super can preview the Sarah / Master / Floor-staff screens; the choice sticks on this device
   try { const sv = localStorage.getItem('cb_floor_view'); if (sv && canSwitchView() && sv !== mineRole()) state.role = sv; } catch (e) {}
   if (!PERMS.length) { $('#gate').hidden = false; $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gateMsg').textContent = "You don't have Coloured Belts access yet."; $('#dayList').innerHTML = ''; return; }
-  let saved = ''; try { saved = new URLSearchParams(location.search).get('day') || localStorage.getItem('cb_floor_day') || ''; } catch (e) {}
-  if (saved) { loadDay(saved); } else { showDays(); }   // reopen the day you were on, across refreshes
+  // Coming in fresh shows the list of gradings; a refresh keeps the day you're on (it's in the address as ?day=...)
+  let saved = ''; try { saved = new URLSearchParams(location.search).get('day') || ''; } catch (e) {}
+  if (saved) { loadDay(saved); } else { showDays(); }
 }
 // The grading day you're on stays across refreshes: in the address (?day=...) and on this device
 function keepDay(id) {
