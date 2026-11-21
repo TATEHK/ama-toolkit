@@ -2136,11 +2136,16 @@ export async function handle(req, db, env = {}, http = fetch) {
     // The black belt roster to invite from, with each one's invite state + personal link
     if (body.action === 'helper_roster') {
       if (!can('days', 'settings')) return fail('Not allowed.', 403);
-      const { data: ps } = await db.from('prep_students').select('student_id, full_name, efc_ref, belt_rank').eq('is_active', true).eq('is_test', false).order('full_name');
+      // Black belts and helper records side by side; members looked up in parallel chunks (a long IN list is slow)
+      const [{ data: ps }, hRes] = await Promise.all([
+        db.from('prep_students').select('student_id, full_name, efc_ref, belt_rank').eq('is_active', true).eq('is_test', false).order('full_name'),
+        db.from('cb_helpers').select('member_key, token, active, sent_at, little_dragons')]);
+      let helpers = hRes.data;
+      if (hRes.error) ({ data: helpers } = await db.from('cb_helpers').select('member_key, token, active'));   // before cb-helpers-send.sql
       const refs = [...new Set((ps || []).map(p => p.efc_ref).filter(Boolean))], memByRef = {};
-      if (refs.length) { const { data: mem } = await db.from('efc_members').select('member_key, efc_reference, date_of_birth').in('efc_reference', refs); for (const m of (mem || [])) memByRef[m.efc_reference] = m; }
-      let { data: helpers, error: hErr } = await db.from('cb_helpers').select('member_key, token, active, sent_at, little_dragons');
-      if (hErr) ({ data: helpers } = await db.from('cb_helpers').select('member_key, token, active'));   // before cb-helpers-send.sql
+      const chunks = []; for (let i = 0; i < refs.length; i += 120) chunks.push(refs.slice(i, i + 120));
+      const memRes = await Promise.all(chunks.map(c => db.from('efc_members').select('member_key, efc_reference, date_of_birth').in('efc_reference', c)));
+      for (const r of memRes) for (const m of (r.data || [])) memByRef[m.efc_reference] = m;
       const hByKey = {};
       for (const h of (helpers || [])) hByKey[h.member_key] = h;
       const list = (ps || []).map(p => { const m = memByRef[p.efc_ref], key = m && m.member_key, h = key && hByKey[key];

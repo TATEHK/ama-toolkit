@@ -454,13 +454,22 @@ function showTab(t){ TAB=['bb','inv'].includes(t)?t:'cb';
   try{ localStorage.setItem('helpers_admin_tab',TAB); history.replaceState(null,'','#'+TAB); }catch(e){}
   if(TAB==='bb') loadBb(); }
 $$('.tabs [data-tab]').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+// Show the last copy straight away (kept on this device), then refresh from the server. Grading days and the
+// black belt list load side by side, and each shows as soon as it arrives.
+const CACHE_KEY='helpers_admin_cache_v1';
+function readCache(){ try{ const c=JSON.parse(localStorage.getItem(CACHE_KEY)||'null'); return c&&Array.isArray(c.days)&&Array.isArray(c.roster)?c:null; }catch(e){ return null; } }
+function writeCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ at:Date.now(), days:DAYS, roster:ROSTER })); }catch(e){} }
+let SHOWN=false;
+function showApp(){ if(SHOWN) return; SHOWN=true; $('#loading').hidden=true; $('#app').hidden=false; showTab(TAB); }
 async function load(){
-  $('#loading').hidden=false;
-  const [d,r] = await Promise.all([api('helper_admin_days'), api('helper_roster')]);
-  $('#loading').hidden=true;
-  if((d&&d.error&&/not allowed|cannot/i.test(d.error))||(r&&r.error&&/not allowed|cannot/i.test(r.error))){ $('#noaccess').hidden=false; return; }
-  DAYS = (d&&d.days)||[]; ROSTER = (r&&r.helpers)||[];
-  $('#app').hidden=false; renderDays(); renderRoster(); showTab(TAB);
+  const c=readCache();
+  if(c){ DAYS=c.days; ROSTER=c.roster; showApp(); renderDays(); renderRoster(); }
+  else $('#loading').hidden=false;
+  const denied=x=>x&&x.error&&/not allowed|cannot/i.test(x.error);
+  const pd=api('helper_admin_days').then(d=>{ if(denied(d)) throw d; if(d&&!d.error){ DAYS=d.days||[]; showApp(); renderDays(); writeCache(); } });
+  const pr=api('helper_roster').then(r=>{ if(denied(r)) throw r; if(r&&!r.error){ ROSTER=r.helpers||[]; showApp(); renderRoster(); renderDays(); writeCache(); } });
+  try{ await Promise.all([pd,pr]); }catch(e){ try{ localStorage.removeItem(CACHE_KEY); }catch(_){} $('#app').hidden=true; $('#loading').hidden=true; $('#noaccess').hidden=false; return; }
+  showApp();
 }
 
 async function boot(){
