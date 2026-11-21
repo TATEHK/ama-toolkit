@@ -356,6 +356,41 @@ body[data-role="signin"]{overflow:hidden}
 .dp-bnames{color:var(--ink-2);font-size:12px;font-weight:500}
 .dp-n{background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:13px;border-radius:999px;min-width:26px;height:26px;display:grid;place-items:center;padding:0 8px}
 .dp-empty{color:var(--ink-3);font-size:13px;padding:18px 4px}
+/* day picker as a full-page board (signed in) */
+.gate.board{display:block;padding:0;background:var(--bg)}
+.gate.board .gate-card{width:100%;max-width:1180px;margin:0 auto;background:none;border:0;box-shadow:none;border-radius:0;text-align:left;padding:calc(env(safe-area-inset-top,0px) + 24px) max(20px,env(safe-area-inset-right,0px)) 40px max(20px,env(safe-area-inset-left,0px))}
+.gate.board .gate-logo,.gate.board h1,.gate.board #gateMsg{display:none}
+.pk-head{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.pk-head>div:nth-child(2){min-width:0}
+@media (max-width:480px){ .pk-head h2{font-size:24px} .pk-head p{display:none} .btn.pk-out{padding:8px 12px} }
+.pk-head .gate-logo{display:grid!important;margin:0;width:40px;height:40px;border-radius:12px;font-size:20px}
+.pk-head h2{font-family:"Barlow Semi Condensed",sans-serif;font-size:28px;font-weight:700;margin:0;line-height:1}
+.pk-head p{margin:2px 0 0;color:var(--ink-3);font-size:13.5px}
+.pk-head .grow{flex:1}
+.btn.pk-out{background:var(--panel);color:var(--ink-2);border:1px solid var(--line)}
+.pk-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 0 20px;padding-bottom:2px}
+.pk-chips::-webkit-scrollbar{display:none}
+.pk-chip{flex:none;font:inherit;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);border-radius:20px;padding:8px 16px;cursor:pointer}
+.pk-chip.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.pk-day{margin:0 0 24px}
+.pk-day h3{font-family:"Barlow Semi Condensed",sans-serif;font-size:18px;font-weight:700;margin:0 0 10px;display:flex;align-items:baseline;gap:10px}
+.pk-day h3 small{font-family:inherit;font-weight:600;font-size:13px;color:var(--ink-3)}
+.pk-day h3 .today{background:var(--accent);color:var(--accent-ink);font-size:12px;font-weight:700;border-radius:6px;padding:2px 8px}
+.pk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:12px}
+.pk-card{display:flex;flex-direction:column;gap:12px;text-align:left;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:16px;cursor:pointer;font:inherit;transition:border-color .15s,transform .1s}
+.pk-card:hover{border-color:var(--accent)}
+.pk-card:active{transform:scale(.99)}
+.pk-card.now{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.pk-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.pk-top b{font-family:"Barlow Semi Condensed",sans-serif;font-size:22px;line-height:1.1;display:block}
+.pk-top .t{color:var(--ink-3);font-size:14px;font-weight:600;margin-top:2px;display:block}
+.pk-n{text-align:right;flex:none}
+.pk-n b{font-family:"Barlow Semi Condensed",sans-serif;font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
+.pk-n small{display:block;color:var(--ink-3);font-size:12px;font-weight:600}
+.pk-belts{display:flex;flex-wrap:wrap;gap:6px}
+.pk-belt{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 8px 3px 4px}
+.pk-belt i{width:10px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.35)}
+
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(14px);background:var(--ink);color:var(--panel);font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:999px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.22s;z-index:80;max-width:88vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 /* Sarah call-out flow: who's-next picker + arrival list */
@@ -440,9 +475,9 @@ body[data-role="signin"]{overflow:hidden}
       <button class="btn primary block" id="siGo" type="submit">Sign in</button>
     </form>
     <div id="daypick" hidden>
-      <div class="gate-dp-sub">Choose the grading day</div>
-      <div id="dayList" class="daylist"></div>
-      <button class="btn ghost block" id="gateOut" style="margin-top:14px">Sign out</button>
+      <div class="pk-head"><div class="gate-logo">A</div><div><h2>Grading Floor</h2><p>Pick a grading to open its floor plan</p></div><span class="grow"></span><button class="btn pk-out" id="gateOut">Sign out</button></div>
+      <div class="pk-chips" id="pkChips"></div>
+      <div id="dayList"></div>
     </div>
   </div>
 </div>
@@ -1121,26 +1156,37 @@ async function pollDay() {
 }
 
 // day picker + sign-in
+let PK_SCHOOL = (()=>{ try { return localStorage.getItem('cb_floor_pick_school') || ''; } catch (e) { return ''; } })();
+const pkClock = t => { if (!t) return ''; const [h, m] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}${m ? ':' + String(m).padStart(2, '0') : ''}${h < 12 ? 'am' : 'pm'}`; };
 async function showDays() {
-  $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gateMsg').textContent = 'Choose the grading day';
+  $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gate').classList.add('board'); $('#gateMsg').textContent = 'Choose the grading day';
   const { data, error } = await sb.rpc('cb_floor_days');
-  if (error) { $('#dayList').innerHTML = `<div class="dp-empty">No access yet — ask a Coloured Belts admin.</div>`; return; }
-  const days = data || [];
-  $('#dayList').innerHTML = days.length ? days.map(d => {
-    const belts = (d.belts || []).map(shortB).sort((a,b)=>beltR(a)-beltR(b));
-    const dots = belts.map(b=>`<span class="dp-bdot" style="background:${beltC(b)}" title="${b}"></span>`).join('');
-    const names = belts.join(', ');
-    return `<button class="dp-row" data-day="${d.day_id}"><div class="dp-main">
-      <b>${schoolOf(d.location)}</b><span>${fmtDay(d.date)}</span>
-      ${belts.length?`<div class="dp-belts"><span class="dp-dots">${dots}</span><span class="dp-bnames">${names}</span></div>`:''}
-    </div><span class="dp-n" title="${d.entries} students">${d.entries}</span></button>`;
-  }).join('') : `<div class="dp-empty">No upcoming grading days with students.</div>`;
-  $$('#dayList .dp-row').forEach(b => b.onclick = () => loadDay(b.dataset.day));
+  if (error) { $('#pkChips').innerHTML = ''; $('#dayList').innerHTML = `<div class="dp-empty">No access yet — ask a Coloured Belts admin.</div>`; return; }
+  const all = (data || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')) || String(a.location).localeCompare(String(b.location)));
+  const schools = [...new Set(all.map(d => d.location))].sort();
+  if (PK_SCHOOL && !schools.includes(PK_SCHOOL)) PK_SCHOOL = '';
+  $('#pkChips').innerHTML = schools.length > 1 ? [['', 'All schools'], ...schools.map(x => [x, schoolOf(x)])].map(([k, t]) => `<button class="pk-chip${PK_SCHOOL === k ? ' on' : ''}" data-s="${k}">${t}</button>`).join('') : '';
+  $$('#pkChips [data-s]').forEach(b => b.onclick = () => { PK_SCHOOL = b.dataset.s; try { localStorage.setItem('cb_floor_pick_school', PK_SCHOOL); } catch (e) {} showDays(); });
+  const days = all.filter(d => !PK_SCHOOL || d.location === PK_SCHOOL);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  const tmr = new Date(Date.parse(today + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+  const byDate = []; for (const d of days) { let g = byDate.find(x => x.date === d.date); if (!g) byDate.push(g = { date: d.date, list: [] }); g.list.push(d); }
+  $('#dayList').innerHTML = byDate.length ? byDate.map(g => {
+    const n = g.list.reduce((a, d) => a + (d.entries || 0), 0);
+    const tag = g.date === today ? '<span class="today">Today</span>' : g.date === tmr ? '<small>Tomorrow</small>' : '';
+    return `<section class="pk-day"><h3>${fmtDay(g.date)} ${tag}<small>${g.list.length} grading${g.list.length === 1 ? '' : 's'} · ${n} students</small></h3><div class="pk-grid">${g.list.map(d => {
+      const belts = (d.belts || []).map(shortB).sort((a, b) => beltR(a) - beltR(b));
+      return `<button class="pk-card${g.date === today ? ' now' : ''}" data-day="${d.day_id}">
+        <div class="pk-top"><div><b>${schoolOf(d.location)}</b><span class="t">${pkClock(d.start_time) || 'Time not set'}</span></div><div class="pk-n"><b>${d.entries || 0}</b><small>students</small></div></div>
+        ${belts.length ? `<div class="pk-belts">${belts.map(b => `<span class="pk-belt"><i style="background:${beltC(b)}"></i>${b}</span>`).join('')}</div>` : ''}
+      </button>`; }).join('')}</div></section>`;
+  }).join('') : `<div class="dp-empty">No upcoming gradings${PK_SCHOOL ? ' at ' + schoolOf(PK_SCHOOL) : ''} with paid students.</div>`;
+  $$('#dayList .pk-card').forEach(b => b.onclick = () => loadDay(b.dataset.day));
 }
 async function boot() {
   if (window.AmaHub) { try { await AmaHub.recheck({ sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY }); } catch (e) {} }
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { $('#gate').hidden = false; $('#gateMsg').textContent = 'Sign in with your AMA hub mobile and PIN'; $('#siForm').hidden = false; $('#daypick').hidden = true; try { if (window.AmaHub) AmaHub.mount(HUB); } catch (e) {} return; }
+  if (!session) { $('#gate').hidden = false; $('#gate').classList.remove('board'); $('#gateMsg').textContent = 'Sign in with your AMA hub mobile and PIN'; $('#siForm').hidden = false; $('#daypick').hidden = true; try { if (window.AmaHub) AmaHub.mount(HUB); } catch (e) {} return; }
   ME = (session.user.email || '').toLowerCase();
   const { data: perms } = await sb.rpc('app_my_perms', { p_app: 'cb' }); PERMS = perms || [];
   canSuper = (ME === SUPER_EMAIL);
