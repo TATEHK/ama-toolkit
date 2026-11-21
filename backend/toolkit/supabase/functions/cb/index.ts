@@ -2087,9 +2087,41 @@ export async function handle(req, db, env = {}, http = fetch) {
       const today = new Date().toISOString().slice(0, 10);
       const { data: days } = await db.from('cb_days').select('day_id, grading_date, start_time, location, bb, programme, belts, closed, helper_open, helper_cap, helper_audience').gte('grading_date', today).order('grading_date');
       const ids = (days || []).map(d => d.day_id), byDay = {};
-      if (ids.length) { const { data: su } = await db.from('cb_helper_signups').select('day_id, cb_helpers(full_name)').in('day_id', ids); for (const r of (su || [])) (byDay[r.day_id] = byDay[r.day_id] || []).push((r.cb_helpers && r.cb_helpers.full_name) || ''); }
-      return json({ ok: true, days: (days || []).map(d => ({ ...d, helpers: (byDay[d.day_id] || []).filter(Boolean).sort() })) });
+      const detail = {};
+      if (ids.length) { const { data: su } = await db.from('cb_helper_signups').select('day_id, helper_id, cb_helpers(full_name)').in('day_id', ids); for (const r of (su || [])) { const nm = (r.cb_helpers && r.cb_helpers.full_name) || ''; (byDay[r.day_id] = byDay[r.day_id] || []).push(nm); (detail[r.day_id] = detail[r.day_id] || []).push({ helper_id: r.helper_id, name: nm }); } }
+      return json({ ok: true, days: (days || []).map(d => ({ ...d, helpers: (byDay[d.day_id] || []).filter(Boolean).sort(), helper_list: (detail[d.day_id] || []).filter(x => x.name).sort((a, b) => a.name.localeCompare(b.name)) })) });
     }
+    // Staff add (or take off) a helper on a grading day by hand. { day_id, on, helper_id } or { day_id, student_id } or { day_id, name }
+    // A black belt from the list keeps their usual helper record; anyone else gets a record by name only (no sign-up link).
+    // Staff aren't held to the cap.
+    if (body.action === 'helper_admin_assign') {
+      if (!can('days', 'settings')) return fail('Your login cannot manage grading helpers.', 403);
+      const dayId = String(body.day_id || '');
+      const { data: d } = await db.from('cb_days').select('day_id').eq('day_id', dayId).maybeSingle();
+      if (!d) return fail('That grading day was not found.', 404);
+      if (body.on === false) {
+        await db.from('cb_helper_signups').delete().eq('day_id', dayId).eq('helper_id', String(body.helper_id || ''));
+        return json({ ok: true });
+      }
+      let helperId = null, member_key = '', full_name = String(body.name || '').replace(/\s+/g, ' ').trim().slice(0, 80), efc_ref = null;
+      if (body.student_id) {
+        const { data: p } = await db.from('prep_students').select('full_name, efc_ref').eq('student_id', String(body.student_id)).maybeSingle();
+        if (p) { full_name = p.full_name; efc_ref = p.efc_ref; if (p.efc_ref) { const { data: m } = await db.from('efc_members').select('member_key').eq('efc_reference', p.efc_ref).maybeSingle(); if (m) member_key = m.member_key; } }
+      }
+      if (!full_name) return fail('Type their name.');
+      if (!member_key) member_key = 'manual:' + full_name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const { data: h } = await db.from('cb_helpers').select('helper_id').eq('member_key', member_key).maybeSingle();
+      if (h) helperId = h.helper_id;
+      else {
+        const { data: made, error: me1 } = await db.from('cb_helpers').insert({ member_key, efc_ref, full_name, token: essayToken(), active: false }).select('helper_id').single();
+        if (me1) return fail(me1.message);
+        helperId = made.helper_id;
+      }
+      const { error: e2 } = await db.from('cb_helper_signups').upsert({ helper_id: helperId, day_id: dayId }, { onConflict: 'helper_id,day_id', ignoreDuplicates: true });
+      if (e2) return fail(e2.message);
+      return json({ ok: true, helper_id: helperId, name: full_name });
+    }
+
     // Open/close a day for helpers, set the cap and the audience band
     if (body.action === 'helper_admin_day_set') {
       if (!can('days', 'settings')) return fail('Not allowed.', 403);

@@ -112,6 +112,15 @@
   .det{padding:4px 12px 12px 70px;display:flex;flex-direction:column;gap:10px}
   .det .ctrls{gap:8px 16px}
   .names-in{font-size:13.5px;color:var(--muted)}.names-in b{color:var(--fg);font-weight:600}
+  .hl{display:flex;flex-wrap:wrap;gap:8px}
+  .hchip{display:inline-flex;align-items:center;gap:4px;background:var(--raise);border:1px solid var(--line2);border-radius:16px;padding:4px 4px 4px 12px;font-size:14px}
+  .hchip button{border:0;background:none;color:var(--faint);font-size:18px;line-height:1;width:24px;height:24px;border-radius:12px;cursor:pointer}
+  .hchip button:hover{color:var(--danger);background:rgba(239,138,115,.1)}
+  .hadd{display:flex;gap:8px}
+  .scard .hadd{margin-top:4px}
+  .xrm{border:0;background:none;color:var(--faint);font-size:16px;line-height:1;cursor:pointer;margin-left:6px;padding:0 4px;border-radius:6px}
+  .xrm:hover{color:var(--danger)}
+  .hadd input{flex:1;min-width:0;min-height:36px;padding:6px 10px;border:1px solid var(--line);border-radius:9px;background:var(--raise);color:var(--fg);font:inherit;font-size:14px}
   .chev{flex:none;color:var(--faint);transition:transform .15s}.open .chev{transform:rotate(90deg)}
   .seg2{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:2px;gap:2px;background:var(--bg)}
   .seg2 button{font:inherit;font-size:13px;font-weight:600;border:0;background:none;color:var(--muted);border-radius:8px;padding:6px 11px;cursor:pointer}
@@ -219,7 +228,8 @@ function dayRow(d){
     </div>
     ${open?`<div class="det">
       ${d.helper_open?`<div class="ctrls"><label>Helpers wanted <input type="number" min="0" max="50" value="${cap}" data-set="cap" data-day="${d.day_id}"></label>${aud}</div>`:'<p class="hint">Switch it on to let invited helpers sign up.</p>'}
-      <div class="names-in">${n?`<b>Helping:</b> ${esc((d.helpers||[]).join(', '))}`:'No one has signed up yet.'}</div>
+      <div class="hl">${(d.helper_list||[]).map(x=>`<span class="hchip">${esc(x.name)}<button data-hrm="${d.day_id}" data-h="${esc(x.helper_id)}" aria-label="Take ${esc(x.name)} off">×</button></span>`).join('') || '<span class="names-in">No one yet.</span>'}</div>
+      <div class="hadd"><input list="helperNames" data-hadd="${d.day_id}" placeholder="Add a helper by name" aria-label="Add a helper" autocomplete="off"><button class="btn sm primary" data-hgo="${d.day_id}">Add</button></div>
     </div>`:''}</li>`;
 }
 function weekLabel(ymd){
@@ -235,6 +245,20 @@ function renderDays(){
   const groups=[]; for(const d of cb){ const w=weekLabel(d.grading_date); let g=groups.find(x=>x.w===w); if(!g) groups.push(g={w,days:[]}); g.days.push(d); }
   $('#days').innerHTML = groups.map(g=>`<div class="group-h">${esc(g.w)}</div><ul class="rows" style="margin-top:8px;margin-bottom:6px">${g.days.map(dayRow).join('')}</ul>`).join('') || '<p class="hint">No upcoming coloured belt grading days.</p>';
   $('#bbDays').innerHTML = bb.length ? `<ul class="rows">${bb.map(dayRow).join('')}</ul>` : '<p class="hint">No upcoming black belt grading days.</p>';
+  let dl=document.getElementById('helperNames'); if(!dl){ dl=document.createElement('datalist'); dl.id='helperNames'; document.body.appendChild(dl); }
+  dl.innerHTML=ROSTER.map(h=>`<option value="${esc(h.full_name)}">`).join('');
+  const addHelper=async(dayId)=>{ const inp=$(`[data-hadd="${dayId}"]`), v=(inp.value||'').trim(); if(!v) return;
+    const match=ROSTER.find(h=>h.full_name.toLowerCase()===v.toLowerCase());
+    const r=await api('helper_admin_assign',{ day_id:dayId, ...(match?{student_id:match.student_id}:{name:v}) });
+    if(r.error){ toast(r.error); return; }
+    const d=DAYS.find(x=>x.day_id===dayId); if(d){ d.helper_list=(d.helper_list||[]).filter(x=>x.helper_id!==r.helper_id).concat({helper_id:r.helper_id,name:r.name}).sort((a,b)=>a.name.localeCompare(b.name)); d.helpers=d.helper_list.map(x=>x.name); }
+    renderDays(); toast(r.name+' added'); };
+  $$('[data-hgo]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); addHelper(b.dataset.hgo); });
+  $$('[data-hadd]').forEach(i=>{ i.onclick=e=>e.stopPropagation(); i.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); addHelper(i.dataset.hadd); } }; });
+  $$('[data-hrm]').forEach(b=>b.onclick=async e=>{ e.stopPropagation(); const dayId=b.dataset.hrm, hid=b.dataset.h;
+    const r=await api('helper_admin_assign',{ day_id:dayId, helper_id:hid, on:false }); if(r.error){ toast(r.error); return; }
+    const d=DAYS.find(x=>x.day_id===dayId); if(d){ d.helper_list=(d.helper_list||[]).filter(x=>x.helper_id!==hid); d.helpers=d.helper_list.map(x=>x.name); }
+    renderDays(); toast('Taken off'); });
   $$('[data-row]').forEach(r=>r.onclick=e=>{ if(e.target.closest('.sw')) return; const id=r.dataset.row; OPEN.has(id)?OPEN.delete(id):OPEN.add(id); renderDays(); });
   $$('#days [data-set], #bbDays [data-set]').forEach(el=>{
     el.addEventListener('click', e=>e.stopPropagation());
@@ -326,7 +350,8 @@ async function loadBb(){
   const ov={}; for(const o of (en||[])) ov[o.cycle_id+'|'+o.student_id]=o;
   let names={}; const ids=[...new Set((hs||[]).map(h=>h.student_id))].filter(id=>!Object.values(ov).some(o=>o.student_id===id));
   if(ids.length){ const { data: st } = await sb.from('prep_students').select('student_id, full_name, belt_rank').in('student_id', ids); for(const x of (st||[])) names[x.student_id]=x; }
-  const who = h => { const o=ov[h.cycle_id+'|'+h.student_id]||names[h.student_id]||{}; return { name:o.full_name||h.student_id, rank:o.grading_to||o.belt_rank||'', senior:h.senior }; };
+  const who = h => { const o=ov[h.cycle_id+'|'+h.student_id]||names[h.student_id]||{}; return { id:h.student_id, cycle:h.cycle_id, slots:h.slot_ids||[], name:o.full_name||h.student_id, rank:o.grading_to||o.belt_rank||'', senior:h.senior }; };
+  if(!BBSTU){ const { data: st } = await sb.from('prep_students').select('student_id, full_name, belt_rank').eq('is_active', true).eq('is_test', false).order('full_name'); BBSTU = st||[]; }
   const cands=(en||[]).filter(o=>o.is_grading && SENIOR.test(o.grading_to||''));
   const H=(hs||[]), byStudent={}; for(const h of H) byStudent[h.cycle_id+'|'+h.student_id]=h;
   const helping=H.filter(h=>(h.slot_ids||[]).some(id=>slots.some(x=>x.slot_id===id)));
@@ -340,10 +365,37 @@ async function loadBb(){
   box.innerHTML=`<div class="kpis"><div class="kpi"><b>${cands.length}</b><span>4th Dan and above</span></div><div class="kpi"><b>${asked.length}</b><span>Asked</span></div><div class="kpi"><b>${helping.length}</b><span>Helping</span></div></div>
     <div class="sess" style="margin-top:12px">${slots.map(sl=>{ const inS=H.filter(h=>(h.slot_ids||[]).includes(sl.slot_id)).map(who).sort((a,b)=>(b.senior-a.senior)||byName(a,b)); const sen=inS.filter(x=>x.senior).length;
       return `<div class="scard"><div class="hd"><b>${esc(sl.label.replace(/ session$/,''))}</b><span class="cnt${sen>=sl.cap?' full':''}">${sen} / ${sl.cap}${inS.length>sen?` + ${inS.length-sen}`:''}</span></div>
-        ${inS.length?`<ul class="names">${inS.map(x=>`<li><span class="${x.senior?'':'other'}">${esc(x.name)}</span><small>${esc(x.rank)}${x.senior?'':' · other helper'}</small></li>`).join('')}</ul>`:'<p class="hint">No one yet.</p>'}</div>`; }).join('')}</div>
+        ${inS.length?`<ul class="names">${inS.map(x=>`<li><span class="${x.senior?'':'other'}">${esc(x.name)}</span><small>${esc(x.rank)}${x.senior?'':' · other helper'}<button class="xrm" data-bbrm="${esc(sl.slot_id)}" data-sid="${esc(x.id)}" data-cyc="${esc(x.cycle)}" aria-label="Take ${esc(x.name)} off">×</button></small></li>`).join('')}</ul>`:'<p class="hint">No one yet.</p>'}
+        <div class="hadd"><input list="bbNames" data-bbadd="${esc(sl.slot_id)}" placeholder="Add a helper" aria-label="Add a helper to ${esc(sl.label)}" autocomplete="off"><button class="btn sm primary" data-bbgo="${esc(sl.slot_id)}">Add</button></div></div>`; }).join('')}</div>
+    <datalist id="bbNames">${BBSTU.map(x=>`<option value="${esc(x.full_name)}">`).join('')}</datalist>
     ${waiting.length?`<h2 style="font-size:18px">Asked, waiting to hear back <span class="hint">${waiting.length}</span></h2><div class="plain">${waiting.sort(byName).map(x=>`<span class="pill">${esc(x.name)}</span>`).join('')}</div>`:''}
     ${cant.length?`<h2 style="font-size:18px">Can't help <span class="hint">${cant.length}</span></h2><div class="plain">${cant.sort(byName).map(x=>`<span class="pill">${esc(x.name)}</span>`).join('')}</div>`:''}
     ${notAsked.length?`<h2 style="font-size:18px">Not asked yet <span class="hint">${notAsked.length}</span></h2><div class="plain">${notAsked.sort(byName).map(x=>`<span class="pill">${esc(x.name)}</span>`).join('')}</div>`:''}`;
+  wireBb(slots, H, cands);
+}
+let BBSTU = null;   // active black belts, for adding helpers to a session
+// Black belt session: add someone by hand (no text goes), or take them off. 4th Dan and above count towards the cap; anyone else doesn't.
+function wireBb(slots, H, cands){
+  const add = async slotId => {
+    const sl = slots.find(x=>x.slot_id===slotId), inp=$(`[data-bbadd="${slotId}"]`), v=(inp.value||'').trim(); if(!sl||!v) return;
+    const st = BBSTU.find(x=>x.full_name.toLowerCase()===v.toLowerCase());
+    if(!st){ toast('Pick a name from the list'); return; }
+    const { data:{session} } = await sb.auth.getSession(), by=(session&&session.user.email)||'staff';
+    const senior = cands.some(o=>o.student_id===st.student_id && o.cycle_id===sl.cycle_id);
+    if(!H.some(h=>h.student_id===st.student_id && h.cycle_id===sl.cycle_id)){
+      const { error } = await sb.from('prep_helpers').insert({ cycle_id: sl.cycle_id, student_id: st.student_id, senior, set_by: by }); if(error){ toast(error.message); return; } }
+    const { data, error } = await sb.rpc('prep_helper_claim', { p_cycle: sl.cycle_id, p_student: st.student_id, p_slots: [slotId], p_reply: null, p_by: by, p_balance: false });
+    if(error){ toast(error.message); return; }
+    if(data && (data.full||[]).length && !(data.ok||[]).length){ toast('That session is full (4th Dan and above)'); return; }
+    toast(st.full_name+' added'); loadBb();
+  };
+  $$('[data-bbgo]').forEach(b=>b.onclick=()=>add(b.dataset.bbgo));
+  $$('[data-bbadd]').forEach(i=>i.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); add(i.dataset.bbadd); } });
+  $$('[data-bbrm]').forEach(b=>b.onclick=async()=>{
+    const h=H.find(x=>x.student_id===b.dataset.sid && x.cycle_id===b.dataset.cyc); if(!h) return;
+    const left=(h.slot_ids||[]).filter(id=>id!==b.dataset.bbrm);
+    const { error } = await sb.from('prep_helpers').update({ slot_ids:left, ...(left.length?{}:{confirmed_at:null}), updated_at:new Date().toISOString() }).eq('cycle_id',h.cycle_id).eq('student_id',h.student_id);
+    if(error){ toast(error.message); return; } toast('Taken off'); loadBb(); });
 }
 let TAB = (()=>{ try{ const h=location.hash.replace('#',''); return ['bb','cb','inv'].includes(h) ? h : (localStorage.getItem('helpers_admin_tab')||'cb'); }catch(e){ return 'cb'; } })();
 function showTab(t){ TAB=['bb','inv'].includes(t)?t:'cb';
