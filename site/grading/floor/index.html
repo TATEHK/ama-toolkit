@@ -234,6 +234,9 @@ body[data-role="signin"]{overflow:hidden}
 .day.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--warn) 28%,transparent);border-radius:999px;padding:2px 8px}
 .bbc{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--accent)}
+.bbcinv{margin-top:10px;font:inherit;font-weight:700;font-size:13.5px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:8px 14px;cursor:pointer}
+.bbcinv.on{background:transparent;color:var(--accent)}
+.bbcinv:disabled{opacity:.6}
 .fambox{margin-top:12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
 .fambox .fam-h{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:8px}
 .fambox .fam-row{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;padding:3px 0}
@@ -567,7 +570,7 @@ function mapStudents(list){
     id2entry[id]=r.entry_id; entry2id[r.entry_id]=id;
     const min=(CURR[belt]&&CURR[belt].min)||0, prog=min?Math.min(100,Math.round((r.classes||0)/min*100)):0;
     STUDENTS.push({ id, entry_id:r.entry_id, member_key:r.member_key, name:r.full_name||'—', belt, belt_to,
-      weeks:r.weeks||0, classes:r.classes||0, lastGap:r.weeks||0, prog, ready:!!r.ready, bbc:!!r.bbc,
+      weeks:r.weeks||0, classes:r.classes||0, lastGap:r.weeks||0, prog, ready:!!r.ready, bbc:!!r.bbc, bbcInv:r.bbc_invited_at||null, bbcWritten:r.bbc_written_at||null,
       sub:r.sub!==false, loc:r.loc||'', age:r.age||0, attend:r.attend||'green', fam:r.family||('f'+id),
       programs:(r.programs==null?null:r.programs), referrals:(r.referrals==null?null:r.referrals), days:[], pack:null, fee:null });
     if(r.score){ if(r.score.scores && Object.keys(r.score.scores).length) scores[id]={...r.score.scores};
@@ -989,7 +992,7 @@ function openProfile(id){
           <div class="days">${DAYS.map(dn=>`<span class="day ${s.days.includes(dn)?'on':''}">${dn[0]}</span>`).join('')}</div></div>`:''}
         <div class="ovsec"><div class="ovlabel">Membership</div>
           <div class="chips">
-            <div class="chip"><span>Black Belt Club</span><b class="${s.bbc?'gold':''}">${s.bbc?'Member':'Not a member'}</b></div>
+            <div class="chip"><span>Black Belt Club</span><b class="${s.bbc?'gold':''}">${s.bbc?'Member':s.bbcInv?'Invited':'Not a member'}</b></div>
             ${chip('Package',packVal)}
             ${chip('Fee',feeVal)}
             <div class="chip"><span>Trains at</span><b>${schoolOf(s.loc)||'—'}</b></div>
@@ -1017,12 +1020,19 @@ function openProfile(id){
     <div class="top">
       <div class="who"><div class="avatar" style="background:${beltC(s.belt)}">${initials(s.name)}</div>
         <div><div class="pname">${s.name}</div><div class="pmeta">Taekwondo · age ${s.age} · trains at ${s.loc}</div>
-          <div class="hdchips"><span class="belttag"><i style="background:${beltC(s.belt)}"></i>${s.belt} → ${nx}</span><span class="rdchip ${s.ready?'yes':'no'}">${s.ready?'Ready to grade':'Working toward it'}</span></div></div></div>
+          <div class="hdchips"><span class="belttag"><i style="background:${beltC(s.belt)}"></i>${s.belt} → ${nx}</span><span class="rdchip ${s.ready?'yes':'no'}">${s.ready?'Ready to grade':'Working toward it'}</span></div>
+          ${s.bbc?'':`<button class="bbcinv${s.bbcInv?' on':''}" id="bbcInv" data-on="${s.bbcInv?'0':'1'}">${s.bbcInv?(s.bbcWritten?'Black Belt Club card written · tap to cancel':'Black Belt Club card asked for · tap to cancel'):'Invite to Black Belt Club'}</button>`}</div></div>
       <button class="closex" id="pClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     ${tabsHtml}</div>
     <div class="dbody">${superHtml}${hasOv?ovHtml:''}${hasScore?scHtml:''}</div>`;
   d.classList.add('open'); d.setAttribute('aria-hidden','false'); $('#scrim').classList.add('open');
   $('#pClose').onclick=closeProfile;
+  // Black Belt Club: ask for an invitation card (same as Coloured Belts; shows on Cards to write)
+  const bi=$('#bbcInv'); if(bi) bi.onclick=async()=>{ const on=bi.dataset.on==='1'; bi.disabled=true;
+    const { error } = await sb.rpc('cb_bbc_invite', { p_member: s.member_key, p_on: on });
+    if(error){ bi.disabled=false; toast(error.message||'Could not save'); return; }
+    s.bbcInv=on?new Date().toISOString():null; if(!on) s.bbcWritten=null;
+    toast(on?`${s.name.split(' ')[0]} invited to Black Belt Club: the card shows on Cards to write`:'Black Belt Club invite cancelled'); openProfile(id); };
   $$('#drawer [data-pt]').forEach(b=>b.onclick=()=>{ state.profTab=b.dataset.pt; $('#ovPanel').hidden=b.dataset.pt!=='ov'; $('#scPanel').hidden=b.dataset.pt!=='sc'; $$('#drawer [data-pt]').forEach(x=>x.classList.toggle('on',x===b)); });
   $$('#drawer .sbar i').forEach(seg=>seg.onclick=()=>{ scoreFor(s)[seg.closest('.sbar').dataset.c]=+seg.dataset.v; persistScore(id,{scores:scoreFor(s)}); openProfile(id); });
   $$('#drawer .pfbtn').forEach(b=>b.onclick=()=>{ const x=pattFor(s); if(b.dataset.pf==='pass'){ x.res='pass'; } else if(x.res!=='fail'){ x.res=null; if(x.attempt<3) x.attempt++; else x.res='fail'; } persistScore(id,{pattern:x}); openProfile(id); });

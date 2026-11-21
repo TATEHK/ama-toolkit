@@ -104,7 +104,7 @@ begin
           'weeks', case when m.promoted_on is not null then ((current_date - m.promoted_on)/7)::int end,
           'classes', m.attended_since_promoted,
           'ready', coalesce(m.ready_to_promote,false),
-          'bbc', (m.bbc_seen_at is not null and m.bbc_seen_at > now() - interval '3 days'),
+          'bbc_invited_at', m.bbc_invited_at, 'bbc_written_at', m.bbc_written_at, 'bbc', (m.bbc_seen_at is not null and m.bbc_seen_at > now() - interval '3 days'),
           'sub', not coalesce(m.allowed_no_sub,false),
           'family', lower(coalesce(nullif(m.guardian_email,''), m.guardian_phone, '')),
           'attend', case when m.last_attended is null or m.last_attended < (now() - interval '28 days')::date then 'red'
