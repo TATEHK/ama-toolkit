@@ -71,6 +71,7 @@ begin
   end if;
   return (select coalesce(jsonb_agg(jsonb_build_object(
       'day_id',d.day_id,'date',d.grading_date,'location',d.location,'start_time',d.start_time,
+      'bb',coalesce(d.bb,false),
       'entries',c.np,'code',d.checkin_code,'belts',coalesce(c.belts,'[]'::jsonb)) order by d.grading_date, d.location),'[]'::jsonb)
     from public.cb_days d
     left join lateral (
@@ -79,7 +80,7 @@ begin
              jsonb_agg(distinct e.belt_from) filter (where e.paid and e.belt_from is not null) belts
       from public.cb_entries e where e.day_id = d.day_id
     ) c on true
-    where d.closed is not true and coalesce(d.bb,false) = false
+    where d.closed is not true
       and d.grading_date >= current_date - 1 and c.n > 0);
 end $$;
 
@@ -92,6 +93,7 @@ begin
   end if;
   select jsonb_build_object(
     'day', (select jsonb_build_object('day_id',d.day_id,'date',d.grading_date,'location',d.location,'start_time',d.start_time,
+              'bb',coalesce(d.bb,false),
               'belt_times',d.belt_times,'floor_spots',d.floor_spots,'checkin_code',d.checkin_code,'belts',d.belts,'closed',d.closed) from public.cb_days d where d.day_id = p_day),
     'helpers', coalesce((select d2.helpers from public.cb_days d2 where d2.day_id = p_day), '{}'::jsonb),
     'groups', (select coalesce(jsonb_agg(jsonb_build_object('ord',g.ord,'cone',g.cone,'belt',g.belt,'spots',g.spots,'rows',g.rows,'status',g.status,'slots',g.slots,'opts',g.opts) order by g.ord),'[]'::jsonb) from public.cb_groups g where g.day_id = p_day),

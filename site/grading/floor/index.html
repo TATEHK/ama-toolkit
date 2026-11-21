@@ -497,6 +497,7 @@ body[data-role="signin"]{overflow:hidden}
   <span class="pill viewas" id="viewAsNote" hidden></span>
   <button class="pill code" id="codePill" hidden title="Check-in code — enter it on a check-in station">Code <b id="codeVal">—</b></button>
   <span class="pill" id="herePill">0 here</span>
+  <button class="pill" id="rsBtn" title="Runsheet — printable running order" hidden>Runsheet</button>
   <button class="icon-btn" id="gearBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.8-1.4-1.9-3.3-2.2.9a7.6 7.6 0 0 0-2.6-1.5L13.9 2h-3.8l-.3 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.2-.9L3.1 8.3 4.9 9.7a7.8 7.8 0 0 0 0 3l-1.8 1.4 1.9 3.3 2.2-.9a7.6 7.6 0 0 0 2.6 1.5l.3 2.4h3.8l.3-2.4a7.6 7.6 0 0 0 2.6-1.5l2.2.9 1.9-3.3z"/></svg></button>
 </div></div>
 
@@ -582,7 +583,8 @@ const siblingsOf=s=>STUDENTS.filter(x=>x.fam===s.fam && x.fam && x.id!==s.id);
 
 const state={ fw:12, fh:10, spotsOut:13, autoBalance:true, groups:[], active:0, sel:null, alert:null, profTab:'ov', role:'admin', baseRole:'admin', callout:null, staffHelper:null };
 let dragging=false;
-function addGroup(belt){ const spots=state.spotsOut; state.groups.push({name:'', belt:belt||null, belts:belt?[belt]:[], title:'', order:'young', spots, rows:spots>8?2:1, status:'future', slots:spotsArr(spots)}); recone(); return state.groups[state.groups.length-1]; }
+function addGroup(belt){ if(BBMODE()){ state.groups.push({name:'Line '+(state.groups.length+1), belt:null, bb:true, tier:99, belts:[], title:'', order:'young', spots:13, rows:1, status:'future', slots:spotsArr(13)}); recone(); return state.groups[state.groups.length-1]; }
+  const spots=state.spotsOut; state.groups.push({name:'', belt:belt||null, belts:belt?[belt]:[], title:'', order:'young', spots, rows:spots>8?2:1, status:'future', slots:spotsArr(spots)}); recone(); return state.groups[state.groups.length-1]; }
 // ---- group settings: its belts (several belts can share a group, each standing together), a name, and the order students stand in
 const beltsOf=g=>(g.belts&&g.belts.length)?g.belts:(g.belt?[g.belt]:[]);
 const ORDERS={young:'Youngest to oldest',old:'Oldest to youngest',az:'A to Z',manual:'Manual (drag to arrange)'};
@@ -623,8 +625,14 @@ const initials=n=>n.split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
 const packageOf=n=>n>=5?'Unlimited':n+'× / week';   // package = how many classes a week they're enrolled for (from EFC enrolment)
 // show first name + last initial only when two students share a first name (Bob N / Bob C)
 function floorName(s){ const fn=s.name.split(' ')[0]; if(STUDENTS.filter(x=>x.name.split(' ')[0]===fn).length>1){ const li=(s.name.split(' ')[1]||'')[0]; return fn+(li?' '+li:''); } return fn; }
-const beltC=b=>(BELTS[b]||{c:'#999'}).c;
+const beltC=b=>(BELTS[b]||(/dan|black/i.test(b||'')?{c:'#1c1c1c'}:{c:'#999'})).c;
 const beltR=b=>(BELTS[b]||{r:0}).r;
+// ---- black belt (line) mode ----
+const BBMODE=()=>!!(DAYINFO&&DAYINFO.bb);              // a bb grading day → graded in lines, not cone groups
+const gword=()=>BBMODE()?'Line':'Group';
+function bbTierNum(belt_to){ const m=String(belt_to||'').match(/(\d+)\w*\s+Dan/i); if(m) return +m[1]; if(/probation/i.test(belt_to||'')) return 1; return 99; }
+const BB_TIER_LABEL={1:'1st Dan',2:'2nd Dan',3:'3rd Dan',4:'4th Dan',5:'5th Dan',6:'6th Dan',99:'Black Belt'};
+const bbTierOf=s=>bbTierNum(s&&s.belt_to);
 const attHex={green:'#2f9e52',orange:'#e2a233',red:'#d8362f'};
 const inkOn=hex=>{const h=hex.replace('#','');const L=(0.299*parseInt(h.slice(0,2),16)+0.587*parseInt(h.slice(2,4),16)+0.114*parseInt(h.slice(4,6),16))/255;return L>0.62?'#1a1a1a':'#fff';};
 function present(){ return STUDENTS.filter(s=>!absentIds.has(s.id))
@@ -635,7 +643,23 @@ const spotsArr=n=>Array(Math.max(1,n)).fill(null);
 const started=()=>state.groups.some(g=>g.status!=='future');       // has the host started any group?
 const occupied=g=>g.slots.filter(x=>x!=null).length;
 const nextOf=belt=>{ const k=Object.keys(BELTS); return k[k.indexOf(belt)+1]||belt; };
+function generateGroupsBB(){ // black belt day: one line per Dan tier, split into even lines of ≤13, Dan level then age (the runsheet order)
+  const LINE=13, p=roster();
+  const byTier={}; p.forEach(s=>{ const t=bbTierOf(s); (byTier[t]=byTier[t]||[]).push(s); });
+  const tiers=Object.keys(byTier).map(Number).sort((a,b)=>a-b);      // 1st Dan first, then 2nd, 3rd…
+  const groups=[];
+  for(const t of tiers){
+    const kids=byTier[t].slice().sort((a,b)=>a.age-b.age||a.name.localeCompare(b.name));   // youngest → oldest within the tier
+    const G=Math.max(1,Math.ceil(kids.length/LINE)), base=Math.floor(kids.length/G), extra=kids.length%G; let i=0;
+    for(let gi=0;gi<G;gi++){ const cnt=base+(gi<extra?1:0), slots=spotsArr(LINE);
+      for(let k=0;k<cnt;k++) slots[k]=kids[i++].id;
+      groups.push({name:BB_TIER_LABEL[t]||('Dan '+t), belt:null, bb:true, tier:t, belts:[], title:'', order:'young', spots:LINE, rows:1, status:'future', slots}); }
+  }
+  state.groups=groups.length?groups:[{name:'Line 1',belt:null,bb:true,tier:1,belts:[],title:'',order:'young',spots:LINE,rows:1,status:'future',slots:spotsArr(LINE)}];
+  state.active=Math.min(state.active,state.groups.length-1); state.alert=null; recone();
+}
 function generateGroups(){ // belts in order; small belts share a group (each belt standing together); a belt bigger than "spots out" is split evenly
+  if(BBMODE()) return generateGroupsBB();
   const spots=Math.max(1,state.spotsOut), p=roster();          // every booked student — cones are set before anyone arrives
   const belts=[...new Set(p.map(s=>s.belt))].sort((a,b)=>beltR(a)-beltR(b));
   const groups=[], mk=(bs,ids)=>{ const g={name:'',belt:bs[0],belts:bs.slice(),title:'',order:'young',spots,rows:spots>8?2:1,status:'future',slots:spotsArr(spots)};
@@ -655,7 +679,8 @@ function generateGroups(){ // belts in order; small belts share a group (each be
   state.groups=groups.length?groups:[{name:'',belt:null,belts:[],title:'',order:'young',spots,rows:spots>8?2:1,status:'future',slots:spotsArr(spots)}];
   state.active=Math.min(state.active,state.groups.length-1); state.alert=null; recone();
 }
-function recone(){ state.groups.forEach((g,i)=>{ g.cone=String.fromCharCode(65+i); g.name=g.title||autoName(g); }); }   // cone labels A, B, C… and names
+function recone(){ if(BBMODE()){ state.groups.forEach((g,i)=>g.cone=String(i+1)); return; }   // bb: lines numbered 1,2,3… in running order
+  state.groups.forEach((g,i)=>{ g.cone=String.fromCharCode(65+i); g.name=g.title||autoName(g); }); }   // cone labels A, B, C… and names
 function groupOf(id){ return state.groups.findIndex(g=>g.slots.includes(id)); }
 function reflowFuture(g){ // keep a not-yet-started group in its order (belt by belt) in its first spots; manual order keeps where staff put them
   if(g.order==='manual') return;
@@ -664,7 +689,8 @@ function reflowFuture(g){ // keep a not-yet-started group in its order (belt by 
 }
 function placeLate(id){ // a late check-in can only join a FUTURE group of their own belt (or a spare group) that has room
   const s=byId(id);
-  for(const g of state.groups){ if(g.status==='future' && (beltsOf(g).includes(s.belt) || !beltsOf(g).length) && occupied(g)<g.spots){ const k=g.slots.indexOf(null); if(k>=0) g.slots[k]=id; else g.slots.push(id); reflowFuture(g); return true; } }
+  for(const g of state.groups){ const fit=BBMODE()? (g.tier===bbTierOf(s)) : (beltsOf(g).includes(s.belt) || !beltsOf(g).length);
+    if(g.status==='future' && fit && occupied(g)<g.spots){ const k=g.slots.indexOf(null); if(k>=0) g.slots[k]=id; else g.slots.push(id); reflowFuture(g); return true; } }
   return false;
 }
 function removeStudent(id){ for(const g of state.groups){ const k=g.slots.indexOf(id); if(k>=0){ g.slots[k]=null; if(g.status==='future') reflowFuture(g); return; } } }
@@ -709,8 +735,8 @@ function renderKiosk(){
     k.innerHTML=`<div class="ki-wrap done"><div class="ki-card">
       <div class="ki-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></div>
       <div class="ki-name">${s.name}</div><div class="ki-msg">You're checked in</div>
-      ${g?`<div class="ki-group" style="--bc:${g.belt?beltC(g.belt):'var(--accent)'}"><div class="ki-cone">${g.cone}</div><div class="ki-gi"><b>Group ${g.cone}</b><span>${g.name}</span></div></div>
-        <div class="ki-find">Head to the <b>Group ${g.cone}</b> cones and wait there</div>`:`<div class="ki-find">Please see a staff member for your group.</div>`}
+      ${g?`<div class="ki-group" style="--bc:${g.belt?beltC(g.belt):'var(--accent)'}"><div class="ki-cone">${g.cone}</div><div class="ki-gi"><b>${gword()} ${g.cone}</b><span>${g.name}</span></div></div>
+        <div class="ki-find">Head to ${BBMODE()?`<b>Line ${g.cone}</b> and line up there`:`the <b>Group ${g.cone}</b> cones and wait there`}</div>`:`<div class="ki-find">Please see a staff member for your group.</div>`}
       <button class="ki-next" id="kiNext">Done — next person</button></div></div>`;
     $('#kiNext').onclick=()=>{ kioskState={q:'',done:null}; render(); };
     return;
@@ -844,8 +870,8 @@ function render(){
   const masterWaiting = role==='master' && liveIdx<0;                              // Master with no group up yet
   // header
   if(sMode==='next'){ $('#flName').textContent='Who’s next?'; $('#flSub').textContent='Tap the next group to call it out'; }
-  else if(sMode==='callout'){ $('#flName').textContent=`Call out · Group ${g.cone||'?'}`; $('#flSub').textContent=`${hereIds.length} of ${booked.length} here · ${g.name}`; }
-  else { $('#flName').textContent=masterWaiting?'Ready':(g.cone?`Group ${g.cone} · `:'')+g.name;
+  else if(sMode==='callout'){ $('#flName').textContent=`Call out · ${gword()} ${g.cone||'?'}`; $('#flSub').textContent=`${hereIds.length} of ${booked.length} here · ${g.name}`; }
+  else { $('#flName').textContent=masterWaiting?'Ready':(g.cone?`${gword()} ${g.cone} · `:'')+g.name;
     $('#flSub').textContent=masterWaiting?'The next group will show here the moment it starts'
       :cleanLive?`${hereIds.length} on the floor · ${booked.length} in this group`
       :`${filled} on the floor · ${g.spots} spots out · ${g.rows===1?'one line':'two rows'}`; }
@@ -868,7 +894,7 @@ function render(){
     if(go)go.onclick=()=>{ const gi=state.callout; state.callout=null; setStatus(gi,'current'); }; }             // start the called-out group
   $('#flDim').innerHTML=`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V5a2 2 0 0 1 2-2h4M21 9V5a2 2 0 0 0-2-2h-4M3 15v4a2 2 0 0 0 2 2h4M21 15v4a2 2 0 0 1-2 2h-4"/></svg> ${state.fw}m × ${state.fh}m`;
   $('#flDim').style.display = (sMode==='next'||sMode==='callout') ? 'none' : '';
-  const floor=$('#floor'); floor.style.aspectRatio = (sMode==='next'||sMode==='callout') ? '' : state.fw/state.fh;
+  const floor=$('#floor'); floor.style.aspectRatio = (sMode==='next'||sMode==='callout') ? '' : (BBMODE() ? 16/5 : state.fw/state.fh);   // bb lines up to 13 across → a wide, shallow floor
   if(sMode==='next'){
     floor.className='floor callout';
     const futs=groups.map((gg,i)=>({gg,i})).filter(o=>o.gg.status==='future');
@@ -920,7 +946,7 @@ function render(){
     const here=!absentIds.has(s.id);
     return `<div class="rrow ${here?'':'absent'}" data-s="${s.id}">
       <span class="dot" style="background:${beltC(s.belt)}"></span>
-      <div class="rn"><b>${s.name}</b><small>${shortBelt(s.belt)} belt · age ${s.age}</small></div>
+      <div class="rn"><b>${s.name}</b><small>${/dan|black/i.test(s.belt)?s.belt:`${shortBelt(s.belt)} belt`} · age ${s.age}</small></div>
       <button class="chk ${here?'on':''}" data-chk="${s.id}" aria-label="toggle">${here?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</button></div>`;
   }).join('');
   $$('#roster .chk').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const id=+b.dataset.chk; const wasAbsent=absentIds.has(id);
@@ -931,7 +957,8 @@ function render(){
   $$('#roster .rrow').forEach(r=>r.onclick=()=>openProfile(+r.dataset.s));
   // role gating
   $('#gearBtn').hidden = !(role==='admin'||role==='super');     // admin + super set up the floor
-  const curSide = role==='sarah' && sMode==='floor';           // curriculum only once a group is actually live
+  $('#rsBtn').hidden = !(BBMODE() && (role==='admin'||role==='super'||role==='master'||role==='sarah'));   // runsheet: black belt days only
+  const curSide = role==='sarah' && sMode==='floor' && !BBMODE();   // curriculum only once a group is live (coloured belts only)
   $('#checkinCard').hidden = (role==='sarah');                 // Sarah checks people in from the call-out list, not the roster
   $('#currCard').hidden = !curSide;
   if(curSide){                                                 // Sarah sees the group's curriculum beside the floor, checkable as she calls each one
@@ -1111,6 +1138,7 @@ $('#fw').oninput=e=>{state.fw=Math.max(4,+e.target.value||12);render();};
 $('#fh').oninput=e=>{state.fh=Math.max(4,+e.target.value||10);render();};
 $('#addGrp').onclick=()=>{manual();addGroup();renderSettings();render();persistGroups();};
 $('#gearBtn').onclick=()=>{renderSettings();$('#modal').classList.add('open');};
+$('#rsBtn').onclick=openRunsheet;
 $('#mClose').onclick=$('#mDone').onclick=()=>$('#modal').classList.remove('open');
 $('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').classList.remove('open');};
 
@@ -1134,16 +1162,49 @@ function persistGroup(i, patch) { if (!DAYID || loading) return; const p = { ...
 function persistScore(id, patch) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_score_save', { p_entry: id2entry[id], p_patch: patch }); }
 function persistCheckin(id, on) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_floor_checkin', { p_entry: id2entry[id], p_on: !!on }); }
 function resetScoresRemote() { if (!DAYID) return; sb.rpc('cb_floor_reset', { p_day: DAYID }); }
+// Black belt runsheet — the lines in running order, each with its students, printable
+function openRunsheet(){
+  if(!document.getElementById('rsPrintCSS')){ const st=document.createElement('style'); st.id='rsPrintCSS';
+    st.textContent='#runsheet{position:fixed;inset:0;z-index:9999;background:#fff;color:#111;overflow:auto;padding:24px;font:14px/1.5 system-ui,-apple-system,sans-serif}'
+      +'#runsheet h1{font-size:20px;margin:0 0 2px}#runsheet .rs-meta{color:#555;margin:0 0 16px}'
+      +'#runsheet .rs-line{break-inside:avoid;border:1px solid #ddd;border-radius:10px;padding:12px 14px;margin:0 0 12px}'
+      +'#runsheet .rs-lh{display:flex;align-items:baseline;gap:10px;margin:0 0 8px;border-bottom:1px solid #eee;padding-bottom:6px}'
+      +'#runsheet .rs-no{font-weight:700;font-size:16px}#runsheet .rs-tier{font-weight:600}#runsheet .rs-ct{margin-left:auto;color:#666;font-size:12px}'
+      +'#runsheet ol{margin:0;padding-left:26px}#runsheet li{margin:2px 0}#runsheet li .ag{color:#777}#runsheet li .tg{color:#555}'
+      +'#runsheet .rs-bar{position:sticky;top:0;display:flex;gap:8px;justify-content:flex-end;margin:-8px 0 14px}'
+      +'#runsheet .rs-bar button{font:inherit;padding:7px 14px;border-radius:8px;border:1px solid #ccc;background:#f3f3f3;cursor:pointer}'
+      +'@media print{body>*:not(#runsheet){display:none!important}#runsheet .rs-bar{display:none!important}#runsheet{position:static;padding:0}}';
+    document.head.appendChild(st); }
+  let el=document.getElementById('runsheet'); if(!el){ el=document.createElement('div'); el.id='runsheet'; document.body.appendChild(el); }
+  const gs=state.groups, rows=gs.map(g=>{ const mem=g.slots.filter(x=>x!=null).map(byId).filter(Boolean).sort((a,b)=>a.age-b.age||a.name.localeCompare(b.name));
+    return `<div class="rs-line"><div class="rs-lh"><span class="rs-no">Line ${g.cone}</span><span class="rs-tier">${g.name}</span><span class="rs-ct">${mem.length} grading</span></div>`
+      +`<ol>${mem.map(s=>`<li>${s.name} <span class="ag">· ${s.age}</span> <span class="tg">· ${s.belt} → ${s.belt_to}</span></li>`).join('')}</ol></div>`; }).join('');
+  const total=gs.reduce((a,g)=>a+g.slots.filter(x=>x!=null).length,0);
+  el.innerHTML=`<div class="rs-bar"><button id="rsPrint">Print</button><button id="rsClose">Close</button></div>`
+    +`<h1>Runsheet — ${schoolOf(DAYINFO.location)} black belt grading</h1>`
+    +`<p class="rs-meta">${fmtDay(DAYINFO.date)} · ${gs.length} lines · ${total} grading</p>`+rows;
+  el.hidden=false;
+  document.getElementById('rsPrint').onclick=()=>window.print();
+  document.getElementById('rsClose').onclick=()=>{ el.hidden=true; };
+}
 let helpT = null;
 function persistHelpers() { if (!DAYID || loading) return; clearTimeout(helpT); helpT = setTimeout(() => { helpT = null; sb.rpc('cb_floor_helpers_save', { p_day: DAYID, p_helpers: HELPERS }); }, 300); }
 function loadHelpers(h) { HELPERS = (h && typeof h === 'object') ? { names: Array.isArray(h.names) ? h.names : [], assign: (h.assign && typeof h.assign === 'object') ? h.assign : {} } : { names: [], assign: {} }; }
 
 function loadGroups(gs) {
-  state.groups = (gs || []).slice().sort((a, b) => a.ord - b.ord).map(g => ({
-    name: '', belt: g.belt, belts: (g.opts && Array.isArray(g.opts.belts) && g.opts.belts.length) ? g.opts.belts : (g.belt ? [g.belt] : []),
-    title: (g.opts && g.opts.title) || '', order: (g.opts && g.opts.order) || 'young', spots: g.spots, rows: g.rows, status: g.status, cone: g.cone,
-    slots: (g.slots || []).map(e => e == null ? null : (entry2id[e] || null))
-  }));
+  const bb = BBMODE();
+  state.groups = (gs || []).slice().sort((a, b) => a.ord - b.ord).map(g => {
+    const slots = (g.slots || []).map(e => e == null ? null : (entry2id[e] || null));
+    if (bb) {                                             // bb lines persist belt=null; recover the Dan tier from the line's own students
+      const first = slots.map(byId).find(Boolean);
+      const t = first ? bbTierOf(first) : 99;
+      return { name: BB_TIER_LABEL[t] || ('Dan ' + t), belt: null, bb: true, tier: t, belts: [], title: '', order: 'young', spots: g.spots, rows: g.rows, status: g.status, cone: g.cone, slots };
+    }
+    return {
+      name: '', belt: g.belt, belts: (g.opts && Array.isArray(g.opts.belts) && g.opts.belts.length) ? g.opts.belts : (g.belt ? [g.belt] : []),
+      title: (g.opts && g.opts.title) || '', order: (g.opts && g.opts.order) || 'young', spots: g.spots, rows: g.rows, status: g.status, cone: g.cone, slots
+    };
+  });
   state.active = Math.min(state.active, Math.max(0, state.groups.length - 1)); recone();
 }
 async function loadDay(dayId) {
@@ -1177,6 +1238,7 @@ async function showDays() {
   $('#siForm').hidden = true; $('#daypick').hidden = false; $('#gate').classList.add('board'); $('#gateMsg').textContent = 'Choose the grading day';
   const { data, error } = await sb.rpc('cb_floor_days');
   if (error) { $('#pkChips').innerHTML = ''; $('#dayList').innerHTML = `<div class="dp-empty">No access yet — ask a Coloured Belts admin.</div>`; return; }
+  // -- resolved: upstream school-chip picker, with a Black Belt tag on bb days --
   const all = (data || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.start_time || '').localeCompare(String(b.start_time || '')) || String(a.location).localeCompare(String(b.location)));
   const schools = [...new Set(all.map(d => d.location))].sort();
   if (PK_SCHOOL && !schools.includes(PK_SCHOOL)) PK_SCHOOL = '';
@@ -1192,7 +1254,7 @@ async function showDays() {
     return `<section class="pk-day"><h3>${fmtDay(g.date)} ${tag}<small>${g.list.length} grading${g.list.length === 1 ? '' : 's'} · ${n} students</small></h3><div class="pk-grid">${g.list.map(d => {
       const belts = (d.belts || []).map(shortB).sort((a, b) => beltR(a) - beltR(b));
       return `<button class="pk-card${g.date === today ? ' now' : ''}" data-day="${d.day_id}">
-        <div class="pk-top"><div><b>${schoolOf(d.location)}</b><span class="t">${pkClock(d.start_time) || 'Time not set'}</span></div><div class="pk-n"><b>${d.entries || 0}</b><small>students</small></div></div>
+        <div class="pk-top"><div><b>${schoolOf(d.location)}</b>${d.bb?' <span style="font-size:10px;font-weight:700;color:#fff;background:#1c1c1c;border-radius:4px;padding:1px 5px;vertical-align:middle">BLACK BELT</span>':''}<span class="t">${pkClock(d.start_time) || 'Time not set'}</span></div><div class="pk-n"><b>${d.entries || 0}</b><small>students</small></div></div>
         ${belts.length ? `<div class="pk-belts">${belts.map(b => `<span class="pk-belt"><i style="background:${beltC(b)}"></i>${b}</span>`).join('')}</div>` : ''}
       </button>`; }).join('')}</div></section>`;
   }).join('') : `<div class="dp-empty">No upcoming gradings${PK_SCHOOL ? ' at ' + schoolOf(PK_SCHOOL) : ''} with paid students.</div>`;
