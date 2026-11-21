@@ -989,7 +989,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const data = await selectIn('efc_members', 'member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth', 'member_key', keys);
     return Object.fromEntries(data.map(m => [m.member_key, m]));
   };
-  const DAY_COLS = 'day_id, location, grading_date, start_time, belt_times, closed, programme, bb, book_by';
+  const DAY_COLS = 'day_id, location, grading_date, start_time, belt_times, closed, programme, bb, book_by, private';
   const ENT_COLS = 'entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, paid, paid_at, result, seq_paused_until, seq_stopped_at';
   // Texts a staff call outcome asked for ("Send link", "No answer"): sent on the next run, whether or not the sequence is on
   const runOutbox = async (st, steps, res) => {
@@ -1022,7 +1022,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     if (!st.seq_on) return res;
     const today = sydParts(nowMs).ymd;
     const { data: days } = await db.from('cb_days').select(DAY_COLS).gte('grading_date', today);
-    const coloured = (days || []).filter(d => !d.bb && !d.closed);
+    const coloured = (days || []).filter(d => !d.bb && !d.closed && !d.private);   // private gradings (cb_days.private): no automatic invites or texts
     if (!coloured.length) return res;
     const ents = await allRows(() => db.from('cb_entries').select(ENT_COLS).in('day_id', coloured.map(d => d.day_id)).order('entry_id'));
     const ids = (ents || []).map(e => e.entry_id);
@@ -1604,10 +1604,10 @@ export async function handle(req, db, env = {}, http = fetch) {
       }
       const yes = isYes(msg);
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-      const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by, makeup').gte('grading_date', today);
+      const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by, makeup, private').gte('grading_date', today);
       const open = (days || []).filter(d => !d.closed); if (!open.length) return json({ ok: true, matched: 0, why: 'no grading days coming up' });
       // Makeup grading days are only ever offered by staff (from the Can't-make list), never picked for a family automatically
-      const offerable = open.filter(d => !d.makeup);
+      const offerable = open.filter(d => !d.makeup && !d.private);
       const ents = await allRows(() => db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school, alt_offer').in('day_id', open.map(d => d.day_id)).order('entry_id'));
       const waiting = (ents || []).filter(e => e.invited_at && !e.booked_at && !e.result);
       if (!waiting.length) return json({ ok: true, matched: 0 });

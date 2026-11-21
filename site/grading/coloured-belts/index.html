@@ -1009,6 +1009,7 @@ function openDayForm(d = null) {
     <p class="hint" id="dSessHintSingle">Online bookings go into this EFC session, so it needs the ID. Set the session to $0 in EFC: the fee is paid here.</p>
     <div class="field" id="dSessExtra"></div>
     <div class="field" id="dSessBelt"></div>
+    <label class="check"><input type="checkbox" id="dPrivate" ${d && d.private ? 'checked' : ''}> Private grading (never invite or text anyone automatically; add students by hand)</label>
     <label class="check" id="dMakeupField"><input type="checkbox" id="dMakeup" ${d && d.makeup ? 'checked' : ''}> Makeup grading day (shown as a makeup option for students who can't make their grading)</label>
     <div class="field"><label for="dNotes">Notes</label><textarea id="dNotes" rows="2">${esc(d ? d.notes || '' : '')}</textarea></div>
     <div class="dlg-actions">${d ? '<button type="button" class="btn danger" id="dDel" style="margin-right:auto">Delete</button>' : ''}<button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit" id="dGo">${d ? 'Save' : 'Add grading day'}</button></div>
@@ -1068,7 +1069,7 @@ function openDayForm(d = null) {
     const beltBox = $('#dSessBelt');
     const sessByBelt = () => { const o = {}; if (beltBox) beltBox.querySelectorAll('.dSessBeltInput').forEach(i => { const v = i.value.trim(); if (v) o[i.dataset.belt] = v; }); return o; };
     const mu = $('#dMoveUp');
-    const rec = { ...(d ? {} : { programme: state.programme }), move_up: !!(mu && mu.checked), makeup: !!($('#dMakeup') && $('#dMakeup').checked), schools: from.length === 1 ? null : SCHOOLS.filter(x => from.includes(x)), belts: picked.length === state.belts.length ? null : picked, location: $('#dSchool').value, grading_date: $('#dDate').value, start_time: $('#dTime').value || null, efc_session: $('#dSess').value.trim() || null, efc_session_id: $('#dSessId').value.trim() || null, efc_belt_sessions: sessByBelt(), efc_school_belt_sessions: sessBySchoolBelt(), notes: $('#dNotes').value.trim() || null, book_by: $('#dBookBy').value ? new Date($('#dBookBy').value).toISOString() : null };
+    const rec = { ...(d ? {} : { programme: state.programme }), move_up: !!(mu && mu.checked), makeup: !!($('#dMakeup') && $('#dMakeup').checked), ...($('#dPrivate') ? { private: $('#dPrivate').checked } : {}), schools: from.length === 1 ? null : SCHOOLS.filter(x => from.includes(x)), belts: picked.length === state.belts.length ? null : picked, location: $('#dSchool').value, grading_date: $('#dDate').value, start_time: $('#dTime').value || null, efc_session: $('#dSess').value.trim() || null, efc_session_id: $('#dSessId').value.trim() || null, efc_belt_sessions: sessByBelt(), efc_school_belt_sessions: sessBySchoolBelt(), notes: $('#dNotes').value.trim() || null, book_by: $('#dBookBy').value ? new Date($('#dBookBy').value).toISOString() : null };
     try {
       let id = d && d.day_id;
       if (d) await run(sb.from('cb_days').update(rec).eq('day_id', id), 'Saved');
