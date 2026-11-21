@@ -179,7 +179,7 @@
 
     <section id="invPane" hidden style="display:flex;flex-direction:column;gap:10px">
       <p class="hint">Turn someone on to make their personal sign-up link, then tap Send to text and email it to them (you'll see the messages first). Nothing goes until you tap Send. Little Dragons gradings only show to helpers you tick for Little Dragons.</p>
-      <div class="sum"><div class="seg2" id="invFilter"><button data-f="in" aria-pressed="true">Invited</button><button data-f="all" aria-pressed="false">All black belts</button></div></div>
+      <div class="sum"><div class="seg2" id="invFilter"><button data-f="in" aria-pressed="true">Invited</button><button data-f="all" aria-pressed="false">All black belts</button></div><span class="grow"></span><button class="btn sm" id="bulkInvite" hidden></button><button class="btn sm primary" id="bulkSend" hidden></button></div>
       <input class="search" id="search" placeholder="Search black belts…" autocomplete="off">
       <ul class="rows" id="roster"></ul>
     </section>
@@ -299,6 +299,7 @@ function renderRoster(){
     renderRoster();
     toast(r.active?'Invited. Tap Copy link to send it':'Removed');
   }));
+  renderBulk();
   $$('#roster [data-send]').forEach(b=>b.onclick=()=>openSend(b.dataset.send, b));
   $$('#roster [data-ld]').forEach(b=>b.onclick=async()=>{ const h=ROSTER.find(x=>x.student_id===b.dataset.ld); if(!h) return; b.disabled=true;
     const r=await api('helper_ld',{ student_id:h.student_id, on:!h.little_dragons }); b.disabled=false;
@@ -306,6 +307,55 @@ function renderRoster(){
   $$('#roster [data-copy]').forEach(b=>b.onclick=async ()=>{ try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); }catch(e){ prompt('Copy their link:', b.dataset.copy); } });
 }
 $$('#invFilter [data-f]').forEach(b=>b.onclick=()=>{ INV_F=b.dataset.f; renderRoster(); });
+// ---- Bulk: invite everyone in the list shown, and send the link to everyone invited who hasn't had it ----
+function shownForBulk(){ const q=($('#search').value||'').toLowerCase().trim(); return ROSTER.filter(h=>!q||(h.full_name||'').toLowerCase().includes(q)); }
+function renderBulk(){
+  const notSent=ROSTER.filter(h=>h.invited&&!h.sent_at), toInvite=INV_F==='all'?shownForBulk().filter(h=>!h.invited&&h.member_key):[];
+  const bs=$('#bulkSend'), bi=$('#bulkInvite');
+  bs.hidden=!notSent.length; bs.textContent=`Send to all not sent (${notSent.length})`;
+  bi.hidden=!toInvite.length; bi.textContent=`Invite all ${($('#search').value||'').trim()?'found':'shown'} (${toInvite.length})`;
+}
+$('#bulkInvite').onclick=async()=>{
+  const list=shownForBulk().filter(h=>!h.invited&&h.member_key); if(!list.length) return;
+  const b=$('#bulkInvite'); b.disabled=true; let ok=0, bad=[];
+  for(const [i,h] of list.entries()){ b.textContent=`Inviting ${i+1} of ${list.length}…`;
+    const r=await api('helper_invite',{ student_id:h.student_id, on:true }); if(r.error){ bad.push(h.full_name); continue; } h.invited=!!r.active; h.link=r.link||null; ok++; }
+  b.disabled=false; renderRoster(); toast(`Invited ${ok}${bad.length?`, ${bad.length} couldn't be: ${bad.slice(0,3).join(', ')}${bad.length>3?'…':''}`:''}. Tap “Send to all not sent” to text and email them`);
+};
+$('#bulkSend').onclick=async()=>{
+  const list=ROSTER.filter(h=>h.invited&&!h.sent_at); if(!list.length) return;
+  const btn=$('#bulkSend'); btn.disabled=true;
+  const pv=await api('helper_send',{ student_id:list[0].student_id, preview:true }); btn.disabled=false;
+  if(pv.error){ toast(pv.error); return; }
+  const el=document.createElement('div'); el.className='sheet';
+  el.innerHTML=`<div class="box" role="dialog" aria-modal="true" aria-label="Send everyone their link">
+    <h3>Send ${list.length} helper${list.length===1?'':'s'} their link</h3>
+    <p class="hint">Each gets a text and an email with their own link, as below (shown for ${esc(list[0].full_name)}). Under-18s go to their parent. Anyone with no mobile or email in EFC gets what they can.</p>
+    <p class="msg" id="bsProg" hidden></p>
+    <div class="bsPv"><div class="lbl">TEXT</div><div class="smsbox">${esc(pv.sms)}</div></div>
+    <div class="bsPv"><div class="lbl">EMAIL · ${esc(pv.subject)}</div><iframe title="Email preview" sandbox></iframe></div>
+    <div class="acts"><button class="btn" data-x>Cancel</button><button class="btn primary" data-go>Send to all ${list.length}</button></div></div>`;
+  document.body.appendChild(el); el.querySelector('iframe').srcdoc=pv.html;
+  let stop=false, running=false;
+  const close=()=>{ if(running){ stop=true; return; } el.remove(); };
+  el.onclick=e=>{ if(e.target===el&&!running) close(); };
+  el.querySelector('[data-x]').onclick=close;
+  el.querySelector('[data-go]').onclick=async()=>{
+    running=true; const go=el.querySelector('[data-go]'), x=el.querySelector('[data-x]'), prog=el.querySelector('#bsProg'); go.disabled=true; x.textContent='Stop'; prog.hidden=false; el.querySelectorAll('.bsPv').forEach(n=>n.hidden=true);
+    let sent=0, partial=[], failed=[];
+    for(const [i,h] of list.entries()){
+      if(stop) break;
+      prog.textContent=`Sending ${i+1} of ${list.length}: ${h.full_name}…`;
+      const r=await api('helper_send',{ student_id:h.student_id });
+      if(r.error||!r.ok){ failed.push(`${h.full_name} (${r.error||[r.sms,r.email].filter(v=>v&&v!=='sent').join(', ')})`); continue; }
+      h.sent_at=r.sent_at; sent++;
+      if(r.sms!=='sent'||r.email!=='sent') partial.push(`${h.full_name}: ${r.sms!=='sent'?'text '+r.sms:''}${r.sms!=='sent'&&r.email!=='sent'?', ':''}${r.email!=='sent'?'email '+r.email:''}`);
+    }
+    running=false; renderRoster();
+    prog.innerHTML=`<b>Sent to ${sent} of ${list.length}.</b>${stop?' Stopped.':''}${partial.length?`<br>Only part went to: ${esc(partial.join('; '))}`:''}${failed.length?`<br>Not sent: ${esc(failed.join('; '))}`:''}`;
+    go.hidden=true; x.textContent='Done'; x.onclick=()=>el.remove();
+  };
+};
 // Send: show the exact text and email (with their name, link and the gradings needing helpers), then text + email them
 async function openSend(id, btn){
   const h = ROSTER.find(x=>x.student_id===id); if(!h) return;
