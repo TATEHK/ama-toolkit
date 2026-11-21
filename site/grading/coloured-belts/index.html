@@ -1320,6 +1320,12 @@ function pickStudent(d) {
     $$('#psList [data-key]').forEach(b => b.onclick = () => addStudents(d, [student(b.dataset.key)])); };
   $('#psQ').oninput = draw; $('#psAny').onchange = draw; draw(); $('#psQ').focus();
 }
+// Why a booking has to be done in EFC by hand: the grading has no EFC session linked (for their belt), or they're from another school
+function byHandWhy(d, s) {
+  const linked = d && (d.efc_session_id || Object.keys(d.efc_sessions || {}).length || Object.keys(d.efc_belt_sessions || {}).length || Object.keys(d.efc_school_belt_sessions || {}).length);
+  if (!linked) return 'this grading has no EFC session set up';
+  return s && d && s.location && s.location !== d.location ? `they're from ${esc(schoolLabel(s.location))}` : 'EFC has no session for their belt';
+}
 function openEntry(id) {
   const e = state.entries.find(x => x.entry_id === id); if (!e) return;
   const d = dayOf(e.day_id), s = student(e.member_key);
@@ -1332,7 +1338,7 @@ function openEntry(id) {
   const feeHtml = feeBase == null ? 'Not set'
     : disc > 0 ? `<s>${money(feeBase)}</s> &minus;${money(disc)} discount${discLabel} = <b>${money(feeBase - disc)}</b>${e.discount_reason ? ` <span class="sub">(${esc(e.discount_reason)})</span>` : ''}`
     : money(feeBase);
-  const booking = e.efc_by_hand && e.booked_at ? (e.efc_by_hand_done_at ? `Booked by hand in EFC, ${at(e.efc_by_hand_done_at)}` : `<span class="bad-text">Booked here, but they're from ${esc(s ? schoolLabel(s.location) : 'another school')}, so EFC can't book them automatically. Book them in EFC by hand, then press Done in EFC.</span>`)
+  const booking = e.efc_by_hand && e.booked_at ? (e.efc_by_hand_done_at ? `Booked by hand in EFC, ${at(e.efc_by_hand_done_at)}` : `<span class="bad-text">Booked here, but ${byHandWhy(d, s)}, so EFC can't book them automatically. Book them in EFC by hand, then press Done in EFC.</span>`)
     : e.booked_at ? `Booked ${at(e.booked_at)}` : e.booking_error ? `<span class="bad-text">Failed: ${esc(e.booking_error)}${e.paid ? '. They have paid, so book them in EFC by hand, then press Mark booked.' : ''}</span>` : e.yes_at ? `Said YES ${at(e.yes_at)}, booking link sent, not booked yet` : e.invited_at ? `Invited ${at(e.invited_at)}, not booked yet${e.reply_text ? '. Replied: “' + esc(e.reply_text) + '”' : ''}` : 'Not invited yet';
   openDlg(`<div class="dlg">
     <div class="dlg-head"><div><h3>${esc(e.full_name)}</h3><p class="sub">${swatch(e.belt_from)} ${esc(e.belt_from)} to <b>${esc(toText(e))}</b></p></div><button class="x" data-close>Close</button></div>
