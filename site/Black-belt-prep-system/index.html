@@ -738,7 +738,7 @@
    ========================================================================= */
 
 const CFG = window.PREP_CONFIG || {};
-const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
 if (window.AmaIdle) AmaIdle.watch({ sb });   // signs out after an hour with no activity (shared AMA Toolkit idle sign-out)
 // Sign in with the AMA Admin Hub mobile and PIN (hub-signin.js)
 const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_ANON_KEY, form: '#loginForm' };

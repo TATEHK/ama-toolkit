@@ -392,7 +392,7 @@
 const CFG = window.TOOLKIT_CONFIG || {};
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY, { auth: { lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
 // Sign in with the AMA Admin Hub mobile and PIN (hub-signin.js)
 const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#signInForm' };
 if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }

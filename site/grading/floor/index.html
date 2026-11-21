@@ -1116,7 +1116,7 @@ $('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').classList.remove('
 
 // ================= live wiring: auth, day load, persistence, polling =================
 const CFG = window.TOOLKIT_CONFIG || {};
-const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY, { auth: { lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
 const SUPER_EMAIL = 'theggatonklenner@gmail.com';   // only this login gets the Super role
 let ME = '', PERMS = [], canSuper = false, loading = false, pollT = null;
 function toast(msg, ms) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); } t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms || 3000); }

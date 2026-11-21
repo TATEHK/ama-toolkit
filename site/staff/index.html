@@ -180,7 +180,7 @@ const CB = { ...short(CBF), floor_admin: 'Floor: Admin', floor_sarah: 'Floor: Sa
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
 // Sign in with the AMA Admin Hub mobile and PIN (hub-signin.js)
 const HUB = { sb, url: SUPABASE_URL, key: SUPABASE_KEY, form: '#signInForm' };
 if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }

@@ -181,7 +181,7 @@
 // with a little leeway for people who reach their milestone in the first months of next year.
 // Enrolled dates come from EFC through the weekly check (tools/lsa-weekly.py); each person has a date range, usually a month.
 const CFG = window.TOOLKIT_CONFIG || {};
-const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY, { auth: { lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
 const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#siForm' };
 if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
 if (window.AmaIdle) AmaIdle.watch({ sb });

@@ -2385,7 +2385,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
 (function boot() {
   const cfg = window.AMA_CONFIG || {};
   if (!window.supabase || !cfg.SUPABASE_URL || /YOUR-/.test(cfg.SUPABASE_URL + cfg.SUPABASE_ANON_KEY)) { showView('config'); return; }
-  sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
   // Sign in with the AMA Admin Hub mobile and PIN (hub-signin.js); signing in starts the app below
   const hub = { sb, url: cfg.SUPABASE_URL, key: cfg.SUPABASE_ANON_KEY, form: '#loginForm', onSignedIn: () => {} };
   if (window.AmaHub) { AmaHub.mount(hub); AmaHub.recheck(hub); }

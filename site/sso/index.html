@@ -38,7 +38,7 @@
 <script>
   (function () {
     var cfg = window.TOOLKIT_CONFIG || {};
-    var sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+    var sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY, { auth: { lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})(),  persistSession: true, autoRefreshToken: true } });
     var bodyEl = document.getElementById('body');
     function show(title, msg, isErr, link) {
       bodyEl.innerHTML = '<h1>' + title + '</h1><p class="' + (isErr ? 'err' : '') + '">' + msg + '</p>' +
