@@ -96,11 +96,30 @@
   #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(12px);background:var(--night);color:#fff;padding:12px 16px;border-radius:12px;font-size:15px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s var(--ease),transform .2s var(--ease);z-index:30;max-width:90vw}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   [hidden]{display:none!important}
+  /* who-are-you picker (shared link) */
+  .pick{max-width:560px;margin:0 auto;padding:32px 16px calc(40px + env(safe-area-inset-bottom,0px))}
+  .pick h2{font:600 26px var(--display);text-transform:uppercase;color:var(--ink);margin:0 0 6px}
+  .pick p.sub{color:var(--sub);font-size:15px;margin:0 0 18px}
+  .pick .search{position:relative;margin-bottom:14px}
+  .pick .search input{width:100%;box-sizing:border-box;padding:14px 16px;font-size:16px;border:1px solid var(--line-2);border-radius:14px;background:var(--card);color:var(--ink)}
+  .pick .search input:focus{outline:none;border-color:var(--green)}
+  .picklist{display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow:auto;-webkit-overflow-scrolling:touch}
+  .pickrow{text-align:left;width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font:500 16px var(--body);color:var(--ink);cursor:pointer;transition:border-color .12s var(--ease),background .12s var(--ease)}
+  .pickrow:hover{border-color:var(--green);background:var(--green-soft)}
+  .pickempty{color:var(--faint);text-align:center;padding:24px 12px;font-size:15px}
+  .notyou{border:0;background:transparent;color:var(--gold);font:500 14px var(--body);cursor:pointer;padding:6px 0;text-decoration:underline;text-underline-offset:3px;margin-top:10px}
   @media (max-width:420px){ h1{font-size:36px} .hero .photo{height:140px} }
 </style>
 </head>
 <body>
 <p class="big-msg" id="loading"><span class="inner">Loading…</span></p>
+
+<section class="pick" id="pick" hidden>
+  <h2>Who are you?</h2>
+  <p class="sub">Find your name to pick the grading days you can help at.</p>
+  <div class="search"><input id="pickSearch" type="text" inputmode="search" autocomplete="off" placeholder="Start typing your name…" aria-label="Search for your name"></div>
+  <div class="picklist" id="pickList"></div>
+</section>
 
 <div id="app" hidden>
   <header class="hero">
@@ -110,6 +129,7 @@
       <div class="eyebrow">Grading helpers</div>
       <h1>Lend a hand<br>on the mat</h1>
       <p class="lede">Hi <b id="who">there</b>, we'd love your help at our gradings. Pick the days that suit you below.</p>
+      <button type="button" class="notyou" id="notYou" hidden>Not you? Pick a different name</button>
     </div>
   </header>
 
@@ -127,7 +147,7 @@
       <div class="days" id="colDays"></div>
     </div>
 
-    <p class="foot">This page is just for you, so please don't share the link.<br>Need to change something? Message the office and we'll sort it.</p>
+    <p class="foot" id="foot">This page is just for you, so please don't share the link.<br>Need to change something? Message the office and we'll sort it.</p>
   </div>
 </div>
 
@@ -138,7 +158,10 @@
   const CFG = window.TOOLKIT_CONFIG || {};
   const $ = (s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
   const esc = v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const token = location.hash.replace(/^#/,'').trim();
+  const rawHash = location.hash.replace(/^#/,'').trim();
+  const isToken = /^[A-Za-z0-9_-]{8,72}$/.test(rawHash);   // a personal link carries a token; anything else (e.g. #join) is the shared link
+  const PUBLIC = !isToken;
+  let token = isToken ? rawHash : '';
   const LOCCOL = { Marrickville:'#2f7fe0', Concord:'#e0a800', Sydenham:'#8b4fd6', Sylvania:'#0B6A35', West:'#e46a2e', Auburn:'#e46a2e' };
   const SHOW = l => l==='West' ? 'Auburn' : l;             // members see "Auburn"
   const AGE = { kids:'Dragons & Ninjas', '13+':'Teens & Adults', all:'All Ages' };
@@ -215,13 +238,54 @@
   function apply(r){ if(r&&r.ok){ state.name=r.name||state.name; state.coloured=r.coloured||[]; state.blackbelt=r.blackbelt||[]; render(); } }
 
   async function start(){
-    if(!token){ dead('This link is missing its code. Please use the link we sent you.'); return; }
     const r = await call('helper_info');
-    if(!r || !r.ok){ dead(r&&r.error); return; }
-    $('#loading').hidden=true; $('#app').hidden=false;
+    if(!r || !r.ok){
+      if(PUBLIC){ try{ localStorage.removeItem('amaHelperTok'); }catch(e){} token=''; openPicker(); return; }   // their saved name no longer works: pick again
+      dead(r&&r.error); return;
+    }
+    $('#loading').hidden=true; $('#pick').hidden=true; $('#app').hidden=false;
+    if(PUBLIC){ $('#notYou').hidden=false; $('#foot').innerHTML="Tap a day to help or pull out any time.<br>Need a hand? Message the office and we'll sort it."; }
     apply(r);
   }
-  start();
+
+  // ---- Shared link: pick your name, then sign in as that helper ----
+  let PEOPLE = [];
+  async function openPicker(){
+    $('#loading').hidden=true; $('#app').hidden=true; $('#dead').hidden=true;
+    $('#pick').hidden=false;
+    if(!PEOPLE.length){
+      const r = await call('helper_public_roster');
+      if(!r || !r.ok){ dead(r&&r.error); return; }
+      PEOPLE = r.people || [];
+    }
+    renderPicker('');
+    const s=$('#pickSearch'); s.value=''; s.oninput=()=>renderPicker(s.value); try{ s.focus(); }catch(e){}
+  }
+  function renderPicker(q){
+    q=(q||'').toLowerCase().trim();
+    const list = q ? PEOPLE.filter(p=>p.name.toLowerCase().includes(q)) : PEOPLE;
+    $('#pickList').innerHTML = list.length
+      ? list.map(p=>`<button type="button" class="pickrow" data-k="${esc(p.kind)}" data-id="${esc(p.id)}">${esc(p.name)}</button>`).join('')
+      : '<p class="pickempty">No names match. Check the spelling, or ask the office.</p>';
+    $$('#pickList .pickrow').forEach(b=>b.onclick=()=>choose(b.dataset.k,b.dataset.id));
+  }
+  async function choose(kind,id){
+    if(busy) return; busy=true;
+    const r = await call('helper_public_join',{ kind, id }); busy=false;
+    if(!r || !r.ok || !r.token){ toast((r&&r.error)||'Could not sign you in. Try again.'); return; }
+    token = r.token; try{ localStorage.setItem('amaHelperTok',token); }catch(e){}
+    $('#pick').hidden=true; $('#loading').hidden=false;
+    start();
+  }
+  $('#notYou').onclick=()=>{ try{ localStorage.removeItem('amaHelperTok'); }catch(e){} token=''; $('#app').hidden=true; openPicker(); };
+
+  function boot(){
+    if(token){ start(); return; }                 // personal link
+    let saved=''; try{ saved=localStorage.getItem('amaHelperTok')||''; }catch(e){}
+    if(saved && /^[A-Za-z0-9_-]{8,72}$/.test(saved)){ token=saved; start(); return; }   // remembered on this device
+    openPicker();
+  }
+  boot();
 </script>
 </body>
 </html>

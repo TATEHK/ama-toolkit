@@ -1535,6 +1535,44 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, name: first(h.full_name), age, coloured, blackbelt });
     }
 
+    // ---- Shared sign-up link (/grading/helpers/#join): the pick-your-name list, then open self-serve join. ----
+    // The roster is the active black belts (as the admin invites from) plus the hand-added extras. No sign-in.
+    if (body.action === 'helper_public_roster') {
+      const [{ data: ps }, { data: ex }] = await Promise.all([
+        db.from('prep_students').select('student_id, full_name').eq('is_active', true).eq('is_test', false),
+        db.from('cb_helpers').select('helper_id, full_name').eq('is_extra', true).eq('active', true)]);
+      const list = [
+        ...(ps || []).filter(p => (p.full_name || '').trim()).map(p => ({ kind: 'bb', id: p.student_id, name: p.full_name.trim() })),
+        ...(ex || []).filter(e => (e.full_name || '').trim()).map(e => ({ kind: 'extra', id: e.helper_id, name: e.full_name.trim() }))
+      ].sort((a, b) => a.name.localeCompare(b.name));
+      return json({ ok: true, people: list });
+    }
+    // Pick your name on the shared link: make/activate this person's helper record and hand back their token.
+    // Only works for someone already on the eligible roster (an active black belt, or an active extra) — a stranger
+    // can't inject a new name. { action: 'helper_public_join', kind: 'bb' | 'extra', id }
+    if (body.action === 'helper_public_join') {
+      const kind = body.kind === 'extra' ? 'extra' : 'bb';
+      if (kind === 'extra') {
+        const { data: h } = await db.from('cb_helpers').select('token, active, is_extra').eq('helper_id', String(body.id || '')).maybeSingle();
+        if (!h || !h.is_extra || !h.active) return fail("We couldn't find your name. Please pick it from the list, or ask the office.", 404);
+        return json({ ok: true, token: h.token });
+      }
+      const { data: p } = await db.from('prep_students').select('full_name, efc_ref, is_active, is_test').eq('student_id', String(body.id || '')).maybeSingle();
+      if (!p || !p.is_active || p.is_test) return fail("We couldn't find your name. Please pick it from the list, or ask the office.", 404);
+      let member_key = '', full_name = p.full_name || 'Helper', efc_ref = p.efc_ref || null;
+      if (p.efc_ref) { const { data: m } = await db.from('efc_members').select('member_key, full_name').eq('efc_reference', p.efc_ref).maybeSingle(); if (m) { member_key = m.member_key; full_name = full_name || m.full_name; } }
+      if (!member_key) member_key = 'manual:' + full_name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const { data: existing } = await db.from('cb_helpers').select('helper_id, token, active').eq('member_key', member_key).maybeSingle();
+      if (existing) {
+        if (!existing.active) await db.from('cb_helpers').update({ active: true, invited_at: new Date().toISOString() }).eq('helper_id', existing.helper_id);
+        return json({ ok: true, token: existing.token });
+      }
+      const tok = essayToken();
+      const { error: e1 } = await db.from('cb_helpers').insert({ member_key, efc_ref, full_name, token: tok, active: true, invited_at: new Date().toISOString() });
+      if (e1) return fail(e1.message);
+      return json({ ok: true, token: tok });
+    }
+
     // ---- A family replied to the grading text (GoHighLevel "Customer replied" workflow, coloured-belts-16.sql) ----
     // { action: 'reply', key, phone, message }: if it's a YES, every student from that family who was invited (and hasn't
     // booked) for a coming grading day is marked "Said YES", and is texted the booking link (the "Reminder to book" wording,
@@ -2325,6 +2363,43 @@ export async function handle(req, db, env = {}, http = fetch) {
       const sentAt = new Date().toISOString();
       if (out.sms === 'sent' || out.email === 'sent') await db.from('cb_helpers').update({ sent_at: sentAt }).eq('helper_id', h.helper_id).then(() => {}, () => {});
       return json({ ok: out.sms === 'sent' || out.email === 'sent', ...out, to, sent_at: sentAt });
+    }
+
+    // The hand-added "extras" roster (non-black-belts) that also shows on the shared sign-up link.
+    if (body.action === 'helper_extras') {
+      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      const { data: ex } = await db.from('cb_helpers').select('helper_id, full_name, mobile, email, active, little_dragons').eq('is_extra', true).order('full_name');
+      return json({ ok: true, extras: ex || [] });
+    }
+    // Add / update / remove an extra. { name, mobile?, email?, helper_id?, remove? }
+    if (body.action === 'helper_extra_set') {
+      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      if (body.remove) {
+        if (!body.helper_id) return fail('Which one?');
+        const { data: h } = await db.from('cb_helpers').select('helper_id, is_extra').eq('helper_id', String(body.helper_id)).maybeSingle();
+        if (!h || !h.is_extra) return fail('That extra helper was not found.', 404);
+        await db.from('cb_helpers').update({ active: false }).eq('helper_id', h.helper_id);   // keep their sign-ups/history; just hide from the picker
+        return json({ ok: true, removed: true });
+      }
+      const full_name = String(body.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (!full_name) return fail('Type their name.');
+      const mobile = String(body.mobile || '').trim().slice(0, 40) || null;
+      const email = String(body.email || '').trim().slice(0, 120) || null;
+      if (body.helper_id) {
+        const { error: e1 } = await db.from('cb_helpers').update({ full_name, mobile, email, is_extra: true, active: true }).eq('helper_id', String(body.helper_id));
+        if (e1) return fail(e1.message);
+        return json({ ok: true, helper_id: String(body.helper_id), name: full_name });
+      }
+      const member_key = 'manual:' + full_name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const { data: existing } = await db.from('cb_helpers').select('helper_id').eq('member_key', member_key).maybeSingle();
+      if (existing) {
+        const { error: e2 } = await db.from('cb_helpers').update({ full_name, mobile, email, is_extra: true, active: true }).eq('helper_id', existing.helper_id);
+        if (e2) return fail(e2.message);
+        return json({ ok: true, helper_id: existing.helper_id, name: full_name });
+      }
+      const { data: made, error: e3 } = await db.from('cb_helpers').insert({ member_key, full_name, mobile, email, token: essayToken(), active: true, is_extra: true }).select('helper_id').single();
+      if (e3) return fail(e3.message);
+      return json({ ok: true, helper_id: made.helper_id, name: full_name });
     }
 
     // Staff: set or clear a dollar discount on a student's grading fee. It shows as its own "Discount" line
