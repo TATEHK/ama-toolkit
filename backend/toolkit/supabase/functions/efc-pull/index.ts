@@ -248,6 +248,14 @@ Deno.serve(async (req) => {
     const { data: e } = await svc.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, school, booked_at, paid, result').eq('entry_id', entryId).maybeSingle();
     if (!e) return json({ error: 'entry not found' }, 404);
     if (e.result) return json({ error: 'entry already has a result; not changing' }, 409);
+    // Keep grading session: change the belt only — stay on the current day and leave the EFC booking as-is.
+    if (url.searchParams.get('keep') === '1') {
+      const upd = { belt_from: newFrom, belt_to: newTo, to_programme: toProg, efc_belt_fix: new Date().toISOString(), booking_error: null };
+      const { error: upErr } = await svc.from('cb_entries').update(upd).eq('entry_id', entryId);
+      return json({ ok: !upErr, op: 'setbelt', kept: true,
+        summary: { entry: entryId, name: e.full_name, belt: e.belt_from + '/' + e.belt_to + ' -> ' + newFrom + '/' + newTo, move: false, why: 'kept current grading day and EFC session' },
+        steps: { update: upErr ? ('error ' + upErr.message) : 'belt set (session kept)', bookNew: 'skipped', cancelOld: 'skipped' } });
+    }
     const { data: d1 } = await svc.from('cb_days').select(daySel).eq('day_id', e.day_id).maybeSingle();
     const { data: mem } = await svc.from('efc_members').select('efc_reference, location, date_of_birth').eq('member_key', e.member_key).maybeSingle();
     const memberId = e.member_key && e.member_key.startsWith('efc:') ? e.member_key.slice(4) : null;

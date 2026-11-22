@@ -1461,18 +1461,19 @@ function editBelt(e) {
   openDlg(`<form id="ebForm" class="dlg"><div class="dlg-head"><div><h3>Edit belt</h3><p class="sub">${esc(e.full_name)}</p></div><button class="x" data-close>Close</button></div>
     <div class="field"><label class="label" for="ebFrom">Current belt</label><select id="ebFrom">${opts(e.belt_from)}</select></div>
     <div class="field"><label class="label" for="ebTo">Grading for</label><select id="ebTo">${opts(e.belt_to)}</select></div>
-    <p class="hint">Updates the fee, texts and booking link. If the new belt grades on a different day we'll move them to it (asking which, when there's a choice) and re-point their EFC booking. The belt itself still needs fixing in EFC — it's flagged on Update EFC.</p>
-    <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="ebGo" type="submit">Save</button></div></form>`);
+    <p class="hint">Updates the fee, texts and booking link. <b>Save</b> moves them to the new belt's grading day (asking which, when there's a choice) and re-points their EFC booking. <b>Keep grading session</b> changes the belt but leaves them on this day and EFC session as-is. Either way the belt still needs fixing in EFC — it's flagged on Update EFC.</p>
+    <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button type="button" class="btn" id="ebKeep">Keep grading session</button><button class="btn primary" id="ebGo" type="submit">Save</button></div></form>`);
   // Picking a current belt suggests the usual next belt to grade for (still editable)
   $('#ebFrom').onchange = () => { const b = beltOf($('#ebFrom').value, state.programme); if (b && b.next_belt && belts.some(x => x.belt === b.next_belt)) $('#ebTo').value = b.next_belt; };
   const timeStr = t => { if (!t) return ''; const [h, mi] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(mi || 0).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`; };
   // Belt edits go through efc-pull's setbelt: it moves the entry to the right grading day for the new
   // belt (asking which when an age split means several days host it) and re-points the EFC booking.
-  const setBeltCall = async (from, to, toProg, toDay) => {
+  const setBeltCall = async (from, to, toProg, toDay, keep) => {
     const { data: { session } } = await sb.auth.getSession();
     const qs = new URLSearchParams({ op: 'setbelt', entry: e.entry_id, from, to });
     if (toProg) qs.set('toProgramme', toProg);
     if (toDay) qs.set('toDay', toDay);
+    if (keep) qs.set('keep', '1');
     const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/efc-pull?' + qs.toString(), { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, ...(session ? { Authorization: 'Bearer ' + session.access_token } : {}) }, body: '{}' });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j || j.error) throw new Error((j && j.error) || ('Update failed (' + r.status + ')'));
@@ -1489,7 +1490,12 @@ function editBelt(e) {
     const cand = res.candidates || [], ageHint = res.age != null ? ' · age ' + res.age : '';
     openDlg(`<form id="pdForm" class="dlg"><div class="dlg-head"><div><h3>Which grading day?</h3><p class="sub">${esc(res.name)}${ageHint} — ${esc(short(from))} grades on more than one day here${res.bookedNow ? ' · currently booked' : ''}</p></div><button class="x" data-close>Close</button></div>
       <div class="field"><div class="checks">${cand.map((c, i) => `<label class="check"><input type="radio" name="pd" value="${esc(c.day_id)}"${i === 0 ? ' checked' : ''}> ${esc(fmtDate(c.date))} ${esc(timeStr(c.start_time))}</label>`).join('')}</div></div>
-      <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="pdGo" type="submit">Move here</button></div></form>`);
+      <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button type="button" class="btn" id="pdKeep">Keep current session</button><button class="btn primary" id="pdGo" type="submit">Move here</button></div></form>`);
+    $('#pdKeep').onclick = async () => {
+      const k = $('#pdKeep'); const lbl = k.textContent; k.disabled = true; k.textContent = 'Saving…';
+      try { await setBeltCall(from, to, toProg, null, true); dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id); toast('Belt updated — kept this grading session — added to Update EFC', 6000); }
+      catch (er) { toast(errMsg(er), 6000); k.disabled = false; k.textContent = lbl; }
+    };
     $('#pdForm').onsubmit = async ev => {
       ev.preventDefault();
       const day = ($('#pdForm input[name=pd]:checked') || {}).value;
@@ -1499,6 +1505,17 @@ function editBelt(e) {
       catch (er) { toast(errMsg(er), 6000); const g = $('#pdGo'); if (g) { g.disabled = false; g.textContent = 'Move here'; } }
     };
   };
+  // Keep grading session: change the belt but stay on this day and EFC booking (no move, no re-point).
+  const keepSession = async btn => {
+    const from = $('#ebFrom').value, to = $('#ebTo').value;
+    if (!from || !to) { toast('Pick both belts'); return; }
+    if (from === e.belt_from && to === e.belt_to) { toast('No belt change to save'); return; }
+    const tb = belts.find(b => b.belt === to), toProg = (beltOf(to, state.programme).programme) || (tb && tb.programme) || null;
+    const lbl = btn.textContent; btn.disabled = true; btn.textContent = 'Saving…';
+    try { await setBeltCall(from, to, toProg, null, true); dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id); toast('Belt updated — kept this grading session — added to Update EFC', 6000); }
+    catch (er) { toast(errMsg(er), 6000); btn.disabled = false; btn.textContent = lbl; }
+  };
+  $('#ebKeep').onclick = () => keepSession($('#ebKeep'));
   $('#ebForm').onsubmit = async ev => {
     ev.preventDefault();
     const from = $('#ebFrom').value, to = $('#ebTo').value;
