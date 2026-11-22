@@ -127,7 +127,7 @@ if (window.AmaIdle) AmaIdle.watch({ sb });
 const $ = s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc = v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let toastT; const toast = m=>{ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); };
-const ACTIONS = [['belt.change','Belt changes'],['result.change','Result changes'],['payment.record','Marked paid'],['payment.unset','Un-marked paid'],['discount.set','Discount changes'],['entry.delete','Student removed from a day'],['day.delete','Grading day deleted'],['texts.bulk','Bulk texts'],['perms.change','Permission changes'],['access.remove','Access removed']];
+const ACTIONS = [['belt.change','Belt / rank changes'],['result.change','Result changes'],['payment.record','Marked paid'],['payment.unset','Un-marked paid'],['fee.set','Fee changes'],['discount.set','Discount changes'],['eligibility.change','Eligibility changes'],['payment.override','Payment status (black belt)'],['student.deactivate','Student made inactive'],['entry.delete','Student removed from a day'],['grading.delete','Grading record deleted'],['students.delete','Student record deleted'],['day.delete','Grading day deleted'],['card.delete','ID card deleted'],['texts.bulk','Bulk texts'],['perms.change','Permission changes'],['access.remove','Access removed']];
 const when = iso=>{ try{ return new Date(iso).toLocaleString('en-AU',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; } };
 
 let STATE = { settings:null, recipients:[], recent:[] };

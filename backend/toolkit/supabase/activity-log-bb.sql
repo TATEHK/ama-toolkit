@@ -1,9 +1,7 @@
 -- Extend the activity log + 24h undo to Black Belt Gradings (prep_grading, prep_students, prep_payments).
 -- Mirrors cb_entries_log: AFTER trigger, wrapped so it can never block a save; records belt/rank changes,
 -- grading results, eligibility, target rank, payment status/fee overrides and deletions, with a before-snapshot
--- and an undo spec. Test students (prep_students.is_test) are ignored.
--- NOTE: not yet applied to the live database (the SQL tool's confirmation prompt went unanswered). Apply this
--- as a migration once the database path is available.
+-- and an undo spec. Test students (prep_students.is_test) are ignored. Applied live 23 Nov 2026.
 
 create or replace function public.bb_log() returns trigger
   language plpgsql security definer set search_path = public as $$
