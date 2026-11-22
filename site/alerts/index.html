@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>Alerts & Activity · Admin</title>
+<link rel="icon" href="../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../hub-signin.js"></script>
+<script src="../idle-logout.js"></script>
+<style>
+  :root{--bg:#0f1713;--surface:#15201a;--raise:#1b2821;--fg:#edf2ee;--muted:#a3b5a9;--faint:#74897b;--line:#253629;--line2:#31473a;--accent:#f5c518;--on-accent:#14130a;--green:#2f9e5b;--green-text:#7fd6a2;--danger:#ef8a73;--display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;--body:Barlow,"Segoe UI",Arial,sans-serif;color-scheme:dark}
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--bg);color:var(--fg);font:16px/1.45 var(--body);-webkit-tap-highlight-color:transparent}
+  .appbar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px}
+  .appbar-inner{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:10px}
+  .appbar h1{font:700 20px var(--display);margin:0}
+  .grow{flex:1}
+  .who{font-size:13px;color:var(--muted);max-width:38vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  main{max-width:760px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 60px max(16px,env(safe-area-inset-left))}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+  h2{font:700 16px var(--display);text-transform:uppercase;letter-spacing:.4px;margin:0 0 4px}
+  .hint{color:var(--muted);font-size:13.5px;margin:4px 0 12px}
+  .rows{list-style:none;margin:0;padding:0}
+  .rows li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .rows li:first-child{border-top:0}
+  .rows .d{flex:1;min-width:0}
+  .rows .d b{display:block;font-size:15px}
+  .rows .d small{display:block;color:var(--muted);font-size:12.5px}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+  .field label{font-size:13px;color:var(--muted);font-weight:600}
+  input,select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line2);border-radius:10px;padding:11px 12px;width:100%}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .btn{font:inherit;font-weight:600;border:1px solid var(--line2);background:var(--raise);color:var(--fg);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer}
+  .btn.sm{min-height:36px;padding:7px 11px;font-size:14px}
+  .btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+  .btn.danger{color:var(--danger)}
+  .btn.undo{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+  .tag{font-size:11px;font-weight:700;text-transform:uppercase;border:1px solid var(--line2);border-radius:999px;padding:1px 7px;color:var(--faint)}
+  .tag.high{color:var(--danger);border-color:var(--danger)}
+  .tag.undone{color:var(--green-text);border-color:var(--green)}
+  .checks{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+  .checks label{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--fg);font-weight:400}
+  .checks input{width:auto}
+  .msg{font-size:14px;margin:8px 0 0}
+  .msg.bad{color:var(--danger)} .msg.ok{color:var(--green-text)}
+  #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(12px);background:#05100b;border:1px solid var(--line2);color:#fff;padding:11px 15px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:40;max-width:90vw}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  [hidden]{display:none!important}
+  @media(max-width:460px){.checks{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="appbar"><div class="appbar-inner"><h1>Alerts &amp; Activity</h1><span class="grow"></span><span class="who" id="who" hidden></span><button class="btn sm" id="signOut" hidden>Sign out</button></div></div>
+<main>
+  <section id="signIn" class="card" hidden>
+    <h2>Sign in</h2>
+    <p class="hint">Sign in with your AMA admin login.</p>
+    <form id="siForm">
+      <div class="field"><label for="siEmail">Email</label><input type="email" id="siEmail" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input type="password" id="siPass" autocomplete="current-password" required></div>
+      <p class="msg bad" id="siMsg" hidden></p>
+      <button class="btn primary" id="siGo" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <p class="hint" id="loading" hidden>Loading…</p>
+  <p class="msg bad" id="noaccess" hidden>Only an admin can manage alerts.</p>
+
+  <div id="app" hidden>
+    <section class="card">
+      <h2>Who gets alerted</h2>
+      <p class="hint">High-risk actions text or email these people straight away, with an Undo link. Add yourself first.</p>
+      <ul class="rows" id="recipList"></ul>
+      <form id="recipForm" style="margin-top:12px">
+        <div class="field"><label for="rName">Name</label><input id="rName" autocomplete="off" placeholder="e.g. Tate"></div>
+        <div class="row" style="gap:8px">
+          <div class="field" style="flex:1;min-width:150px"><label for="rSms">Mobile</label><input id="rSms" inputmode="tel" autocomplete="off" placeholder="04…"></div>
+          <div class="field" style="flex:1;min-width:150px"><label for="rEmail">Email</label><input id="rEmail" inputmode="email" autocomplete="off"></div>
+          <div class="field" style="width:120px"><label for="rChan">Send by</label><select id="rChan"><option value="both">Text + email</option><option value="sms">Text</option><option value="email">Email</option></select></div>
+        </div>
+        <p class="msg bad" id="rMsg" hidden></p>
+        <button class="btn primary" id="rAdd" type="submit">Add person</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Settings</h2>
+      <div class="field"><label>Which actions alert you straight away</label>
+        <div class="checks" id="actChecks"></div>
+      </div>
+      <div class="field"><label>Whose actions count</label>
+        <div class="row"><label class="chip"><input type="radio" name="scope" value="everyone" style="width:auto"> Everyone</label>
+          <label class="chip"><input type="radio" name="scope" value="selected" style="width:auto"> Only certain people</label></div>
+        <input id="scopeEmails" placeholder="their login emails, comma-separated" hidden>
+      </div>
+      <div class="row" style="gap:16px">
+        <div class="field" style="width:150px"><label for="undoHours">Undo window (hours)</label><input id="undoHours" type="number" min="1" max="336" value="24"></div>
+        <label class="chip" style="margin-top:22px"><input type="checkbox" id="dailyOn" style="width:auto"> Daily summary of the rest</label>
+      </div>
+      <button class="btn primary" id="setSave">Save settings</button>
+      <p class="msg ok" id="setMsg" hidden>Saved</p>
+    </section>
+
+    <section class="card">
+      <h2>Recent activity</h2>
+      <p class="hint">The latest changes across coloured-belt gradings. Reversible ones show an Undo button for the next 24 hours.</p>
+      <ul class="rows" id="logList"></ul>
+    </section>
+  </div>
+</main>
+<div id="toast"></div>
+<script>
+const CFG = window.TOOLKIT_CONFIG || {};
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY, { auth:{ lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
+const FN = CFG.SUPABASE_URL + '/functions/v1/cb';
+const HUB = { sb, url:CFG.SUPABASE_URL, key:CFG.SUPABASE_KEY, form:'#siForm' };
+if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
+if (window.AmaIdle) AmaIdle.watch({ sb });
+const $ = s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc = v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let toastT; const toast = m=>{ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); };
+const ACTIONS = [['belt.change','Belt changes'],['result.change','Result changes'],['payment.record','Marked paid'],['payment.unset','Un-marked paid'],['discount.set','Discount changes'],['entry.delete','Student removed from a day'],['day.delete','Grading day deleted'],['texts.bulk','Bulk texts'],['perms.change','Permission changes'],['access.remove','Access removed']];
+const when = iso=>{ try{ return new Date(iso).toLocaleString('en-AU',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; } };
+
+let STATE = { settings:null, recipients:[], recent:[] };
+async function api(action, body={}){
+  const { data:{session} } = await sb.auth.getSession();
+  try{ const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json',apikey:CFG.SUPABASE_KEY,...(session?{Authorization:'Bearer '+session.access_token}:{})},body:JSON.stringify({action,...body})}); return await r.json(); }
+  catch(e){ return { error:'Network error. Try again.' }; }
+}
+
+function renderRecipients(){
+  const l = STATE.recipients;
+  $('#recipList').innerHTML = l.length ? l.map(r=>`<li><span class="d"><b>${esc(r.name||'(no name)')}</b><small>${esc([r.sms,r.email].filter(Boolean).join(' · ')||'—')} · ${r.channel==='both'?'text + email':r.channel==='sms'?'text':'email'}</small></span>
+    <button class="btn sm danger" data-rrm="${esc(r.id)}">Remove</button></li>`).join('') : '<li><span class="hint">No one yet. Add yourself above.</span></li>';
+  $$('#recipList [data-rrm]').forEach(b=>b.onclick=async()=>{ if(!confirm('Remove this person from alerts?'))return; const rr=await api('alerts_recipient',{id:b.dataset.rrm,remove:true}); if(rr&&rr.ok){ STATE.recipients=STATE.recipients.filter(x=>x.id!==b.dataset.rrm); renderRecipients(); toast('Removed'); } else toast((rr&&rr.error)||'Could not remove.'); });
+}
+function renderSettings(){
+  const s = STATE.settings||{};
+  const high = new Set(s.high_actions||[]);
+  $('#actChecks').innerHTML = ACTIONS.map(([k,n])=>`<label><input type="checkbox" value="${k}"${high.has(k)?' checked':''}> ${esc(n)}</label>`).join('');
+  $$('input[name="scope"]').forEach(r=>{ r.checked = (s.scope||'everyone')===r.value; });
+  $('#scopeEmails').hidden = (s.scope||'everyone')!=='selected';
+  $('#scopeEmails').value = (s.scope_emails||[]).join(', ');
+  $('#undoHours').value = s.undo_hours||24;
+  $('#dailyOn').checked = s.daily_summary!==false;
+}
+$('#setSave').onclick = async ()=>{
+  const high_actions = $$('#actChecks input:checked').map(c=>c.value);
+  const scope = ($('input[name=scope]:checked')||{}).value||'everyone';
+  const scope_emails = $('#scopeEmails').value.split(',').map(x=>x.trim()).filter(Boolean);
+  const undo_hours = parseInt($('#undoHours').value,10)||24;
+  const daily_summary = $('#dailyOn').checked;
+  $('#setSave').disabled=true;
+  const r = await api('alerts_set',{ high_actions, scope, scope_emails, daily_summary, undo_hours });
+  $('#setSave').disabled=false;
+  if(r&&r.ok){ STATE.settings={...STATE.settings,high_actions,scope,scope_emails,daily_summary,undo_hours}; $('#setMsg').hidden=false; setTimeout(()=>$('#setMsg').hidden=true,2000); } else toast((r&&r.error)||'Could not save.');
+};
+$$('input[name="scope"]').forEach(r=>r.addEventListener('change',()=>{ $('#scopeEmails').hidden = ($('input[name=scope]:checked')||{}).value!=='selected'; }));
+
+function renderLog(){
+  const byBatch = {}; STATE.recent.forEach(r=>{ if(r.batch){ byBatch[r.batch]=(byBatch[r.batch]||0)+1; } });
+  $('#logList').innerHTML = STATE.recent.length ? STATE.recent.map(r=>{
+    const n = r.batch ? byBatch[r.batch] : 1;
+    const canUndo = r.undo_token && !r.undone_at && (!r.undo_expires || new Date(r.undo_expires)>new Date());
+    const tag = r.undone_at ? '<span class="tag undone">Undone</span>' : (r.risk==='high'?'<span class="tag high">High</span>':'');
+    const undo = canUndo ? `<button class="btn sm undo" data-undo="${esc(r.undo_token)}" data-all="${n>1?1:0}">${n>1?`Undo all ${n}`:'Undo'}</button>` : '';
+    return `<li><span class="d"><b>${esc(r.summary)}</b><small>${when(r.at)}${r.actor_email?' · '+esc(r.actor_email):''}</small></span>${tag}${undo}</li>`;
+  }).join('') : '<li><span class="hint">Nothing logged yet.</span></li>';
+  $$('#logList [data-undo]').forEach(b=>b.onclick=async()=>{ if(!confirm('Undo this change?'))return; b.disabled=true; b.textContent='Undoing…';
+    const r=await api('undo',{ token:b.dataset.undo, all:b.dataset.all==='1' });
+    if(r&&r.ok){ toast(r.already?'Already undone':'Undone'); await load(); } else { b.disabled=false; b.textContent='Undo'; toast((r&&r.error)||'Could not undo.'); } });
+}
+$('#recipForm').onsubmit = async e=>{
+  e.preventDefault(); $('#rMsg').hidden=true;
+  const name=$('#rName').value.trim(), sms=$('#rSms').value.trim(), email=$('#rEmail').value.trim(), channel=$('#rChan').value;
+  if(!sms&&!email){ $('#rMsg').textContent='Give a mobile or an email.'; $('#rMsg').hidden=false; return; }
+  $('#rAdd').disabled=true;
+  const r = await api('alerts_recipient',{ name, sms, email, channel });
+  $('#rAdd').disabled=false;
+  if(!r||!r.ok){ $('#rMsg').textContent=(r&&r.error)||'Could not add.'; $('#rMsg').hidden=false; return; }
+  STATE.recipients.push({ id:r.id, name, sms:sms||null, email:email||null, channel }); renderRecipients();
+  $('#rName').value=$('#rSms').value=$('#rEmail').value=''; toast('Added');
+};
+
+async function load(){
+  $('#loading').hidden=false;
+  const r = await api('alerts_get');
+  $('#loading').hidden=true;
+  if(r&&r.error&&/admin/i.test(r.error)){ $('#app').hidden=true; $('#noaccess').hidden=false; return; }
+  if(!r||r.error){ toast((r&&r.error)||'Could not load.'); return; }
+  STATE = { settings:r.settings||{}, recipients:r.recipients||[], recent:r.recent||[] };
+  $('#app').hidden=false; $('#noaccess').hidden=true;
+  renderRecipients(); renderSettings(); renderLog();
+}
+async function boot(){
+  const { data:{session} } = await sb.auth.getSession();
+  if(!session){ $('#signIn').hidden=false; $('#app').hidden=true; $('#who').hidden=$('#signOut').hidden=true; return; }
+  $('#signIn').hidden=true; $('#who').textContent=(session.user.user_metadata||{}).full_name||session.user.email; $('#who').hidden=$('#signOut').hidden=false;
+  load();
+}
+$('#siForm').onsubmit = async e=>{
+  e.preventDefault(); $('#siGo').disabled=true; $('#siMsg').hidden=true;
+  const { error } = await sb.auth.signInWithPassword({ email:$('#siEmail').value.trim(), password:$('#siPass').value });
+  $('#siGo').disabled=false;
+  if(error){ $('#siMsg').textContent=/invalid/i.test(error.message)?'Wrong email or password.':error.message; $('#siMsg').hidden=false; return; }
+  boot();
+};
+$('#signOut').onclick = async()=>{ await sb.auth.signOut(); boot(); };
+sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'||ev==='SIGNED_OUT') boot(); });
+boot();
+</script>
+</body>
+</html>

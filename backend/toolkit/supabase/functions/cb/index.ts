@@ -1374,6 +1374,47 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ...seq, dinner, bbc });
     }
 
+    // ---- Risk alerts, every couple of minutes (pg_cron): text/email recipients the high-risk activity with an Undo link. ----
+    if (body.action === 'alerts_tick') {
+      const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
+      if (okCron !== true) return fail('Not allowed.', 403);
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return json({ ok: true, skipped: 'no texting' });
+      const { data: recips } = await db.from('alert_recipients').select('*').eq('active', true);
+      if (!recips || !recips.length) return json({ ok: true, recipients: 0 });   // nobody to tell yet, so leave rows for later
+      const { data: settings } = await db.from('alert_settings').select('*').eq('id', 1).maybeSingle();
+      const scopeSel = settings && settings.scope === 'selected';
+      const scopeEmails = ((settings && settings.scope_emails) || []).map(e => String(e).toLowerCase());
+      const highActs = (settings && settings.high_actions) || [];   // which actions alert instantly (the rest go in the daily summary)
+      if (!highActs.length) return json({ ok: true, noActions: true });
+      const okEmail = v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+      const since = new Date(Date.now() - 60 * 60000).toISOString();   // recent only, so a late first recipient can't unleash a backlog
+      const { data: rows } = await db.from('activity_log').select('*').in('action', highActs).is('alerted_at', null).gte('at', since).order('at').limit(60);
+      const todo = (rows || []).filter(r => !scopeSel || scopeEmails.includes((r.actor_email || '').toLowerCase()));
+      if (!todo.length) return json({ ok: true, nothing: true });
+      const he = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const groups = {};
+      for (const r of todo) { const k = r.batch || r.id; (groups[k] = groups[k] || []).push(r); }
+      let gsent = 0;
+      for (const key of Object.keys(groups)) {
+        const g = groups[key], head = g[0], n = g.length;
+        const tokRow = g.find(x => x.undo_token && x.undo);
+        const link = tokRow ? (SITE + 'undo/?t=' + tokRow.undo_token + (n > 1 ? '&all=1' : '')) : null;
+        const line = head.summary + (n > 1 ? ` (+${n - 1} more in the same action)` : '');
+        const sms = 'AMA alert — ' + line + (link ? '\nUndo: ' + link : '');
+        const subject = 'AMA alert: ' + String(head.action).replace(/\./g, ' ');
+        const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1c1c1c"><p>${he(line)}</p>${link ? `<p><a href="${he(link)}" style="background:#f5c518;color:#14130a;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold">Undo this</a></p><p style="color:#666;font-size:13px">Or open: ${he(link)}</p>` : ''}</div>`;
+        for (const rc of recips) {
+          try {
+            if ((rc.channel === 'sms' || rc.channel === 'both') && rc.sms) { const p = phoneE164(rc.sms); if (p) { const cid = await contactFor({ full_name: rc.name || 'AMA alerts' }, p); if (cid) await sendSms(cid, sms); } }
+            if ((rc.channel === 'email' || rc.channel === 'both') && okEmail(rc.email)) { const cid = await contactFor({ full_name: rc.name || 'AMA alerts', email: rc.email }, null); if (cid) await sendEmailTo(cid, { subject, html, text: sms }); }
+          } catch (_) { /* one recipient failing never stops the rest */ }
+        }
+        await db.from('activity_log').update({ alerted_at: new Date().toISOString() }).in('id', g.map(x => x.id));
+        gsent++;
+      }
+      return json({ ok: true, groups: gsent });
+    }
+
     // Admin (cron-authed): book one already-paid entry into EFC. For a student whose payment was recorded
     // out-of-band (e.g. a credit applied directly) so the normal pay-then-book flow never ran, and who is
     // still unbooked. Uses the same bookEntry logic as a card/desk payment (right session, idempotent,
@@ -2421,6 +2462,41 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: made, error: e3 } = await db.from('cb_helpers').insert({ member_key, full_name, mobile, email, token: essayToken(), active: true, is_extra: true }).select('helper_id').single();
       if (e3) return fail(e3.message);
       return json({ ok: true, helper_id: made.helper_id, name: full_name });
+    }
+
+    // ---- Alerts & activity admin (admin only). The alert settings, the recipients, and the recent log. ----
+    if (body.action === 'alerts_get' || body.action === 'alerts_set' || body.action === 'alerts_recipient') {
+      if (!perms.includes('admin')) return fail('Only an admin can manage alerts.', 403);
+      if (body.action === 'alerts_set') {
+        const patch = { updated_at: new Date().toISOString() };
+        if (Array.isArray(body.high_actions)) patch.high_actions = body.high_actions.map(String).slice(0, 60);
+        if (body.scope === 'everyone' || body.scope === 'selected') patch.scope = body.scope;
+        if (Array.isArray(body.scope_emails)) patch.scope_emails = body.scope_emails.map(e => String(e).toLowerCase().trim()).filter(Boolean).slice(0, 60);
+        if (body.daily_summary !== undefined) patch.daily_summary = !!body.daily_summary;
+        if (body.summary_hour !== undefined) { const h = parseInt(body.summary_hour, 10); if (Number.isFinite(h) && h >= 0 && h <= 23) patch.summary_hour = h; }
+        if (body.undo_hours !== undefined) { const h = parseInt(body.undo_hours, 10); if (Number.isFinite(h) && h >= 1 && h <= 336) patch.undo_hours = h; }
+        await db.from('alert_settings').update(patch).eq('id', 1);
+        return json({ ok: true });
+      }
+      if (body.action === 'alerts_recipient') {
+        if (body.remove) { if (!body.id) return fail('Which one?'); await db.from('alert_recipients').delete().eq('id', String(body.id)); return json({ ok: true, removed: true }); }
+        const name = String(body.name || '').trim().slice(0, 80);
+        const sms = String(body.sms || '').trim().slice(0, 40) || null;
+        const email = String(body.email || '').trim().slice(0, 120) || null;
+        const channel = ['sms', 'email', 'both'].includes(body.channel) ? body.channel : 'both';
+        if (!sms && !email) return fail('Give a mobile or an email.');
+        if (body.id) { await db.from('alert_recipients').update({ name, sms, email, channel, active: body.active !== false }).eq('id', String(body.id)); return json({ ok: true, id: String(body.id) }); }
+        const { data: made, error: e1 } = await db.from('alert_recipients').insert({ name, sms, email, channel }).select('id').single();
+        if (e1) return fail(e1.message);
+        return json({ ok: true, id: made.id });
+      }
+      // alerts_get
+      const [{ data: settings }, { data: recipients }, { data: recent }] = await Promise.all([
+        db.from('alert_settings').select('*').eq('id', 1).maybeSingle(),
+        db.from('alert_recipients').select('*').order('added_at'),
+        db.from('activity_log').select('id, at, actor_email, app, action, risk, summary, target, count, undo_token, undo_expires, undone_at, batch').order('at', { ascending: false }).limit(80)
+      ]);
+      return json({ ok: true, settings, recipients: recipients || [], recent: recent || [] });
     }
 
     // Staff: set or clear a dollar discount on a student's grading fee. It shows as its own "Discount" line
