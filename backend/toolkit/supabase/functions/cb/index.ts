@@ -2304,6 +2304,12 @@ export async function handle(req, db, env = {}, http = fetch) {
     // Let an invited helper see Little Dragons gradings (hidden from everyone else). { student_id, on }
     if (body.action === 'helper_ld') {
       if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      // An extra (helper_id) sets it on their own row; a black belt (student_id) via their member record.
+      if (body.helper_id) {
+        const { error: eh } = await db.from('cb_helpers').update({ little_dragons: body.on === true }).eq('helper_id', String(body.helper_id));
+        if (eh) return fail(eh.message);
+        return json({ ok: true, little_dragons: body.on === true });
+      }
       const { data: p } = await db.from('prep_students').select('efc_ref').eq('student_id', String(body.student_id || '')).maybeSingle();
       const { data: m } = p && p.efc_ref ? await db.from('efc_members').select('member_key').eq('efc_reference', p.efc_ref).maybeSingle() : { data: null };
       if (!m) return fail("Could not find this black belt's member record.", 404);

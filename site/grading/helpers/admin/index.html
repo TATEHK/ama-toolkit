@@ -138,6 +138,7 @@
   .sheet iframe{width:100%;height:520px;border:1px solid var(--line);border-radius:12px;background:#E9E6DE}
   .sheet .acts{display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:-18px;background:var(--surface);padding-top:8px}
   .sent{font-size:12px;color:var(--green-text)}
+  .bbtag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--accent);border:1px solid var(--line2);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:middle}
   .ld{font:inherit;font-size:12px;font-weight:600;border:1px solid var(--line2);background:none;color:var(--faint);border-radius:999px;padding:3px 9px;cursor:pointer;margin-top:5px}
   .ld.on{border-color:var(--accent);color:var(--accent)}
   .ldtag{font-size:11px;font-weight:700;color:var(--accent);margin-left:6px}
@@ -162,7 +163,7 @@
   <p class="msg bad" id="noaccess" hidden>Your login can't manage grading helpers. Ask an admin for the "Days" permission on Coloured Belts.</p>
 
   <div id="app" hidden style="display:flex;flex-direction:column;gap:14px">
-    <div class="tabs" role="tablist"><button role="tab" data-tab="cb" aria-selected="true">Coloured belt</button><button role="tab" data-tab="bb" aria-selected="false">Black belt</button><button role="tab" data-tab="inv" aria-selected="false">Invite<span class="n" id="invN"></span></button><button role="tab" data-tab="ext" aria-selected="false">Shared link<span class="n" id="extN"></span></button></div>
+    <div class="tabs" role="tablist"><button role="tab" data-tab="cb" aria-selected="true">Coloured belt</button><button role="tab" data-tab="bb" aria-selected="false">Black belt</button><button role="tab" data-tab="help" aria-selected="false">Helpers<span class="n" id="helpN"></span></button></div>
 
     <section id="cbPane" style="display:flex;flex-direction:column;gap:10px">
       <div class="sum"><p id="cbSum"></p></div>
@@ -177,23 +178,16 @@
       <div id="bbDays"></div>
     </section>
 
-    <section id="invPane" hidden style="display:flex;flex-direction:column;gap:10px">
-      <p class="hint">Turn someone on to make their personal sign-up link, then tap Send to text and email it to them (you'll see the messages first). Nothing goes until you tap Send. Little Dragons gradings only show to helpers you tick for Little Dragons.</p>
-      <div class="sum"><div class="seg2" id="invFilter"><button data-f="in" aria-pressed="true">Invited</button><button data-f="all" aria-pressed="false">All black belts</button></div><span class="grow"></span><button class="btn sm" id="bulkInvite" hidden></button><button class="btn sm primary" id="bulkSend" hidden></button></div>
-      <input class="search" id="search" placeholder="Search black belts…" autocomplete="off">
-      <ul class="rows" id="roster"></ul>
-    </section>
-
-    <section id="extPane" hidden style="display:flex;flex-direction:column;gap:12px">
+    <section id="helpPane" hidden style="display:flex;flex-direction:column;gap:12px">
       <div class="card" style="display:flex;flex-direction:column;gap:8px">
         <b>Shared sign-up link</b>
-        <p class="hint" style="margin:0">Send this one link to a group (a chat, an email) and people find their own name to sign up. It shows the black belts you've invited (on the Invite tab) plus the extras below. No one is signed up until they pick their name.</p>
+        <p class="hint" style="margin:0">Send this one link to a group (a chat, an email) and people find their own name to sign up. It shows everyone switched on below. No one is signed up until they pick their name.</p>
         <div class="field"><input id="shareLink" readonly style="font-size:13px"></div>
         <div class="row"><button class="btn sm primary" id="copyShare">Copy link</button></div>
       </div>
-      <p class="hint">These are people who aren't black belts but you still want on the shared link. Add them by name, and use the switch to turn each one on or off the link any time (turning off keeps their past sign-ups). Black belts are controlled on the Invite tab — the ones you've invited also appear on the shared link.</p>
+      <p class="hint">Everyone who can help, in one place. The switch puts a person on or off the shared link (off keeps their past sign-ups). Black belts have their own personal link too — tap Send to text and email it. Add anyone who isn't a black belt by name. Little Dragons gradings only show to people you tick for them.</p>
       <form id="extForm" class="card" style="display:flex;flex-direction:column;gap:8px">
-        <div class="field"><label for="extName">Name</label><input id="extName" autocomplete="off" required placeholder="First and last name"></div>
+        <div class="field"><label for="extName">Add a helper (not a black belt)</label><input id="extName" autocomplete="off" required placeholder="First and last name"></div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <div class="field" style="flex:1;min-width:140px"><label for="extMobile">Mobile (optional)</label><input id="extMobile" autocomplete="off" inputmode="tel"></div>
           <div class="field" style="flex:1;min-width:140px"><label for="extEmail">Email (optional)</label><input id="extEmail" autocomplete="off" inputmode="email"></div>
@@ -201,8 +195,9 @@
         <p class="msg bad" id="extMsg" hidden></p>
         <div class="row"><button class="btn sm primary" id="extAdd" type="submit">Add helper</button></div>
       </form>
-      <input class="search" id="extSearch" placeholder="Search extras…" autocomplete="off">
-      <ul class="rows" id="extList"></ul>
+      <div class="sum"><div class="seg2" id="helpFilter"><button data-f="on" aria-pressed="true">On the link</button><button data-f="all" aria-pressed="false">Everyone</button></div><span class="grow"></span><button class="btn sm" id="bulkInvite" hidden></button><button class="btn sm primary" id="bulkSend" hidden></button></div>
+      <input class="search" id="helpSearch" placeholder="Search helpers…" autocomplete="off">
+      <ul class="rows" id="helpList"></ul>
     </section>
   </div>
 </main>
@@ -294,54 +289,71 @@ function renderDays(){
   });
 }
 
-let INV_F = null;   // 'in' (invited) or 'all'
-function renderRoster(){
-  const invited=ROSTER.filter(h=>h.invited);
-  $('#invN').textContent = invited.length ? String(invited.length) : '';
-  if(INV_F==null) INV_F = invited.length ? 'in' : 'all';
-  $$('#invFilter [data-f]').forEach(b=>{ b.setAttribute('aria-pressed', String(b.dataset.f===INV_F)); b.textContent = b.dataset.f==='in' ? `Invited (${invited.length})` : `All black belts (${ROSTER.length})`; });
-  const q = ($('#search').value||'').toLowerCase().trim();
-  const list = (INV_F==='in'&&!q ? invited : ROSTER).filter(h=>!q || (h.full_name||'').toLowerCase().includes(q));
-  $('#roster').innerHTML = list.map(h=>{
-    const ageTxt = h.age==null ? '' : ` · ${h.age}${h.age<18?' (under 18)':''}`;
-    const sentTxt = h.sent_at ? `<span class="sent">Sent ${new Date(h.sent_at).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</span>` : '';
-    const ld = h.invited ? `<button class="ld${h.little_dragons?' on':''}" data-ld="${esc(h.student_id)}" aria-pressed="${!!h.little_dragons}">${h.little_dragons?'✓ ':''}Little Dragons</button>` : '';
-    return `<li class="inv"><div class="ri"><b>${esc(h.full_name)}</b><small>${esc(h.belt_rank||'')}${ageTxt}</small>${sentTxt}${ld}</div>
-      ${h.invited&&h.link?`<button class="btn sm${h.sent_at?'':' primary'}" data-send="${esc(h.student_id)}">${h.sent_at?'Resend':'Send'}</button><button class="btn sm" data-copy="${esc(h.link)}">Copy</button>`:''}
-      <input type="checkbox" class="sw" data-invite="${esc(h.student_id)}" ${h.invited?'checked':''} ${h.member_key?'':'disabled title="No member record"'} aria-label="Invite ${esc(h.full_name)}"></li>`;
-  }).join('') || `<li class="inv"><span class="hint">${INV_F==='in'&&!q?'No one invited yet. Tap “All black belts” to invite someone.':'No black belts found.'}</span></li>`;
-  $$('#roster [data-invite]').forEach(el=>el.addEventListener('change', async ()=>{
-    el.disabled=true;
-    const r = await api('helper_invite', { student_id: el.dataset.invite, on: el.checked });
-    el.disabled=false;
-    if(r.error){ toast(r.error); el.checked=!el.checked; return; }
-    const h = ROSTER.find(x=>x.student_id===el.dataset.invite);
-    if(h){ h.invited=!!r.active; h.link=r.link||null; }
-    renderRoster();
-    toast(r.active?'Invited. Tap Copy link to send it':'Removed');
-  }));
-  renderBulk();
-  $$('#roster [data-send]').forEach(b=>b.onclick=()=>openSend(b.dataset.send, b));
-  $$('#roster [data-ld]').forEach(b=>b.onclick=async()=>{ const h=ROSTER.find(x=>x.student_id===b.dataset.ld); if(!h) return; b.disabled=true;
-    const r=await api('helper_ld',{ student_id:h.student_id, on:!h.little_dragons }); b.disabled=false;
-    if(r.error){ toast(r.error); return; } h.little_dragons=!!r.little_dragons; renderRoster(); toast(h.little_dragons?`${h.full_name} can now see Little Dragons gradings`:'Little Dragons hidden for them'); });
-  $$('#roster [data-copy]').forEach(b=>b.onclick=async ()=>{ try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); }catch(e){ prompt('Copy their link:', b.dataset.copy); } });
+// ---- One combined Helpers list: black belts (ROSTER) + extras (EXTRAS), deduped by name ----
+let HF='on';   // 'on' (on the link) or 'all'
+const nm = h => (h.full_name||'').trim();
+function helperItems(){
+  const bbNames = new Set(ROSTER.map(h=>nm(h).toLowerCase()).filter(Boolean));
+  const extras = EXTRAS.filter(e=>!bbNames.has(nm(e).toLowerCase()));   // someone who's both shows once, as a black belt
+  return [
+    ...ROSTER.map(h=>({ bb:true, key:'bb:'+h.student_id, name:nm(h), on:!!h.invited, sub:(h.belt_rank||'')+(h.age==null?'':' · '+h.age+(h.age<18?' (under 18)':'')), h })),
+    ...extras.map(e=>({ bb:false, key:'ex:'+e.helper_id, name:nm(e), on:!!e.active, sub:[e.mobile,e.email].filter(Boolean).join(' · '), e }))
+  ].filter(it=>it.name);
 }
-$$('#invFilter [data-f]').forEach(b=>b.onclick=()=>{ INV_F=b.dataset.f; renderRoster(); });
+function renderHelpers(){
+  const items = helperItems();
+  $('#helpN').textContent = items.filter(it=>it.on).length || '';
+  $$('#helpFilter [data-f]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.f===HF)));
+  const q = ($('#helpSearch').value||'').toLowerCase().trim();
+  const list = items.filter(it=> (HF==='all'||it.on||q) && (!q || it.name.toLowerCase().includes(q))).sort((a,b)=>a.name.localeCompare(b.name));
+  $('#helpList').innerHTML = list.map(it=>{
+    const tag = it.bb ? '<span class="bbtag">Black belt</span>' : '';
+    const sent = it.bb && it.h.sent_at ? `<span class="sent">Sent ${new Date(it.h.sent_at).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</span>` : '';
+    const ldOn = it.bb ? it.h.little_dragons : it.e.little_dragons;
+    const ld = it.on ? `<button class="ld${ldOn?' on':''}" data-ld="${esc(it.key)}" aria-pressed="${!!ldOn}">${ldOn?'✓ ':''}Little Dragons</button>` : '';
+    const send = (it.bb && it.on && it.h.link) ? `<button class="btn sm${it.h.sent_at?'':' primary'}" data-send="${esc(it.h.student_id)}">${it.h.sent_at?'Resend':'Send'}</button><button class="btn sm" data-copy="${esc(it.h.link)}">Copy</button>` : '';
+    const dis = it.bb && !it.h.member_key ? ' disabled title="No member record"' : '';
+    return `<li class="inv"><div class="ri"><b>${esc(it.name)}</b>${tag}<small>${esc(it.sub||'')}</small>${sent}${ld}</div>
+      ${send}
+      <input type="checkbox" class="sw" data-tog="${esc(it.key)}" ${it.on?'checked':''}${dis} aria-label="On the shared link"></li>`;
+  }).join('') || `<li class="inv"><span class="hint">${q?'No one matches.':(HF==='on'?'No one on the link yet. Switch people on, or tap Everyone.':'No helpers found.')}</span></li>`;
+  $$('#helpList [data-tog]').forEach(el=>el.addEventListener('change', ()=>toggleHelper(el)));
+  $$('#helpList [data-send]').forEach(b=>b.onclick=()=>openSend(b.dataset.send, b));
+  $$('#helpList [data-copy]').forEach(b=>b.onclick=async ()=>{ try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); }catch(e){ prompt('Copy their link:', b.dataset.copy); } });
+  $$('#helpList [data-ld]').forEach(b=>b.onclick=()=>toggleLD(b.dataset.ld, b));
+  renderBulk();
+}
+async function toggleHelper(el){
+  const key=el.dataset.tog, on=el.checked; el.disabled=true; let r;
+  if(key.startsWith('bb:')){ const sid=key.slice(3); r=await api('helper_invite',{ student_id:sid, on }); if(r&&!r.error){ const h=ROSTER.find(x=>x.student_id===sid); if(h){ h.invited=!!r.active; h.link=r.link||null; } } }
+  else { const hid=key.slice(3), e=EXTRAS.find(x=>x.helper_id===hid)||{}; r = on ? await api('helper_extra_set',{ helper_id:hid, name:e.full_name, mobile:e.mobile||'', email:e.email||'' }) : await api('helper_extra_set',{ helper_id:hid, remove:true }); if(r&&r.ok&&EXTRAS.find(x=>x.helper_id===hid)) EXTRAS.find(x=>x.helper_id===hid).active=on; }
+  el.disabled=false;
+  if(!r || r.error || r.ok===false){ el.checked=!on; toast((r&&r.error)||'Could not update.'); return; }
+  renderHelpers(); toast(on?'On the link':'Off the link');
+}
+async function toggleLD(key, b){
+  b.disabled=true; let r;
+  if(key.startsWith('bb:')){ const sid=key.slice(3), h=ROSTER.find(x=>x.student_id===sid); r=await api('helper_ld',{ student_id:sid, on:!h.little_dragons }); if(!r.error) h.little_dragons=!!r.little_dragons; }
+  else { const hid=key.slice(3), e=EXTRAS.find(x=>x.helper_id===hid); r=await api('helper_ld',{ helper_id:hid, on:!e.little_dragons }); if(!r.error) e.little_dragons=!!r.little_dragons; }
+  b.disabled=false;
+  if(r.error){ toast(r.error); return; }
+  renderHelpers();
+}
+$$('#helpFilter [data-f]').forEach(b=>b.onclick=()=>{ HF=b.dataset.f; renderHelpers(); });
 // ---- Bulk: invite everyone in the list shown, and send the link to everyone invited who hasn't had it ----
-function shownForBulk(){ const q=($('#search').value||'').toLowerCase().trim(); return ROSTER.filter(h=>!q||(h.full_name||'').toLowerCase().includes(q)); }
+function shownForBulk(){ const q=($('#helpSearch').value||'').toLowerCase().trim(); return ROSTER.filter(h=>!q||(h.full_name||'').toLowerCase().includes(q)); }
 function renderBulk(){
-  const notSent=ROSTER.filter(h=>h.invited&&!h.sent_at), toInvite=INV_F==='all'?shownForBulk().filter(h=>!h.invited&&h.member_key):[];
+  const notSent=ROSTER.filter(h=>h.invited&&!h.sent_at), toInvite=(HF==='all'||($('#helpSearch').value||'').trim())?shownForBulk().filter(h=>!h.invited&&h.member_key):[];
   const bs=$('#bulkSend'), bi=$('#bulkInvite');
   bs.hidden=!notSent.length; bs.textContent=`Send to all not sent (${notSent.length})`;
-  bi.hidden=!toInvite.length; bi.textContent=`Invite all ${($('#search').value||'').trim()?'found':'shown'} (${toInvite.length})`;
+  bi.hidden=!toInvite.length; bi.textContent=`Add all black belts ${($('#helpSearch').value||'').trim()?'found':'shown'} (${toInvite.length})`;
 }
 $('#bulkInvite').onclick=async()=>{
   const list=shownForBulk().filter(h=>!h.invited&&h.member_key); if(!list.length) return;
   const b=$('#bulkInvite'); b.disabled=true; let ok=0, bad=[];
-  for(const [i,h] of list.entries()){ b.textContent=`Inviting ${i+1} of ${list.length}…`;
+  for(const [i,h] of list.entries()){ b.textContent=`Adding ${i+1} of ${list.length}…`;
     const r=await api('helper_invite',{ student_id:h.student_id, on:true }); if(r.error){ bad.push(h.full_name); continue; } h.invited=!!r.active; h.link=r.link||null; ok++; }
-  b.disabled=false; renderRoster(); toast(`Invited ${ok}${bad.length?`, ${bad.length} couldn't be: ${bad.slice(0,3).join(', ')}${bad.length>3?'…':''}`:''}. Tap “Send to all not sent” to text and email them`);
+  b.disabled=false; renderHelpers(); toast(`Added ${ok}${bad.length?`, ${bad.length} couldn't be: ${bad.slice(0,3).join(', ')}${bad.length>3?'…':''}`:''}. Tap “Send to all not sent” to text and email them`);
 };
 $('#bulkSend').onclick=async()=>{
   const list=ROSTER.filter(h=>h.invited&&!h.sent_at); if(!list.length) return;
@@ -372,7 +384,7 @@ $('#bulkSend').onclick=async()=>{
       h.sent_at=r.sent_at; sent++;
       if(r.sms!=='sent'||r.email!=='sent') partial.push(`${h.full_name}: ${r.sms!=='sent'?'text '+r.sms:''}${r.sms!=='sent'&&r.email!=='sent'?', ':''}${r.email!=='sent'?'email '+r.email:''}`);
     }
-    running=false; renderRoster();
+    running=false; renderHelpers();
     prog.innerHTML=`<b>Sent to ${sent} of ${list.length}.</b>${stop?' Stopped.':''}${partial.length?`<br>Only part went to: ${esc(partial.join('; '))}`:''}${failed.length?`<br>Not sent: ${esc(failed.join('; '))}`:''}`;
     go.hidden=true; x.textContent='Done'; x.onclick=()=>el.remove();
   };
@@ -401,7 +413,7 @@ async function openSend(id, btn){
     go.disabled=true; go.textContent='Sending…';
     const r=await api('helper_send',{ student_id:id });
     if(r.error||!r.ok){ go.disabled=false; go.textContent='Try again'; toast(r.error||('Not sent: '+[r.sms,r.email].filter(x=>x&&x!=='sent').join(', '))); return; }
-    h.sent_at=r.sent_at; close(); renderRoster();
+    h.sent_at=r.sent_at; close(); renderHelpers();
     toast([r.sms==='sent'?'Text sent':null, r.email==='sent'?'Email sent':null].filter(Boolean).join(' · ') + ([r.sms,r.email].some(x=>x&&x!=='sent'&&!/^no /.test(x))?' (something failed, check GHL)':''));
   };
 }
@@ -468,12 +480,13 @@ function wireBb(slots, H, cands){
     const { error } = await sb.from('prep_helpers').update({ slot_ids:left, ...(left.length?{}:{confirmed_at:null}), updated_at:new Date().toISOString() }).eq('cycle_id',h.cycle_id).eq('student_id',h.student_id);
     if(error){ toast(error.message); return; } toast('Taken off'); loadBb(); });
 }
-let TAB = (()=>{ try{ const h=location.hash.replace('#',''); return ['bb','cb','inv'].includes(h) ? h : (localStorage.getItem('helpers_admin_tab')||'cb'); }catch(e){ return 'cb'; } })();
-function showTab(t){ TAB=['bb','inv','ext'].includes(t)?t:'cb';
+let TAB = (()=>{ try{ let h=location.hash.replace('#',''); if(h==='inv'||h==='ext') h='help'; return ['bb','cb','help'].includes(h) ? h : (localStorage.getItem('helpers_admin_tab')||'cb'); }catch(e){ return 'cb'; } })();
+if(TAB==='inv'||TAB==='ext') TAB='help';
+function showTab(t){ TAB=['bb','help'].includes(t)?t:'cb';
   $$('.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===TAB)));
-  $('#cbPane').hidden=TAB!=='cb'; $('#bbPane').hidden=TAB!=='bb'; $('#invPane').hidden=TAB!=='inv'; $('#extPane').hidden=TAB!=='ext';
+  $('#cbPane').hidden=TAB!=='cb'; $('#bbPane').hidden=TAB!=='bb'; $('#helpPane').hidden=TAB!=='help';
   try{ localStorage.setItem('helpers_admin_tab',TAB); history.replaceState(null,'','#'+TAB); }catch(e){}
-  if(TAB==='bb') loadBb(); if(TAB==='ext') loadExtras(); }
+  if(TAB==='bb') loadBb(); if(TAB==='help') loadExtras(); }
 $$('.tabs [data-tab]').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 // Show the last copy straight away (kept on this device), then refresh from the server. Grading days and the
 // black belt list load side by side, and each shows as soon as it arrives.
@@ -484,11 +497,11 @@ let SHOWN=false;
 function showApp(){ if(SHOWN) return; SHOWN=true; $('#loading').hidden=true; $('#app').hidden=false; showTab(TAB); }
 async function load(){
   const c=readCache();
-  if(c){ DAYS=c.days; ROSTER=c.roster; showApp(); renderDays(); renderRoster(); }
+  if(c){ DAYS=c.days; ROSTER=c.roster; showApp(); renderDays(); renderHelpers(); }
   else $('#loading').hidden=false;
   const denied=x=>x&&x.error&&/not allowed|cannot/i.test(x.error);
   const pd=api('helper_admin_days').then(d=>{ if(denied(d)) throw d; if(d&&!d.error){ DAYS=d.days||[]; showApp(); renderDays(); writeCache(); } });
-  const pr=api('helper_roster').then(r=>{ if(denied(r)) throw r; if(r&&!r.error){ ROSTER=r.helpers||[]; showApp(); renderRoster(); renderDays(); writeCache(); } });
+  const pr=api('helper_roster').then(r=>{ if(denied(r)) throw r; if(r&&!r.error){ ROSTER=r.helpers||[]; showApp(); renderHelpers(); renderDays(); writeCache(); } });
   try{ await Promise.all([pd,pr]); }catch(e){ try{ localStorage.removeItem(CACHE_KEY); }catch(_){} $('#app').hidden=true; $('#loading').hidden=true; $('#noaccess').hidden=false; return; }
   showApp();
 }
@@ -499,25 +512,13 @@ async function boot(){
   $('#signIn').hidden=true; $('#who').textContent=(session.user.user_metadata||{}).full_name||session.user.email; $('#who').hidden=$('#signOut').hidden=false;
   load();
 }
-$('#search').oninput = () => renderRoster();
+$('#helpSearch').oninput = () => renderHelpers();
 
-// ---- Extras: hand-added helpers who also appear on the shared sign-up link ----
+// ---- Extras data + the shared link box + add form (rendered inside the combined Helpers list) ----
 let EXTRAS=[], extLoaded=false;
 try{ $('#shareLink').value = location.origin + '/grading/helpers/#join'; }catch(e){}
 $('#copyShare').onclick = async () => { const v=$('#shareLink').value; try{ await navigator.clipboard.writeText(v); toast('Link copied'); }catch(e){ $('#shareLink').select(); try{ document.execCommand('copy'); toast('Link copied'); }catch(_){ prompt('Copy the link:', v); } } };
-async function loadExtras(){ if(extLoaded) return; extLoaded=true; const r=await api('helper_extras'); if(r&&!r.error){ EXTRAS=r.extras||[]; renderExtras(); } }
-function renderExtras(){
-  $('#extN').textContent = EXTRAS.filter(h=>h.active).length ? String(EXTRAS.filter(h=>h.active).length) : '';
-  const q=($('#extSearch').value||'').toLowerCase().trim();
-  const list = q ? EXTRAS.filter(h=>(h.full_name||'').toLowerCase().includes(q)) : EXTRAS;
-  $('#extList').innerHTML = list.length ? list.map(h=>`<li class="inv"><span class="d"><b>${esc(h.full_name)}</b>${h.mobile||h.email?`<small>${esc([h.mobile,h.email].filter(Boolean).join(' · '))}</small>`:''}</span>
-    <input type="checkbox" class="sw" data-ext-tog="${esc(h.helper_id)}" ${h.active?'checked':''} aria-label="On the shared link"></li>`).join('')
-    : `<li class="inv"><span class="hint">${q?'No one matches.':'No extras yet. Add someone above.'}</span></li>`;
-  $$('#extList [data-ext-tog]').forEach(el=>el.onchange=async ()=>{ const h=EXTRAS.find(x=>x.helper_id===el.dataset.extTog); if(!h) return; const on=el.checked;
-    const r = on ? await api('helper_extra_set',{ helper_id:h.helper_id, name:h.full_name, mobile:h.mobile||'', email:h.email||'' }) : await api('helper_extra_set',{ helper_id:h.helper_id, remove:true });
-    if(r&&r.ok){ h.active=on; $('#extN').textContent = EXTRAS.filter(x=>x.active).length||''; toast(on?'On the link':'Off the link'); } else { el.checked=!on; toast((r&&r.error)||'Could not update.'); } });
-}
-$('#extSearch').oninput = () => renderExtras();
+async function loadExtras(){ if(extLoaded) return; extLoaded=true; const r=await api('helper_extras'); if(r&&!r.error){ EXTRAS=r.extras||[]; renderHelpers(); } }
 $('#extForm').onsubmit = async e => {
   e.preventDefault(); $('#extMsg').hidden=true;
   const name=$('#extName').value.trim(); if(!name){ $('#extMsg').textContent='Type their name.'; $('#extMsg').hidden=false; return; }
@@ -526,11 +527,10 @@ $('#extForm').onsubmit = async e => {
   $('#extAdd').disabled=false;
   if(!r||!r.ok){ $('#extMsg').textContent=(r&&r.error)||'Could not add.'; $('#extMsg').hidden=false; return; }
   const i=EXTRAS.findIndex(x=>x.helper_id===r.helper_id);
-  const row={ helper_id:r.helper_id, full_name:r.name, mobile:$('#extMobile').value.trim()||null, email:$('#extEmail').value.trim()||null, active:true };
+  const row={ helper_id:r.helper_id, full_name:r.name, mobile:$('#extMobile').value.trim()||null, email:$('#extEmail').value.trim()||null, active:true, little_dragons:(i>=0?EXTRAS[i].little_dragons:false)||false };
   if(i>=0) EXTRAS[i]=row; else EXTRAS.push(row);
-  EXTRAS.sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||''));
   $('#extName').value=$('#extMobile').value=$('#extEmail').value='';
-  renderExtras(); toast('Added');
+  renderHelpers(); toast('Added');
 };
 $('#siForm').onsubmit = async e => {
   e.preventDefault(); $('#siGo').disabled=true; $('#siMsg').hidden=true;
