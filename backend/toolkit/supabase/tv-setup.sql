@@ -245,6 +245,10 @@ end $$;
 -- A location's own slideshow hours (same shape as tv_settings.quiet_days), for every TV and tablet there.
 -- Empty: each screen's main slideshow hours.
 alter table public.tv_locations add column if not exists hours jsonb;
+-- A location's own tablet sign-in page: when set, the tablets at this location show this instead of the shared signin_url.
+alter table public.tv_locations add column if not exists signin_url text;
+alter table public.tv_locations drop constraint if exists tv_locations_signin_check;
+alter table public.tv_locations add constraint tv_locations_signin_check check (signin_url is null or signin_url = '' or signin_url ~* '^https://');
 alter table public.tv_locations enable row level security;
 drop policy if exists "staff see locations" on public.tv_locations;
 drop policy if exists "staff edit locations" on public.tv_locations;
@@ -385,6 +389,7 @@ create or replace function public.tv_feed_full(p_code text, p_screen text defaul
 declare
   s public.tv_settings%rowtype;
   loc text;   -- this device's location (set in the editor, or from its link)
+  loc_signin text;   -- a per-location sign-in page override (tv_locations.signin_url), wins over the shared one
   dev_dark boolean := false;   -- this device blacked out on its own
   today date := (now() at time zone 'Australia/Sydney')::date;
   slides jsonb; live jsonb := '{}'::jsonb; v jsonb; changed timestamptz; one_slide jsonb;
@@ -413,11 +418,12 @@ begin
   if ov and s.blackout and coalesce(s.blackout_at, '-infinity') <= ov_at then s.blackout := false; skipped := true; end if;
   if ov and dev_dark and coalesce(dev_dark_at, '-infinity') <= ov_at then dev_dark := false; skipped := true; end if;
   if loc is null then select l.slug into loc from public.tv_locations l where l.slug = lower(trim(coalesce(p_loc, ''))); end if;
+  if loc is not null then select nullif(trim(coalesce(l.signin_url, '')), '') into loc_signin from public.tv_locations l where l.slug = loc; end if;
 
   -- Blacked out from the remote or the editor (the whole screen, or just this device): black, whatever else is on
   if s.blackout or dev_dark then
     return jsonb_build_object(
-      'settings', jsonb_build_object('seconds', s.seconds, 'show_clock', false, 'show_logo', false, 'signin', nullif(trim(coalesce(s.signin_url, '')), ''), 'signin_idle', s.signin_idle, 'signin_open', s.signin_open,
+      'settings', jsonb_build_object('seconds', s.seconds, 'show_clock', false, 'show_logo', false, 'signin', coalesce(loc_signin, nullif(trim(coalesce(s.signin_url, '')), '')), 'signin_idle', s.signin_idle, 'signin_open', s.signin_open,
         'kiosk_port', s.kiosk_port, 'kiosk_key', nullif(s.kiosk_key, ''), 'battery_warn', s.battery_warn, 'shuffle', s.shuffle),
       'version', s.updated_at, 'slides', '[]'::jsonb, 'live', '{}'::jsonb, 'today', today,
       'quiet', 'black', 'blackout', true, 'override_ok', has_code, 'remote', coalesce(s.remote_until > now(), false), 'display', s.display);
@@ -449,7 +455,7 @@ begin
   end if;
   if one_slide is not null then
     return jsonb_build_object(
-      'settings', jsonb_build_object('seconds', s.seconds, 'show_clock', false, 'show_logo', false, 'signin', nullif(trim(coalesce(s.signin_url, '')), ''), 'signin_idle', s.signin_idle, 'signin_open', s.signin_open,
+      'settings', jsonb_build_object('seconds', s.seconds, 'show_clock', false, 'show_logo', false, 'signin', coalesce(loc_signin, nullif(trim(coalesce(s.signin_url, '')), '')), 'signin_idle', s.signin_idle, 'signin_open', s.signin_open,
         'kiosk_port', s.kiosk_port, 'kiosk_key', nullif(s.kiosk_key, ''), 'battery_warn', s.battery_warn,
         'party_qr', nullif(trim(coalesce(s.party_qr_url, '')), ''), 'party_qr_text', nullif(trim(coalesce(s.party_qr_text, '')), '')),
       'version', greatest(s.updated_at, one_changed), 'slides', jsonb_build_array(one_slide), 'live', '{}'::jsonb, 'today', today,
@@ -478,7 +484,7 @@ begin
          then now_time >= s.quiet_from and now_time < s.quiet_to
          else now_time >= s.quiet_from or now_time < s.quiet_to end) end) then
     return jsonb_build_object(
-      'settings', jsonb_build_object('seconds', s.seconds, 'show_clock', false, 'show_logo', false, 'signin', nullif(trim(coalesce(s.signin_url, '')), ''), 'signin_idle', s.signin_idle, 'signin_open', s.signin_open,
+      'settings', jsonb_build_object('seconds', s.seconds, 'show_clock', false, 'show_logo', false, 'signin', coalesce(loc_signin, nullif(trim(coalesce(s.signin_url, '')), '')), 'signin_idle', s.signin_idle, 'signin_open', s.signin_open,
         'kiosk_port', s.kiosk_port, 'kiosk_key', nullif(s.kiosk_key, ''), 'battery_warn', s.battery_warn, 'shuffle', s.shuffle),
       'version', s.updated_at, 'slides', '[]'::jsonb, 'live', '{}'::jsonb, 'today', today,
       'quiet', s.quiet_style, 'off', off_now, 'remote', coalesce(s.remote_until > now(), false), 'display', s.display);
@@ -546,7 +552,7 @@ begin
 
   return jsonb_build_object(
     'settings', jsonb_build_object('seconds', s.seconds, 'show_clock', s.show_clock, 'show_logo', s.show_logo, 'banner', nullif(trim(coalesce(s.banner, '')), ''),
-      'signin', nullif(trim(coalesce(s.signin_url, '')), ''), 'signin_idle', s.signin_idle, 'signin_open', s.signin_open,
+      'signin', coalesce(loc_signin, nullif(trim(coalesce(s.signin_url, '')), '')), 'signin_idle', s.signin_idle, 'signin_open', s.signin_open,
         'kiosk_port', s.kiosk_port, 'kiosk_key', nullif(s.kiosk_key, ''), 'battery_warn', s.battery_warn, 'shuffle', s.shuffle),
     'remote', coalesce(s.remote_until > now(), false), 'display', s.display, 'location', loc, 'override', skipped,
     'version', greatest(coalesce(changed, s.updated_at), s.updated_at),
