@@ -248,30 +248,29 @@
     apply(r);
   }
 
-  // ---- Shared link: pick your name, then sign in as that helper ----
-  let PEOPLE = [];
-  async function openPicker(){
+  // ---- Shared link: find your own name (you never see the whole list), then sign in as that helper ----
+  let findT=null;
+  function openPicker(){
     $('#loading').hidden=true; $('#app').hidden=true; $('#dead').hidden=true;
     $('#pick').hidden=false;
-    if(!PEOPLE.length){
-      const r = await call('helper_public_roster');
-      if(!r || !r.ok){ dead(r&&r.error); return; }
-      PEOPLE = r.people || [];
-    }
-    renderPicker('');
-    const s=$('#pickSearch'); s.value=''; s.oninput=()=>renderPicker(s.value); try{ s.focus(); }catch(e){}
+    const s=$('#pickSearch'); s.value='';
+    $('#pickList').innerHTML='<p class="pickempty">Type your name above to find yourself.</p>';
+    s.oninput=()=>{ clearTimeout(findT); findT=setTimeout(()=>findNames(s.value), 220); };
+    try{ s.focus(); }catch(e){}
   }
-  function renderPicker(q){
-    q=(q||'').toLowerCase().trim();
-    const list = q ? PEOPLE.filter(p=>p.name.toLowerCase().includes(q)) : PEOPLE;
+  async function findNames(q){
+    q=(q||'').trim();
+    if(q.length<2){ $('#pickList').innerHTML='<p class="pickempty">Type at least 2 letters of your name.</p>'; return; }
+    const r = await call('helper_public_find',{ q });
+    const list = (r&&r.people) || [];
     $('#pickList').innerHTML = list.length
-      ? list.map(p=>`<button type="button" class="pickrow" data-k="${esc(p.kind)}" data-id="${esc(p.id)}">${esc(p.name)}</button>`).join('')
-      : '<p class="pickempty">No names match. Check the spelling, or ask the office.</p>';
-    $$('#pickList .pickrow').forEach(b=>b.onclick=()=>choose(b.dataset.k,b.dataset.id));
+      ? list.map(p=>`<button type="button" class="pickrow" data-id="${esc(p.id)}">${esc(p.name)}</button>`).join('')
+      : '<p class="pickempty">No match. Check the spelling, or ask the office.</p>';
+    $$('#pickList .pickrow').forEach(b=>b.onclick=()=>choose(b.dataset.id));
   }
-  async function choose(kind,id){
+  async function choose(id){
     if(busy) return; busy=true;
-    const r = await call('helper_public_join',{ kind, id }); busy=false;
+    const r = await call('helper_public_join',{ id }); busy=false;
     if(!r || !r.ok || !r.token){ toast((r&&r.error)||'Could not sign you in. Try again.'); return; }
     token = r.token; try{ localStorage.setItem('amaHelperTok',token); }catch(e){}
     $('#pick').hidden=true; $('#loading').hidden=false;

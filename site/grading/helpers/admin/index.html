@@ -162,7 +162,7 @@
   <p class="msg bad" id="noaccess" hidden>Your login can't manage grading helpers. Ask an admin for the "Days" permission on Coloured Belts.</p>
 
   <div id="app" hidden style="display:flex;flex-direction:column;gap:14px">
-    <div class="tabs" role="tablist"><button role="tab" data-tab="cb" aria-selected="true">Coloured belt</button><button role="tab" data-tab="bb" aria-selected="false">Black belt</button><button role="tab" data-tab="inv" aria-selected="false">Invite<span class="n" id="invN"></span></button><button role="tab" data-tab="ext" aria-selected="false">Extras<span class="n" id="extN"></span></button></div>
+    <div class="tabs" role="tablist"><button role="tab" data-tab="cb" aria-selected="true">Coloured belt</button><button role="tab" data-tab="bb" aria-selected="false">Black belt</button><button role="tab" data-tab="inv" aria-selected="false">Invite<span class="n" id="invN"></span></button><button role="tab" data-tab="ext" aria-selected="false">Shared link<span class="n" id="extN"></span></button></div>
 
     <section id="cbPane" style="display:flex;flex-direction:column;gap:10px">
       <div class="sum"><p id="cbSum"></p></div>
@@ -191,7 +191,7 @@
         <div class="field"><input id="shareLink" readonly style="font-size:13px"></div>
         <div class="row"><button class="btn sm primary" id="copyShare">Copy link</button></div>
       </div>
-      <p class="hint">Extras are people who aren't black belts but you still want on the shared link — add them by name. Remove takes them off the link (their past sign-ups stay).</p>
+      <p class="hint">These are people who aren't black belts but you still want on the shared link. Add them by name, and use the switch to turn each one on or off the link any time (turning off keeps their past sign-ups). Black belts are controlled on the Invite tab — the ones you've invited also appear on the shared link.</p>
       <form id="extForm" class="card" style="display:flex;flex-direction:column;gap:8px">
         <div class="field"><label for="extName">Name</label><input id="extName" autocomplete="off" required placeholder="First and last name"></div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
@@ -507,13 +507,15 @@ try{ $('#shareLink').value = location.origin + '/grading/helpers/#join'; }catch(
 $('#copyShare').onclick = async () => { const v=$('#shareLink').value; try{ await navigator.clipboard.writeText(v); toast('Link copied'); }catch(e){ $('#shareLink').select(); try{ document.execCommand('copy'); toast('Link copied'); }catch(_){ prompt('Copy the link:', v); } } };
 async function loadExtras(){ if(extLoaded) return; extLoaded=true; const r=await api('helper_extras'); if(r&&!r.error){ EXTRAS=r.extras||[]; renderExtras(); } }
 function renderExtras(){
-  $('#extN').textContent = EXTRAS.length ? String(EXTRAS.length) : '';
+  $('#extN').textContent = EXTRAS.filter(h=>h.active).length ? String(EXTRAS.filter(h=>h.active).length) : '';
   const q=($('#extSearch').value||'').toLowerCase().trim();
   const list = q ? EXTRAS.filter(h=>(h.full_name||'').toLowerCase().includes(q)) : EXTRAS;
   $('#extList').innerHTML = list.length ? list.map(h=>`<li class="inv"><span class="d"><b>${esc(h.full_name)}</b>${h.mobile||h.email?`<small>${esc([h.mobile,h.email].filter(Boolean).join(' · '))}</small>`:''}</span>
-    <button class="btn sm" data-ext-del="${esc(h.helper_id)}">Remove</button></li>`).join('')
-    : `<li class="inv"><span class="hint">${q?'No extras match.':'No extras yet. Add someone above.'}</span></li>`;
-  $$('#extList [data-ext-del]').forEach(b=>b.onclick=async ()=>{ const h=EXTRAS.find(x=>x.helper_id===b.dataset.extDel); if(!h) return; if(!confirm('Remove '+h.full_name+' from the shared link?')) return; b.disabled=true; const r=await api('helper_extra_set',{ helper_id:b.dataset.extDel, remove:true }); if(r&&r.ok){ EXTRAS=EXTRAS.filter(x=>x.helper_id!==b.dataset.extDel); renderExtras(); toast('Removed'); } else { b.disabled=false; toast((r&&r.error)||'Could not remove.'); } });
+    <input type="checkbox" class="sw" data-ext-tog="${esc(h.helper_id)}" ${h.active?'checked':''} aria-label="On the shared link"></li>`).join('')
+    : `<li class="inv"><span class="hint">${q?'No one matches.':'No extras yet. Add someone above.'}</span></li>`;
+  $$('#extList [data-ext-tog]').forEach(el=>el.onchange=async ()=>{ const h=EXTRAS.find(x=>x.helper_id===el.dataset.extTog); if(!h) return; const on=el.checked;
+    const r = on ? await api('helper_extra_set',{ helper_id:h.helper_id, name:h.full_name, mobile:h.mobile||'', email:h.email||'' }) : await api('helper_extra_set',{ helper_id:h.helper_id, remove:true });
+    if(r&&r.ok){ h.active=on; $('#extN').textContent = EXTRAS.filter(x=>x.active).length||''; toast(on?'On the link':'Off the link'); } else { el.checked=!on; toast((r&&r.error)||'Could not update.'); } });
 }
 $('#extSearch').oninput = () => renderExtras();
 $('#extForm').onsubmit = async e => {

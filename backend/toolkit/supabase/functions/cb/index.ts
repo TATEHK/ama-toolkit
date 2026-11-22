@@ -1535,13 +1535,16 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, name: first(h.full_name), age, coloured, blackbelt });
     }
 
-    // ---- Shared sign-up link (/grading/helpers/#join): the pick-your-name list, then self-serve join. ----
-    // The roster is only the people already set up as helpers: the invited black belts plus the hand-added extras
-    // (every active cb_helpers row). No sign-in. Each already has a token, so joining just hands it back.
-    if (body.action === 'helper_public_roster') {
-      const { data: hs } = await db.from('cb_helpers').select('helper_id, full_name').eq('active', true).order('full_name');
+    // ---- Shared sign-up link (/grading/helpers/#join): find your own name, then self-serve join. ----
+    // You never see the whole list: you type your name and only matches come back (an invited black belt or an
+    // extra — every active cb_helpers row). No sign-in. Each already has a token, so joining just hands it back.
+    if (body.action === 'helper_public_find') {
+      const q = String(body.q || '').replace(/\s+/g, ' ').trim();
+      if (q.length < 2) return json({ ok: true, people: [] });   // nothing shows until they type part of their name
+      const like = '%' + q.replace(/[%_\\]/g, m => '\\' + m) + '%';
+      const { data: hs } = await db.from('cb_helpers').select('helper_id, full_name').eq('active', true).ilike('full_name', like).order('full_name').limit(12);
       const seen = new Set(), list = [];
-      for (const h of (hs || [])) { const nm = (h.full_name || '').trim(); if (!nm) continue; const k = nm.toLowerCase(); if (seen.has(k)) continue; seen.add(k); list.push({ kind: 'helper', id: h.helper_id, name: nm }); }
+      for (const h of (hs || [])) { const nm = (h.full_name || '').trim(); if (!nm) continue; const k = nm.toLowerCase(); if (seen.has(k)) continue; seen.add(k); list.push({ id: h.helper_id, name: nm }); }
       return json({ ok: true, people: list });
     }
     // Pick your name on the shared link: hand back that helper's token so they see their own day picker.
