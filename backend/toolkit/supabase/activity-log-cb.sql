@@ -8,11 +8,12 @@ alter table public.activity_log add column if not exists batch text;   -- rows c
 create or replace function public.cb_entries_log() returns trigger
   language plpgsql security definer set search_path = public as $$
 declare
-  actor text := nullif(auth.jwt() ->> 'email', '');
-  who text := coalesce(actor, 'Someone');
-  nm text := coalesce(new.full_name, old.full_name, 'a student');
+  actor text; who text; nm text;
   act text; rsk text := 'high'; summ text; snap jsonb; undo jsonb; hrs int;
 begin
+  begin actor := nullif(auth.jwt() ->> 'email', ''); exception when others then actor := null; end;   -- safe outside a request context
+  who := coalesce(actor, 'Someone');
+  nm := coalesce(new.full_name, old.full_name, 'a student');
   begin
     if tg_op = 'INSERT' then
       insert into public.activity_log(actor_email, app, action, risk, summary, target, batch)
@@ -24,7 +25,7 @@ begin
     else
       if to_jsonb(new) = to_jsonb(old) then return new; end if;   -- nothing actually changed
       if (new.belt_from, new.belt_to) is distinct from (old.belt_from, old.belt_to) then
-        act := 'belt.change'; summ := who || ' changed ' || nm || '''s belt: ' || coalesce(old.belt_from, '?') || ' → ' || coalesce(new.belt_to, '?');
+        act := 'belt.change'; summ := who || ' changed ' || nm || '''s belt: ' || coalesce(old.belt_from, '?') || ' -> ' || coalesce(new.belt_to, '?');
       elsif (new.result, new.result_at) is distinct from (old.result, old.result_at) then
         act := 'result.change'; summ := who || ' set ' || nm || '''s result to ' || coalesce(new.result, '(cleared)');
       elsif new.paid is distinct from old.paid then
@@ -44,7 +45,7 @@ begin
     end if;
     select undo_hours into hrs from public.alert_settings where id = 1;
     insert into public.activity_log(actor_email, app, action, risk, summary, target, snapshot, undo, undo_token, undo_expires, batch)
-      values (actor, 'cb', act, rsk, summ, nm, snap, undo, encode(gen_random_bytes(9), 'hex'),
+      values (actor, 'cb', act, rsk, summ, nm, snap, undo, replace(gen_random_uuid()::text, '-', ''),
               now() + make_interval(hours => coalesce(hrs, 24)), txid_current()::text);
   exception when others then null;   -- logging must never block the action
   end;
