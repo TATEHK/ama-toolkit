@@ -1415,6 +1415,40 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, groups: gsent });
     }
 
+    // ---- Daily summary (pg_cron hourly): once a day at summary_hour (Sydney), a digest of the last 24h to recipients. ----
+    if (body.action === 'alerts_summary') {
+      const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
+      if (okCron !== true) return fail('Not allowed.', 403);
+      const { data: settings } = await db.from('alert_settings').select('*').eq('id', 1).maybeSingle();
+      if (!settings || !settings.daily_summary) return json({ ok: true, off: true });
+      const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false }).formatToParts(new Date()).map(p => [p.type, p.value]));
+      const sydDate = `${parts.year}-${parts.month}-${parts.day}`, sydHour = parseInt(parts.hour, 10) % 24;
+      if (sydHour !== (settings.summary_hour ?? 7)) return json({ ok: true, waiting: sydHour });
+      if (settings.last_summary === sydDate) return json({ ok: true, alreadyToday: true });
+      await db.from('alert_settings').update({ last_summary: sydDate }).eq('id', 1);   // mark first, so a retry can't double-send
+      const { data: recips } = await db.from('alert_recipients').select('*').eq('active', true);
+      if (!recips || !recips.length || !(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return json({ ok: true, recipients: 0 });
+      const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const { data: rows } = await db.from('activity_log').select('action').gte('at', dayAgo);
+      const total = (rows || []).length;
+      if (!total) return json({ ok: true, empty: true });
+      const he = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const label = { 'belt.change': 'belt changes', 'result.change': 'results', 'payment.record': 'payments recorded', 'payment.unset': 'payments undone', 'discount.set': 'discount changes', 'entry.delete': 'students removed', 'entry.add': 'students added', 'entry.edit': 'other edits' };
+      const counts = {}; for (const r of (rows || [])) counts[r.action] = (counts[r.action] || 0) + 1;
+      const lines = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const sms = `AMA daily summary: ${total} change${total === 1 ? '' : 's'} in the last day — ${lines.slice(0, 4).map(([k, v]) => `${v} ${label[k] || k}`).join(', ')}. Details: ${SITE}alerts`;
+      const subject = `AMA daily summary — ${total} change${total === 1 ? '' : 's'}`;
+      const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1c1c1c"><p><b>${total} change${total === 1 ? '' : 's'} in the last 24 hours.</b></p><ul>${lines.map(([k, v]) => `<li>${v} &times; ${he(label[k] || k)}</li>`).join('')}</ul><p><a href="${SITE}alerts" style="color:#0B6A35;font-weight:bold">Open Alerts &amp; Activity</a></p></div>`;
+      const okEmail = v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+      for (const rc of recips) {
+        try {
+          if ((rc.channel === 'sms' || rc.channel === 'both') && rc.sms) { const p = phoneE164(rc.sms); if (p) { const cid = await contactFor({ full_name: rc.name || 'AMA alerts' }, p); if (cid) await sendSms(cid, sms); } }
+          if ((rc.channel === 'email' || rc.channel === 'both') && okEmail(rc.email)) { const cid = await contactFor({ full_name: rc.name || 'AMA alerts', email: rc.email }, null); if (cid) await sendEmailTo(cid, { subject, html, text: sms }); }
+        } catch (_) { /* skip a failing recipient */ }
+      }
+      return json({ ok: true, sent: total });
+    }
+
     // Admin (cron-authed): book one already-paid entry into EFC. For a student whose payment was recorded
     // out-of-band (e.g. a credit applied directly) so the normal pay-then-book flow never ran, and who is
     // still unbooked. Uses the same bookEntry logic as a card/desk payment (right session, idempotent,

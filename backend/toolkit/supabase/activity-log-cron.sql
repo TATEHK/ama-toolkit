@@ -14,5 +14,13 @@ begin
         body := '{"action":"alerts_tick"}'::jsonb,
         timeout_milliseconds := 120000)
     $job$);
+    -- The daily summary: fires hourly, but the cb function only sends at summary_hour (Sydney), once a day.
+    perform cron.unschedule('cb-alerts-summary') where exists (select 1 from cron.job where jobname = 'cb-alerts-summary');
+    perform cron.schedule('cb-alerts-summary', '3 * * * *', $job$
+      select net.http_post(url := 'https://ptdrcxngaptcgswfbjhg.supabase.co/functions/v1/cb',
+        headers := jsonb_build_object('Content-Type', 'application/json', 'x-cb-cron', (select decrypted_secret from vault.decrypted_secrets where name = 'cb_cron_secret')),
+        body := '{"action":"alerts_summary"}'::jsonb,
+        timeout_milliseconds := 120000)
+    $job$);
   end if;
 end $$;
