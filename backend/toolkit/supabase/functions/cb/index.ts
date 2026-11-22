@@ -2320,7 +2320,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     // ---- Grading helpers admin (staff) ----
     // List upcoming grading days with their helper settings + who's signed up
     if (body.action === 'helper_admin_days') {
-      if (!can('days', 'settings')) return fail('Your login cannot manage grading helpers.', 403);
+      if (!can('helpers', 'days', 'settings')) return fail('Your login cannot manage grading helpers.', 403);
       const today = new Date().toISOString().slice(0, 10);
       const { data: days } = await db.from('cb_days').select('day_id, grading_date, start_time, location, bb, programme, belts, closed, helper_open, helper_cap, helper_audience').gte('grading_date', today).order('grading_date');
       const ids = (days || []).map(d => d.day_id), byDay = {};
@@ -2332,7 +2332,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     // A black belt from the list keeps their usual helper record; anyone else gets a record by name only (no sign-up link).
     // Staff aren't held to the cap.
     if (body.action === 'helper_admin_assign') {
-      if (!can('days', 'settings')) return fail('Your login cannot manage grading helpers.', 403);
+      if (!can('helpers', 'days', 'settings')) return fail('Your login cannot manage grading helpers.', 403);
       const dayId = String(body.day_id || '');
       const { data: d } = await db.from('cb_days').select('day_id').eq('day_id', dayId).maybeSingle();
       if (!d) return fail('That grading day was not found.', 404);
@@ -2361,7 +2361,7 @@ export async function handle(req, db, env = {}, http = fetch) {
 
     // Open/close a day for helpers, set the cap and the audience band
     if (body.action === 'helper_admin_day_set') {
-      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      if (!can('helpers', 'days', 'settings')) return fail('Not allowed.', 403);
       const patch = {};
       if (body.open !== undefined) patch.helper_open = !!body.open;
       if (body.cap !== undefined) { const c = parseInt(body.cap, 10); if (Number.isFinite(c) && c >= 0 && c <= 50) patch.helper_cap = c; }
@@ -2372,7 +2372,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
     // The black belt roster to invite from, with each one's invite state + personal link
     if (body.action === 'helper_roster') {
-      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      if (!can('helpers', 'days', 'settings')) return fail('Not allowed.', 403);
       // Black belts and helper records side by side; members looked up in parallel chunks (a long IN list is slow)
       const [{ data: ps }, hRes] = await Promise.all([
         db.from('prep_students').select('student_id, full_name, efc_ref, belt_rank').eq('is_active', true).eq('is_test', false).order('full_name'),
@@ -2393,7 +2393,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
     // Invite (or un-invite) a black belt: makes/activates their personal helper link
     if (body.action === 'helper_invite') {
-      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      if (!can('helpers', 'days', 'settings')) return fail('Not allowed.', 403);
       let member_key = String(body.member_key || '').trim(), full_name = '', efc_ref = String(body.efc_ref || '').trim() || null;
       if (!member_key && body.student_id) {
         const { data: p } = await db.from('prep_students').select('full_name, efc_ref').eq('student_id', String(body.student_id)).maybeSingle();
@@ -2411,7 +2411,7 @@ export async function handle(req, db, env = {}, http = fetch) {
 
     // Let an invited helper see Little Dragons gradings (hidden from everyone else). { student_id, on }
     if (body.action === 'helper_ld') {
-      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      if (!can('helpers', 'days', 'settings')) return fail('Not allowed.', 403);
       // An extra (helper_id) sets it on their own row; a black belt (student_id) via their member record.
       if (body.helper_id) {
         const { error: eh } = await db.from('cb_helpers').update({ little_dragons: body.on === true }).eq('helper_id', String(body.helper_id));
@@ -2428,7 +2428,7 @@ export async function handle(req, db, env = {}, http = fetch) {
 
     // Text and email an invited helper their sign-up link. { student_id, preview: true } returns the exact messages without sending.
     if (body.action === 'helper_send') {
-      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      if (!can('helpers', 'days', 'settings')) return fail('Not allowed.', 403);
       const { data: p } = await db.from('prep_students').select('full_name, efc_ref').eq('student_id', String(body.student_id || '')).maybeSingle();
       const { data: m } = p && p.efc_ref ? await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').eq('efc_reference', p.efc_ref).maybeSingle() : { data: null };
       if (!m) return fail("Could not find this black belt's member record.", 404);
@@ -2463,13 +2463,13 @@ export async function handle(req, db, env = {}, http = fetch) {
 
     // The hand-added "extras" roster (non-black-belts) that also shows on the shared sign-up link.
     if (body.action === 'helper_extras') {
-      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      if (!can('helpers', 'days', 'settings')) return fail('Not allowed.', 403);
       const { data: ex } = await db.from('cb_helpers').select('helper_id, full_name, mobile, email, active, little_dragons').eq('is_extra', true).order('full_name');
       return json({ ok: true, extras: ex || [] });
     }
     // Add / update / remove an extra. { name, mobile?, email?, helper_id?, remove? }
     if (body.action === 'helper_extra_set') {
-      if (!can('days', 'settings')) return fail('Not allowed.', 403);
+      if (!can('helpers', 'days', 'settings')) return fail('Not allowed.', 403);
       if (body.remove) {
         if (!body.helper_id) return fail('Which one?');
         const { data: h } = await db.from('cb_helpers').select('helper_id, is_extra').eq('helper_id', String(body.helper_id)).maybeSingle();

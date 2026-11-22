@@ -22,8 +22,9 @@ create table if not exists public.app_permissions (
   added_at timestamptz not null default now(),
   primary key (email, app, perm),
   constraint app_permissions_perm check (
-    (app = 'cb' and perm in ('view','days','belts','readiness','results','calls','payments',
-      'text_invite','text_result','text_followup','set_general','set_fees','set_wording','admin','texts','settings')) or
+    (app = 'cb' and perm in ('view','days','belts','readiness','results','calls','payments','helpers',
+      'text_invite','text_result','text_followup','set_general','set_fees','set_wording','admin','texts','settings',
+      'floor_admin','floor_sarah','floor_master','floor_signin','floor_staff')) or
     (app = 'bb' and perm in ('view','attendance','readiness','essays','days','grading','results','scoring','calls','payments',
       'text_invite','text_result','text_followup','certificates','idcards','polos','set_general','set_fees','set_wording','admin','texts','settings')) or
     (app = 'awards' and perm in ('view','edit','admin')))
