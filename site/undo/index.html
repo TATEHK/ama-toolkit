@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Undo · AMA</title>
+<link rel="icon" href="../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+  :root{--bg:#0f1713;--card:#15201a;--line:#253629;--fg:#edf2ee;--sub:#a3b5a9;--gold:#f5c518;--red:#e4573d;--green:#2f9e57}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:Barlow,"Segoe UI",Arial,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;max-width:460px;width:100%;padding:28px 24px;box-shadow:0 12px 44px rgba(0,0,0,.45)}
+  .logo{width:52px;height:52px;border-radius:12px;display:block;margin:0 auto 14px}
+  h1{font-size:21px;font-weight:700;text-align:center;margin:0 0 6px}
+  .sub{color:var(--sub);text-align:center;font-size:14px;margin:0 0 20px}
+  .what{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 18px}
+  .what b{display:block;font-size:16px;line-height:1.4}
+  .what small{display:block;color:var(--sub);font-size:13px;margin-top:6px}
+  .btn{display:block;width:100%;min-height:52px;border:0;border-radius:13px;font:inherit;font-size:16px;font-weight:700;cursor:pointer}
+  .btn.undo{background:var(--gold);color:#14130a}
+  .btn.undo:disabled{opacity:.55;cursor:default}
+  .btn.ghost{background:none;color:var(--sub);min-height:0;padding:10px;font-weight:500;text-decoration:underline;text-underline-offset:3px;margin-top:6px}
+  .msg{text-align:center;font-size:15px;line-height:1.5;margin:14px 0 0}
+  .msg.ok{color:var(--green)} .msg.bad{color:var(--red)}
+  .spin{text-align:center;color:var(--sub)}
+</style>
+</head>
+<body>
+<div class="card">
+  <img class="logo" src="https://www.australianmartialarts.com.au/wp-content/uploads/2019/12/logo1.png" alt="AMA">
+  <h1>Undo a change</h1>
+  <p class="sub" id="sub">Checking this change…</p>
+  <div id="body"><p class="spin">Loading…</p></div>
+</div>
+<script src="../config.js"></script>
+<script>
+  const CFG = window.TOOLKIT_CONFIG || {};
+  const $ = s => document.querySelector(s);
+  const qs = new URLSearchParams(location.search);
+  const token = (qs.get('t') || location.hash.replace(/^#/,'')).trim();
+  const all = qs.get('all') === '1';
+  async function call(extra){
+    const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/cb', { method:'POST', headers:{'Content-Type':'application/json', apikey:CFG.SUPABASE_KEY}, body: JSON.stringify({ action:'undo', token, all, ...extra }) });
+    return r.json();
+  }
+  const when = iso => { try { return new Date(iso).toLocaleString('en-AU',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}); } catch(e){ return ''; } };
+  function fail(m){ $('#sub').textContent=''; $('#body').innerHTML = `<p class="msg bad">${m}</p>`; }
+  function done(m){ $('#sub').textContent=''; $('#body').innerHTML = `<p class="msg ok">${m}</p>`; }
+
+  async function load(){
+    if(!token){ fail('This link is missing its code. Open it from the alert you were sent.'); return; }
+    let r; try { r = await call({ peek:true }); } catch(e){ fail('Could not reach the system. Try again in a moment.'); return; }
+    if(r && r.already){ done('Already undone. Nothing more to do.'); return; }
+    if(!r || !r.ok){ fail((r && r.error) || 'This change can no longer be undone.'); return; }
+    $('#sub').textContent = all && r.count > 1 ? `${r.count} changes from this action` : 'This change';
+    const expireTxt = r.expires ? `You can undo until ${when(r.expires)}.` : '';
+    $('#body').innerHTML =
+      `<div class="what"><b>${esc(r.summary)}</b><small>${when(r.when)}${r.count>1&&all?` · and ${r.count-1} more like it`:''}</small></div>
+       <button class="btn undo" id="go">${all && r.count>1 ? `Undo all ${r.count} changes` : 'Undo this change'}</button>
+       <p class="sub" style="margin:12px 0 0">${expireTxt}</p>`;
+    $('#go').onclick = async () => {
+      const b = $('#go'); b.disabled = true; b.textContent = 'Undoing…';
+      let u; try { u = await call({}); } catch(e){ b.disabled=false; b.textContent='Try again'; return; }
+      if(u && u.ok){ done(`Done. Put ${u.count>1?`${u.count} changes`:'it'} back${u.failed?`, but ${u.failed} couldn't be reversed`:''}.`); }
+      else { fail((u && u.error) || 'Could not undo that.'); }
+    };
+  }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  load();
+</script>
+</body>
+</html>

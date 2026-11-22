@@ -1555,6 +1555,39 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, token: h.token });
     }
 
+    // ---- Undo a logged change from the alert link (token-gated, no sign-in). { action: 'undo', token, all?, peek? } ----
+    // The token is the secret in the texted/emailed Undo link; the batch is derived from it (never guessable on its own).
+    // all=1 reverses every not-yet-undone change made in the same action (e.g. a whole "set everyone to White Belt").
+    // peek=1 just reports what would be undone, without doing it.
+    if (body.action === 'undo') {
+      const token = String(body.token || '');
+      if (!/^[a-f0-9]{8,40}$/.test(token)) return fail('That undo link is not valid.', 400);
+      const { data: row } = await db.from('activity_log').select('*').eq('undo_token', token).maybeSingle();
+      if (!row) return fail('That undo link is not valid.', 404);
+      const reversible = r => r.undo && !r.undone_at && (!r.undo_expires || new Date(r.undo_expires) > new Date());
+      let rows = [row];
+      if (body.all && row.batch) { const { data: b } = await db.from('activity_log').select('*').eq('batch', row.batch); rows = (b || []).filter(reversible); }
+      else rows = reversible(row) ? [row] : [];
+      if (!rows.length) {
+        if (row.undone_at) return json({ ok: true, already: true, summary: row.summary });
+        return fail('This change can no longer be undone — the 24-hour window has passed.', 409);
+      }
+      if (body.peek) return json({ ok: true, peek: true, count: rows.length, summary: row.summary, action: row.action, when: row.at, expires: row.undo_expires });
+      const nowIso = new Date().toISOString(); let done = 0; const errs = [];
+      for (const r of rows) {
+        const u = r.undo; if (!u || !u.table) continue;
+        try {
+          if (u.reinsert) { const { error } = await db.from(u.table).upsert(u.reinsert); if (error) { errs.push(error.message); continue; } }
+          else if (u.set && u.key) { let q = db.from(u.table).update(u.set); for (const [k, v] of Object.entries(u.key)) q = q.eq(k, v); const { error } = await q; if (error) { errs.push(error.message); continue; } }
+          else continue;
+          await db.from('activity_log').update({ undone_at: nowIso, undone_by: 'undo-link' }).eq('id', r.id);
+          done++;
+        } catch (er) { errs.push(String(er && er.message || er)); }
+      }
+      if (!done) return fail('Could not undo: ' + (errs[0] || 'nothing to reverse'), 409);
+      return json({ ok: true, count: done, total: rows.length, summary: row.summary, failed: errs.length });
+    }
+
     // ---- A family replied to the grading text (GoHighLevel "Customer replied" workflow, coloured-belts-16.sql) ----
     // { action: 'reply', key, phone, message }: if it's a YES, every student from that family who was invited (and hasn't
     // booked) for a coming grading day is marked "Said YES", and is texted the booking link (the "Reminder to book" wording,
