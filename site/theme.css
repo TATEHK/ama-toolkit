@@ -1,0 +1,86 @@
+/* AMA shared theme — "Pine & Gold". One source of truth for colour, type and shape across every page.
+   Follows the device's light/dark setting automatically (prefers-color-scheme); a manual choice can force it
+   by setting data-theme="light" or "dark" on <html>. Link this AFTER a page's own <style> so it drives the
+   shared token names below. Page-specific tokens the page still defines itself keep working. */
+
+:root{
+  /* Brand */
+  --pine-900:#0b3d29; --pine-700:#116245; --pine-600:#14794f; --pine-500:#1b9e63; --pine-400:#36b67c; --pine-100:#d6efe2;
+  --gold-600:#c98a00; --gold-500:#e8a700; --gold-300:#f6cf5e; --gold-100:#fbeecb;
+
+  /* Surfaces & lines (light default) */
+  --bg:#eef2f0; --page:#eef2f0;
+  --surface:#ffffff; --panel:#ffffff; --card:#ffffff; --surface2:#f4f7f5;
+  --raise:#f4f7f5; --raised:#f4f7f5; --hover:#e9efec;
+  --line:#e2e9e5; --line2:#cfdad4; --line-2:#cfdad4; --edge:#e2e9e5; --bc:#e2e9e5;
+
+  /* Text */
+  --fg:#0e1a15; --text:#0e1a15; --ink:#0e1a15; --night:#0e1a15;
+  --ink-2:#31443b; --ink-3:#5d7066;
+  --muted:#5d7066; --sub:#5d7066; --faint:#8a9a92;
+
+  /* Accent (primary action) */
+  --accent:#14794f; --green:#14794f; --green-2:#116245;
+  --on-accent:#ffffff; --accent-ink:#ffffff; --ink-on:#ffffff;
+  --accent-soft:#d6efe2; --accent-press:#116245;
+
+  /* Gold */
+  --gold:#e8a700; --on-gold:#1c1402;
+
+  /* Semantic */
+  --ok:#17935a; --ok-text:#17935a; --green-text:#17935a; --ok-soft:#e2f3ea;
+  --warn:#b8750a; --warn-soft:#fbeed3;
+  --danger:#c8432f; --red:#c8432f; --orange:#c86a1f; --danger-soft:#fbe4df; --red-bg:#fbe4df;
+  --info:#2563c9; --info-soft:#e1ebfb;
+
+  /* Shape, shadow, type */
+  --radius:15px; --r:12px;
+  --shadow:0 1px 2px rgba(11,40,28,.06), 0 1px 3px rgba(11,40,28,.08);
+  --shadow-2:0 8px 22px rgba(11,40,28,.09), 0 2px 7px rgba(11,40,28,.06);
+  --font-display:"Barlow Semi Condensed","Barlow",system-ui,sans-serif;
+  --font-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:var(--font-display); --body:var(--font-body);
+  color-scheme:light;
+}
+
+/* Dark — when the device asks for it, unless a manual light choice overrides */
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0c1210; --page:#0c1210;
+  --surface:#121b17; --panel:#121b17; --card:#121b17; --surface2:#18231e;
+  --raise:#1b2620; --raised:#1b2620; --hover:#223029;
+  --line:#243530; --line2:#2f453d; --line-2:#2f453d; --edge:#243530; --bc:#243530;
+  --fg:#eaf1ed; --text:#eaf1ed; --ink:#eaf1ed; --night:#eaf1ed;
+  --ink-2:#c3d2cb; --ink-3:#93a69c;
+  --muted:#93a69c; --sub:#93a69c; --faint:#6b7d74;
+  --accent:#1b9e63; --green:#1b9e63; --green-2:#36b67c;
+  --on-accent:#06130d; --accent-ink:#06130d; --ink-on:#06130d;
+  --accent-soft:#163a2a; --accent-press:#36b67c;
+  --gold:#e8a700; --on-gold:#1c1402;
+  --ok:#49c98a; --ok-text:#49c98a; --green-text:#49c98a; --ok-soft:#12271d;
+  --warn:#e0a640; --warn-soft:#2c2410;
+  --danger:#e4664f; --red:#e4664f; --orange:#e0893a; --danger-soft:#2e1712; --red-bg:#2e1712;
+  --info:#5b9bf5; --info-soft:#13203a;
+  --shadow:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 8px 24px rgba(0,0,0,.45);
+  color-scheme:dark;
+}}
+
+/* Dark — forced by a manual choice (same values) */
+:root[data-theme="dark"]{
+  --bg:#0c1210; --page:#0c1210;
+  --surface:#121b17; --panel:#121b17; --card:#121b17; --surface2:#18231e;
+  --raise:#1b2620; --raised:#1b2620; --hover:#223029;
+  --line:#243530; --line2:#2f453d; --line-2:#2f453d; --edge:#243530; --bc:#243530;
+  --fg:#eaf1ed; --text:#eaf1ed; --ink:#eaf1ed; --night:#eaf1ed;
+  --ink-2:#c3d2cb; --ink-3:#93a69c;
+  --muted:#93a69c; --sub:#93a69c; --faint:#6b7d74;
+  --accent:#1b9e63; --green:#1b9e63; --green-2:#36b67c;
+  --on-accent:#06130d; --accent-ink:#06130d; --ink-on:#06130d;
+  --accent-soft:#163a2a; --accent-press:#36b67c;
+  --gold:#e8a700; --on-gold:#1c1402;
+  --ok:#49c98a; --ok-text:#49c98a; --green-text:#49c98a; --ok-soft:#12271d;
+  --warn:#e0a640; --warn-soft:#2c2410;
+  --danger:#e4664f; --red:#e4664f; --orange:#e0893a; --danger-soft:#2e1712; --red-bg:#2e1712;
+  --info:#5b9bf5; --info-soft:#13203a;
+  --shadow:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 8px 24px rgba(0,0,0,.45);
+  color-scheme:dark;
+}
