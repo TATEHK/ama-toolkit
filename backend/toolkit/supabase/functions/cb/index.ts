@@ -1541,9 +1541,11 @@ export async function handle(req, db, env = {}, http = fetch) {
       const [{ data: ps }, { data: ex }] = await Promise.all([
         db.from('prep_students').select('student_id, full_name').eq('is_active', true).eq('is_test', false),
         db.from('cb_helpers').select('helper_id, full_name').eq('is_extra', true).eq('active', true)]);
+      const bbByName = new Set((ps || []).map(p => (p.full_name || '').trim().toLowerCase()).filter(Boolean));
       const list = [
         ...(ps || []).filter(p => (p.full_name || '').trim()).map(p => ({ kind: 'bb', id: p.student_id, name: p.full_name.trim() })),
-        ...(ex || []).filter(e => (e.full_name || '').trim()).map(e => ({ kind: 'extra', id: e.helper_id, name: e.full_name.trim() }))
+        // an extra whose name matches a black belt is the same person: show them once (as the black belt)
+        ...(ex || []).filter(e => (e.full_name || '').trim() && !bbByName.has(e.full_name.trim().toLowerCase())).map(e => ({ kind: 'extra', id: e.helper_id, name: e.full_name.trim() }))
       ].sort((a, b) => a.name.localeCompare(b.name));
       return json({ ok: true, people: list });
     }
@@ -2383,6 +2385,8 @@ export async function handle(req, db, env = {}, http = fetch) {
       }
       const full_name = String(body.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
       if (!full_name) return fail('Type their name.');
+      // A black belt is already on the shared link automatically — no need to add them as an extra.
+      if (!body.helper_id) { const { data: bb } = await db.from('prep_students').select('student_id').eq('is_active', true).eq('is_test', false).ilike('full_name', full_name).limit(1); if (bb && bb.length) return fail(full_name + ' is already a black belt, so they are on the shared link automatically — no need to add them here.', 409); }
       const mobile = String(body.mobile || '').trim().slice(0, 40) || null;
       const email = String(body.email || '').trim().slice(0, 120) || null;
       if (body.helper_id) {
