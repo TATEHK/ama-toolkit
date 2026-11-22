@@ -3150,11 +3150,16 @@ async function loadBbBooking(cid) {
   if (day) { const { data: es, error: e2 } = await sb.from('cb_entries').select('entry_id, member_key, full_name, belt_from, belt_to, token, booked_at, booking_error, paid, paid_how, efc_by_hand, efc_by_hand_done_at, checked_in_at, result, late_ok_until, photo_path, photo_code, discount, discount_kind, discount_reason').eq('day_id', day.day_id); if (e2) throw e2; entries = es || []; }
   // Link each entry back to its student: cb_entries.member_key is efc_members.member_key ('efc:<uuid>'),
   // while prep_students.efc_ref is the EFC reference code — efc_members bridges the two.
+  // Booking tokens must cover EVERY candidate across ALL of the cycle's grading days (a cycle can run more
+  // than one — e.g. a separate 4th Dan day plus the main day), so each invite's {link} resolves, not only the
+  // first day's. `entries` stays the selected day (the booking roster); tokens span every linked day.
+  let tokRows = entries;
+  if (list.length > 1) { const { data: all, error: e3 } = await sb.from('cb_entries').select('member_key, token').in('day_id', list.map(d => d.day_id)); if (e3) throw e3; tokRows = all || entries; }
   const refByKey = {};   // member_key -> efc_reference
-  const mkeys = [...new Set(entries.map(e => e.member_key).filter(Boolean))];
+  const mkeys = [...new Set(tokRows.map(e => e.member_key).filter(Boolean))];
   if (mkeys.length) { const { data: ems } = await sb.from('efc_members').select('member_key, efc_reference').in('member_key', mkeys); for (const m of ems || []) refByKey[m.member_key] = m.efc_reference; }
   const tokens = {};   // efc_reference -> booking token, so each candidate's invite text can carry their own link
-  for (const e of entries) { const ref = refByKey[e.member_key]; if (ref && e.token) tokens[ref] = e.token; }
+  for (const e of tokRows) { const ref = refByKey[e.member_key]; if (ref && e.token) tokens[ref] = e.token; }
   bbData[cid] = { days: list, sel: day ? day.day_id : null, day, entries, tokens, refByKey, creating, mode };
   return bbData[cid];
 }
