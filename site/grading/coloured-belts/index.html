@@ -903,6 +903,8 @@ function composeTexts(kind, people) {
   $('#txForm').onsubmit = async ev => {
     ev.preventDefault();
     const items = $$('#txList input:checked').map(c => { const p = people[+c.dataset.i]; return { member_key: p.member_key, entry_id: p.entry_id, body: preview(p) }; });
+    // Bulk-send safeguard: a second check before a large send, which can't be undone once the texts go out.
+    if (items.length >= 10 && !confirm(`You're about to send ${items.length} texts. They go out straight away and can't be unsent.\n\nSend to all ${items.length}?`)) return;
     $('#txGo').disabled = true; $('#txGo').textContent = 'Sending…';
     try {
       const r = await fnCall({ action: 'send', kind, items });
