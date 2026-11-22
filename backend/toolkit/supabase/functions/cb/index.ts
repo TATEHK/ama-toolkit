@@ -1535,44 +1535,21 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, name: first(h.full_name), age, coloured, blackbelt });
     }
 
-    // ---- Shared sign-up link (/grading/helpers/#join): the pick-your-name list, then open self-serve join. ----
-    // The roster is the active black belts (as the admin invites from) plus the hand-added extras. No sign-in.
+    // ---- Shared sign-up link (/grading/helpers/#join): the pick-your-name list, then self-serve join. ----
+    // The roster is only the people already set up as helpers: the invited black belts plus the hand-added extras
+    // (every active cb_helpers row). No sign-in. Each already has a token, so joining just hands it back.
     if (body.action === 'helper_public_roster') {
-      const [{ data: ps }, { data: ex }] = await Promise.all([
-        db.from('prep_students').select('student_id, full_name').eq('is_active', true).eq('is_test', false),
-        db.from('cb_helpers').select('helper_id, full_name').eq('is_extra', true).eq('active', true)]);
-      const bbByName = new Set((ps || []).map(p => (p.full_name || '').trim().toLowerCase()).filter(Boolean));
-      const list = [
-        ...(ps || []).filter(p => (p.full_name || '').trim()).map(p => ({ kind: 'bb', id: p.student_id, name: p.full_name.trim() })),
-        // an extra whose name matches a black belt is the same person: show them once (as the black belt)
-        ...(ex || []).filter(e => (e.full_name || '').trim() && !bbByName.has(e.full_name.trim().toLowerCase())).map(e => ({ kind: 'extra', id: e.helper_id, name: e.full_name.trim() }))
-      ].sort((a, b) => a.name.localeCompare(b.name));
+      const { data: hs } = await db.from('cb_helpers').select('helper_id, full_name').eq('active', true).order('full_name');
+      const seen = new Set(), list = [];
+      for (const h of (hs || [])) { const nm = (h.full_name || '').trim(); if (!nm) continue; const k = nm.toLowerCase(); if (seen.has(k)) continue; seen.add(k); list.push({ kind: 'helper', id: h.helper_id, name: nm }); }
       return json({ ok: true, people: list });
     }
-    // Pick your name on the shared link: make/activate this person's helper record and hand back their token.
-    // Only works for someone already on the eligible roster (an active black belt, or an active extra) — a stranger
-    // can't inject a new name. { action: 'helper_public_join', kind: 'bb' | 'extra', id }
+    // Pick your name on the shared link: hand back that helper's token so they see their own day picker.
+    // Only an active helper (an invited black belt or an extra) can be picked — no new names are created here.
     if (body.action === 'helper_public_join') {
-      const kind = body.kind === 'extra' ? 'extra' : 'bb';
-      if (kind === 'extra') {
-        const { data: h } = await db.from('cb_helpers').select('token, active, is_extra').eq('helper_id', String(body.id || '')).maybeSingle();
-        if (!h || !h.is_extra || !h.active) return fail("We couldn't find your name. Please pick it from the list, or ask the office.", 404);
-        return json({ ok: true, token: h.token });
-      }
-      const { data: p } = await db.from('prep_students').select('full_name, efc_ref, is_active, is_test').eq('student_id', String(body.id || '')).maybeSingle();
-      if (!p || !p.is_active || p.is_test) return fail("We couldn't find your name. Please pick it from the list, or ask the office.", 404);
-      let member_key = '', full_name = p.full_name || 'Helper', efc_ref = p.efc_ref || null;
-      if (p.efc_ref) { const { data: m } = await db.from('efc_members').select('member_key, full_name').eq('efc_reference', p.efc_ref).maybeSingle(); if (m) { member_key = m.member_key; full_name = full_name || m.full_name; } }
-      if (!member_key) member_key = 'manual:' + full_name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const { data: existing } = await db.from('cb_helpers').select('helper_id, token, active').eq('member_key', member_key).maybeSingle();
-      if (existing) {
-        if (!existing.active) await db.from('cb_helpers').update({ active: true, invited_at: new Date().toISOString() }).eq('helper_id', existing.helper_id);
-        return json({ ok: true, token: existing.token });
-      }
-      const tok = essayToken();
-      const { error: e1 } = await db.from('cb_helpers').insert({ member_key, efc_ref, full_name, token: tok, active: true, invited_at: new Date().toISOString() });
-      if (e1) return fail(e1.message);
-      return json({ ok: true, token: tok });
+      const { data: h } = await db.from('cb_helpers').select('token, active').eq('helper_id', String(body.id || '')).maybeSingle();
+      if (!h || !h.active) return fail("We couldn't find your name. Please pick it from the list, or ask the office.", 404);
+      return json({ ok: true, token: h.token });
     }
 
     // ---- A family replied to the grading text (GoHighLevel "Customer replied" workflow, coloured-belts-16.sql) ----
@@ -2385,8 +2362,6 @@ export async function handle(req, db, env = {}, http = fetch) {
       }
       const full_name = String(body.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
       if (!full_name) return fail('Type their name.');
-      // A black belt is already on the shared link automatically — no need to add them as an extra.
-      if (!body.helper_id) { const { data: bb } = await db.from('prep_students').select('student_id').eq('is_active', true).eq('is_test', false).ilike('full_name', full_name).limit(1); if (bb && bb.length) return fail(full_name + ' is already a black belt, so they are on the shared link automatically — no need to add them here.', 409); }
       const mobile = String(body.mobile || '').trim().slice(0, 40) || null;
       const email = String(body.email || '').trim().slice(0, 120) || null;
       if (body.helper_id) {
