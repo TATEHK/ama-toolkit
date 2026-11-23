@@ -238,6 +238,12 @@
   .seq-step.stopped { opacity: .5; }
   .seq-note { font-size: 13px; margin-top: 9px; color: var(--text); }
   .seq-note.good { color: var(--green-text); }
+  /* Student profile photos (cropped from grading photos) */
+  .pp-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .pp-thumb { width: 84px; display: flex; flex-direction: column; gap: 4px; align-items: center; font-size: 11px; color: var(--faint); text-align: center; }
+  .pp-thumb img, .pp-thumb .pp-x { width: 84px; height: 84px; border-radius: 10px; background: var(--raise); object-fit: cover; }
+  .pp-thumb .pp-x { display: grid; place-items: center; color: var(--red); border: 1px dashed var(--line2); }
+  .pp-thumb span { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .phcard { flex-direction: row; align-items: center; }
   .phcard.next { border-color: var(--gold); }
   .phcard .thumb { width: 68px; height: 68px; border-radius: 9px; object-fit: cover; background: var(--raise); flex: none; display: grid; place-items: center; color: var(--faint); font-size: 12px; text-align: center; padding: 4px; }
@@ -2387,6 +2393,122 @@ function wireNotify() {
   const off = $('#nPushOffBtn'); if (off) off.onclick = disableNotify;
   renderNotify();
 }
+// ---- Student profile photos: crop the student's face out of their grading photo (Grandmaster left out) and
+//      store it in the profile-photos bucket + cb_profile_photos for Mark's hub (coloured-belts-44).
+//      Face detection runs in the browser via face-api.js; the library and models load on first use. ----
+const FACEAPI_VER = '1.7.15';
+let _faceApiP = null;
+function loadFaceApi() {
+  if (_faceApiP) return _faceApiP;
+  _faceApiP = new Promise((res, rej) => {
+    if (window.faceapi) return res();
+    const s = document.createElement('script');
+    s.src = `https://cdn.jsdelivr.net/npm/@vladmandic/face-api@${FACEAPI_VER}/dist/face-api.js`;
+    s.onload = () => res(); s.onerror = () => rej(new Error('Could not load the face library (check your connection).'));
+    document.head.appendChild(s);
+  }).then(async () => {
+    const base = `https://cdn.jsdelivr.net/npm/@vladmandic/face-api@${FACEAPI_VER}/model`;
+    if (!faceapi.nets.ssdMobilenetv1.params) await faceapi.nets.ssdMobilenetv1.loadFromUri(base);
+    if (!faceapi.nets.faceLandmark68Net.params) await faceapi.nets.faceLandmark68Net.loadFromUri(base);
+    if (!faceapi.nets.faceRecognitionNet.params) await faceapi.nets.faceRecognitionNet.loadFromUri(base);
+    return window.faceapi;
+  }).catch(e => { _faceApiP = null; throw e; });
+  return _faceApiP;
+}
+function imgFromUrl(url) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Could not read that photo.')); i.src = url; }); }
+async function imgFromHttp(httpUrl) { const r = await fetch(httpUrl); if (!r.ok) throw new Error('photo fetch failed'); const o = URL.createObjectURL(await r.blob()); try { return await imgFromUrl(o); } finally { setTimeout(() => URL.revokeObjectURL(o), 15000); } }
+function ppPickStudent(faces, gmDesc) {
+  if (!faces.length) return null;
+  let gm = null;
+  if (gmDesc) { const r = faces.map(f => ({ f, d: faceapi.euclideanDistance(f.descriptor, gmDesc) })).sort((a, b) => a.d - b.d); if (r[0].d < 0.5) gm = r[0].f; }
+  const pool = faces.filter(f => f !== gm);
+  return (pool.length ? pool : faces).sort((a, b) => (b.detection.box.width * b.detection.box.height) - (a.detection.box.width * a.detection.box.height))[0];
+}
+function ppCropBlob(img, box, pad = 0.4, out = 512) {
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2, size = Math.max(box.width, box.height) * (1 + pad * 2);
+  const x = Math.max(0, cx - size / 2), y = Math.max(0, cy - size / 2), s = Math.max(1, Math.min(size, img.naturalWidth - x, img.naturalHeight - y));
+  const c = Object.assign(document.createElement('canvas'), { width: out, height: out });
+  c.getContext('2d').drawImage(img, x, y, s, s, 0, 0, out, out);
+  return new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+}
+function ppThumb(grid, name, url, ok) {
+  const d = document.createElement('div'); d.className = 'pp-thumb' + (ok ? '' : ' bad');
+  d.innerHTML = (ok ? `<img src="${url}" alt="">` : '<div class="pp-x">—</div>') + `<span>${esc(name || '')}</span>`;
+  grid.appendChild(d);
+}
+async function enrolGm(file, statusEl) {
+  const o = URL.createObjectURL(file);
+  try {
+    statusEl.textContent = 'Reading photo…';
+    const img = await imgFromUrl(o);
+    statusEl.textContent = 'Loading face models…';
+    await loadFaceApi();
+    statusEl.textContent = 'Finding the face…';
+    const det = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+    if (!det) { statusEl.textContent = 'No face found — try a clearer, front-on photo of Grandmaster.'; return; }
+    const arr = Array.from(det.descriptor), now = new Date().toISOString();
+    const { error } = await sb.from('cb_settings').update({ gm_face_descriptor: arr, gm_enrolled_at: now }).eq('id', 1);
+    if (error) throw error;
+    (state.settings = state.settings || {}).gm_face_descriptor = arr; state.settings.gm_enrolled_at = now;
+    statusEl.textContent = 'Grandmaster enrolled — his face will be left out of every crop.';
+    toast('Grandmaster enrolled', 4000);
+  } catch (e) { statusEl.textContent = errMsg(e); }
+  finally { URL.revokeObjectURL(o); }
+}
+async function runProfilePhotos(btn, statusEl, grid) {
+  btn.disabled = true; grid.innerHTML = '';
+  try {
+    const { data: cs } = await sb.from('cb_settings').select('gm_face_descriptor').eq('id', 1).maybeSingle();
+    const gmArr = cs && cs.gm_face_descriptor;
+    if (!gmArr || !gmArr.length) { statusEl.textContent = 'Enrol Grandmaster first (above).'; btn.disabled = false; return; }
+    const gmDesc = new Float32Array(gmArr);
+    statusEl.textContent = 'Loading face models…';
+    await loadFaceApi();
+    const [ents, done] = await Promise.all([
+      sb.from('cb_entries').select('entry_id, member_key, full_name, photo_path, photo_at').not('photo_path', 'is', null).not('member_key', 'is', null),
+      sb.from('cb_profile_photos').select('member_key, source_photo_at')
+    ]);
+    if (ents.error) throw ents.error;
+    const doneMap = new Map((done.data || []).map(d => [d.member_key, d.source_photo_at || '']));
+    const latest = new Map();
+    (ents.data || []).forEach(e => { const p = latest.get(e.member_key); if (!p || String(e.photo_at || '') > String(p.photo_at || '')) latest.set(e.member_key, e); });
+    const todo = [...latest.values()].filter(e => String(doneMap.get(e.member_key) || '') < String(e.photo_at || ''));
+    if (!todo.length) { statusEl.textContent = 'Every grading photo already has an up-to-date profile photo.'; btn.disabled = false; return; }
+    let ok = 0, skip = 0, n = 0;
+    for (const e of todo) {
+      n++; statusEl.textContent = `Processing ${n} of ${todo.length}… (${ok} made)`;
+      try {
+        const { data: su } = await sb.storage.from('grading-photos').createSignedUrl(e.photo_path, 600);
+        if (!su || !su.signedUrl) throw new Error('no url');
+        const img = await imgFromHttp(su.signedUrl);
+        const faces = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+        const student = ppPickStudent(faces, gmDesc);
+        if (!student) { skip++; ppThumb(grid, e.full_name, null, false); continue; }
+        const blob = await ppCropBlob(img, student.detection.box);
+        const path = `${e.member_key}.jpg`;
+        const up = await sb.storage.from('profile-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+        if (up.error) throw up.error;
+        const ups = await sb.from('cb_profile_photos').upsert({ member_key: e.member_key, full_name: e.full_name, path, source_entry_id: e.entry_id, source_photo_at: e.photo_at, feed_seen_at: null, updated_at: new Date().toISOString() });
+        if (ups.error) throw ups.error;
+        ok++; ppThumb(grid, e.full_name, URL.createObjectURL(blob), true);
+      } catch (_) { skip++; ppThumb(grid, e.full_name, null, false); }
+    }
+    statusEl.textContent = `Done — ${ok} profile photo${ok === 1 ? '' : 's'} made${skip ? `, ${skip} skipped (no clear face)` : ''}. The hub can pull them now.`;
+  } catch (e) { statusEl.textContent = errMsg(e); }
+  finally { btn.disabled = false; }
+}
+async function wireProfilePhotos() {
+  const panel = $('#profilePhotoPanel'); if (!panel) return;
+  const gmStatus = $('#gmStatus'), gmFile = $('#gmFile');
+  $('#gmEnrolBtn').onclick = () => gmFile.click();
+  gmFile.onchange = () => { if (gmFile.files && gmFile.files[0]) enrolGm(gmFile.files[0], gmStatus).finally(() => { gmFile.value = ''; }); };
+  $('#ppRunBtn').onclick = () => runProfilePhotos($('#ppRunBtn'), $('#ppStatus'), $('#ppGrid'));
+  try {
+    const { data: cs } = await sb.from('cb_settings').select('gm_face_descriptor, gm_enrolled_at').eq('id', 1).maybeSingle();
+    const on = cs && cs.gm_face_descriptor && cs.gm_face_descriptor.length;
+    gmStatus.textContent = on ? `Enrolled${cs.gm_enrolled_at ? ' ' + shortDate(cs.gm_enrolled_at) : ''}. Re-enrol any time with a new photo.` : 'Not set yet — enrol Grandmaster so his face is left out of the crop.';
+  } catch (_) { gmStatus.textContent = 'Enrol Grandmaster to begin.'; }
+}
 function renderSettings() {
   const v = $('#view-settings'), st = state.settings;
   v.innerHTML = `<div class="view-head"><h2>Settings</h2></div>
@@ -2424,9 +2546,22 @@ function renderSettings() {
       <div id="nPushOn" hidden><p class="hint">Notifications are on for this device.</p>
         <div class="row"><button type="button" class="btn" id="nPushTestBtn">Send test</button><button type="button" class="btn link" id="nPushOffBtn">Turn off</button></div></div>
     </section>
+    <section class="panel" id="profilePhotoPanel">
+      <h3>Student profile photos</h3>
+      <p class="hint">Turns grading photos into profile photos: the student's face is cropped out (Grandmaster removed) and sent to the hub.</p>
+      <div class="field"><label>Grandmaster's face</label>
+        <p class="hint" id="gmStatus">Checking…</p>
+        <div class="row"><button type="button" class="btn" id="gmEnrolBtn">Enrol Grandmaster</button></div>
+        <input type="file" id="gmFile" accept="image/*" hidden></div>
+      <div class="field"><label>Make profile photos</label>
+        <p class="hint" id="ppStatus">Crops every grading photo that doesn't have an up-to-date profile photo yet.</p>
+        <div class="row"><button type="button" class="btn primary" id="ppRunBtn">Create / update profile photos</button></div>
+        <div class="pp-grid" id="ppGrid"></div></div>
+    </section>
     ${seqSettingsHtml()}`;
   wireSeqSettings();
   wireNotify();
+  wireProfilePhotos();
   $('#beltForm').onsubmit = async e => {
     e.preventDefault(); $('#saveBelts').disabled = true;
     try {
