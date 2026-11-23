@@ -1403,7 +1403,8 @@ function openEntry(id) {
       ${canBelts() && !e.result ? '<button class="btn" id="editBelt">Edit belt</button>' : ''}
       ${canDays() && !e.result ? (e.cant_make_at ? '<button class="btn" id="backOnGrading">Back on grading</button>' : '<button class="btn" id="cantMake">Can\'t make grading</button>') : ''}
       ${canDays() && !e.result && beltOf(e.belt_to, state.programme).next_belt ? '<button class="btn" id="secondGrading">Add second grading</button>' : ''}
-      ${canDays() && !e.result ? '<button class="btn" id="moveGrading">Move to another grading</button>' : ''}</div>
+      ${canDays() && !e.result ? '<button class="btn" id="moveGrading">Move to another grading</button>' : ''}
+      ${s && !s.black_belt_club && canApprove() ? (s.bbc_invited_at ? `<button type="button" class="btn" data-bbcinv="${esc(s.member_key)}" data-on="0">Cancel Black Belt Club card</button>` : `<button type="button" class="btn gold" data-bbcinv="${esc(s.member_key)}" data-on="1">Invite to Black Belt Club</button>`) : ''}</div>
     <div class="section"><h3>Booking link</h3><div class="linkbox">${esc(bookingLink(e))}</div>
       <div class="row"><button class="btn sm" id="copyLink">Copy link</button>${canText('not_booked') && !e.result ? '<button class="btn sm" id="resendLink">Resend link</button>' : ''}${canDays() && !e.result && !(e.booked_at && e.paid) ? '<button class="btn sm" id="newLink">Issue new link</button>' : ''}</div>
       ${e.late_ok_until && new Date(e.late_ok_until) > new Date() ? `<p class="hint">Late booking allowed until ${esc(whenText(e.late_ok_until))}.</p>` : bookingShut(d) && !e.booked_at ? '<p class="hint">Bookings have closed for this day. Issue a new link to let them book or pay late. It works for 48 hours and the old link stops working.</p>' : ''}</div>
@@ -1412,6 +1413,7 @@ function openEntry(id) {
   </div>`);
   // Save a change to this entry, show it straight away, keep the dialog open
   const change = async (f, msg) => { try { await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), msg); Object.assign(e, f); render(); openEntry(id); } catch (er) { toast(errMsg(er), 6000); } };
+  wireBbcInvite($('#dlg'), () => { render(); openEntry(id); });
   $('#copyLink').onclick = async () => { try { await navigator.clipboard.writeText(bookingLink(e)); toast('Link copied'); } catch (er) { toast('Press and hold the link to copy it.'); } };
   const rl = $('#resendLink'); if (rl) rl.onclick = () => composeTexts('not_booked', [{ member_key: e.member_key, entry_id: e.entry_id, e, s: student(e.member_key), d }]);
   const nl = $('#newLink'); if (nl) nl.onclick = async () => {
