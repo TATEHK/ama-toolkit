@@ -1561,10 +1561,20 @@ export async function handle(req, db, env = {}, http = fetch) {
         return q;
       });
       const bucket = db.storage.from('profile-photos');
+      // The hub matches each photo to its student by school + parent mobile (it doesn't store member_key).
+      const keys = (rows || []).map(r => r.member_key);
+      let info = new Map();
+      if (keys.length) {
+        const { data: mem } = await db.from('efc_members').select('member_key, location, phone, guardian_phone').in('member_key', keys);
+        info = new Map((mem || []).map(m => [m.member_key, m]));
+      }
       const photos = [];
       for (const r of rows || []) {
         const { data: v } = await bucket.createSignedUrl(r.path, 24 * 3600);   // 24h link; the hub saves its own copy
-        if (v && v.signedUrl) photos.push({ member_key: r.member_key, name: r.full_name, url: v.signedUrl, updated_at: r.updated_at });
+        if (!v || !v.signedUrl) continue;
+        const m = info.get(r.member_key) || {};
+        photos.push({ member_key: r.member_key, name: r.full_name, school: schoolLabel(m.location) || null,
+          phone: m.phone || m.guardian_phone || null, url: v.signedUrl, updated_at: r.updated_at });
       }
       return json({ ok: true, photos });
     }
