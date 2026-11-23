@@ -10,6 +10,8 @@
 (function () {
   var KEY = 'ama_hub_token', CHECKED = 'ama_hub_checked', EVERY = 60 * 60 * 1000;   // ask the hub at most once an hour
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) { return null; } }
+  // A device the owner marked "Stay signed in" (set by idle-logout.js from app_devices.trusted, owners only).
+  function trustedDevice() { try { return localStorage.getItem('ama_device_trusted') === '1'; } catch (e) { return false; } }
   var store = {
     get: function () { return ls(KEY); },
     set: function (v) { ls(KEY, v || null); ls(CHECKED, v ? String(Date.now()) : null); }
@@ -83,6 +85,9 @@
       return call(o, { check: token }).then(function (r) {
         if (r && r.ok === false && !r.error) {   // the hub said no (not a network or set-up problem)
           store.set(null);
+          // A trusted device (the owner's own phone) stays signed in on its Supabase session even after the
+          // 12-hour hub session ends — "Stay signed in on this device". Others are signed out as before.
+          if (trustedDevice()) return true;
           return o.sb.auth.signOut().then(function () { location.reload(); return false; });
         }
         if (r && r.ok) ls(CHECKED, String(Date.now()));
