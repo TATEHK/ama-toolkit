@@ -21,6 +21,7 @@
   .appbar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px}
   .appbar-inner{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:10px}
   .appbar h1{font:700 20px var(--display);margin:0}
+  .hub-btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
   .grow{flex:1}
   .who{font-size:13px;color:var(--muted);max-width:38vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   main{max-width:680px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 60px max(16px,env(safe-area-inset-left))}
@@ -54,7 +55,8 @@
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
-<div class="appbar"><div class="appbar-inner"><h1>My Profile</h1><span class="grow"></span><span class="who" id="who" hidden></span><button class="btn sm" id="signOut" hidden>Sign out</button></div></div>
+<div class="appbar"><div class="appbar-inner"><h1>My Profile</h1><span class="grow"></span><a class="btn sm hub-btn" href="https://train.australianmartialarts.com.au/admin" aria-label="Back to the hub" title="Back to the hub" hidden>Hub</a><span class="who" id="who" hidden></span><button class="btn sm" id="signOut" hidden>Sign out</button></div></div>
+<script>try{if(sessionStorage.getItem('amaFromHub')==='1'){var hb=document.querySelector('.hub-btn');if(hb)hb.hidden=false;}}catch(e){}</script>
 <main>
   <section id="signIn" class="card" hidden>
     <h2>Sign in</h2>
