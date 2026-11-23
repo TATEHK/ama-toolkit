@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<title>My Profile</title>
+<link rel="icon" href="../icons/ama-id-cards.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../hub-signin.js"></script>
+<script src="../idle-logout.js"></script>
+<style>
+  :root{--bg:#0f1713;--surface:#15201a;--raise:#1b2821;--fg:#edf2ee;--muted:#a3b5a9;--faint:#74897b;--line:#253629;--line2:#31473a;--accent:#f5c518;--on-accent:#14130a;--green:#2f9e5b;--green-text:#7fd6a2;--danger:#ef8a73;--display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;--body:Barlow,"Segoe UI",Arial,sans-serif;color-scheme:dark}
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--bg);color:var(--fg);font:16px/1.45 var(--body);-webkit-tap-highlight-color:transparent}
+  .appbar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px}
+  .appbar-inner{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:10px}
+  .appbar h1{font:700 20px var(--display);margin:0}
+  .grow{flex:1}
+  .who{font-size:13px;color:var(--muted);max-width:38vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  main{max-width:680px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 60px max(16px,env(safe-area-inset-left))}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+  h2{font:700 16px var(--display);text-transform:uppercase;letter-spacing:.4px;margin:0 0 4px}
+  .hint{color:var(--muted);font-size:13.5px;margin:4px 0 12px}
+  .rows{list-style:none;margin:0;padding:0}
+  .dev{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+  .dev:first-child{border-top:0}
+  .dev .ic{width:34px;height:34px;flex:none;border-radius:9px;background:var(--raise);display:flex;align-items:center;justify-content:center;font-size:18px}
+  .dev .d{flex:1;min-width:0}
+  .dev .d b{display:block;font-size:15.5px}
+  .dev .d small{display:block;color:var(--muted);font-size:12.5px;margin-top:1px}
+  .dev .acts{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none}
+  .badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;border-radius:999px;padding:2px 8px;border:1px solid var(--green);color:var(--green-text)}
+  .switch{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+  .switch input{width:auto;margin:0}
+  .btn{font:inherit;font-weight:600;border:1px solid var(--line2);background:var(--raise);color:var(--fg);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer}
+  .btn.sm{min-height:36px;padding:7px 11px;font-size:14px}
+  .btn.danger{color:var(--danger)}
+  .btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+  .field label{font-size:13px;color:var(--muted);font-weight:600}
+  input{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line2);border-radius:10px;padding:11px 12px;width:100%}
+  .msg{font-size:14px;margin:8px 0 0}
+  .msg.bad{color:var(--danger)} .msg.ok{color:var(--green-text)}
+  #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(12px);background:#05100b;border:1px solid var(--line2);color:#fff;padding:11px 15px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:40;max-width:90vw}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  [hidden]{display:none!important}
+</style>
+<link rel="stylesheet" href="/theme.css">
+</head>
+<body>
+<div class="appbar"><div class="appbar-inner"><h1>My Profile</h1><span class="grow"></span><span class="who" id="who" hidden></span><button class="btn sm" id="signOut" hidden>Sign out</button></div></div>
+<main>
+  <section id="signIn" class="card" hidden>
+    <h2>Sign in</h2>
+    <p class="hint">Sign in with your AMA login.</p>
+    <form id="siForm">
+      <div class="field"><label for="siEmail">Email</label><input type="email" id="siEmail" autocomplete="username" required></div>
+      <div class="field"><label for="siPass">Password</label><input type="password" id="siPass" autocomplete="current-password" required></div>
+      <p class="msg bad" id="siMsg" hidden></p>
+      <button class="btn primary" id="siGo" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <p class="hint" id="loading" hidden>Loading…</p>
+
+  <div id="app" hidden>
+    <section class="card">
+      <h2>Signed-in devices</h2>
+      <p class="hint">Every device signed in to your login. Sign out any you don't recognise. Turn on <b>Stay signed in</b> on a device you trust (like your own phone) so it won't sign out on its own.</p>
+      <ul class="rows" id="devList"></ul>
+      <p class="msg bad" id="devMsg" hidden></p>
+      <div style="margin-top:12px"><button class="btn sm danger" id="signOutOthers" hidden>Sign out all other devices</button></div>
+    </section>
+  </div>
+</main>
+<div id="toast"></div>
+<script>
+const CFG = window.TOOLKIT_CONFIG || {};
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY, { auth:{ lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
+const HUB = { sb, url:CFG.SUPABASE_URL, key:CFG.SUPABASE_KEY, form:'#siForm' };
+if (window.AmaHub) { AmaHub.mount(HUB); AmaHub.recheck(HUB); }
+if (window.AmaIdle) AmaIdle.watch({ sb });
+const $ = s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc = v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let toastT; const toast = m=>{ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); };
+
+// This device's id + label — same scheme as idle-logout.js, so the row matches.
+function thisDeviceId(){
+  let id=null; try{ id=localStorage.getItem('ama_device_id'); }catch(e){}
+  if(!id){ try{ id=(crypto&&crypto.randomUUID)?crypto.randomUUID():null; }catch(e){ id=null; }
+    if(!id) id='d-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
+    try{ localStorage.setItem('ama_device_id',id); }catch(e){} }
+  return id;
+}
+function deviceLabel(){
+  const ua=(navigator&&navigator.userAgent)||'';
+  const os=/iPhone/.test(ua)?'iPhone':/iPad/.test(ua)?'iPad':/Android/.test(ua)?'Android':/Macintosh|Mac OS X/.test(ua)?'Mac':/Windows/.test(ua)?'Windows':/Linux/.test(ua)?'Linux':'Device';
+  const br=/Edg\//.test(ua)?'Edge':/OPR\/|Opera/.test(ua)?'Opera':/CriOS|Chrome/.test(ua)?'Chrome':/Firefox|FxiOS/.test(ua)?'Firefox':/Safari/.test(ua)?'Safari':'Browser';
+  return os+' · '+br;
+}
+const ICON = lbl => /iPhone|iPad|Android/.test(lbl) ? '📱' : '💻';
+const THIS = thisDeviceId();
+
+function ago(iso){
+  if(!iso) return 'just now';
+  const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);
+  if(s<90) return 'just now';
+  if(s<3600) return Math.round(s/60)+' min ago';
+  if(s<86400) return Math.round(s/3600)+' hr ago';
+  const d=Math.round(s/86400);
+  if(d<14) return d+' day'+(d>1?'s':'')+' ago';
+  try{ return 'last seen '+new Date(iso).toLocaleDateString('en-AU',{day:'numeric',month:'short'}); }catch(e){ return d+' days ago'; }
+}
+
+let DEVICES = [];
+async function ensureThisDevice(){
+  const { data:{session} } = await sb.auth.getSession(); if(!session) return;
+  await sb.from('app_devices').upsert({
+    device_id:THIS, user_id:session.user.id, label:deviceLabel(),
+    user_agent:((navigator&&navigator.userAgent)||'').slice(0,300),
+    last_seen_at:new Date().toISOString(), revoked_at:null
+  },{ onConflict:'device_id' });
+}
+async function loadDevices(){
+  $('#loading').hidden=false; $('#devMsg').hidden=true;
+  await ensureThisDevice();
+  const { data, error } = await sb.from('app_devices').select('device_id,label,last_seen_at,trusted,revoked_at').is('revoked_at',null).order('last_seen_at',{ascending:false});
+  $('#loading').hidden=true;
+  if(error){ $('#devMsg').textContent='Could not load your devices.'; $('#devMsg').hidden=false; return; }
+  DEVICES = data||[];
+  renderDevices();
+}
+function renderDevices(){
+  const others = DEVICES.filter(d=>d.device_id!==THIS);
+  $('#signOutOthers').hidden = others.length===0;
+  $('#devList').innerHTML = DEVICES.map(d=>{
+    const me = d.device_id===THIS;
+    const seen = me ? 'This device · active now' : ago(d.last_seen_at);
+    return `<li class="dev">
+      <span class="ic">${ICON(d.label||'')}</span>
+      <span class="d"><b>${esc(d.label||'Device')}</b><small>${esc(seen)}</small></span>
+      <span class="acts">
+        ${me?'<span class="badge">This device</span>':''}
+        <label class="switch"><input type="checkbox" data-trust="${esc(d.device_id)}"${d.trusted?' checked':''}> Stay signed in</label>
+        <button class="btn sm danger" data-out="${esc(d.device_id)}">${me?'Sign out':'Sign out'}</button>
+      </span>
+    </li>`;
+  }).join('') || '<li class="hint" style="padding:12px 0">No other devices.</li>';
+
+  $$('#devList [data-trust]').forEach(c=>c.onchange=async()=>{
+    const id=c.dataset.trust, on=c.checked;
+    c.disabled=true;
+    const { error } = await sb.from('app_devices').update({ trusted:on }).eq('device_id',id);
+    c.disabled=false;
+    if(error){ c.checked=!on; toast('Could not change that.'); return; }
+    const d=DEVICES.find(x=>x.device_id===id); if(d) d.trusted=on;
+    if(id===THIS){ try{ localStorage.setItem('ama_device_trusted',on?'1':'0'); }catch(e){} }
+    toast(on?'This device will stay signed in':'Idle sign-out back on');
+  });
+
+  $$('#devList [data-out]').forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.out, me=id===THIS;
+    if(!confirm(me?'Sign out this device now?':'Sign out that device? It will be signed out within a minute or two.')) return;
+    b.disabled=true;
+    if(me){ await sb.from('app_devices').update({ revoked_at:new Date().toISOString() }).eq('device_id',id); await sb.auth.signOut(); location.reload(); return; }
+    const { error } = await sb.from('app_devices').update({ revoked_at:new Date().toISOString() }).eq('device_id',id);
+    b.disabled=false;
+    if(error){ toast('Could not sign that device out.'); return; }
+    DEVICES = DEVICES.filter(x=>x.device_id!==id); renderDevices(); toast('Signed out');
+  });
+}
+$('#signOutOthers').onclick = async ()=>{
+  if(!confirm('Sign out every other device? Each one signs out within a minute or two.')) return;
+  $('#signOutOthers').disabled=true;
+  const { error } = await sb.from('app_devices').update({ revoked_at:new Date().toISOString() }).neq('device_id',THIS).is('revoked_at',null);
+  $('#signOutOthers').disabled=false;
+  if(error){ toast('Could not do that.'); return; }
+  DEVICES = DEVICES.filter(x=>x.device_id===THIS); renderDevices(); toast('Other devices signed out');
+};
+
+async function boot(){
+  const { data:{session} } = await sb.auth.getSession();
+  if(!session){ $('#signIn').hidden=false; $('#app').hidden=true; $('#who').hidden=$('#signOut').hidden=true; return; }
+  $('#signIn').hidden=true; $('#who').textContent=(session.user.user_metadata||{}).full_name||session.user.email; $('#who').hidden=$('#signOut').hidden=false;
+  $('#app').hidden=false;
+  loadDevices();
+}
+$('#siForm').onsubmit = async e=>{
+  e.preventDefault(); $('#siGo').disabled=true; $('#siMsg').hidden=true;
+  const { error } = await sb.auth.signInWithPassword({ email:$('#siEmail').value.trim(), password:$('#siPass').value });
+  $('#siGo').disabled=false;
+  if(error){ $('#siMsg').textContent=/invalid/i.test(error.message)?'Wrong email or password.':error.message; $('#siMsg').hidden=false; return; }
+  boot();
+};
+$('#signOut').onclick = async()=>{ await sb.auth.signOut(); boot(); };
+sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'||ev==='SIGNED_OUT') boot(); });
+boot();
+</script>
+</body>
+</html>

@@ -74,7 +74,7 @@
 <header class="appbar">
   <div class="appbar-inner">
     <div class="brand"><img src="icons/ama-id-cards.png" alt=""><h1>AMA Toolkit</h1></div>
-    <span class="grow"></span><span class="who" id="who" hidden></span><button class="btn" id="signOut" hidden>Sign out</button>
+    <span class="grow"></span><a class="who" id="who" href="/profile/" style="text-decoration:none" hidden></a><button class="btn" id="signOut" hidden>Sign out</button>
   </div>
 </header>
 
@@ -149,7 +149,9 @@ function draw(a) {
       a.party && { href: 'tv/edit/?display=tablet', icon: 'tablet', name: a.edit ? 'Tablet Display' : 'Tablet party mode', meta: a.edit ? 'Slides for the upright tablets, with a link that just works' : 'Birthday posters and messages on the tablets' },
       a.remote && { href: 'tv/remote/', icon: 'remote', name: 'TV Remote', meta: 'Next, Back, Pause and show any slide from your phone' },
       tvAny && { href: 'tv/', icon: 'play', name: 'Play on this screen', meta: "Open on the TV's browser to show the slideshow" }]],
-    ['Personal', [admin && { href: '/clipboard/', img: 'icons/clipboard.png', name: 'Clipboard', meta: 'Text templates you copy with one tap' }]],
+    ['Personal', [
+      { href: '/profile/', icon: 'tablet', name: 'My profile & devices', meta: "Devices signed in to your login — sign out any you don't recognise" },
+      admin && { href: '/clipboard/', img: 'icons/clipboard.png', name: 'Clipboard', meta: 'Text templates you copy with one tap' }]],
     ['Admin', [
       admin && { href: 'staff/', icon: 'staff', name: 'Staff logins', chip: 'Admin', meta: 'Add logins, set passwords and roles for every app' },
       a.owner && { href: 'https://supabase.com/dashboard/project/ptdrcxngaptcgswfbjhg', ext: true, icon: 'db', name: 'Supabase', chip: 'Owner', meta: 'Database, logins, SQL updates and backups' }]]

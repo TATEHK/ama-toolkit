@@ -6,16 +6,51 @@
 //
 // Only runs while signed in. Activity in any tab resets the timer for every tab (shared via localStorage).
 // TV party/screen and the public pages don't load this — it's for logins, not the always-on displays.
+//
+// It also keeps a lightweight record of each signed-in device in app_devices (RLS: a login only ever sees
+// its own rows), so the Profile → Signed-in devices page can list them and sign any one of them out. A
+// device the user marks "Stay signed in on this device" (trusted) is exempt from the idle auto-logout.
+// Signing a device out from elsewhere sets revoked_at; that device notices within ~90s and signs itself out.
 (function () {
-  var ACT = 'ama_idle_at';   // last-activity time, shared across tabs
+  var ACT = 'ama_idle_at';          // last-activity time, shared across tabs
+  var DEV = 'ama_device_id';        // this browser's stable device id
+  var TRUST = 'ama_device_trusted'; // cached "is this device trusted" flag, so idle logic is right before the DB check returns
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
   function now() { return Date.now(); }
+
+  function deviceId() {
+    var id = ls(DEV);
+    if (!id) {
+      try { id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : null; } catch (e) { id = null; }
+      if (!id) id = 'd-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+      ls(DEV, id);
+    }
+    return id;
+  }
+  function deviceLabel() {
+    var ua = (navigator && navigator.userAgent) || '';
+    var os = /iPhone/.test(ua) ? 'iPhone'
+      : /iPad/.test(ua) ? 'iPad'
+      : /Android/.test(ua) ? 'Android'
+      : /Macintosh|Mac OS X/.test(ua) ? 'Mac'
+      : /Windows/.test(ua) ? 'Windows'
+      : /Linux/.test(ua) ? 'Linux'
+      : 'Device';
+    var br = /Edg\//.test(ua) ? 'Edge'
+      : /OPR\/|Opera/.test(ua) ? 'Opera'
+      : /CriOS|Chrome/.test(ua) ? 'Chrome'
+      : /Firefox|FxiOS/.test(ua) ? 'Firefox'
+      : /Safari/.test(ua) ? 'Safari'
+      : 'Browser';
+    return os + ' · ' + br;
+  }
 
   function watch(o) {
     var sb = o && o.sb; if (!sb || sb.__amaIdle) return; sb.__amaIdle = true;
     var LIMIT = Math.max(1, +(o.minutes) || 60) * 60000;
     var WARN = Math.min(60000, Math.floor(LIMIT / 2));   // how long before sign-out the warning appears
     var signedIn = false, box = null, label = null, goneOut = false;
+    var trusted = ls(TRUST) === '1';   // start from the cached flag so a trusted device isn't warned before the DB confirms
 
     function touch() { ls(ACT, String(now())); if (box) hide(); }
     function last() { var v = parseInt(ls(ACT) || '0', 10); return v || now(); }
@@ -23,7 +58,7 @@
     ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel'].forEach(function (ev) {
       window.addEventListener(ev, touch, { passive: true, capture: true });
     });
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { tick(); checkDevice(); } });
 
     function ui() {
       if (box) return;
@@ -44,22 +79,53 @@
     function tick() {
       if (goneOut) return;
       if (!signedIn) { hide(); return; }
+      if (trusted) { hide(); return; }   // a trusted device stays signed in — no idle logout
       var idle = now() - last();
       if (idle >= LIMIT) { goneOut = true; hide(); sb.auth.signOut().then(function () { location.reload(); }, function () { location.reload(); }); return; }
       if (idle >= LIMIT - WARN) { ui(); if (label) label.textContent = String(Math.ceil((LIMIT - idle) / 1000)); }
       else hide();
     }
 
+    // --- device registry (best-effort; errors never sign anyone out) ---
+    function registerDevice(fresh) {
+      sb.auth.getSession().then(function (r) {
+        var s = r && r.data && r.data.session; if (!s || !s.user) return;
+        var row = {
+          device_id: deviceId(),
+          user_id: s.user.id,
+          label: deviceLabel(),
+          user_agent: ((navigator && navigator.userAgent) || '').slice(0, 300),
+          last_seen_at: new Date().toISOString()
+        };
+        if (fresh) row.revoked_at = null;   // a real sign-in re-activates this device; a mere page load must not
+        sb.from('app_devices').upsert(row, { onConflict: 'device_id' }).then(function () { checkDevice(); }, function () {});
+      }, function () {});
+    }
+    function signOutRevoked() {
+      goneOut = true; hide();
+      sb.auth.signOut().then(function () { location.reload(); }, function () { location.reload(); });
+    }
+    function checkDevice() {
+      if (!signedIn || goneOut) return;
+      var id = ls(DEV); if (!id) return;
+      sb.from('app_devices').select('trusted,revoked_at').eq('device_id', id).maybeSingle().then(function (res) {
+        var d = res && res.data; if (!d) return;
+        trusted = !!d.trusted; ls(TRUST, trusted ? '1' : '0');
+        if (d.revoked_at) signOutRevoked();
+      }, function () {});
+    }
+
     sb.auth.getSession().then(function (r) {
       signedIn = !!(r && r.data && r.data.session);
-      if (signedIn && !ls(ACT)) touch();
+      if (signedIn) { if (!ls(ACT)) touch(); registerDevice(false); }
     });
     sb.auth.onAuthStateChange(function (ev, session) {
       signedIn = !!session;
-      if (ev === 'SIGNED_IN') { goneOut = false; touch(); }
-      if (!signedIn) hide();
+      if (ev === 'SIGNED_IN') { goneOut = false; touch(); registerDevice(true); }
+      if (!signedIn) { trusted = false; ls(TRUST, '0'); hide(); }
     });
     setInterval(tick, 1000);
+    setInterval(checkDevice, 90000);   // notice a remote sign-out / trust change within ~90s
   }
 
   window.AmaIdle = { watch: watch };
