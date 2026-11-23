@@ -1469,8 +1469,7 @@ function openEntry(id) {
   const ec = $('#editContact'); if (ec) ec.onclick = () => editContact(e.member_key, () => openEntry(id));
   const eb = $('#editBelt'); if (eb) eb.onclick = () => editBelt(e);
   // Can't make grading also stops their automatic reminder texts; Back on grading starts them again (only if it was this that stopped them)
-  const CANT_STOP = "Can't make grading (marked by staff)";
-  const cm = $('#cantMake'); if (cm) cm.onclick = () => change({ cant_make_at: new Date().toISOString(), cant_make_reason: 'by_hand', ...(e.seq_stopped_at ? {} : { seq_stopped_at: new Date().toISOString(), seq_stopped_why: CANT_STOP }) }, 'Added to Can\'t make grading, reminder texts stopped');
+  const cm = $('#cantMake'); if (cm) cm.onclick = () => cantMakeOffer(e);
   const bg = $('#backOnGrading'); if (bg) bg.onclick = () => change({ cant_make_at: null, cant_make_reason: null, ...(/^Can't make grading/.test(e.seq_stopped_why || '') ? { seq_stopped_at: null, seq_stopped_why: null } : {}) }, 'Back on grading');
   const sg = $('#secondGrading'); if (sg) sg.onclick = () => secondGrading(e);
   const mv = $('#moveGrading'); if (mv) mv.onclick = () => moveGrading(e);
@@ -1532,6 +1531,34 @@ function setDiscount(e) {
       dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
     } catch (er) { toast(errMsg(er), 6000); $('#dcGo').disabled = false; $('#dcGo').textContent = 'Save discount'; }
   };
+}
+// Can't make grading: shows the text offering up to 3 other days, then marks them and sends it (or just marks them).
+// Their reply of 1, 2 or 3 moves them and sends the booking link; 0 keeps the original date.
+async function cantMakeOffer(e) {
+  let pv;
+  try { toast('Finding other days...', 0); pv = await fnCall({ action: 'cant_make_offer', entry_id: e.entry_id, preview: true }); $('#toast').hidden = true; }
+  catch (er) { toast(errMsg(er), 6000); return; }
+  const canSend = !!(pv.text && pv.phone);
+  const why = !pv.text ? 'No other grading days suit their belt and age, so there are no dates to offer. They\'ll go on the Can\'t make grading list for a makeup session.'
+    : !pv.phone ? 'There\'s no mobile number for them in EFC, so the text can\'t be sent.' : '';
+  openDlg(`<form id="cmForm" class="dlg"><div class="dlg-head"><div><h3>Can't make grading</h3><p class="sub">${esc(e.full_name)}</p></div><button class="x" data-close>Close</button></div>
+    ${pv.booked ? '<p class="hint"><b>They are booked in EFC.</b> Cancel that booking too.</p>' : ''}
+    ${canSend ? `<p class="hint">Texts <b>${esc(pv.phone)}</b> these other days. Their reply of a number moves them and sends the booking link. Their reminder texts for this day stop.</p>
+      <div class="field"><label class="label" for="cmText">Text</label><textarea id="cmText" rows="9" readonly style="white-space:pre-wrap">${esc(pv.text)}</textarea></div>`
+      : `<p class="hint">${esc(why)}</p>`}
+    <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button>
+      <button type="button" class="btn${canSend ? '' : ' primary'}" id="cmMark">${canSend ? 'Just mark, no text' : 'Mark can\'t make'}</button>
+      ${canSend ? '<button class="btn primary" id="cmSend" type="submit">Send other days</button>' : ''}</div></form>`);
+  const go = async send => {
+    $$('#cmForm .btn').forEach(b => b.disabled = true);
+    try {
+      const r = await fnCall({ action: 'cant_make_offer', entry_id: e.entry_id, send });
+      toast(r.sent ? `Other days sent to ${e.full_name}` : send && r.error ? `Marked can't make, but the text didn't send: ${r.error}` : 'Added to Can\'t make grading, reminder texts stopped', 6000);
+      dlg.close(); await refreshEntries(); render(); openEntry(e.entry_id);
+    } catch (er) { toast(errMsg(er), 6000); $$('#cmForm .btn').forEach(b => b.disabled = false); }
+  };
+  $('#cmMark').onclick = () => go(false);
+  $('#cmForm').onsubmit = ev => { ev.preventDefault(); go(true); };
 }
 // Fix a wrong belt on an entry: the current belt (what they're graded from) and the belt they're grading for.
 // Changing it flows through to the fee, the EFC session they book into, and what the booking link and texts say.

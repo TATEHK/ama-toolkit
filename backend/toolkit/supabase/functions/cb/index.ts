@@ -115,7 +115,15 @@ export function fitsDay(d, e, age, from) {
   }
   return true;
 }
-export const ALT_DAYS = 3, ALT_VALID_MS = 7 * 864e5;   // offer up to 3 other gradings; a reply of 1, 2 or 3 works for 7 days
+export const ALT_DAYS = 3, ALT_VALID_MS = 7 * 864e5;
+// Staff marked a student "Can't make grading": the text offering them other days (same reply handling as the automatic offer).
+// v = { greet, self, first, orig, days: [line, ...] } where orig/days are already-formatted "Sat 5 Dec 10:00am at AMA Marrickville" lines
+export function cantMakeOfferText(v) {
+  const n = v.days.length, nums = n === 1 ? 'Reply 1' : `Reply ${v.days.slice(0, -1).map((_, i) => i + 1).join(', ')} or ${n}`;
+  const lead = v.self ? `no worries if you can't make your grading${v.orig ? ' on ' + v.orig : ''}. You can grade on another day instead:`
+    : `no worries if ${v.first} can't make their grading${v.orig ? ' on ' + v.orig : ''}. ${v.first} can grade on another day instead:`;
+  return `Hi ${v.greet}, ${lead}\n${v.days.map((d, i) => `${i + 1}. ${d}`).join('\n')}\n${nums} to switch and we'll send the booking link.${v.orig ? ' Or reply 0 to keep the original date.' : ''} Or call us if none suit. AMA`;
+}   // offer up to 3 other gradings; a reply of 1, 2 or 3 works for 7 days
 const SITE = 'https://app.train-ama.com/';
 // A short url-safe essay token, matching the 12-char shape the prep system (nurture) makes.
 const essayToken = () => { const b = crypto.getRandomValues(new Uint8Array(9)); let s = ''; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').slice(0, 12); };
@@ -1905,7 +1913,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       const open = (days || []).filter(d => !d.closed); if (!open.length) return json({ ok: true, matched: 0, why: 'no grading days coming up' });
       // Makeup grading days are only ever offered by staff (from the Can't-make list), never picked for a family automatically
       const offerable = open.filter(d => !d.makeup && !d.private);
-      const ents = await allRows(() => db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school, alt_offer').in('day_id', open.map(d => d.day_id)).order('entry_id'));
+      const ents = await allRows(() => db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, token, invited_at, booked_at, result, yes_at, school, alt_offer, seq_stopped_why').in('day_id', open.map(d => d.day_id)).order('entry_id'));
       const waiting = (ents || []).filter(e => e.invited_at && !e.booked_at && !e.result);
       if (!waiting.length) return json({ ok: true, matched: 0 });
       const mems = await selectIn('efc_members', 'member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth', 'member_key', waiting.map(e => e.member_key));
@@ -2095,6 +2103,7 @@ export async function handle(req, db, env = {}, http = fetch) {
           const out = [], nowIso = new Date().toISOString();
           for (const e of offered) {
             const n = picks[e.entry_id]; if (n == null) continue;
+            if (/^Can't make grading/.test(e.seq_stopped_why || '')) await db.from('cb_entries').update({ seq_stopped_at: null, seq_stopped_why: null }).eq('entry_id', e.entry_id);
             if (n === 0) {   // 0 = keep their original grading date after all: back on it, and the booking link again if they haven't booked
               const od = open.find(x => x.day_id === e.day_id), m = byKey[e.member_key];
               if (!od) { out.push({ entry_id: e.entry_id, error: 'original grading is closed' }); continue; }
@@ -2376,6 +2385,46 @@ export async function handle(req, db, env = {}, http = fetch) {
     const can = (...want) => perms.includes('admin') || want.some(w => perms.includes(w));
     const may = kind => can(...(KINDS[kind] || []));
     if (!perms.length) return fail('Your login cannot use Coloured Belts. Ask a Staff admin to give you access.', 403);
+    // Staff: "Can't make grading" - mark it, stop the reminder texts, and (unless just marking) text them up to 3 other days.
+    // Their reply of 1/2/3 (or 0 to keep the date) is handled by the same code as the automatic offer.
+    if (body.action === 'cant_make_offer') {
+      if (!can('days', 'texts')) return fail('Your login cannot do this.', 403);
+      const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, booked_at, result, seq_stopped_at, seq_stopped_why').eq('entry_id', String(body.entry_id || '')).maybeSingle();
+      if (!e) return fail('Entry not found.');
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+      const { data: days } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb, belts, efc_belt_sessions, min_age, max_age, book_by, makeup, private').gte('grading_date', today);
+      const od = (days || []).find(d => d.day_id === e.day_id) || null;
+      const { data: m } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').eq('member_key', e.member_key).maybeSingle();
+      const age = m && /^\d{4}-\d{2}-\d{2}/.test(String(m.date_of_birth || '')) ? Math.floor((Date.now() - Date.parse(String(m.date_of_birth).slice(0, 10))) / 31557600000) : null;
+      const opts = (days || []).filter(d => !d.closed && !d.makeup && !d.private && fitsDay(d, e, age, od))
+        .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || String(a.start_time || '').localeCompare(String(b.start_time || ''))).slice(0, ALT_DAYS);
+      const sd = ymd => { const [y, mo, dd] = String(ymd).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, mo - 1, dd)).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', ''); };
+      const line = d => `${sd(d.grading_date)}${(t => t ? ' ' + clock(t) : '')(entryTime(d, e))} at AMA ${whereOf(e, d)}`;
+      const self = selfOf(m), first = firstWord(e.full_name);
+      const greet = (self ? firstWord(m && m.full_name) : firstWord(m && m.guardian_name)) || 'there';
+      const text = opts.length ? cantMakeOfferText({ greet, self, first, orig: od ? line(od) : '', days: opts.map(line) }) : '';
+      const phone = m ? phoneE164(m.phone || m.guardian_phone) : null;
+      if (body.preview) return json({ ok: true, text, phone, days: opts.length, booked: !!e.booked_at });
+      const now = new Date().toISOString();
+      const mark = { cant_make_at: now, cant_make_reason: 'by_hand', ...(e.seq_stopped_at ? {} : { seq_stopped_at: now, seq_stopped_why: "Can't make grading (marked by staff)" }) };
+      await db.from('cb_entries').update(mark).eq('entry_id', e.entry_id);
+      if (!body.send || !text) return json({ ok: true, marked: true, sent: false });
+      if (!m) return json({ ok: true, marked: true, sent: false, error: 'Student not found in EFC' });
+      if (!phone) return json({ ok: true, marked: true, sent: false, error: 'No mobile number' });
+      const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: e.entry_id, member_key: e.member_key, kind: 'alt_offer', phone, body: text, status, sent_by: me, ...extra });
+      const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';
+      if (testing && !ready) await log('test');
+      else {
+        if (!ready) return json({ ok: true, marked: true, sent: false, error: 'Texting is not set up' });
+        try {
+          const cid = await contactFor({ ...m, email: m.email || m.guardian_email }, phone);
+          if (!cid) throw new Error('Could not find or add the contact');
+          const gid = await sendSms(cid, text); await log('sent', gid ? { ghl_id: gid } : {});
+        } catch (er) { const w = String(er.message || er).slice(0, 500); await log('failed', { error: w }); return json({ ok: true, marked: true, sent: false, error: w }); }
+      }
+      await db.from('cb_entries').update({ alt_offer: { days: opts.map(d => d.day_id), at: now, split: false } }).eq('entry_id', e.entry_id);
+      return json({ ok: true, marked: true, sent: true, days: opts.length });
+    }
     // Staff: send a test belt-check alert to the alert phone, so they can check they get it and can reply
     if (body.action === 'alert_test') {
       const { data: s2 } = await db.from('cb_settings').select('alert_phone').eq('id', 1).maybeSingle();
