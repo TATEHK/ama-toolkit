@@ -30,6 +30,7 @@ jobs:
           set -o pipefail
           case "$FN" in
             nurture) DIR=backend/black-belt-gradings ;;
+            notify) DIR=backend/id-cards ;;
             *) DIR=backend/toolkit ;;
           esac
           cd "$DIR"

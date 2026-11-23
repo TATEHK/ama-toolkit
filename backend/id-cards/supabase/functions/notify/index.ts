@@ -254,12 +254,18 @@ Deno.serve(async req => {
       const w = job.count || 0;
       message = { title: 'Printer back online', body: w ? `${w} job${w === 1 ? ' is' : 's are'} printing now.` : 'Ready to print.', tag: 'station', url: './#queue' };
       column = 'wants_station';
+    } else if (kind === 'bbc_card') {
+      const nm = job.name || 'A student';
+      message = { title: 'Black Belt Club card to write', body: `${nm} was invited to Black Belt Club — write their invitation card.`, tag: 'bbc-' + String(job.member || nm), url: 'https://app.train-ama.com/grading/coloured-belts/black-belt-club' };
+      column = null;   // card writing is a team task — send to everyone with notifications on
     } else return json({ ignored: true });
 
-    let { data: subs } = await db.from('push_subscriptions').select('*').eq(column, true);
+    let subs;
+    if (column) { ({ data: subs } = await db.from('push_subscriptions').select('*').eq(column, true)); }
+    else { ({ data: subs } = await db.from('push_subscriptions').select('*')); }   // bbc_card: everyone subscribed
     subs = (subs || []).filter(s => !(kind === 'approval' && s.user_email && s.user_email === job.created_by_email));
     // Printer and approval alerts only go to people who can act on them
-    if (kind !== 'printed') {
+    if (kind !== 'printed' && kind !== 'bbc_card') {
       let canPrint = null;
       const { data: perms, error: permErr } = await db.from('staff_permissions').select('email, permission').in('permission', ['admin', 'approve']);
       if (!permErr && perms) canPrint = new Set(perms.map(r => r.email));
