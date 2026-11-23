@@ -1112,6 +1112,7 @@ function renderDay() {
   const notBooked = es.filter(e => e.invited_at && !e.booked_at && !e.result);
   const booked = es.filter(e => e.booked_at && !e.result);
   const unpaid = es.filter(e => e.booked_at && !e.paid && !e.result);
+  const payable = es.filter(e => !e.paid && !e.result && !e.cant_make_at);   // everyone who could be marked paid (bulk Record payments)
   const people = list => list.map(e => ({ member_key: e.member_key, entry_id: e.entry_id, e, s: student(e.member_key), d }));
   const needs = {}; es.filter(e => e.result !== 'retest').forEach(e => { needs[toText(e)] = (needs[toText(e)] || 0) + 1; });
   const cnt = (label, list) => `${label}${list.length ? ` (${list.length})` : ''}`;
@@ -1151,6 +1152,7 @@ function renderDay() {
       <input type="search" id="dayQ" placeholder="Search students" aria-label="Search students">
       <select id="dfBelt" aria-label="Belt"><option value="">All belts (${es.length})</option>${dayBeltsHere.map(b => `<option value="${esc(b)}"${b === dayFilt.belt ? ' selected' : ''}>${esc(short(b))} (${es.filter(e => e.belt_from === b).length})</option>`).join('')}</select>
       <select id="dfSort" aria-label="Order">${Object.entries(SORTS).map(([k, t]) => `<option value="${k}"${k === dayFilt.sort ? ' selected' : ''}>${t}</option>`).join('')}</select></div>` : ''}</div>
+    ${canPay() && payable.length ? `<div class="row" style="margin:0 0 12px"><button class="btn primary" id="bulkPay">Record payments &mdash; ${payable.length} unpaid</button></div>` : ''}
     <ul class="list" id="entryList">${shown.length ? shown.map(e => { const s = student(e.member_key) || {};
       const warn = e.booking_error ? 'Booking failed' : e.efc_by_hand && !e.efc_by_hand_done_at ? 'Book in EFC by hand' : '';
       const tags = e.result ? `<span class="tag ${e.result === 'retest' ? 'bad' : 'ok'}">${RESULT[e.result]}</span>` : `${e.checked_in_at ? '<span class="tag ok">Here</span>' : ''}${e.booked_at ? '<span class="tag ok">Booked</span>' : e.yes_at ? '<span class="tag ok">Said YES</span>' : e.invited_at ? '<span class="tag info">Invited</span>' : '<span class="tag">Not invited</span>'}${e.paid ? `<span class="tag ok">Paid${e.paid_how === 'card' ? ' by card' : ''}</span>` : e.booked_at ? '<span class="tag warn">Unpaid</span>' : ''}`;
@@ -1187,7 +1189,44 @@ function renderDay() {
   const dq = $('#dayQ'); if (dq) dq.oninput = () => { const q = dq.value.trim().toLowerCase(); $$('#entryList > li[data-name]').forEach(li => { li.hidden = !!q && !li.dataset.name.includes(q); }); };
   on('#sendCongrats', () => composeTexts('congrats', people(toCongrats)));
   on('#closeDay', async () => { try { await run(sb.from('cb_days').update({ closed: !d.closed }).eq('day_id', d.day_id), d.closed ? 'Reopened' : 'Marked finished'); d.closed = !d.closed; render(); } catch (e) { toast(errMsg(e), 6000); } });
+  on('#bulkPay', () => bulkPayment(d, payable));
   $$('#entryList [data-entry]').forEach(b => b.onclick = () => openEntry(b.dataset.entry));
+}
+// Mark several students paid at once — one method for the lot, reusing the same per-student record_payment
+// (marks paid and books the EFC session). Tick who has paid; booked-but-unpaid are ticked by default.
+function bulkPayment(d, list) {
+  if (!list.length) return;
+  openDlg(`<form id="bpForm" class="dlg">
+    <div class="dlg-head"><div><h3>Record payments</h3><p class="sub">${esc(schoolLabel(d.location))}, ${esc(fmtDate(d.grading_date))}. Tick who has paid, choose how, record them together.</p></div><button class="x" data-close>Close</button></div>
+    <div class="field"><span class="label">How did they pay?</span><div class="checks" id="bpHow">${[['cash', 'Cash'], ['eftpos', 'EFTPOS'], ['transfer', 'Bank transfer'], ['credit', 'Credit'], ['other', 'Other']].map(([k, t], i) => `<label class="check"><input type="radio" name="bpHow" value="${k}" ${i === 1 ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><span class="label" style="margin:0">Who has paid</span><button type="button" class="btn sm" id="bpAll">Select all</button></div>
+    <ul class="list" style="max-height:44vh;overflow:auto;margin:0">${list.map(e => { const fee = beltOf(e.belt_from).fee; return `<li><label class="item" style="${beltVar(e.belt_from)}">
+      <input type="checkbox" class="bpChk" data-entry="${esc(e.entry_id)}" ${e.booked_at ? 'checked' : ''}>
+      <div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(short(e.belt_from))} to <b>${esc(short(toText(e)))}</b> &middot; ${money(fee) || 'fee not set'}${e.booked_at ? '' : ' &middot; not booked yet'}</div></div></label></li>`; }).join('')}</ul>
+    <p class="hint">Recording a payment also books them into the EFC session, like a card payment.</p>
+    <div class="dlg-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="bpGo" type="submit">Record payment</button></div></form>`);
+  const upd = () => { const n = $$('.bpChk:checked').length; const g = $('#bpGo'); g.textContent = n ? `Record payment for ${n}` : 'Record payment'; g.disabled = !n; };
+  $$('.bpChk').forEach(c => c.onchange = upd); upd();
+  $('#bpAll').onclick = () => { const boxes = $$('.bpChk'), anyOff = boxes.some(b => !b.checked); boxes.forEach(b => b.checked = anyOff); $('#bpAll').textContent = anyOff ? 'Select none' : 'Select all'; upd(); };
+  $('#bpForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const how = ($('#bpForm input[name=bpHow]:checked') || {}).value;
+    const ids = $$('.bpChk:checked').map(c => c.dataset.entry);
+    if (!ids.length) return;
+    const go = $('#bpGo'); go.disabled = true; $('#bpAll').disabled = true;
+    let done = 0, byHand = 0; const fails = [];
+    for (const id of ids) {
+      const e = list.find(x => x.entry_id === id) || state.all.entries.find(x => x.entry_id === id);
+      go.textContent = `Recording ${done + 1} of ${ids.length}…`;
+      try { const r = await fnCall({ action: 'record_payment', entry_id: id, how }); done++; if (r && r.byHand) byHand++; }
+      catch (er) { fails.push((e && e.full_name) || id); }
+    }
+    dlg.close(); await refreshEntries(); render();
+    let msg = `Recorded ${done} payment${done === 1 ? '' : 's'}`;
+    if (byHand) msg += ` · ${byHand} to book in EFC by hand`;
+    if (fails.length) msg += ` · ${fails.length} failed: ${fails.slice(0, 3).join(', ')}${fails.length > 3 ? '…' : ''}`;
+    toast(msg, 7000);
+  };
 }
 async function addStudents(d, list) {
   const have = new Set(entriesOf(d.day_id).map(e => e.member_key));
