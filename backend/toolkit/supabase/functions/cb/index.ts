@@ -1487,8 +1487,8 @@ export async function handle(req, db, env = {}, http = fetch) {
               const nm = f.full_name || (m && m.full_name) || 'A student';
               const wantsU = !!body.uniform;
               const subject = `Black Belt Club sign-up: ${nm}`;
-              const text = `${nm} just signed up for the Black Belt Club through their invitation link.\n\nHalf-price uniform ($65): ${wantsU ? 'Yes' : 'No'}\nAgreed to +$20/week: Yes\n\nA coach needs to call them to confirm and set up payment. This sign-up is also on Mark's hub.`;
-              const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1c1c1c"><p><b>${esc2(nm)}</b> just signed up for the <b>Black Belt Club</b> through their invitation link.</p><ul><li>Half-price uniform ($65): <b>${wantsU ? 'Yes' : 'No'}</b></li><li>Agreed to +$20/week: <b>Yes</b></li></ul><p>A coach needs to call them to confirm and set up payment. It’s also on Mark’s hub.</p></div>`;
+              const text = `${nm} just signed up for the Black Belt Club through their invitation link.\n\nHalf-price uniform ($65): ${wantsU ? 'Yes' : 'No'}\nAgreed to +$20/week: Yes\n\nAn admin needs to call them to confirm and set up payment. This sign-up is also on Mark's hub.`;
+              const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1c1c1c"><p><b>${esc2(nm)}</b> just signed up for the <b>Black Belt Club</b> through their invitation link.</p><ul><li>Half-price uniform ($65): <b>${wantsU ? 'Yes' : 'No'}</b></li><li>Agreed to +$20/week: <b>Yes</b></li></ul><p>An admin needs to call them to confirm and set up payment. It’s also on Mark’s hub.</p></div>`;
               for (const email of addrs) {
                 try { const cid = await contactFor({ full_name: 'AMA Black Belt Club', email }, null); if (cid) await sendEmailTo(cid, { subject, html, text }); } catch (_) { /* one address failing never blocks the rest */ }
               }

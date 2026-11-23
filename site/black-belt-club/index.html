@@ -176,7 +176,7 @@
         <label class="check" id="c2">
           <input type="checkbox" id="consent">
           <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
-          <span class="ctext"><b>Yes, I agree to add $20 per week to my membership for the Black Belt program</b><small>A coach will call you to set it up — nothing is charged through this page.</small></span>
+          <span class="ctext"><b>Yes, I agree to add $20 per week to my membership for the Black Belt program</b><small>An admin will call you to set it up — nothing is charged through this page.</small></span>
         </label>
         <button class="btn" id="go" type="submit" disabled>Enrol in Black Belt Club</button>
         <p class="fine">By enrolling you're asking us to add Black Belt Club to your membership. One of our team will call you to confirm the details and arrange payment — no payment is taken on this page.</p>
@@ -190,7 +190,7 @@
     <section class="card done">
       <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
       <h2>You're in</h2>
-      <p id="doneMsg">Welcome to the Black Belt Club. One of our coaches will call you shortly to finish setting everything up.</p>
+      <p id="doneMsg">Welcome to the Black Belt Club. One of our admins will call you shortly to finish setting everything up.</p>
     </section>
     <footer>Questions? Call us on <a id="phone2" href="tel:">the academy</a>.</footer>
   </div>
@@ -240,7 +240,7 @@ function render(info) {
   if (info.enrolled) { return showError(`Good news — you're already in the Black Belt Club. If that's not right, call us on <a href="${tel}">${PHONE}</a>.`); }
   if (info.signed) {
     $('#content').hidden = true; $('#done').hidden = false;
-    $('#doneMsg').textContent = 'Thanks ' + (info.first_name || '') + ' — we\'ve got your Black Belt Club sign‑up. One of our coaches will call you shortly to finish setting everything up.';
+    $('#doneMsg').textContent = 'Thanks ' + (info.first_name || '') + ' — we\'ve got your Black Belt Club sign‑up. One of our admins will call you shortly to finish setting everything up.';
     return;
   }
 
