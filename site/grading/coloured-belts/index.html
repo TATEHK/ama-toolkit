@@ -210,6 +210,34 @@
   .btn.gold:hover { background: rgba(245,197,24,.1); border-color: var(--gold); }
   @media (max-width: 480px) { .bbcblock .btn.gold { width: 100%; } }
   .bbcbtn { align-self: flex-start; border: 0; background: none; color: var(--gold); font-weight: 600; font-size: 14.5px; padding: 2px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  /* Black Belt Club welcome sequence (the automated SMS/email nudges after a day is marked finished) */
+  .seq-wrap { border: 1px solid var(--line2); border-radius: var(--r); margin-bottom: 20px; background: var(--bg); overflow: hidden; }
+  .seq-wrap > summary { list-style: none; cursor: pointer; padding: 13px 15px; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15.5px; }
+  .seq-wrap > summary::-webkit-details-marker { display: none; }
+  .seq-wrap > summary::after { content: ''; width: 8px; height: 8px; border-right: 2px solid var(--faint); border-bottom: 2px solid var(--faint); transform: rotate(-45deg); margin-left: auto; transition: transform .15s; }
+  .seq-wrap[open] > summary::after { transform: rotate(45deg); }
+  .seq-wrap > summary .seq-pill { font-weight: 600; font-size: 12.5px; color: var(--gold); border: 1px solid rgba(245,197,24,.5); border-radius: 999px; padding: 1px 9px; }
+  .seq-body { padding: 4px 15px 15px; display: flex; flex-direction: column; gap: 14px; }
+  .seq-person { border-top: 1px solid var(--line2); padding-top: 13px; }
+  .seq-person:first-child { border-top: 0; padding-top: 2px; }
+  .seq-top { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+  .seq-top b { font-size: 15.5px; }
+  .seq-badge { font-size: 11.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; border-radius: 999px; padding: 2px 9px; }
+  .seq-badge.active { color: var(--gold); background: rgba(245,197,24,.12); }
+  .seq-badge.signed, .seq-badge.joined { color: var(--green-text); background: rgba(47,158,91,.15); }
+  .seq-badge.done { color: var(--faint); background: var(--raise); }
+  .seq-meta { color: var(--faint); font-size: 13px; margin: 3px 0 10px; }
+  .seq-steps { display: flex; flex-wrap: wrap; gap: 7px; }
+  .seq-step { display: flex; flex-direction: column; gap: 1px; min-width: 92px; border: 1px solid var(--line2); border-radius: 9px; padding: 6px 9px; font-size: 12.5px; }
+  .seq-step .s-top { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .seq-step .s-when { color: var(--faint); font-size: 11.5px; }
+  .seq-step.sent { border-color: rgba(47,158,91,.5); background: rgba(47,158,91,.08); }
+  .seq-step.sent .s-top { color: var(--green-text); }
+  .seq-step.next { border-color: rgba(245,197,24,.55); background: rgba(245,197,24,.07); }
+  .seq-step.next .s-top { color: var(--gold); }
+  .seq-step.stopped { opacity: .5; }
+  .seq-note { font-size: 13px; margin-top: 9px; color: var(--text); }
+  .seq-note.good { color: var(--green-text); }
   .phcard { flex-direction: row; align-items: center; }
   .phcard.next { border-color: var(--gold); }
   .phcard .thumb { width: 68px; height: 68px; border-radius: 9px; object-fit: cover; background: var(--raise); flex: none; display: grid; place-items: center; color: var(--faint); font-size: 12px; text-align: center; padding: 4px; }
@@ -1762,6 +1790,7 @@ function renderBbc() {
   const when = iso => new Date(iso).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
   const progs = key => [...new Set(state.all.students.filter(x => x.member_key === key).map(x => progLabel(x.programme)))].join(', ');
   v.innerHTML = `<div class="view-head"><div><h2>Cards to write</h2><p class="sub">Black Belt Club invitation cards teachers have asked for. Tick each one once it's written.</p></div></div>
+    <details class="seq-wrap" id="bbcSeqWrap"><summary>Welcome sequence<span class="seq-pill" id="bbcSeqCount" hidden></span></summary><div class="seq-body" id="bbcSeq"><p class="hint" style="margin:0">Loading…</p></div></details>
     <ul class="list">${todo.length ? todo.map(s => `<li><label class="item" style="${beltVar(s.belt, s.programme)}"><input type="checkbox" data-written="${esc(s.member_key)}" ${canApprove() ? '' : 'disabled'}>
       <div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${esc(schoolLabel(s.location))}, ${esc(ageText(s))}, ${esc(progs(s.member_key))}${s.guardian_name ? ', parent ' + esc(s.guardian_name) : ''}</div><div class="meta">Asked for by ${esc(s.bbc_invited_by || 'staff')}, ${esc(when(s.bbc_invited_at))}</div></div></label></li>`).join('') : '<li class="empty">No invitations to write.</li>'}</ul>
     ${follow.length ? `<div class="section-title"><div><h3>Follow up</h3><p class="hint">Cards written ${FOLLOW_DAYS} or more days ago, not joined yet.</p></div>${canApprove() ? `<button class="btn primary" id="bbcFollow">Text ${follow.length} parent${follow.length === 1 ? '' : 's'}</button>` : ''}</div>
@@ -1776,6 +1805,54 @@ function renderBbc() {
   const fb = $('#bbcFollow'); if (fb) fb.onclick = () => composeTexts('bbc_followup', follow.map(s => ({ member_key: s.member_key, entry_id: null, s, e: null, d: null })));
   $$('#view-bbc [data-key]').forEach(b => b.onclick = () => openStudent(b.dataset.key, b.dataset.prog));
   $$('[data-unwritten]').forEach(b => b.onclick = async () => { try { await run(sb.rpc('cb_bbc_written', { p_member: b.dataset.unwritten, p_on: false })); patchStudent(b.dataset.unwritten, { bbc_written_at: null, bbc_written_by: null }); render(); } catch (e) { toast(errMsg(e), 6000); } });
+  renderBbcSeq();
+}
+
+// The Black Belt Club welcome sequence: the automated SMS/email nudges that fire after a grading day is marked
+// finished (cb_bbc_flow, driven by the welcome-flow cron). Read-only — shows who's in it and which of the
+// touch-points (cb_bbc_steps) have gone out, so staff can see the second SMS/email land without digging in the DB.
+async function renderBbcSeq() {
+  if (!$('#bbcSeq')) return;
+  let flows, steps;
+  try {
+    const [f, s] = await Promise.all([
+      sb.from('cb_bbc_flow').select('member_key, full_name, day_id, started_at, step, signed_at, uniform_claim, status').order('started_at', { ascending: false }),
+      sb.from('cb_bbc_steps').select('step, offset_days, channel, active').order('step')
+    ]);
+    if (f.error) throw f.error; if (s.error) throw s.error;
+    flows = f.data || []; steps = (s.data || []).filter(x => x.active !== false);
+  } catch (e) {
+    if ($('#bbcSeq')) $('#bbcSeq').innerHTML = `<p class="hint" style="margin:0">Couldn't load the welcome sequence. ${esc(errMsg(e))}</p>`;
+    return;
+  }
+  if (!$('#bbcSeq')) return;
+  const pill = $('#bbcSeqCount'), active = flows.filter(x => x.status === 'active').length;
+  if (pill) { if (flows.length) { pill.hidden = false; pill.textContent = active ? `${active} in progress` : `${flows.length} total`; } else pill.hidden = true; }
+  if (!flows.length) { $('#bbcSeq').innerHTML = `<p class="hint" style="margin:0">No one's in the welcome sequence yet. It starts automatically when you mark a grading day finished, for students invited to Black Belt Club who haven't joined.</p>`; return; }
+  const chan = c => c === 'both' ? 'SMS + Email' : c === 'email' ? 'Email' : 'SMS';
+  const addDays = (iso, n) => { const d = new Date(String(iso).slice(0, 10) + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const badge = { active: 'In sequence', signed: 'Signed up', joined: 'Joined', done: 'Finished' };
+  $('#bbcSeq').innerHTML = flows.map(f => {
+    const day = state.all.days.find(d => d.day_id === f.day_id);
+    const nextStep = f.status === 'active' ? steps.find(st => st.step > f.step) : null;
+    const chips = steps.map(st => {
+      const sent = f.step >= st.step, isNext = nextStep && nextStep.step === st.step, stopped = f.status !== 'active' && !sent;
+      const due = addDays(f.started_at, st.offset_days);
+      const cls = sent ? 'sent' : isNext ? 'next' : stopped ? 'stopped' : '';
+      const when = sent ? shortDate(due) : stopped ? '—' : (isNext ? 'due ' + shortDate(due) : shortDate(due));
+      return `<span class="seq-step ${cls}"><span class="s-top">${sent ? '✓ ' : ''}${st.step} · ${chan(st.channel)}</span><span class="s-when">${when}</span></span>`;
+    }).join('');
+    const meta = [];
+    if (day) { if (day.location) meta.push(esc(schoolLabel(day.location))); meta.push('grading ' + shortDate(day.grading_date)); }
+    meta.push('started ' + shortDate(f.started_at));
+    let note;
+    if (f.signed_at) note = `<div class="seq-note good">✓ Signed up ${shortDate(f.signed_at)}${f.uniform_claim ? ' · claimed half-price uniform' : ''}</div>`;
+    else if (f.status === 'joined') note = `<div class="seq-note good">✓ Joined Black Belt Club</div>`;
+    else if (f.status === 'active' && nextStep) note = `<div class="seq-note">Next: message ${nextStep.step} (${chan(nextStep.channel)}) due ${shortDate(addDays(f.started_at, nextStep.offset_days))}</div>`;
+    else if (f.status === 'active') note = `<div class="seq-note">All ${steps.length} messages sent — no sign-up yet</div>`;
+    else note = `<div class="seq-note">Sequence finished — no sign-up</div>`;
+    return `<div class="seq-person"><div class="seq-top"><b>${esc(f.full_name || 'Student')}</b><span class="seq-badge ${esc(f.status)}">${badge[f.status] || esc(f.status)}</span></div><div class="seq-meta">${meta.join(' · ')}</div><div class="seq-steps">${chips}</div>${note}</div>`;
+  }).join('');
 }
 function renderEfc() {
   const v = $('#view-efc');
