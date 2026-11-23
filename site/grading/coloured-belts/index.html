@@ -1747,6 +1747,7 @@ function renderPhotos(d, shown) {
         if (old && old !== path) sb.storage.from(PHOTO_BUCKET).remove([old]).catch(() => {});   // the photo it replaced
         toast(`Saved ${firstName(e.full_name)}'s photo`);
         draw();
+        autoProfilePhoto(e, blob);   // make the student's profile photo in the background (Grandmaster left out)
         const nx = nextUp(); if (nx) { const el = $('#ph-' + nx.entry_id); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
       } catch (er) {
         const m = errMsg(er);
@@ -2436,6 +2437,39 @@ function ppThumb(grid, name, url, ok) {
   d.innerHTML = (ok ? `<img src="${url}" alt="">` : '<div class="pp-x">—</div>') + `<span>${esc(name || '')}</span>`;
   grid.appendChild(d);
 }
+// Grandmaster's enrolled face, cached for the session (undefined = not looked up, null = not enrolled).
+let _gmDescCache;
+async function getGmDesc() {
+  if (_gmDescCache !== undefined) return _gmDescCache;
+  try { const { data } = await sb.from('cb_settings').select('gm_face_descriptor').eq('id', 1).maybeSingle();
+    _gmDescCache = (data && data.gm_face_descriptor && data.gm_face_descriptor.length) ? new Float32Array(data.gm_face_descriptor) : null; }
+  catch (_) { _gmDescCache = null; }
+  return _gmDescCache;
+}
+// Detect faces in one grading photo, drop Grandmaster, crop the student, store it as their profile photo.
+async function makeProfileFromImg(e, img, gmDesc) {
+  const faces = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+  const student = ppPickStudent(faces, gmDesc);
+  if (!student) return { ok: false };
+  const blob = await ppCropBlob(img, student.detection.box), path = `${e.member_key}.jpg`;
+  const up = await sb.storage.from('profile-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+  if (up.error) throw up.error;
+  const ups = await sb.from('cb_profile_photos').upsert({ member_key: e.member_key, full_name: e.full_name, path, source_entry_id: e.entry_id, source_photo_at: e.photo_at, feed_seen_at: null, updated_at: new Date().toISOString() });
+  if (ups.error) throw ups.error;
+  return { ok: true, blob };
+}
+// Called right after a grading photo is taken: make the student's profile photo in the background.
+// Silent and non-blocking — if Grandmaster isn't enrolled, or anything fails, the Settings batch is the fallback.
+async function autoProfilePhoto(e, sourceBlob) {
+  try {
+    if (!e || !e.member_key || !sourceBlob) return;
+    const gmDesc = await getGmDesc();
+    if (!gmDesc) return;
+    await loadFaceApi();
+    const o = URL.createObjectURL(sourceBlob);
+    try { await makeProfileFromImg(e, await imgFromUrl(o), gmDesc); } finally { setTimeout(() => URL.revokeObjectURL(o), 15000); }
+  } catch (_) { /* silent — the Settings batch catches anything missed */ }
+}
 async function enrolGm(file, statusEl) {
   const o = URL.createObjectURL(file);
   try {
@@ -2450,6 +2484,7 @@ async function enrolGm(file, statusEl) {
     const { error } = await sb.from('cb_settings').update({ gm_face_descriptor: arr, gm_enrolled_at: now }).eq('id', 1);
     if (error) throw error;
     (state.settings = state.settings || {}).gm_face_descriptor = arr; state.settings.gm_enrolled_at = now;
+    _gmDescCache = new Float32Array(arr);   // so auto-crop on newly-taken photos works straight away this session
     statusEl.textContent = 'Grandmaster enrolled — his face will be left out of every crop.';
     toast('Grandmaster enrolled', 4000);
   } catch (e) { statusEl.textContent = errMsg(e); }
@@ -2480,17 +2515,9 @@ async function runProfilePhotos(btn, statusEl, grid) {
       try {
         const { data: su } = await sb.storage.from('grading-photos').createSignedUrl(e.photo_path, 600);
         if (!su || !su.signedUrl) throw new Error('no url');
-        const img = await imgFromHttp(su.signedUrl);
-        const faces = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
-        const student = ppPickStudent(faces, gmDesc);
-        if (!student) { skip++; ppThumb(grid, e.full_name, null, false); continue; }
-        const blob = await ppCropBlob(img, student.detection.box);
-        const path = `${e.member_key}.jpg`;
-        const up = await sb.storage.from('profile-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
-        if (up.error) throw up.error;
-        const ups = await sb.from('cb_profile_photos').upsert({ member_key: e.member_key, full_name: e.full_name, path, source_entry_id: e.entry_id, source_photo_at: e.photo_at, feed_seen_at: null, updated_at: new Date().toISOString() });
-        if (ups.error) throw ups.error;
-        ok++; ppThumb(grid, e.full_name, URL.createObjectURL(blob), true);
+        const r = await makeProfileFromImg(e, await imgFromHttp(su.signedUrl), gmDesc);
+        if (!r.ok) { skip++; ppThumb(grid, e.full_name, null, false); continue; }
+        ok++; ppThumb(grid, e.full_name, URL.createObjectURL(r.blob), true);
       } catch (_) { skip++; ppThumb(grid, e.full_name, null, false); }
     }
     statusEl.textContent = `Done — ${ok} profile photo${ok === 1 ? '' : 's'} made${skip ? `, ${skip} skipped (no clear face)` : ''}. The hub can pull them now.`;
