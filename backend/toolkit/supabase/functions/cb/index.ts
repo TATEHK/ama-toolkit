@@ -1364,6 +1364,34 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, removed, cleared });
     }
 
+    // ---- Every 5 minutes: text the grading-alert number when a coloured-belt grading reaches its start time
+    //      (pg_cron, coloured-belts-43.sql). They reply FINISHED (handled in the 'reply' action) to close the day. ----
+    if (body.action === 'grading_started') {
+      const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
+      if (okCron !== true) return fail('Not allowed.', 403);
+      const { data: gst } = await db.from('cb_settings').select('grading_alert_phone, grading_alert_on').eq('id', 1).maybeSingle();
+      const gphone = phoneE164(gst && gst.grading_alert_phone);
+      if (!gphone || (gst && gst.grading_alert_on === false)) return json({ ok: true, skipped: 'off or no number' });
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+      const nowMin = (() => { const [h, m] = new Date().toLocaleTimeString('en-GB', { timeZone: 'Australia/Sydney', hour12: false }).slice(0, 5).split(':').map(Number); return h * 60 + (m || 0); })();
+      const { data: due } = await db.from('cb_days').select('day_id, location, start_time')
+        .eq('bb', false).eq('closed', false).eq('grading_date', today).is('started_prompt_at', null).not('start_time', 'is', null);
+      const startMin = t => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + (m || 0); };
+      // Start time has passed, but not so long ago (> 6h) that it's a stale day someone forgot to close.
+      const toText = (due || []).filter(d => { const s = startMin(d.start_time); return s <= nowMin && nowMin - s <= 360; });
+      let sent = 0;
+      for (const d of toText) {
+        try {
+          const cid = await contactFor({ guardian_name: 'AMA grading', full_name: 'AMA grading' }, gphone);
+          if (!cid) continue;
+          await sendSms(cid, `Grading started at AMA ${schoolLabel(d.location)}. Reply FINISHED when it's done and the Black Belt Club invites will go out.`);
+          await db.from('cb_days').update({ started_prompt_at: new Date().toISOString() }).eq('day_id', d.day_id);
+          sent++;
+        } catch (_) { /* leave started_prompt_at null so the next run retries */ }
+      }
+      return json({ ok: true, sent, considered: (due || []).length });
+    }
+
     // ---- The booking sequence, every 15 minutes (pg_cron, coloured-belts-23.sql) ----
     if (body.action === 'sequence') {
       const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
@@ -1712,6 +1740,31 @@ export async function handle(req, db, env = {}, http = fetch) {
           } catch (_) { /* no dedupe table yet: carry on */ }
         } }
       if (p9.length !== 9 && !okBodyEmail) return json({ ok: true, matched: 0, why: 'no mobile or email' });
+      // ---- Grading control by SMS (coloured-belts-43): the grading-alert number was texted when a grading started;
+      //      it replies FINISHED to close that grading, which fires the Black Belt Club welcome flow. If more than one
+      //      grading is open, we text back and ask which school. Handled before family replies — this number isn't a family. ----
+      if (p9.length === 9 && st.grading_alert_on !== false) {
+        const gp9 = String(st.grading_alert_phone || '').replace(/\D/g, '').slice(-9);
+        if (gp9 && p9 === gp9 && /\b(finish|finished|finito|done|complete|completed|wrapped|all done|ended)\b/i.test(msg)) {
+          const replyAdmin = async text => { try { const cid = await contactFor({ guardian_name: 'AMA grading', full_name: 'AMA grading' }, phoneE164(body.phone)); if (cid) await sendSms(cid, text); } catch (_) { /* ignore */ } };
+          const since = new Date(Date.now() - 36 * 3600e3).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+          const { data: od } = await db.from('cb_days').select('day_id, location, grading_date')
+            .eq('bb', false).eq('closed', false).not('started_prompt_at', 'is', null).gte('grading_date', since)
+            .order('grading_date', { ascending: false });
+          const openDays = od || [];
+          if (!openDays.length) { await replyAdmin("There's no grading open to finish right now — you'll get a text when one starts."); return json({ ok: true, grading: 'none_open' }); }
+          const hits = openDays.filter(d => `${String(d.location || '').toLowerCase()} ${schoolLabel(d.location).toLowerCase()}`.split(/\s+/).some(w => w.length >= 3 && msg.toLowerCase().includes(w)));
+          const target = openDays.length === 1 ? openDays[0] : (hits.length === 1 ? hits[0] : null);
+          if (!target) {
+            const names = openDays.map(d => schoolLabel(d.location)).join(', ');
+            await replyAdmin(`You've got ${openDays.length} gradings open: ${names}. Reply with FINISHED and the school, e.g. "finished ${schoolLabel(openDays[0].location)}".`);
+            return json({ ok: true, grading: hits.length > 1 ? 'ambiguous_multi' : 'ambiguous', open: openDays.length });
+          }
+          await db.from('cb_days').update({ closed: true }).eq('day_id', target.day_id);
+          await replyAdmin(`Done — AMA ${schoolLabel(target.location)} grading marked finished. The Black Belt Club invites are on their way.`);
+          return json({ ok: true, grading: 'finished', day_id: target.day_id });
+        }
+      }
       // ---- 4th Dan+ celebration dinner RSVP (dinner-rsvp-1): a guest replies YES/NO to the invite. A clear yes/no is
       //      recorded (and, for a shared number, for everyone on it) and stops here; anything else — e.g. a grading
       //      helper's session pick like "2" — falls through to the normal reply logic below. ----
