@@ -1475,7 +1475,26 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: m } = await db.from('efc_members').select('full_name, bbc_seen_at').eq('member_key', f.member_key).maybeSingle();
       const enrolled = bbcInBbc(m);
       if (body.action === 'bbc_signup') {
-        if (!enrolled && !f.signed_at) await db.from('cb_bbc_flow').update({ signed_at: new Date().toISOString(), uniform_claim: !!body.uniform, sub_consent: true, status: 'signed', updated_at: new Date().toISOString() }).eq('member_key', f.member_key);
+        if (!enrolled && !f.signed_at) {
+          await db.from('cb_bbc_flow').update({ signed_at: new Date().toISOString(), uniform_claim: !!body.uniform, sub_consent: true, status: 'signed', updated_at: new Date().toISOString() }).eq('member_key', f.member_key);
+          // Email the team that a family just signed up (best-effort; never blocks the sign-up). Who to tell: cb_settings.bbc_notify_email.
+          try {
+            const okE = v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+            const esc2 = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const { data: cs2 } = await db.from('cb_settings').select('bbc_notify_email').eq('id', 1).maybeSingle();
+            const addrs = [...new Set(String((cs2 && cs2.bbc_notify_email) || '').split(/[,;\n]/).map(x => x.trim()).filter(okE).map(x => x.toLowerCase()))];
+            if (addrs.length) {
+              const nm = f.full_name || (m && m.full_name) || 'A student';
+              const wantsU = !!body.uniform;
+              const subject = `Black Belt Club sign-up: ${nm}`;
+              const text = `${nm} just signed up for the Black Belt Club through their invitation link.\n\nHalf-price uniform ($65): ${wantsU ? 'Yes' : 'No'}\nAgreed to +$20/week: Yes\n\nA coach needs to call them to confirm and set up payment. This sign-up is also on Mark's hub.`;
+              const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1c1c1c"><p><b>${esc2(nm)}</b> just signed up for the <b>Black Belt Club</b> through their invitation link.</p><ul><li>Half-price uniform ($65): <b>${wantsU ? 'Yes' : 'No'}</b></li><li>Agreed to +$20/week: <b>Yes</b></li></ul><p>A coach needs to call them to confirm and set up payment. It’s also on Mark’s hub.</p></div>`;
+              for (const email of addrs) {
+                try { const cid = await contactFor({ full_name: 'AMA Black Belt Club', email }, null); if (cid) await sendEmailTo(cid, { subject, html, text }); } catch (_) { /* one address failing never blocks the rest */ }
+              }
+            }
+          } catch (e) { console.error('bbc signup notify', e); }
+        }
         return json({ ok: true });
       }
       const { data: cs } = await db.from('cb_settings').select('bbc_video_url, bbc_weekly, bbc_uniform_full, bbc_uniform_now').eq('id', 1).maybeSingle();
