@@ -72,7 +72,7 @@
   <div id="app" hidden>
     <section class="card">
       <h2>Signed-in devices</h2>
-      <p class="hint">Every device signed in to your login. Sign out any you don't recognise. Turn on <b>Stay signed in</b> on a device you trust (like your own phone) so it won't sign out on its own.</p>
+      <p class="hint" id="devHint">Every device signed in to your login. Sign out any you don't recognise.</p>
       <ul class="rows" id="devList"></ul>
       <p class="msg bad" id="devMsg" hidden></p>
       <div style="margin-top:12px"><button class="btn sm danger" id="signOutOthers" hidden>Sign out all other devices</button></div>
@@ -106,6 +106,15 @@ function deviceLabel(){
 }
 const ICON = lbl => /iPhone|iPad|Android/.test(lbl) ? '📱' : '💻';
 const THIS = thisDeviceId();
+// "Stay signed in" (trusted) is owner-only (i.e. Tate). The database enforces it too; this just hides the toggle.
+let IS_OWNER = false;
+async function checkOwner(session){
+  try{ const em=((session&&session.user&&session.user.email)||'').toLowerCase();
+    if(!em){ IS_OWNER=false; return; }
+    const { data } = await sb.from('toolkit_owners').select('email').eq('email',em);
+    IS_OWNER = Array.isArray(data) && data.length>0;
+  }catch(e){ IS_OWNER=false; }
+}
 
 function ago(iso){
   if(!iso) return 'just now';
@@ -139,6 +148,9 @@ async function loadDevices(){
 function renderDevices(){
   const others = DEVICES.filter(d=>d.device_id!==THIS);
   $('#signOutOthers').hidden = others.length===0;
+  $('#devHint').textContent = IS_OWNER
+    ? "Every device signed in to your login. Sign out any you don't recognise. Turn on Stay signed in on a device you trust (like your own phone) so it won't sign out on its own."
+    : "Every device signed in to your login. Sign out any you don't recognise.";
   $('#devList').innerHTML = DEVICES.map(d=>{
     const me = d.device_id===THIS;
     const seen = me ? 'This device · active now' : ago(d.last_seen_at);
@@ -147,8 +159,8 @@ function renderDevices(){
       <span class="d"><b>${esc(d.label||'Device')}</b><small>${esc(seen)}</small></span>
       <span class="acts">
         ${me?'<span class="badge">This device</span>':''}
-        <label class="switch"><input type="checkbox" data-trust="${esc(d.device_id)}"${d.trusted?' checked':''}> Stay signed in</label>
-        <button class="btn sm danger" data-out="${esc(d.device_id)}">${me?'Sign out':'Sign out'}</button>
+        ${IS_OWNER?`<label class="switch"><input type="checkbox" data-trust="${esc(d.device_id)}"${d.trusted?' checked':''}> Stay signed in</label>`:''}
+        <button class="btn sm danger" data-out="${esc(d.device_id)}">Sign out</button>
       </span>
     </li>`;
   }).join('') || '<li class="hint" style="padding:12px 0">No other devices.</li>';
@@ -189,6 +201,7 @@ async function boot(){
   if(!session){ $('#signIn').hidden=false; $('#app').hidden=true; $('#who').hidden=$('#signOut').hidden=true; return; }
   $('#signIn').hidden=true; $('#who').textContent=(session.user.user_metadata||{}).full_name||session.user.email; $('#who').hidden=$('#signOut').hidden=false;
   $('#app').hidden=false;
+  await checkOwner(session);
   loadDevices();
 }
 $('#siForm').onsubmit = async e=>{
