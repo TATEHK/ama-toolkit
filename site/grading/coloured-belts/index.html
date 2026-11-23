@@ -2470,25 +2470,37 @@ async function autoProfilePhoto(e, sourceBlob) {
     try { await makeProfileFromImg(e, await imgFromUrl(o), gmDesc); } finally { setTimeout(() => URL.revokeObjectURL(o), 15000); }
   } catch (_) { /* silent — the Settings batch catches anything missed */ }
 }
-async function enrolGm(file, statusEl) {
-  const o = URL.createObjectURL(file);
+// Enrol Grandmaster from one or more photos. Each photo's largest face is read and the descriptors are
+// averaged into one reference — more photos means a steadier, more reliable match.
+async function enrolGm(files, statusEl) {
+  const list = [...files]; if (!list.length) return;
   try {
-    statusEl.textContent = 'Reading photo…';
-    const img = await imgFromUrl(o);
     statusEl.textContent = 'Loading face models…';
     await loadFaceApi();
-    statusEl.textContent = 'Finding the face…';
-    const det = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
-    if (!det) { statusEl.textContent = 'No face found — try a clearer, front-on photo of Grandmaster.'; return; }
-    const arr = Array.from(det.descriptor), now = new Date().toISOString();
-    const { error } = await sb.from('cb_settings').update({ gm_face_descriptor: arr, gm_enrolled_at: now }).eq('id', 1);
+    const descs = [];
+    for (let i = 0; i < list.length; i++) {
+      statusEl.textContent = `Reading photo ${i + 1} of ${list.length}…`;
+      const o = URL.createObjectURL(list[i]);
+      try {
+        const img = await imgFromUrl(o);
+        const faces = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+        if (faces.length) descs.push(faces.sort((a, b) => (b.detection.box.width * b.detection.box.height) - (a.detection.box.width * a.detection.box.height))[0].descriptor);
+      } catch (_) { /* skip a photo that won't read */ }
+      finally { URL.revokeObjectURL(o); }
+    }
+    if (!descs.length) { statusEl.textContent = 'No face found in those photos — try clearer, front-on ones.'; return; }
+    const N = descs[0].length, avg = new Array(N).fill(0);
+    descs.forEach(d => { for (let k = 0; k < N; k++) avg[k] += d[k]; });
+    for (let k = 0; k < N; k++) avg[k] /= descs.length;
+    const now = new Date().toISOString();
+    const { error } = await sb.from('cb_settings').update({ gm_face_descriptor: avg, gm_enrolled_at: now }).eq('id', 1);
     if (error) throw error;
-    (state.settings = state.settings || {}).gm_face_descriptor = arr; state.settings.gm_enrolled_at = now;
-    _gmDescCache = new Float32Array(arr);   // so auto-crop on newly-taken photos works straight away this session
-    statusEl.textContent = 'Grandmaster enrolled — his face will be left out of every crop.';
+    (state.settings = state.settings || {}).gm_face_descriptor = avg; state.settings.gm_enrolled_at = now;
+    _gmDescCache = new Float32Array(avg);   // so auto-crop works straight away this session
+    const miss = list.length - descs.length;
+    statusEl.textContent = `Grandmaster enrolled from ${descs.length} photo${descs.length === 1 ? '' : 's'}${miss ? ` (${miss} had no clear face)` : ''}. His face will be left out of every crop.`;
     toast('Grandmaster enrolled', 4000);
   } catch (e) { statusEl.textContent = errMsg(e); }
-  finally { URL.revokeObjectURL(o); }
 }
 async function runProfilePhotos(btn, statusEl, grid) {
   btn.disabled = true; grid.innerHTML = '';
@@ -2528,7 +2540,7 @@ async function wireProfilePhotos() {
   const panel = $('#profilePhotoPanel'); if (!panel) return;
   const gmStatus = $('#gmStatus'), gmFile = $('#gmFile');
   $('#gmEnrolBtn').onclick = () => gmFile.click();
-  gmFile.onchange = () => { if (gmFile.files && gmFile.files[0]) enrolGm(gmFile.files[0], gmStatus).finally(() => { gmFile.value = ''; }); };
+  gmFile.onchange = () => { if (gmFile.files && gmFile.files.length) enrolGm(gmFile.files, gmStatus).finally(() => { gmFile.value = ''; }); };
   $('#ppRunBtn').onclick = () => runProfilePhotos($('#ppRunBtn'), $('#ppStatus'), $('#ppGrid'));
   try {
     const { data: cs } = await sb.from('cb_settings').select('gm_face_descriptor, gm_enrolled_at').eq('id', 1).maybeSingle();
@@ -2579,7 +2591,8 @@ function renderSettings() {
       <div class="field"><label>Grandmaster's face</label>
         <p class="hint" id="gmStatus">Checking…</p>
         <div class="row"><button type="button" class="btn" id="gmEnrolBtn">Enrol Grandmaster</button></div>
-        <input type="file" id="gmFile" accept="image/*" hidden></div>
+        <p class="hint">Pick one or more clear, front-on photos of him — more photos means more reliable matching.</p>
+        <input type="file" id="gmFile" accept="image/*" multiple hidden></div>
       <div class="field"><label>Make profile photos</label>
         <p class="hint" id="ppStatus">Crops every grading photo that doesn't have an up-to-date profile photo yet.</p>
         <div class="row"><button type="button" class="btn primary" id="ppRunBtn">Create / update profile photos</button></div>
