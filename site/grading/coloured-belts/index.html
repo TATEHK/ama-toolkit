@@ -2055,12 +2055,27 @@ function renderDash() {
   const st = state.students.filter(s => inSchool(s.location));
   const od = st.filter(s => overdue(s) && !openDayFor(s.member_key));
   const ready = st.filter(s => s.approval === 'ready' && !openDayFor(s.member_key));
+  // Action-focused top: the grading days coming up and what each still needs chasing
+  const upcoming = days.filter(d => !d.closed && String(d.grading_date) >= today())
+    .sort((a, b) => String(a.grading_date).localeCompare(String(b.grading_date)) || (a.location || '').localeCompare(b.location || ''));
+  const dstat = d => { const de = es.filter(e => e.day_id === d.day_id && !e.result);
+    return { total: de.length, booked: de.filter(e => e.booked_at).length, unpaid: de.filter(e => e.booked_at && !e.paid).length, toBook: de.filter(e => e.invited_at && !e.booked_at).length }; };
+  const totUnpaid = upcoming.reduce((t, d) => t + dstat(d).unpaid, 0);
+  const totToBook = upcoming.reduce((t, d) => t + dstat(d).toBook, 0);
   const months = {}; results.forEach(e => { const k = dayOf(e.day_id).grading_date.slice(0, 7); months[k] = months[k] || { n: 0, p: 0, r: 0 }; months[k].n++; if (e.result !== 'retest') months[k].p++; });
   es.filter(e => e.paid).forEach(e => { const k = dayOf(e.day_id).grading_date.slice(0, 7); months[k] = months[k] || { n: 0, p: 0, r: 0 }; months[k].r += fee(e); });
   // Black Belt Club cards written (every program, each student once) and how many joined
   const cards = bbcPeople().filter(s => s.bbc_written_at && inSchool(s.location)), joined = cards.filter(s => s.black_belt_club);
   const mname = k => new Date(k + '-01T00:00:00').toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
   v.innerHTML = `<div class="view-head"><h2>Dashboard</h2><select id="dashSchool" aria-label="School" style="width:auto">${['', ...SCHOOLS].map(s => `<option value="${s}"${s === school ? ' selected' : ''}>${s ? schoolLabel(s) : 'All schools'}</option>`).join('')}</select></div>
+    ${upcoming.length ? `<section>
+      <h3 style="margin-bottom:4px">Coming up</h3>
+      ${(totToBook || totUnpaid) ? `<p class="hint" style="margin-top:0">${[totToBook ? totToBook + ' still to book' : '', totUnpaid ? totUnpaid + ' booked but unpaid' : ''].filter(Boolean).join(' · ')} across the gradings below. Tap a day to chase them.</p>` : '<p class="hint" style="margin-top:0">Nothing outstanding on the upcoming gradings.</p>'}
+      <ul class="list">${upcoming.slice(0, 8).map(d => { const t = dstat(d);
+        const bits = [t.toBook ? `<span class="tag warn">${t.toBook} to book</span>` : '', t.unpaid ? `<span class="tag warn">${t.unpaid} unpaid</span>` : '', (!t.toBook && !t.unpaid && t.total) ? '<span class="tag ok">all set</span>' : ''].filter(Boolean).join(' ');
+        return `<li><button class="item" data-day="${esc(d.day_id)}"><div class="main"><div class="name">${esc(fmtDate(d.grading_date))}</div><div class="meta">${esc(schoolLabel(d.location))}${isAll() || state.programmes.length > 1 ? ', ' + esc(progLabel(d.programme || state.programme)) : ''} · ${t.total} student${t.total === 1 ? '' : 's'}</div></div><div class="side"><span class="tags">${bits}</span></div></button></li>`; }).join('')}</ul>
+    </section>` : ''}
+    <h3>At a glance</h3>
     <div class="figures">
       <div><b>${st.filter(eligible).length}</b><span>have enough classes</span></div>
       <div><b>${ready.length}</b><span>marked ready, not on a grading day</span></div>
@@ -2072,6 +2087,7 @@ function renderDash() {
     <div><h3>Overdue for a grading</h3><p class="hint" style="margin-top:4px">On their belt at least twice as long as usual and not on a grading day. A long gap often means a student is about to drop off.</p></div>
     ${od.length ? `<ul class="list">${od.sort((a, b) => b.weeks_at_belt - a.weeks_at_belt).slice(0, 50).map(s => `<li><button class="item" style="${beltVar(s.belt, s.programme)}" data-key="${esc(s.member_key)}" data-prog="${esc(s.programme || 'Taekwondo')}"><div class="main"><div class="name">${esc(s.full_name)}</div><div class="meta">${isAll() ? esc(progLabel(s.programme)) + ', ' : ''}${esc(short(s.belt))}, ${esc(schoolLabel(s.location))}</div></div><div class="side"><span class="classes">${s.weeks_at_belt} weeks</span><span class="hint">${s.classes} classes</span></div></button></li>`).join('')}</ul>` : '<p class="hint">No one is overdue.</p>'}`;
   $('#dashSchool').onchange = () => { v.dataset.school = $('#dashSchool').value; renderDash(); };
+  $$('#view-dash [data-day]').forEach(b => b.onclick = () => go('day', b.dataset.day));
   $$('#view-dash [data-key]').forEach(b => b.onclick = () => openStudent(b.dataset.key, b.dataset.prog));
 }
 
