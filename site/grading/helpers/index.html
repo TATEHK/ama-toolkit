@@ -13,7 +13,7 @@
 <script src="../../config.js"></script>
 <style>
   :root{
-    --night:#0E0E0E; --gold:#FFD200; --green:#0B6A35; --green-2:#0d7d3f; --green-soft:#e8f2ec; --forest:#14321f;
+    --onyx:#0E0E0E; --gold:#FFD200; --green:#0B6A35; --green-2:#0d7d3f; --green-soft:#e8f2ec; --forest:#14321f;
     --page:#ECE9E1; --card:#ffffff; --cream:#F6F4EE; --line:rgba(28,28,28,.09); --line-2:rgba(28,28,28,.14);
     --ink:#1c1c1c; --sub:#55594f; --faint:#83877f; --ld:#c8461f; --red:#a8402a;
     --display:Oswald,"Arial Narrow",Arial,sans-serif; --body:Barlow,"Segoe UI",Arial,sans-serif;
@@ -24,7 +24,7 @@
   html,body{margin:0}
   body{background:var(--page);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
   /* hero: the one bright moment */
-  .hero{background:var(--night);color:#fff;overflow:hidden}
+  .hero{background:var(--onyx);color:#fff;overflow:hidden}
   .hero .top{max-width:600px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 20px) 20px 0;display:flex;align-items:center;gap:12px}
   .hero .top img{width:44px;height:auto;display:block}
   .hero .top .nm{font:500 14px/1.25 var(--display);letter-spacing:.06em;text-transform:uppercase}
@@ -45,7 +45,7 @@
   .mine .row .d{flex:1;min-width:0}
   .mine .row b{font:600 16px var(--body);display:block}
   .mine .row small{color:#c4d0c7;font-size:14px}
-  .mine .tk{width:28px;height:28px;border-radius:50%;background:var(--gold);color:var(--night);display:grid;place-items:center;flex:none}
+  .mine .tk{width:28px;height:28px;border-radius:50%;background:var(--gold);color:var(--onyx);display:grid;place-items:center;flex:none}
   .mine .tk svg{width:16px;height:16px}
   .mine .pull{border:0;background:transparent;color:#c4d0c7;font:500 14px var(--body);cursor:pointer;padding:8px 0;text-decoration:underline;text-underline-offset:3px;transition:color .15s var(--ease)}
   .mine .pull:hover{color:#fff}
@@ -55,7 +55,7 @@
   .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin:0 0 16px;scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
   .chip{flex:none;border:1px solid var(--line-2);background:var(--card);color:var(--sub);border-radius:20px;padding:8px 16px;font:500 14px var(--body);cursor:pointer;white-space:nowrap;transition:background-color .15s var(--ease),color .15s var(--ease)}
-  .chip.on{background:var(--night);color:#fff;border-color:var(--night)}
+  .chip.on{background:var(--onyx);color:#fff;border-color:var(--onyx)}
   /* day cards */
   .days{display:flex;flex-direction:column;gap:12px}
   .day{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:16px;transition:border-color .15s var(--ease)}
@@ -93,7 +93,7 @@
   .foot{color:var(--faint);font-size:13px;text-align:center;line-height:1.6;margin:32px 0 0}
   .big-msg{min-height:60vh;display:grid;place-items:center;text-align:center;color:var(--sub);padding:0 16px}
   .big-msg .inner b{display:block;font:600 24px var(--display);text-transform:uppercase;color:var(--ink);margin-bottom:8px}
-  #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(12px);background:var(--night);color:#fff;padding:12px 16px;border-radius:12px;font-size:15px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s var(--ease),transform .2s var(--ease);z-index:30;max-width:90vw}
+  #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(12px);background:var(--onyx);color:#fff;padding:12px 16px;border-radius:12px;font-size:15px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s var(--ease),transform .2s var(--ease);z-index:30;max-width:90vw}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   [hidden]{display:none!important}
   /* who-are-you picker (shared link) */
