@@ -4,95 +4,118 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#0f1713">
+<meta name="theme-color" content="#100f0e">
 <title>Black Belt Club</title>
 <meta name="referrer" content="no-referrer">
 <link rel="icon" href="../icons/ama-id-cards.png">
 <link rel="apple-touch-icon" href="../icons/ama-apple-touch.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600&display=swap">
 <script src="../config.js"></script>
 <style>
+  /* Black Belt Club sign-up — locked to its dark dojang look (no device light/dark; every family sees the same page). */
   :root {
-    --bg: #0f1713; --panel: #15201a; --raise: #1b2821; --line: #253629; --line2: #31473a;
-    --text: #edf2ee; --sub: #a3b5a9; --faint: #74897b; --gold: #f5c518; --on-gold: #14130a;
-    --green: #2f9e5b; --green-text: #7fd6a2; --red: #ef8a73;
-    --display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; --body: Barlow, "Segoe UI", Arial, sans-serif;
+    --bg: #100f0e; --panel: #1a1816; --raise: #242120;
+    --line: rgba(239,233,222,.09); --line2: rgba(239,233,222,.16);
+    --text: #efe9de; --sub: #aab0a0; --faint: #847c70;
+    --gold: #d9a441; --gold-soft: rgba(217,164,65,.13); --on-gold: #17120a;
+    --ok: #52c08a; --red: #e5736b;
+    --display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+    --body: Barlow, "Segoe UI", Arial, sans-serif;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.5 var(--body); -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 var(--body); -webkit-font-smoothing: antialiased; }
   [hidden] { display: none !important; }
-  .top { padding: calc(env(safe-area-inset-top, 0px) + 18px) max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-right, 0px)); }
+  img { max-width: 100%; }
+
+  /* The signature: a black-belt tip — black with one gold stripe, like the real belt. */
+  .belt { height: 8px; border-radius: 4px; border: 1px solid var(--line);
+    background: linear-gradient(90deg, #0b0b0a 0 62%, var(--gold) 62% 73%, #0b0b0a 73% 100%); }
+
+  .top { padding: calc(env(safe-area-inset-top, 0px) + 20px) max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-right, 0px)); }
   .top-in { max-width: 520px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
-  .top img { width: 44px; height: 44px; object-fit: contain; flex: none; }
-  .top b { display: block; font: 700 19px/1.1 var(--display); }
-  .top span { font-size: 14px; color: var(--sub); letter-spacing: .04em; text-transform: uppercase; }
-  main { max-width: 520px; margin: 0 auto; padding: 18px max(16px, env(safe-area-inset-left, 0px)) 48px max(16px, env(safe-area-inset-right, 0px)); }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
-  .card + .card { margin-top: 14px; }
-  .hero { background: radial-gradient(120% 140% at 50% 0%, #1d2b22 0%, var(--panel) 60%); border-color: var(--line2); text-align: center; }
-  .kicker { color: var(--gold); font: 800 13px/1 var(--display); letter-spacing: .18em; text-transform: uppercase; margin: 0 0 10px; }
-  h1 { font: 800 38px/1.02 var(--display); margin: 0; letter-spacing: .01em; }
+  .top img { width: 40px; height: 40px; object-fit: contain; flex: none; border-radius: 8px; }
+  .top b { display: block; font: 600 17px/1.1 var(--display); letter-spacing: .01em; }
+  .top span { font-size: 13px; color: var(--sub); }
+
+  main { max-width: 520px; margin: 0 auto; padding: 20px max(16px, env(safe-area-inset-left, 0px)) 48px max(16px, env(safe-area-inset-right, 0px)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+  .card + .card { margin-top: 16px; }
+
+  .hero { text-align: center; }
+  .hero .belt { width: 112px; margin: 0 auto 20px; }
+  .kicker { color: var(--gold); font: 500 13px/1 var(--body); letter-spacing: .02em; margin: 0 0 12px; }
+  h1 { font: 600 clamp(32px, 8.5vw, 42px)/1.05 var(--display); margin: 0; letter-spacing: -.01em; }
   h1 .gold { color: var(--gold); }
-  .hero p { color: var(--sub); margin: 12px 0 0; font-size: 16.5px; }
-  h2 { font: 700 23px/1.15 var(--display); margin: 0 0 12px; }
-  .vid { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #0a110d; border: 1px solid var(--line); }
+  .hero p { color: var(--sub); margin: 14px auto 0; font-size: 16px; max-width: 34ch; }
+
+  h2 { font: 600 22px/1.2 var(--display); margin: 0 0 14px; letter-spacing: .005em; }
+  .vid { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #0c0b0a; border: 1px solid var(--line); }
   .vid iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   .vid-ph { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--faint); text-align: center; padding: 16px; }
-  .vid-ph svg { width: 54px; height: 54px; color: var(--gold); opacity: .8; }
-  .benefits { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-  .benefits li { display: flex; gap: 12px; align-items: flex-start; }
-  .benefits li::before { content: ""; width: 24px; height: 24px; border-radius: 50%; flex: none; margin-top: 1px;
-    background: rgba(245,197,24,.15) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5c518' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 14px no-repeat; }
-  .benefits b { font-weight: 600; }
-  .benefits small { display: block; color: var(--sub); font-size: 14px; line-height: 1.35; }
+  .vid-ph svg { width: 46px; height: 46px; color: var(--gold); opacity: .85; }
+  .vid-ph span { font-size: 14px; }
+
   p.lead { margin: 0; color: var(--sub); font-size: 16px; }
-  .offer { border-color: var(--line2); background: linear-gradient(180deg, #1a2720, var(--panel)); }
-  .price-row { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 2px; }
-  .price-row .now { font: 800 40px/1 var(--display); color: var(--gold); }
-  .price-row .per { color: var(--sub); font-weight: 600; }
-  .deal { display: flex; gap: 14px; align-items: center; border: 1px solid rgba(245,197,24,.4); border-radius: 12px; padding: 14px 16px; margin-top: 14px; }
-  .deal .tagimg { width: 40px; height: 40px; flex: none; color: var(--gold); }
-  .deal .tagimg svg { width: 40px; height: 40px; }
-  .deal b { font-weight: 700; }
+  .benefits { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+  .benefits li { display: flex; gap: 12px; align-items: flex-start; }
+  .benefits li::before { content: ""; width: 22px; height: 22px; border-radius: 6px; flex: none; margin-top: 1px;
+    background: var(--gold-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d9a441' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 13px no-repeat; }
+  .benefits b { font-weight: 500; font-size: 16px; }
+  .benefits small { display: block; color: var(--sub); font-size: 14px; line-height: 1.4; margin-top: 2px; }
+
+  .offer .price-row { display: flex; align-items: baseline; gap: 10px; margin: 2px 0; }
+  .offer .now { font: 600 36px/1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; }
+  .offer .per { color: var(--sub); font-size: 15px; }
+  .deal { display: flex; gap: 14px; align-items: center; border: 1px solid var(--line2); border-radius: 12px; padding: 16px; margin-top: 16px; background: var(--raise); }
+  .deal .tagimg { width: 34px; height: 34px; flex: none; color: var(--gold); }
+  .deal .tagimg svg { width: 34px; height: 34px; }
+  .deal b { font-weight: 500; }
   .deal s { color: var(--faint); }
-  .deal .nowp { color: var(--gold); font-weight: 700; }
-  .badge { display: inline-block; background: var(--gold); color: var(--on-gold); font: 800 12px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; padding: 5px 9px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+  .deal .nowp { color: var(--gold); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-block; border: 1px solid var(--line2); color: var(--sub); font: 500 12px/1 var(--body); letter-spacing: .01em; padding: 4px 8px; border-radius: 6px; margin-left: 6px; vertical-align: middle; }
+
+  form { margin-top: 20px; }
   .check { display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--line2); border-radius: 12px; padding: 16px; cursor: pointer; transition: border-color .15s, background .15s; }
   .check + .check { margin-top: 12px; }
   .check:hover { border-color: var(--sub); }
-  .check.on { border-color: var(--gold); background: rgba(245,197,24,.07); }
+  .check.on { border-color: var(--gold); background: var(--gold-soft); }
   .check input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-  .box { width: 26px; height: 26px; border-radius: 7px; border: 2px solid var(--line2); flex: none; margin-top: 1px; display: grid; place-items: center; transition: all .15s; }
+  .box { width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line2); flex: none; margin-top: 1px; display: grid; place-items: center; transition: background .15s, border-color .15s; }
   .check.on .box { background: var(--gold); border-color: var(--gold); }
-  .box svg { width: 16px; height: 16px; color: var(--on-gold); opacity: 0; }
+  .box svg { width: 15px; height: 15px; color: var(--on-gold); opacity: 0; }
   .check.on .box svg { opacity: 1; }
-  .check .ctext b { display: block; font-weight: 600; font-size: 16.5px; }
-  .check .ctext small { color: var(--sub); font-size: 14px; line-height: 1.35; }
-  .btn { min-height: 58px; border-radius: 12px; border: 0; background: var(--gold); color: var(--on-gold); font: 800 19px var(--display); letter-spacing: .02em; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; width: 100%; margin-top: 18px; }
-  .btn:hover { background: #ffd23a; }
-  .btn:disabled { opacity: .45; cursor: default; }
+  .check .ctext b { display: block; font-weight: 500; font-size: 16px; }
+  .check .ctext small { display: block; color: var(--sub); font-size: 14px; line-height: 1.4; margin-top: 2px; }
+
+  .btn { min-height: 52px; border-radius: 12px; border: 0; background: var(--gold); color: var(--on-gold); font: 600 17px var(--display); letter-spacing: .01em; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; width: 100%; margin-top: 20px; box-shadow: inset 0 1px 0 rgba(255,255,255,.14); transition: background .15s, transform .1s; }
+  .btn:hover { background: #e6b24f; }
+  .btn:active { transform: scale(.985); }
+  .btn:disabled { opacity: .4; cursor: default; box-shadow: none; }
   .btn .spin { width: 20px; height: 20px; border: 3px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; }
   @keyframes sp { to { transform: rotate(360deg); } }
-  .fine { color: var(--faint); font-size: 13.5px; line-height: 1.4; margin: 14px 0 0; }
+
+  .fine { color: var(--faint); font-size: 13px; line-height: 1.45; margin: 14px 0 0; }
   .loading { display: flex; gap: 12px; align-items: center; color: var(--sub); padding: 30px 4px; }
   .loading .spin { width: 22px; height: 22px; border: 3px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; }
-  .err { color: var(--red); border: 1px solid rgba(239,138,115,.45); border-radius: 12px; padding: 16px; font-weight: 600; }
+  .err { color: var(--red); border: 1px solid var(--line2); border-radius: 12px; padding: 16px; font-weight: 500; }
   .err a { color: inherit; }
+
   .done { text-align: center; }
-  .tick { width: 72px; height: 72px; border-radius: 50%; background: var(--green); display: grid; place-items: center; margin: 4px auto 14px; animation: pop .4s cubic-bezier(.2,1.4,.5,1) both; }
-  .tick svg { width: 38px; height: 38px; color: #fff; }
-  .done h2 { font-size: 28px; }
+  .tick { width: 64px; height: 64px; border-radius: 50%; background: var(--ok); display: grid; place-items: center; margin: 4px auto 16px; animation: pop .4s cubic-bezier(.2,1.4,.5,1) both; }
+  .tick svg { width: 34px; height: 34px; color: #0b1410; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .done h2 { font-size: 26px; }
   .done p { color: var(--sub); margin: 8px 0 0; }
-  footer { color: var(--sub); font-size: 14px; margin-top: 22px; text-align: center; }
-  footer a { color: var(--gold); font-weight: 600; text-decoration: none; }
+
+  footer { color: var(--faint); font-size: 13px; margin-top: 24px; text-align: center; }
+  footer a { color: var(--gold); font-weight: 500; text-decoration: none; }
   :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { .tick, .spin { animation: none; } }
 </style>
-<link rel="stylesheet" href="/theme.css">
 </head>
 <body>
 <header class="top">
@@ -108,6 +131,7 @@
 
   <div id="content" hidden>
     <section class="card hero">
+      <div class="belt" aria-hidden="true"></div>
       <p class="kicker">You're invited</p>
       <h1>Welcome to the <span class="gold">Black Belt Club</span><span id="heroName"></span></h1>
       <p>Our most dedicated students train here — an invitation only goes to those we believe have what it takes to reach black belt and beyond.</p>
@@ -143,7 +167,7 @@
         <div><b>Sign‑up gift: half‑price uniform</b><br><s>$130</s> <span class="nowp">$65</span> <span class="badge">Save $65</span></div>
       </div>
 
-      <form id="form" style="margin-top:18px">
+      <form id="form">
         <label class="check" id="c1">
           <input type="checkbox" id="uniform">
           <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
@@ -165,7 +189,7 @@
   <div id="done" hidden>
     <section class="card done">
       <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-      <h2>You're in!</h2>
+      <h2>You're in</h2>
       <p id="doneMsg">Welcome to the Black Belt Club. One of our coaches will call you shortly to finish setting everything up.</p>
     </section>
     <footer>Questions? Call us on <a id="phone2" href="tel:">the academy</a>.</footer>
@@ -213,7 +237,7 @@ function render(info) {
   $('#phone').textContent = PHONE; $('#phone').href = tel;
   $('#phone2').textContent = PHONE; $('#phone2').href = tel;
 
-  if (info.enrolled) { return showError(`Good news — you're already in the Black Belt Club! If that's not right, call us on <a href="${tel}">${PHONE}</a>.`); }
+  if (info.enrolled) { return showError(`Good news — you're already in the Black Belt Club. If that's not right, call us on <a href="${tel}">${PHONE}</a>.`); }
   if (info.signed) {
     $('#content').hidden = true; $('#done').hidden = false;
     $('#doneMsg').textContent = 'Thanks ' + (info.first_name || '') + ' — we\'ve got your Black Belt Club sign‑up. One of our coaches will call you shortly to finish setting everything up.';
