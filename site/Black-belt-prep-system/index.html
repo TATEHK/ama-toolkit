@@ -236,13 +236,10 @@
   body:not(.can-attendance) .need-attendance { display: none !important; }
   @media (prefers-reduced-motion: no-preference) { .btn, .tab, .item, .att button { transition: background .12s, color .12s; } }
   /* ---------- Same look as AMA Gradings (coloured belts): pine black, gold for the one thing to press, green for done ---------- */
+  /* The shared Pine & Gold theme (/theme.css, linked at the end of this <head>) now drives every colour,
+     light and dark, to match the rest of the toolkit. Only this app's own extra token stays here. */
   :root, :root:not([data-x]) {
-    --bg: #0f1713; --surface: #15201a; --surface2: #1b2821; --fg: #edf2ee; --muted: #a3b5a9; --dim: #74897b; --line: #253629; --line2: #31473a;
-    --accent: #f5c518; --on-accent: #14130a; --accent-soft: rgba(245,197,24,.10); --gold: #f5c518; --on-gold: #14130a; --green: #2f9e5b; --belt: #000;
-    --danger: #ef8a73; --danger-soft: rgba(239,138,115,.10); --ok: #7fd6a2; --warn: #f5c518; --warn-soft: rgba(245,197,24,.08);
-    --info: #a3b5a9; --info-soft: rgba(163,181,169,.10); --hover: #1b2821; --shadow: none;
-    --font-display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif; --font-body: Barlow, "Segoe UI", Arial, sans-serif;
-    color-scheme: dark;
+    --dim: var(--faint);
   }
   body { background: var(--bg); color: var(--fg); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   a { color: var(--gold); }
@@ -292,8 +289,8 @@
   /* Buttons */
   .btn { background: none; border: 1px solid var(--line2); color: var(--fg); border-radius: 10px; font-weight: 600; font-size: 15px; }
   .btn:hover { background: none; border-color: var(--muted); }
-  .btn.primary { background: var(--gold); border-color: var(--gold); color: var(--on-gold); font-weight: 700; }
-  .btn.primary:hover { background: #ffd23a; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .btn.primary:hover { background: var(--accent-press); border-color: var(--accent-press); }
   .btn.sm { font-size: 14px; min-height: 36px; padding: 6px 12px; }
   .btn.ghost { background: none; border-color: transparent; color: var(--gold); }
   .btn.danger { color: var(--danger); }
