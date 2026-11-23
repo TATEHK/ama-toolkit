@@ -1545,6 +1545,30 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, signups });
     }
 
+    // ---- Student profile-photo feed for Mark's hub (coloured-belts-44). key is cb_settings.hook_key. ----
+    // Returns student profile photos (cropped from grading photos) as short-lived signed URLs; the hub saves its own copy.
+    // Pass { ack:[member_key,...] } to mark versions as pulled. Pass { all:true } for every current photo, not just new/updated.
+    if (body.action === 'profile_photos') {
+      const { data: st } = await db.from('cb_settings').select('hook_key').eq('id', 1).maybeSingle();
+      if (!st || !st.hook_key || String(body.key || '') !== st.hook_key) return fail('Not allowed.', 403);
+      if (Array.isArray(body.ack) && body.ack.length) {
+        await db.from('cb_profile_photos').update({ feed_seen_at: new Date().toISOString() }).in('member_key', body.ack.map(String).slice(0, 500));
+        return json({ ok: true, acked: body.ack.length });
+      }
+      const rows = await allRows(() => {
+        let q = db.from('cb_profile_photos').select('member_key, full_name, path, updated_at').order('updated_at');
+        if (!body.all) q = q.is('feed_seen_at', null);   // default: only photos the hub hasn't pulled yet
+        return q;
+      });
+      const bucket = db.storage.from('profile-photos');
+      const photos = [];
+      for (const r of rows || []) {
+        const { data: v } = await bucket.createSignedUrl(r.path, 24 * 3600);   // 24h link; the hub saves its own copy
+        if (v && v.signedUrl) photos.push({ member_key: r.member_key, name: r.full_name, url: v.signedUrl, updated_at: r.updated_at });
+      }
+      return json({ ok: true, photos });
+    }
+
     // ---- The hub sends approved Little Dragons nominations (coloured-belts-36.sql) ----
     // { action:'ld_nominate', key, day_id?, nominations:[{ nomination_id?, efc_reference?, member_key?, full_name?, school?, belt, current_belt?, remove? }] }
     // Each nomination becomes (or updates) an entry on the Little Dragons grading day, so the family pipeline runs. key is cb_settings.hook_key.
