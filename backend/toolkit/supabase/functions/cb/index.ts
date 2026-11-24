@@ -166,7 +166,9 @@ export const EFC_LOCATIONS = {
   Concord: '7ca1c142-be41-4d02-b5eb-13534b23043b', Sylvania: 'a5a5ab24-e85d-4e14-ac16-1d9c189ff0dd'
 };
 // Coloured Belts permissions (app_permissions, app 'cb'; supabase/app-permissions.sql). "admin" covers everything.
-const KINDS = { invite: ['texts'], not_booked: ['texts'], reminder: ['texts'], unpaid: ['texts'], congrats: ['texts'], retest: ['texts'], photo: ['results', 'texts'], not_ready: ['readiness'], bbc_followup: ['readiness'] };
+// Each send is gated by its kind. The split text permissions (text_invite / text_followup / text_result) match the app's
+// buttons; 'texts' is the legacy all-texts tick and still works. (Kept in sync with CB_TEXT_PERM in the grading app.)
+const KINDS = { invite: ['text_invite', 'texts'], not_booked: ['text_followup', 'texts'], reminder: ['text_invite', 'texts'], unpaid: ['text_followup', 'texts'], congrats: ['text_result', 'texts'], retest: ['text_result', 'texts'], photo: ['text_result', 'results', 'texts'], not_ready: ['text_followup', 'readiness'], bbc_followup: ['text_followup', 'readiness'], makeup: ['text_followup', 'texts'] };
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cb-cron, stripe-signature',
