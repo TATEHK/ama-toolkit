@@ -580,7 +580,7 @@ function mapStudents(list){
   for(const r of (list||[])){ const id=++i, belt=shortB(r.belt_from), belt_to=shortB(r.belt_to);
     id2entry[id]=r.entry_id; entry2id[r.entry_id]=id;
     const min=(CURR[belt]&&CURR[belt].min)||0, prog=min?Math.min(100,Math.round((r.classes||0)/min*100)):0;
-    STUDENTS.push({ id, entry_id:r.entry_id, member_key:r.member_key, name:r.full_name||'—', belt, belt_to, rank:(r.belt_from||''),
+    STUDENTS.push({ id, entry_id:r.entry_id, member_key:r.member_key, name:r.full_name||'—', belt, belt_to, rank:(r.belt_from||''), target:(r.belt_to||''),
       weeks:r.weeks||0, classes:r.classes||0, lastGap:r.weeks||0, prog, ready:!!r.ready, bbc:!!r.bbc, bbcInv:r.bbc_invited_at||null, bbcWritten:r.bbc_written_at||null,
       sub:r.sub!==false, loc:r.loc||'', age:r.age||0, attend:r.attend||'green', fam:r.family||('f'+id),
       programs:(r.programs==null?null:r.programs), referrals:(r.referrals==null?null:r.referrals), days:[], pack:null, fee:null });
@@ -643,12 +643,14 @@ const gword=()=>BBMODE()?'Line':'Group';
 function bbTierNum(belt_to){ const m=String(belt_to||'').match(/(\d+)\w*\s+Dan/i); if(m) return +m[1]; if(/probation/i.test(belt_to||'')) return 1; return 99; }
 const BB_TIER_LABEL={1:'1st Dan',2:'2nd Dan',3:'3rd Dan',4:'4th Dan',5:'5th Dan',6:'6th Dan',99:'Black Belt'};
 const bbTierOf=s=>bbTierNum(s&&s.belt_to);
-// ---- gradings (time-slots) within a black belt day: from prep_time_groups, mapped by current rank (belt_from) ----
-let TIMEGROUPS=[];   // [{label, sort, ranks:[...]}] in running order
-async function loadTimeGroups(){ try{ const {data}=await sb.rpc('cb_bb_time_groups'); TIMEGROUPS=Array.isArray(data)?data:[]; }catch(e){ TIMEGROUPS=[]; } }
-function gradingIdx(rank){ for(let i=0;i<TIMEGROUPS.length;i++){ if((TIMEGROUPS[i].ranks||[]).includes(rank)) return i; } return TIMEGROUPS.length; }   // unmapped rank → an "Other" bucket at the end
-function gradingInfo(idx){ return idx<TIMEGROUPS.length ? {num:idx+1, label:TIMEGROUPS[idx].label||''} : {num:TIMEGROUPS.length+1, label:'Other'}; }
-function lineGrading(g){ const first=(g.slots||[]).map(byId).find(Boolean); const idx=first?gradingIdx(first.rank):(g.gslot!=null?g.gslot:0); return {idx, ...gradingInfo(idx)}; }
+// ---- gradings within a black belt day: each candidate's grading is their start time, set per target belt on the day (cb_days.belt_times) ----
+function bbTimes(){ const t=DAYINFO&&DAYINFO.belt_times; return (t&&typeof t==='object')?t:{}; }
+function slotTimes(){ const bt=bbTimes(); return [...new Set(STUDENTS.map(s=>bt[s.target]).filter(Boolean))].sort(); }   // distinct start times, in clock order
+const hasGradings=()=>slotTimes().length>0;
+const fmtSlot=t=>{ if(!t) return ''; const [h,m]=String(t).split(':').map(Number); return `${((h+11)%12)+1}${m?':'+String(m).padStart(2,'0'):''}${h<12?'am':'pm'}`; };
+function gradingIdxOf(s){ const arr=slotTimes(), i=arr.indexOf(bbTimes()[s&&s.target]); return i<0?arr.length:i; }   // no start time → an "Unscheduled" bucket at the end
+function gradingInfo(idx){ const arr=slotTimes(); return idx<arr.length ? {num:idx+1, label:fmtSlot(arr[idx])} : {num:arr.length+1, label:'Unscheduled'}; }
+function lineGrading(g){ const first=(g.slots||[]).map(byId).find(Boolean); const idx=first?gradingIdxOf(first):(g.gslot!=null?g.gslot:0); return {idx, ...gradingInfo(idx)}; }
 // the gradings actually present today (only slots that have a line), in order
 function gradingsPresent(){ const seen=new Map(); state.groups.forEach(g=>{ const gi=(g.gslot!=null)?g.gslot:lineGrading(g).idx; if(!seen.has(gi)) seen.set(gi,{idx:gi, ...gradingInfo(gi), lines:0, people:0}); const o=seen.get(gi); o.lines++; o.people+=g.slots.filter(x=>x!=null).length; });
   return [...seen.values()].sort((a,b)=>a.idx-b.idx); }
@@ -665,7 +667,7 @@ const nextOf=belt=>{ const k=Object.keys(BELTS); return k[k.indexOf(belt)+1]||be
 function generateGroupsBB(){ // black belt day: split into gradings (time-slots), then one line per Dan tier within each, even lines of ≤13 (runsheet order)
   const LINE=13, p=roster();
   // bucket students by their grading (time-slot), then by Dan tier within the grading
-  const byGrade={}; p.forEach(s=>{ const gi=TIMEGROUPS.length?gradingIdx(s.rank):0; (byGrade[gi]=byGrade[gi]||[]).push(s); });
+  const byGrade={}; p.forEach(s=>{ const gi=hasGradings()?gradingIdxOf(s):0; (byGrade[gi]=byGrade[gi]||[]).push(s); });
   const slots=Object.keys(byGrade).map(Number).sort((a,b)=>a-b);     // gradings in running order (8am, 10:30am…)
   const groups=[];
   for(const gi of slots){
@@ -756,7 +758,7 @@ function renderKiosk(){
   const k=$('#kiosk');
   if(kioskState.done){
     const s=byId(kioskState.done.id), gi=groupOf(kioskState.done.id), g=state.groups[gi];
-    const kgr=(g&&BBMODE())?lineGrading(g):null;
+    const kgr=(g&&BBMODE()&&hasGradings())?lineGrading(g):null;
     k.innerHTML=`<div class="ki-wrap done"><div class="ki-card">
       <div class="ki-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></div>
       <div class="ki-name">${s.name}</div><div class="ki-msg">You're checked in</div>
@@ -907,7 +909,7 @@ function render(){
   // header
   if(sMode==='next'){ $('#flName').textContent='Who’s next?'; $('#flSub').textContent='Tap the next group to call it out'; }
   else if(sMode==='callout'){ $('#flName').textContent=`Call out · ${gword()} ${g.cone||'?'}`; $('#flSub').textContent=`${hereIds.length} of ${booked.length} here · ${g.name}`; }
-  else { const hgr=(BBMODE()&&TIMEGROUPS.length)?lineGrading(g):null;
+  else { const hgr=(BBMODE()&&hasGradings())?lineGrading(g):null;
     $('#flName').textContent=masterWaiting?'Ready':(hgr?`Grading ${hgr.num} · `:'')+(g.cone?`${gword()} ${g.cone} · `:'')+g.name;
     $('#flSub').textContent=masterWaiting?'The next group will show here the moment it starts'
       :cleanLive?`${hereIds.length} on the floor · ${booked.length} in this group`
@@ -1216,11 +1218,11 @@ function openRunsheet(){
   let el=document.getElementById('runsheet'); if(!el){ el=document.createElement('div'); el.id='runsheet'; document.body.appendChild(el); }
   const gs=state.groups; let prevG=null;
   const rows=gs.map(g=>{ const mem=g.slots.filter(x=>x!=null).map(byId).filter(Boolean).sort((a,b)=>a.age-b.age||a.name.localeCompare(b.name));
-    let head=''; if(BBMODE()&&TIMEGROUPS.length){ const gr=lineGrading(g); if(gr.idx!==prevG){ prevG=gr.idx; head=`<h2 class="rs-grade">Grading ${gr.num}${gr.label?` · ${esc(gr.label)}`:''}</h2>`; } }
+    let head=''; if(BBMODE()&&hasGradings()){ const gr=lineGrading(g); if(gr.idx!==prevG){ prevG=gr.idx; head=`<h2 class="rs-grade">Grading ${gr.num}${gr.label?` · ${esc(gr.label)}`:''}</h2>`; } }
     return head+`<div class="rs-line"><div class="rs-lh"><span class="rs-no">Line ${g.cone}</span><span class="rs-tier">${g.name}</span><span class="rs-ct">${mem.length} grading</span></div>`
       +`<ol>${mem.map(s=>`<li>${s.name} <span class="ag">· ${s.age}</span> <span class="tg">· ${s.belt} → ${s.belt_to}</span></li>`).join('')}</ol></div>`; }).join('');
   const total=gs.reduce((a,g)=>a+g.slots.filter(x=>x!=null).length,0);
-  const ngr=(BBMODE()&&TIMEGROUPS.length)?gradingsPresent().length:0;
+  const ngr=(BBMODE()&&hasGradings())?gradingsPresent().length:0;
   el.innerHTML=`<div class="rs-bar"><button id="rsPrint">Print</button><button id="rsClose">Close</button></div>`
     +`<h1>Runsheet — ${schoolOf(DAYINFO.location)} black belt grading</h1>`
     +`<p class="rs-meta">${fmtDay(DAYINFO.date)}${ngr?` · ${ngr} grading${ngr>1?'s':''}`:''} · ${gs.length} lines · ${total} grading</p>`+rows;
@@ -1239,7 +1241,7 @@ function loadGroups(gs) {
     if (bb) {                                             // bb lines persist belt=null; recover the Dan tier + grading from the line's own students
       const first = slots.map(byId).find(Boolean);
       const t = first ? bbTierOf(first) : 99;
-      const gi = first ? (TIMEGROUPS.length ? gradingIdx(first.rank) : 0) : 0;
+      const gi = first ? (hasGradings() ? gradingIdxOf(first) : 0) : 0;
       return { name: BB_TIER_LABEL[t] || ('Dan ' + t), belt: null, bb: true, tier: t, gslot: gi, belts: [], title: '', order: 'young', spots: g.spots, rows: g.rows, status: g.status, cone: g.cone, slots };
     }
     return {
@@ -1260,7 +1262,6 @@ async function loadDay(dayId) {
   if (DAYINFO.floor_spots) state.spotsOut = DAYINFO.floor_spots;
   loadHelpers(data.helpers);
   mapStudents(data.students);
-  if (BBMODE()) await loadTimeGroups();
   if (data.groups && data.groups.length) { loadGroups(data.groups); state.autoBalance = false; } else { generateGroups(); }
   $('#dayLabel').textContent = `${schoolOf(DAYINFO.location)} · ${fmtDay(DAYINFO.date)}`;
   loading = false;
