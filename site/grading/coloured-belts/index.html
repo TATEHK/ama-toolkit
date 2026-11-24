@@ -478,7 +478,7 @@ const has = (...r) => state.roles.includes('admin') || r.some(x => state.roles.i
 const canApprove = () => has('readiness'), canDays = () => has('days'), canResults = () => has('results'), canPay = () => has('payments'),
   canGrade = () => has('days'), canBelts = () => has('days') || has('belts');   // edit a student's belt: "days" or the narrower "belts"
 // Texts split into invites/reminders, results and follow-ups. Each send is gated by its kind; 'texts' is the legacy all-texts tick.
-const CB_TEXT_PERM = { invite: 'text_invite', reminder: 'text_invite', not_booked: 'text_followup', unpaid: 'text_followup', not_ready: 'text_followup', congrats: 'text_result', retest: 'text_result', photo: 'text_result', bbc_followup: 'text_followup' };
+const CB_TEXT_PERM = { invite: 'text_invite', reminder: 'text_invite', not_booked: 'text_followup', unpaid: 'text_followup', not_ready: 'text_followup', congrats: 'text_result', retest: 'text_result', photo: 'text_result', bbc_followup: 'text_followup', makeup: 'text_followup' };
 const canText = kind => has(CB_TEXT_PERM[kind] || 'text_invite', 'texts');
 const canTexts = () => has('text_invite', 'text_result', 'text_followup', 'texts');   // any text permission (section visibility)
 const isAdmin = () => has('set_general', 'set_fees', 'set_wording', 'settings');   // any Settings tick opens the Settings screen
@@ -912,13 +912,14 @@ function editContact(key, after) {
 }
 
 /* ---------------- Texts (invites, congratulations, not yet) ---------------- */
-const KIND_NAME = { invite: 'Invitations', not_booked: 'Reminder to book', reminder: 'Grading day reminder', unpaid: 'Fee reminder', congrats: 'Congratulations', photo: 'Grading photos', retest: 'Fail message', not_ready: 'Not yet messages', bbc_followup: 'Black Belt Club follow-up' };
-const KIND_TPL = { invite: 'invite_text', not_booked: 'not_booked_text', reminder: 'reminder_text', unpaid: 'unpaid_text', congrats: 'congrats_text', photo: 'photo_text', retest: 'retest_text', not_ready: 'not_ready_text', bbc_followup: 'bbc_followup_text' };
+const KIND_NAME = { invite: 'Invitations', not_booked: 'Reminder to book', reminder: 'Grading day reminder', unpaid: 'Fee reminder', congrats: 'Congratulations', photo: 'Grading photos', retest: 'Fail message', not_ready: 'Not yet messages', bbc_followup: 'Black Belt Club follow-up', makeup: 'Makeup date' };
+const KIND_TPL = { invite: 'invite_text', not_booked: 'not_booked_text', reminder: 'reminder_text', unpaid: 'unpaid_text', congrats: 'congrats_text', photo: 'photo_text', retest: 'retest_text', not_ready: 'not_ready_text', bbc_followup: 'bbc_followup_text', makeup: 'makeup_text' };
 // Settings: each message, in the order they're used
 const KIND_HELP = { invite: 'Sent from a grading day to students marked ready. Include {link}.', not_booked: 'For families invited but not booked yet. Include {link}.',
   reminder: 'For booked families, a day or two before.', unpaid: 'For booked families whose fee isn\'t marked paid.', congrats: 'After results: everyone who passed.', photo: 'After photos are taken on the grading day. Include {photo}: each family\'s link to their photo.',
   retest: 'After results: a kind message for anyone who failed.', not_ready: 'From Who\'s ready, for a student marked not yet. {note} is the instructor\'s note.',
-  bbc_followup: 'From Cards to write, two weeks after a Black Belt Club card is written, for anyone who hasn\'t joined.' };
+  bbc_followup: 'From Cards to write, two weeks after a Black Belt Club card is written, for anyone who hasn\'t joined.',
+  makeup: 'Sent when you move a student to a makeup day. Include {link} so they can book the new date.' };
 // people: [{ member_key, entry_id, s, e, d }]
 function composeTexts(kind, people) {
   if (!canText(kind)) return toast("You don't have permission to send that kind of text.", 5000);
@@ -1346,7 +1347,7 @@ function moveGrading(e) {
       await run(sb.from('cb_entries').update(f).eq('entry_id', e.entry_id), `Moved to ${fmtDate(nd.grading_date)} at ${schoolLabel(nd.location)}`);
       Object.assign(e, f);
       applyProgramme(); dlg.close(); render();
-      composeTexts('not_booked', [{ member_key: e.member_key, entry_id: e.entry_id, s: student(e.member_key), e, d: nd }]);   // their new booking link (preview before it sends)
+      composeTexts('makeup', [{ member_key: e.member_key, entry_id: e.entry_id, s: student(e.member_key), e, d: nd }]);   // makeup-date message with their new booking link (preview before it sends)
     } catch (er) { toast(errMsg(er), 6000); }
   };
 }
