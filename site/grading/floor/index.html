@@ -643,6 +643,8 @@ const gword=()=>BBMODE()?'Line':'Group';
 function bbTierNum(belt_to){ const m=String(belt_to||'').match(/(\d+)\w*\s+Dan/i); if(m) return +m[1]; if(/probation/i.test(belt_to||'')) return 1; return 99; }
 const BB_TIER_LABEL={1:'1st Dan',2:'2nd Dan',3:'3rd Dan',4:'4th Dan',5:'5th Dan',6:'6th Dan',99:'Black Belt'};
 const bbTierOf=s=>bbTierNum(s&&s.belt_to);
+// order target belts within a grading: Probationary before 1st Dan, then by Dan number and level
+function bbOrderKey(belt){ const s=String(belt||''); if(/probation/i.test(s)) return 0.5; const m=s.match(/(\d+)\w*\s+Dan/i), lv=s.match(/Level\s+(\d+)/i); return (m?+m[1]:99)+(lv?+lv[1]/10:0); }
 // ---- gradings within a black belt day: each candidate's grading is their start time, set per target belt on the day (cb_days.belt_times) ----
 function bbTimes(){ const t=DAYINFO&&DAYINFO.belt_times; return (t&&typeof t==='object')?t:{}; }
 function slotTimes(){ const bt=bbTimes(); return [...new Set(STUDENTS.map(s=>bt[s.target]).filter(Boolean))].sort(); }   // distinct start times, in clock order
@@ -671,17 +673,18 @@ function generateGroupsBB(){ // black belt day: split into gradings (time-slots)
   const slots=Object.keys(byGrade).map(Number).sort((a,b)=>a-b);     // gradings in running order (8am, 10:30am…)
   const groups=[];
   for(const gi of slots){
-    const byTier={}; byGrade[gi].forEach(s=>{ const t=bbTierOf(s); (byTier[t]=byTier[t]||[]).push(s); });
-    const tiers=Object.keys(byTier).map(Number).sort((a,b)=>a-b);    // 1st Dan first, then 2nd, 3rd…
-    for(const t of tiers){
-      const kids=byTier[t].slice().sort((a,b)=>a.age-b.age||a.name.localeCompare(b.name));   // youngest → oldest within the tier
+    // within a grading, group by the exact belt they're grading to (in belt order), so each line is named correctly
+    const byTarget={}; byGrade[gi].forEach(s=>{ (byTarget[s.target]=byTarget[s.target]||[]).push(s); });
+    const targets=Object.keys(byTarget).sort((a,b)=>bbOrderKey(a)-bbOrderKey(b)||a.localeCompare(b));
+    for(const tgt of targets){
+      const kids=byTarget[tgt].slice().sort((a,b)=>a.age-b.age||a.name.localeCompare(b.name));   // youngest → oldest
       const G=Math.max(1,Math.ceil(kids.length/LINE)), base=Math.floor(kids.length/G), extra=kids.length%G; let i=0;
       for(let k2=0;k2<G;k2++){ const cnt=base+(k2<extra?1:0), sl=spotsArr(LINE);
         for(let k=0;k<cnt;k++) sl[k]=kids[i++].id;
-        groups.push({name:BB_TIER_LABEL[t]||('Dan '+t), belt:null, bb:true, tier:t, gslot:gi, belts:[], title:'', order:'young', spots:LINE, rows:1, status:'future', slots:sl}); }
+        groups.push({name:tgt||'Grading', belt:null, bb:true, tier:bbTierNum(tgt), target:tgt, gslot:gi, belts:[], title:'', order:'young', spots:LINE, rows:1, status:'future', slots:sl}); }
     }
   }
-  state.groups=groups.length?groups:[{name:'Line 1',belt:null,bb:true,tier:1,gslot:0,belts:[],title:'',order:'young',spots:LINE,rows:1,status:'future',slots:spotsArr(LINE)}];
+  state.groups=groups.length?groups:[{name:'Line 1',belt:null,bb:true,tier:1,target:'',gslot:0,belts:[],title:'',order:'young',spots:LINE,rows:1,status:'future',slots:spotsArr(LINE)}];
   state.active=Math.min(state.active,state.groups.length-1); state.alert=null; recone();
 }
 function generateGroups(){ // belts in order; small belts share a group (each belt standing together); a belt bigger than "spots out" is split evenly
@@ -715,7 +718,7 @@ function reflowFuture(g){ // keep a not-yet-started group in its order (belt by 
 }
 function placeLate(id){ // a late check-in can only join a FUTURE group of their own belt (or a spare group) that has room
   const s=byId(id);
-  for(const g of state.groups){ const fit=BBMODE()? (g.tier===bbTierOf(s)) : (beltsOf(g).includes(s.belt) || !beltsOf(g).length);
+  for(const g of state.groups){ const fit=BBMODE()? (g.target===s.target) : (beltsOf(g).includes(s.belt) || !beltsOf(g).length);
     if(g.status==='future' && fit && occupied(g)<g.spots){ const k=g.slots.indexOf(null); if(k>=0) g.slots[k]=id; else g.slots.push(id); reflowFuture(g); return true; } }
   return false;
 }
@@ -1240,9 +1243,9 @@ function loadGroups(gs) {
     const slots = (g.slots || []).map(e => e == null ? null : (entry2id[e] || null));
     if (bb) {                                             // bb lines persist belt=null; recover the Dan tier + grading from the line's own students
       const first = slots.map(byId).find(Boolean);
-      const t = first ? bbTierOf(first) : 99;
+      const tgt = first ? first.target : '';
       const gi = first ? (hasGradings() ? gradingIdxOf(first) : 0) : 0;
-      return { name: BB_TIER_LABEL[t] || ('Dan ' + t), belt: null, bb: true, tier: t, gslot: gi, belts: [], title: '', order: 'young', spots: g.spots, rows: g.rows, status: g.status, cone: g.cone, slots };
+      return { name: tgt || 'Grading', belt: null, bb: true, tier: first ? bbTierOf(first) : 99, target: tgt, gslot: gi, belts: [], title: '', order: 'young', spots: g.spots, rows: g.rows, status: g.status, cone: g.cone, slots };
     }
     return {
       name: '', belt: g.belt, belts: (g.opts && Array.isArray(g.opts.belts) && g.opts.belts.length) ? g.opts.belts : (g.belt ? [g.belt] : []),
