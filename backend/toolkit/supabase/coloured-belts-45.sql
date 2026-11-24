@@ -2,8 +2,8 @@
 -- Previously the move reused the "Reminder to book" text; now it has its own wording, editable in Settings.
 
 alter table public.cb_settings add column if not exists makeup_text text
-  not null default 'Hi {parent}, good news, {first} has been allowed to attend their grading at our makeup date: {date}{time}, {school}. Book and confirm their spot here: {link}';
+  not null default 'Hi {parent}, we''re sad that {first} can''t make their grading this time, but the good news is we have a makeup date: {date}{time}, {school}. Book and confirm their spot here: {link}';
 
 update public.cb_settings
-   set makeup_text = 'Hi {parent}, good news, {first} has been allowed to attend their grading at our makeup date: {date}{time}, {school}. Book and confirm their spot here: {link}'
+   set makeup_text = 'Hi {parent}, we''re sad that {first} can''t make their grading this time, but the good news is we have a makeup date: {date}{time}, {school}. Book and confirm their spot here: {link}'
  where makeup_text is null or btrim(makeup_text) = '';
