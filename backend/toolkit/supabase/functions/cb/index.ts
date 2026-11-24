@@ -2465,6 +2465,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
     // Staff: send a test belt-check alert to the alert phone, so they can check they get it and can reply
     if (body.action === 'alert_test') {
+      if (!can('settings', 'set_general', 'set_fees', 'set_wording')) return fail('Your login cannot send a test alert.', 403);
       const { data: s2 } = await db.from('cb_settings').select('alert_phone').eq('id', 1).maybeSingle();
       if (!s2 || !s2.alert_phone) return json({ ok: false, error: 'No alert phone is set.' });
       if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return json({ ok: false, error: 'Texting is not set up.' });
@@ -2750,7 +2751,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
     // The booking sequence: "Send test to me" for any step (grading staff), with a real student's details or a sample
     if (body.action === 'seq_test') {
-      if (!can('settings', 'texts')) return fail('Your login cannot send test messages.', 403);
+      if (!can('settings', 'set_general', 'set_fees', 'set_wording', 'texts', 'text_invite', 'text_result', 'text_followup')) return fail('Your login cannot send test messages.', 403);
       const { data: step } = await db.from('cb_seq_steps').select('*').eq('code', String(body.code || '')).maybeSingle();
       if (!step || step.channel === 'call') return fail('Choose a message to test.');
       const toPhone = String(body.phone || '').trim(), toEmail = String(body.email || '').trim();
@@ -2773,7 +2774,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
     // Run the sequence now (admins), instead of waiting for the next 15-minute run
     if (body.action === 'seq_run') {
-      if (!can('settings')) return fail('Only staff with Booking sequence and settings can run the sequence by hand.', 403);
+      if (!can('settings', 'set_general', 'set_fees', 'set_wording')) return fail('Only staff with Booking sequence and settings can run the sequence by hand.', 403);
       return json(await runSequence());
     }
     const ready = !!(env.GHL_TOKEN && env.GHL_LOCATION_ID), testing = env.GHL_TEST === '1';
