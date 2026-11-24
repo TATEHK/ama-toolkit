@@ -3228,11 +3228,13 @@ async function renderBbBooking(c) {
 // Everything you do less often on a grading day, in one sheet instead of a wall of buttons.
 function bbMoreMenu(c, day, entries, passed, retests) {
   const cid = c.cycle_id, photos = entries.filter(e => e.photo_path);
+  // Certificates are pre-printed before grading, so the CSV is every candidate (minus retests, which don't exist yet).
+  const certList = entries.filter(e => e.result !== 'retest');
   const items = [
     ['congrats', 'Text congratulations', passed.length ? `${passed.length} passed` : 'No passes yet', !passed.length],
     ['retest', 'Text retests', retests.length ? `${retests.length} to retest` : 'None', !retests.length],
     ['photos', 'Text photo links', photos.length ? `${photos.length} with photos` : 'No photos yet', !photos.length],
-    ['csv', 'Certificates CSV', passed.length ? `${passed.length} names` : 'No passes yet', !passed.length],
+    ['csv', 'Certificates CSV', certList.length ? `${certList.length} ${certList.length === 1 ? 'certificate' : 'certificates'}` : 'No candidates', !certList.length],
     ['lineup', 'Print line-up', `${entries.length} candidates`, !entries.length],
     ['sync', 'Sync candidates', 'Add anyone newly put forward', false],
     ['close', day.closed ? 'Reopen day' : 'Mark day finished', '', false],
@@ -3242,7 +3244,7 @@ function bbMoreMenu(c, day, entries, passed, retests) {
     <div class="dlg-actions"><button type="button" class="btn" data-close>Close</button></div></div>`);
   const act = {
     congrats: () => bbCompose(c, 'congrats', passed), retest: () => bbCompose(c, 'retest', retests), photos: () => bbCompose(c, 'photo', photos),
-    csv: () => { sheet.close(); bbCertCsv(day, passed); }, lineup: () => { sheet.close(); bbLineup(day, entries); },
+    csv: () => { sheet.close(); bbCertCsv(day, certList); }, lineup: () => { sheet.close(); bbLineup(day, entries); },
     sync: () => { sheet.close(); bbSync(c, day); },
     close: async () => { sheet.close(); try { await run(sb.from('cb_days').update({ closed: !day.closed }).eq('day_id', day.day_id), day.closed ? 'Reopened' : 'Marked finished'); await renderBbBooking(c); } catch (e) { toast(errMsg(e), 6000); } },
     new: () => { sheet.close(); bbData[cid].creating = true; renderBbBooking(c); }
