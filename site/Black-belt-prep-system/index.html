@@ -3244,7 +3244,7 @@ function bbMoreMenu(c, day, entries, passed, retests) {
     <div class="dlg-actions"><button type="button" class="btn" data-close>Close</button></div></div>`);
   const act = {
     congrats: () => bbCompose(c, 'congrats', passed), retest: () => bbCompose(c, 'retest', retests), photos: () => bbCompose(c, 'photo', photos),
-    csv: () => { sheet.close(); bbCertCsv(day, certList); }, lineup: () => { sheet.close(); bbLineup(day, entries); },
+    csv: () => { sheet.close(); bbCertCsv(day, certList, cid); }, lineup: () => { sheet.close(); bbLineup(day, entries); },
     sync: () => { sheet.close(); bbSync(c, day); },
     close: async () => { sheet.close(); try { await run(sb.from('cb_days').update({ closed: !day.closed }).eq('day_id', day.day_id), day.closed ? 'Reopened' : 'Marked finished'); await renderBbBooking(c); } catch (e) { toast(errMsg(e), 6000); } },
     new: () => { sheet.close(); bbData[cid].creating = true; renderBbBooking(c); }
@@ -3540,8 +3540,9 @@ function bbCompose(c, kind, list) {
     } catch (e) { const g = $('#bbcGo'); if (g) g.disabled = false; toast(errMsg(e), 6000); }
   };
 }
-function bbCertCsv(day, passed) {
-  const rows = [['Name', 'Grading to', 'Date']].concat(passed.map(e => [e.full_name, e.belt_to, day.grading_date]));
+function bbCertCsv(day, list, cid) {
+  const danOf = e => { const cand = cid != null ? bbCandFor(e, cid) : null, d = cand ? danFor(cand) : null; return d ? d.dan_number : ''; };
+  const rows = [['Name', 'Grading to', 'Dan number', 'Date']].concat(list.map(e => [e.full_name, e.belt_to, danOf(e), day.grading_date]));
   const csv = rows.map(r => r.map(x => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`).join(',')).join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   const a = document.createElement('a'); a.href = url; a.download = `black-belt-certificates-${day.grading_date || 'day'}.csv`; a.click(); URL.revokeObjectURL(url);
