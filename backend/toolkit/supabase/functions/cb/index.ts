@@ -1400,6 +1400,30 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, sent, considered: (due || []).length });
     }
 
+    // ---- Grading-day reminder, sent by pg_cron on the morning of a grading. Used for black belt days, which the
+    //      booking sequence deliberately skips. Texts booked + paid, not-yet-graded families the "reminder" text. ----
+    if (body.action === 'grading_reminder') {
+      const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
+      if (okCron !== true) return fail('Not allowed.', 403);
+      const { data: d } = await db.from('cb_days').select('*').eq('day_id', body.day || '').maybeSingle();
+      if (!d || d.closed) return json({ ok: true, skipped: 'no open day' });
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+      if (String(d.grading_date) !== today) return json({ ok: true, skipped: 'not grading day' });   // safe if the schedule ever fires on another date
+      const { data: st } = await db.from('cb_settings').select('*').eq('id', 1).maybeSingle();
+      const { data: ents } = await db.from('cb_entries').select('*').eq('day_id', d.day_id).eq('paid', true).is('result', null).not('booked_at', 'is', null);
+      const step = { code: 'bb_morning', channel: 'sms', template: 'settings:reminder_text', subject: '' };
+      let sent = 0;
+      for (const e of (ents || [])) {
+        const { data: prev } = await db.from('cb_messages').select('message_id').eq('entry_id', e.entry_id).eq('sent_by', 'automatic: bb_morning').eq('status', 'sent').limit(1);
+        if (prev && prev.length) continue;   // already reminded this grading
+        const { data: m } = await db.from('efc_members').select('*').eq('member_key', e.member_key).maybeSingle();
+        if (!m) continue;
+        const r = await seqSend({ step, e, d, m, st });
+        if (r.status === 'sent') sent++;
+      }
+      return json({ ok: true, sent, considered: (ents || []).length });
+    }
+
     // ---- The booking sequence, every 15 minutes (pg_cron, coloured-belts-23.sql) ----
     if (body.action === 'sequence') {
       const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
