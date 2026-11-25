@@ -180,6 +180,18 @@
   #sendBody .prev .cnt{font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--accent)}
   #sendBody .prev .samp{color:var(--ink-2);margin-top:6px;white-space:pre-wrap;line-height:1.4}
   #sendBody .hint{color:var(--ink-3);font-size:12px;margin:2px 0 0}
+  /* black belt helpers by session */
+  .bbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:10px}
+  .bbcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+  .bbh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 4px}
+  .bbh b{font-family:var(--font-display);font-size:15px}
+  .bbc{font-weight:700;color:var(--ok);font-size:13px;flex:none}
+  .bbc.full{color:var(--accent)}
+  .bbnames{list-style:none;margin:0;padding:0}
+  .bbnames li{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--line)}
+  .bbnames li:first-child{border-top:0}
+  .bbnames li small{color:var(--ink-3);font-size:11px;flex:none}
+  .bbnames li .other{color:var(--ink-3)}
   .loading{padding:40px;text-align:center;color:var(--ink-3)}
 </style>
 </head>
@@ -239,7 +251,7 @@
 <script>
 const CFG = window.TOOLKIT_CONFIG || {};
 let sb, DATA = null, started = false, openKey = null, loc = null, prog = null;
-let me = '', myPerms = [], isAdmin = false, busy = false;
+let me = '', myPerms = [], isAdmin = false, busy = false, BBSESS = [];
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -254,8 +266,9 @@ function showView(w){ $('#authView').hidden = w !== 'auth'; $('#noAccessView').h
 async function load(){
   $('#refreshBtn').disabled = true;
   try{
-    const { data, error } = await sb.rpc('cb_ops_dashboard');
+    const [{ data, error }, bb] = await Promise.all([ sb.rpc('cb_ops_dashboard'), sb.rpc('cb_ops_bb_sessions').then(r => r, () => ({ data: [] })) ]);
     if(error) throw error;
+    BBSESS = (bb && bb.data) || [];
     DATA = data; render();
     $('#updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }catch(e){ $('#board').innerHTML = `<div class="loading" style="color:var(--danger)">Couldn't load: ${esc(e.message||e)}</div>`; }
@@ -355,6 +368,17 @@ function messageHealthSection(){
     <div class="mh-top"><div class="mt ${rate<95?'bad':'ok'}"><b>${rate}%</b><span>delivered</span></div><div class="mt"><b>${mh.sent||0}</b><span>sent</span></div><div class="mt ${mh.failed?'bad':''}"><b>${mh.failed||0}</b><span>failed</span></div></div>`
     + ((mh.bouncing&&mh.bouncing.length) ? `<div class="panelc"><div class="muted" style="margin:0 0 2px;font-size:12px">Numbers &amp; emails that keep failing</div>${mh.bouncing.map(b=>`<div class="bounce"><span>${esc(b.to)}</span><span><b>${b.fails}×</b> <span class="be">${esc((b.last_error||'').slice(0,42))}</span></span></div>`).join('')}</div>` : '');
 }
+// black belt helpers, grouped by grading day and session (from the Black Belt app)
+function bbSessionsSection(){
+  const s = BBSESS || []; if(!s.length) return '';
+  const byDate = {}; s.forEach(x => { (byDate[x.grading_date] = byDate[x.grading_date] || []).push(x); });
+  return Object.keys(byDate).sort().map(dt => `<h2>Black belt helpers — ${fmtDate(dt)}</h2><div class="bbgrid">`
+    + byDate[dt].map(sl => { const sen = sl.senior||0, extra = (sl.total||0) - sen, full = sl.cap && sen >= sl.cap, hh = sl.helpers||[];
+        return `<div class="bbcard"><div class="bbh"><b>${esc((sl.label||'').replace(/ session$/,''))}</b><span class="bbc${full?' full':''}">${sen} / ${sl.cap}${extra>0?` +${extra}`:''}</span></div>`
+          + (hh.length ? `<ul class="bbnames">${hh.map(x=>`<li><span${x.senior?'':' class="other"'}>${esc(x.name||'—')}</span><small>${esc(x.rank||'')}${x.senior?'':' · other'}</small></li>`).join('')}</ul>` : '<p class="muted" style="margin:6px 0 0">No one yet.</p>')
+          + `</div>`; }).join('')
+    + `</div>`).join('');
+}
 function render(){
   const d = DATA; if(!d) return;
   const needDetail = k => openKey === k ? detailFor(k) : '';
@@ -398,6 +422,7 @@ function render(){
      <h2>Upcoming gradings${scope?` — ${esc(scope)}`:''} — ${gr.length}</h2>
      <div class="grds">${gr.map(grdCard).join('') || `<div class="muted">No upcoming gradings${scope?' · '+esc(scope):''}.</div>`}</div>
 
+     ${bbSessionsSection()}
      ${calendarSection()}
      ${resultsSection()}
      ${helperLoadSection()}
