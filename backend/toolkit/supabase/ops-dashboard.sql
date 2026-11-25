@@ -4,7 +4,10 @@
 -- a total count plus a capped set of rows so the page can say "showing 80 of 353".
 
 create or replace function public.cb_ops_dashboard()
-returns jsonb language sql stable security definer set search_path to 'public' as $$
+returns jsonb language plpgsql stable security definer set search_path to 'public' as $$
+begin
+  if not public.cb_has_cb(array['ops']) then raise exception 'not allowed' using errcode='42501'; end if;   -- Operations permission (admin always passes)
+  return (
 with up_days as (
   select * from public.cb_days where grading_date >= current_date and coalesce(closed,false)=false
 ),
@@ -72,6 +75,7 @@ select jsonb_build_object(
         'booked_days_ago', (current_date - e.booked_at::date)) order by d.grading_date), '[]'::jsonb)
       from public.cb_entries e join up_days d on d.day_id = e.day_id
       where e.result is null and e.booked_at is not null and e.paid = false))
-) $$;
+  );
+end $$;
 
 grant execute on function public.cb_ops_dashboard() to authenticated;

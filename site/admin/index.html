@@ -3,23 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1713">
 <title>AMA Operations</title>
-<link rel="icon" href="../icons/favicon.svg">
+<link rel="icon" href="../icons/ama-id-cards.png">
+<link rel="apple-touch-icon" href="../icons/ama-apple-touch.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="../config.js"></script>
 <script src="../hub-signin.js"></script>
 <script src="../idle-logout.js"></script>
 <style>
   :root{
-    --bg:#111312; --panel:#1a1d1b; --line:#2c302e; --ink:#eef1ee; --ink-2:#c6ccc6; --ink-3:#8b928b;
-    --accent:#4fae6d; --accent-ink:#06240f; --gold:#e8c766; --warn:#e0a84a; --danger:#e2605a; --danger-bg:#2a1816;
-    --r:14px; --shadow:0 1px 3px rgba(0,0,0,.4);
+    --bg:#0f1713; --panel:#15201a; --raise:#1b2821; --line:#253629; --line2:#31473a; --ink:#edf2ee; --ink-2:#a3b5a9; --ink-3:#74897b;
+    --accent:#f5c518; --accent-ink:#14130a; --ok:#7fd6a2; --gold:#f5c518; --warn:#f0b45a; --danger:#ef8a73; --danger-bg:#2a1816;
+    --r:14px; --shadow:0 1px 3px rgba(0,0,0,.4); color-scheme:dark;
+    --font-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif; --font-body:Barlow,"Segoe UI",Arial,sans-serif;
   }
   *{box-sizing:border-box}
   [hidden]{display:none!important}
-  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    padding:max(14px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 48px max(14px,env(safe-area-inset-left))}
-  h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.01em}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--font-body);
+    padding:0 max(14px,env(safe-area-inset-right)) 48px max(14px,env(safe-area-inset-left))}
+  h1{font-family:var(--font-display);font-size:22px;margin:0;font-weight:700;letter-spacing:0}
+  .appbar{margin:0 calc(-1 * max(14px,env(safe-area-inset-right))) 16px calc(-1 * max(14px,env(safe-area-inset-left)));background:var(--panel);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top,0px) + 10px) max(14px,env(safe-area-inset-right)) 10px max(14px,env(safe-area-inset-left))}
+  .appbar-inner{max-width:1040px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .home-btn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-2);flex:none}
+  .home-btn svg{width:20px;height:20px}
   h2{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);margin:26px 0 10px}
   a{color:var(--accent)}
   .wrap{max-width:1040px;margin:0 auto}
@@ -43,7 +53,7 @@
   .tile .n{font-family:"Barlow Semi Condensed",sans-serif;font-weight:800;font-size:34px;line-height:1}
   .tile .l{font-size:13px;font-weight:700;color:var(--ink-2)}
   .tile .s{font-size:12px;color:var(--ink-3)}
-  .tile.warn .n{color:var(--warn)} .tile.bad .n{color:var(--danger)} .tile.ok .n{color:var(--accent)}
+  .tile.warn .n{color:var(--warn)} .tile.bad .n{color:var(--danger)} .tile.ok .n{color:var(--ok)}
   .tile.zero{opacity:.62} .tile.zero .n{color:var(--ink-3)}
   /* detail panel */
   .detail{background:var(--panel);border:1px solid var(--accent);border-radius:var(--r);padding:4px 14px;margin:10px 0 0}
@@ -74,7 +84,7 @@
   .today .th{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--gold);margin:0 0 10px}
   .today .trow{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
   .bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin:10px 0 7px}
-  .bar i{display:block;height:100%;background:var(--accent)}
+  .bar i{display:block;height:100%;background:var(--ok)}
   .bar.low i{background:var(--warn)} .bar.vlow i{background:var(--danger)}
   .grd .st{display:flex;gap:12px;font-size:12.5px;flex-wrap:wrap}
   .grd .st b{color:var(--ink)} .grd .st span{color:var(--ink-3)}
@@ -98,18 +108,18 @@
 </section>
 
 <section class="auth" id="noAccessView" hidden>
-  <div class="card"><h2 style="margin-top:0">No access</h2><p>Your login (<strong id="noAccessWho"></strong>) doesn't have a grading role yet. Ask an admin to add you.</p><button class="btn" id="noAccessOut">Sign out</button></div>
+  <div class="card"><h2 style="margin-top:0">No access</h2><p>Your login (<strong id="noAccessWho"></strong>) doesn't have Operations access. Ask an admin to tick <strong>Operations dashboard</strong> for you in Coloured Belts.</p><button class="btn" id="noAccessOut">Sign out</button></div>
 </section>
 
 <main class="wrap" id="appView" hidden>
-  <div class="top">
-    <a class="btn" href="/" title="AMA Toolkit">←</a>
+  <header class="appbar"><div class="appbar-inner">
+    <a class="home-btn" href="/grading/" aria-label="Back to Grading" title="Grading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></a>
     <h1>Operations</h1>
-    <span class="sp"></span>
+    <span class="sp" style="flex:1"></span>
     <span class="muted" id="updated"></span>
     <button class="btn" id="refreshBtn">↻ Refresh</button>
     <button class="btn" id="signOutBtn">Sign out</button>
-  </div>
+  </div></header>
 
   <div id="board"><div class="loading">Loading…</div></div>
 </main>
@@ -235,10 +245,10 @@ $('#noAccessOut').onclick = async () => { await sb.auth.signOut(); location.relo
 async function startApp(session){
   if(started) return; started = true;
   const who = (session.user.user_metadata || {}).full_name || session.user.email || '';
-  // any grading role may view; otherwise no access
+  // needs the Operations permission (admins always have it)
   let perms = [];
-  try{ perms = (await sb.rpc('app_my_perms', { p_app: 'cb' })).data || []; }catch(e){ perms = ['admin']; }
-  if(!perms.length){ $('#noAccessWho').textContent = who; showView('noaccess'); return; }
+  try{ perms = (await sb.rpc('app_my_perms', { p_app: 'cb' })).data || []; }catch(e){ perms = []; }
+  if(!(perms.includes('ops') || perms.includes('admin'))){ $('#noAccessWho').textContent = who; showView('noaccess'); return; }
   showView('app');
   await load();
   setInterval(() => { if(!document.hidden) load(); }, 120000);   // refresh every 2 min
