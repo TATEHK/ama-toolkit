@@ -192,6 +192,14 @@
   .bbnames li:first-child{border-top:0}
   .bbnames li small{color:var(--ink-3);font-size:11px;flex:none}
   .bbnames li .other{color:var(--ink-3)}
+  /* tabs */
+  .otabs{display:flex;gap:4px;overflow-x:auto;margin:16px 0 6px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:13px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .otabs::-webkit-scrollbar{display:none}
+  .otab{flex:1 0 auto;white-space:nowrap;padding:9px 15px;border:0;background:transparent;color:var(--ink-2);font:inherit;font-weight:700;font-size:14px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:6px;justify-content:center}
+  .otab.on{background:var(--bg);color:var(--ink)}
+  .otab .tb{background:var(--danger);color:#1a120d;font-size:11px;font-weight:800;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center}
+  .tabwrap{padding:2px 0}
+  .tabwrap > h2:first-child{margin-top:10px}
   .loading{padding:40px;text-align:center;color:var(--ink-3)}
 </style>
 </head>
@@ -252,6 +260,9 @@
 const CFG = window.TOOLKIT_CONFIG || {};
 let sb, DATA = null, started = false, openKey = null, loc = null, prog = null;
 let me = '', myPerms = [], isAdmin = false, busy = false, BBSESS = [];
+const OTABS = [['today','Today'],['action','Needs action'],['gradings','Gradings'],['helpers','Helpers'],['reports','Reports']];
+let OTAB = (()=>{ try{ const h = location.hash.replace('#',''); return OTABS.some(t=>t[0]===h) ? h : (localStorage.getItem('ops_tab')||'today'); }catch(e){ return 'today'; } })();
+function setTab(t){ OTAB = t; openKey = null; try{ localStorage.setItem('ops_tab', t); history.replaceState(null,'','#'+t); }catch(e){} render(); }
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -398,36 +409,43 @@ function render(){
     ? liveBoard(liveRows)
     : `<div class="today"><div class="th">Today</div><div class="muted">No grading today${scope?' · '+esc(scope):''}.${soon[0]?` Next: ${fmtDate(soon[0].grading_date)} · ${esc(soon[0].location||'')} (${until(soon[0].days_until)})`:''}</div></div>`;
 
-  $('#board').innerHTML =
-    `<div class="lfilter">${locChip(null,'All schools')}${distinct('location').map(l=>locChip(l,l)).join('')}</div>
-     ${progs.length>1?`<div class="lfilter">${progChip(null,'All programmes')}${progs.map(p=>progChip(p,progLabel(p))).join('')}</div>`:''}
-     ${todayBlock}
-     ${requestsSection()}
-
-     <h2>Needs action now</h2>
+  const G = f => typeof f === 'function' ? (f() || '') : '';   // call a section only once a later wave adds it
+  const needsTiles =
+    `<h2>Needs action now</h2>
      <div class="tiles">
        ${tile('bbc', d.bbc_actions.count, 'BBC sign-ups', 'set up EFC + call for DDR', d.bbc_actions.count?'warn':'')}
        ${tile('errors', errN, 'Booking errors', 'EFC booking failed', errN?'bad':'')}
        ${tile('msgs', d.failed_messages.count, 'Failed messages', 'texts & emails, 14 days', d.failed_messages.count?'bad':'')}
      </div>
      ${['bbc','errors','msgs'].includes(openKey) ? needDetail(openKey) : ''}
-
      <h2>Chase list</h2>
      <div class="tiles">
        ${tile('notbooked', nbN, 'Not booked', 'invited, no booking', nbN?'warn':'ok')}
        ${tile('unpaid', upN, 'Not paid', 'booked, not paid', upN?'warn':'ok')}
      </div>
-     ${['notbooked','unpaid'].includes(openKey) ? needDetail(openKey) : ''}
+     ${['notbooked','unpaid'].includes(openKey) ? needDetail(openKey) : ''}`;
+  const gradingsBlock =
+    `<h2>Upcoming gradings${scope?` — ${esc(scope)}`:''} — ${gr.length}</h2>
+     <div class="grds">${gr.map(grdCard).join('') || `<div class="muted">No upcoming gradings${scope?' · '+esc(scope):''}.</div>`}</div>`;
 
-     <h2>Upcoming gradings${scope?` — ${esc(scope)}`:''} — ${gr.length}</h2>
-     <div class="grds">${gr.map(grdCard).join('') || `<div class="muted">No upcoming gradings${scope?' · '+esc(scope):''}.</div>`}</div>
+  const actionN = (d.requests_open||0) + d.bbc_actions.count + errN + d.failed_messages.count + nbN + upN;
+  const tabBar = `<div class="otabs" role="tablist">${OTABS.map(([k,l])=>`<button class="otab ${OTAB===k?'on':''}" data-tab="${k}">${l}${k==='action'&&actionN?`<span class="tb">${actionN}</span>`:''}</button>`).join('')}</div>`;
 
-     ${bbSessionsSection()}
-     ${calendarSection()}
-     ${resultsSection()}
-     ${helperLoadSection()}
-     ${messageHealthSection()}`;
+  let body;
+  if(OTAB === 'today')         body = todayBlock + G(typeof whosOnToday!=='undefined'&&whosOnToday) + G(typeof pinnedNotesSection!=='undefined'&&pinnedNotesSection);
+  else if(OTAB === 'action')   body = requestsSection() + needsTiles + G(typeof cantMakeSection!=='undefined'&&cantMakeSection) + G(typeof retestSection!=='undefined'&&retestSection);
+  else if(OTAB === 'gradings') body = gradingsBlock + G(typeof countdownSection!=='undefined'&&countdownSection) + G(typeof beltOrderSection!=='undefined'&&beltOrderSection) + calendarSection();
+  else if(OTAB === 'helpers')  body = bbSessionsSection() + helperLoadSection();
+  else                         body = resultsSection() + G(typeof bbcConversionSection!=='undefined'&&bbcConversionSection) + messageHealthSection();
+  if(!body || !body.trim()) body = '<div class="muted" style="padding:22px 0">Nothing here right now.</div>';
 
+  $('#board').innerHTML =
+    `<div class="lfilter">${locChip(null,'All schools')}${distinct('location').map(l=>locChip(l,l)).join('')}</div>
+     ${progs.length>1?`<div class="lfilter">${progChip(null,'All programmes')}${progs.map(p=>progChip(p,progLabel(p))).join('')}</div>`:''}
+     ${tabBar}
+     <div class="tabwrap">${body}</div>`;
+
+  $('#board').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => setTab(b.dataset.tab));
   $('#board').querySelectorAll('.tile').forEach(b => b.onclick = () => { const k = b.dataset.key; openKey = openKey === k ? null : k; render(); });
   $('#board').querySelectorAll('.lchip[data-loc]').forEach(b => b.onclick = () => { loc = b.dataset.loc || null; render(); });
   $('#board').querySelectorAll('.lchip[data-prog]').forEach(b => b.onclick = () => { prog = b.dataset.prog || null; render(); });
