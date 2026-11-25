@@ -2470,6 +2470,102 @@ export async function handle(req, db, env = {}, http = fetch) {
     const can = (...want) => perms.includes('admin') || want.some(w => perms.includes(w));
     const may = kind => can(...(KINDS[kind] || []));
     if (!perms.length) return fail('Your login cannot use Coloured Belts. Ask a Staff admin to give you access.', 403);
+
+    // Operations dashboard sends. All need the Operations permission ('ops'); admins always pass.
+    const opsNiceDay = ymd => { const [y, mo, dd] = String(ymd || '').slice(0, 10).split('-').map(Number); if (!y) return ''; return new Date(Date.UTC(y, mo - 1, dd)).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).replace(',', ''); };
+
+    // #6 Remind this grading's signed-up helpers (black belts + extras). { day_id, preview }
+    if (body.action === 'ops_helpers_remind') {
+      if (!can('ops')) return fail('You need Operations access for this.', 403);
+      const dayId = String(body.day_id || '');
+      const { data: day } = await db.from('cb_days').select('day_id, location, grading_date, start_time, bb').eq('day_id', dayId).maybeSingle();
+      if (!day) return fail('Grading day not found.', 404);
+      const { data: sus } = await db.from('cb_helper_signups').select('helper_id').eq('day_id', dayId);
+      const ids = [...new Set((sus || []).map(s => s.helper_id))];
+      if (!ids.length) return json({ ok: true, total: 0, sent: 0, failed: 0, note: 'No helpers signed up for this grading yet.' });
+      const { data: helpers } = await db.from('cb_helpers').select('helper_id, full_name, mobile, member_key').in('helper_id', ids);
+      const mkeys = [...new Set((helpers || []).map(h => h.member_key).filter(Boolean))];
+      const byKey = {};
+      if (mkeys.length) { const { data: ms } = await db.from('efc_members').select('member_key, full_name, phone, guardian_phone, email, guardian_email').in('member_key', mkeys); (ms || []).forEach(m => byKey[m.member_key] = m); }
+      const when = opsNiceDay(day.grading_date) + ((t => t ? ' at ' + clock(t) : '')(day.start_time));
+      const recips = (helpers || []).map(h => { const m = h.member_key ? byKey[h.member_key] : null;
+        const phone = phoneE164(h.mobile || (m && (m.phone || m.guardian_phone)) || '');
+        const email = (m && (m.email || m.guardian_email)) || null;
+        const first = firstWord(h.full_name) || 'there';
+        const text = `Hi ${first}, a reminder you're helping at the AMA ${day.location} grading on ${when}. Thanks for helping out — see you there!`;
+        return { helper_id: h.helper_id, name: h.full_name, phone, email, text }; });
+      if (body.preview) return json({ ok: true, preview: true, day: { location: day.location, when }, total: recips.length, recipients: recips.map(r => ({ name: r.name, phone: r.phone, email: r.email })), sample: recips[0] ? recips[0].text : '' });
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
+      let sent = 0, failed = 0; const out = [];
+      for (const r of recips) {
+        if (!r.phone && !r.email) { out.push({ name: r.name, skipped: 'no contact' }); continue; }
+        const log = (kind, status, extra = {}) => db.from('cb_messages').insert({ entry_id: null, member_key: null, kind: 'helper_reminder', phone: kind === 'sms' ? r.phone : null, email: kind === 'email' ? r.email : null, body: r.text, status, sent_by: me || 'staff', ...extra }).then(() => {}, () => {});
+        try { const cid = await contactFor({ full_name: r.name, email: r.email }, r.phone);
+          if (r.phone) { const gid = await sendSms(cid, r.text); await log('sms', 'sent', gid ? { ghl_id: gid } : {}); }
+          else { await sendEmailTo(cid, buildSeqEmail(`Helping at the ${day.location} grading`, r.text)); await log('email', 'sent'); }
+          sent++; out.push({ name: r.name, ok: true });
+        } catch (er) { const w = String(er.message || er).slice(0, 300); await log(r.phone ? 'sms' : 'email', 'failed', { error: w }); failed++; out.push({ name: r.name, error: w }); }
+      }
+      return json({ ok: true, total: recips.length, sent, failed, results: out });
+    }
+
+    // #12 Announce to a grading's booked families. { day_id, text, subject, channel:'sms'|'email', preview }
+    if (body.action === 'ops_announce') {
+      if (!can('ops')) return fail('You need Operations access for this.', 403);
+      const dayId = String(body.day_id || ''), msgText = String(body.text || '').trim(), channel = body.channel === 'email' ? 'email' : 'sms';
+      if (!dayId) return fail('Pick a grading.', 400);
+      if (msgText.length < 3) return fail('Write a message first.', 400);
+      if (msgText.length > 640) return fail('Message is too long (max 640 characters).', 400);
+      const { data: day } = await db.from('cb_days').select('day_id, location, grading_date, start_time').eq('day_id', dayId).maybeSingle();
+      if (!day) return fail('Grading day not found.', 404);
+      const { data: ents } = await db.from('cb_entries').select('entry_id, member_key, full_name, belt_to').eq('day_id', dayId).is('result', null).not('booked_at', 'is', null);
+      const mkeys = [...new Set((ents || []).map(e => e.member_key).filter(Boolean))];
+      const byKey = {};
+      if (mkeys.length) { const { data: ms } = await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email').in('member_key', mkeys); (ms || []).forEach(m => byKey[m.member_key] = m); }
+      const when = opsNiceDay(day.grading_date) + ((t => t ? ' at ' + clock(t) : '')(day.start_time));
+      const fill = (txt, e, m) => txt.replace(/\{first\}/gi, firstWord(e.full_name) || 'there').replace(/\{parent\}/gi, firstWord(m && m.guardian_name) || 'there').replace(/\{school\}/gi, day.location || '').replace(/\{date\}/gi, when);
+      const recips = (ents || []).map(e => { const m = byKey[e.member_key] || {};
+        const phone = phoneE164(m.phone || m.guardian_phone || '');
+        const email = (m.email || m.guardian_email) || null;
+        return { entry_id: e.entry_id, member_key: e.member_key, name: e.full_name, phone, email, text: fill(msgText, e, m) }; });
+      const reach = recips.filter(r => channel === 'email' ? r.email : r.phone);
+      if (body.preview) return json({ ok: true, preview: true, day: { location: day.location, when }, channel, booked: recips.length, reachable: reach.length, sample: reach[0] ? reach[0].text : fill(msgText, { full_name: 'Alex' }, {}) });
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
+      if (reach.length > 500) return fail('That is over 500 recipients — please narrow it down.', 409);
+      const subject = String(body.subject || '').trim() || `AMA ${day.location} grading`;
+      let sent = 0, failed = 0; const out = [];
+      for (const r of reach) {
+        const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: r.entry_id, member_key: r.member_key, kind: 'announce', phone: channel === 'sms' ? r.phone : null, email: channel === 'email' ? r.email : null, body: r.text, status, sent_by: me || 'staff', ...extra }).then(() => {}, () => {});
+        try { const cid = await contactFor({ full_name: r.name, email: r.email }, r.phone);
+          if (channel === 'email') { await sendEmailTo(cid, buildSeqEmail(subject, r.text)); await log('sent'); }
+          else { const gid = await sendSms(cid, r.text); await log('sent', gid ? { ghl_id: gid } : {}); }
+          sent++; out.push({ name: r.name, ok: true });
+        } catch (er) { const w = String(er.message || er).slice(0, 300); await log('failed', { error: w }); failed++; out.push({ name: r.name, error: w }); }
+      }
+      return json({ ok: true, channel, booked: recips.length, reachable: reach.length, sent, failed });
+    }
+
+    // #11 Resend a single failed message. { message_id }
+    if (body.action === 'ops_message_resend') {
+      if (!can('ops')) return fail('You need Operations access for this.', 403);
+      const mid = String(body.message_id || '');
+      const { data: orig } = await db.from('cb_messages').select('message_id, kind, entry_id, member_key, phone, email, body').eq('message_id', mid).maybeSingle();
+      if (!orig) return fail('Message not found.', 404);
+      if (!orig.body) return fail('That message has no saved text to resend.', 409);
+      const channel = orig.email ? 'email' : 'sms';
+      if (channel === 'sms' && !orig.phone) return fail('No number saved for that message.', 409);
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
+      let name = 'there';
+      if (orig.entry_id) { const { data: e } = await db.from('cb_entries').select('full_name').eq('entry_id', orig.entry_id).maybeSingle(); if (e) name = e.full_name || name; }
+      else if (orig.member_key) { const { data: m } = await db.from('efc_members').select('full_name').eq('member_key', orig.member_key).maybeSingle(); if (m) name = m.full_name || name; }
+      const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: orig.entry_id, member_key: orig.member_key, kind: orig.kind, phone: channel === 'sms' ? orig.phone : null, email: channel === 'email' ? orig.email : null, body: orig.body, status, sent_by: (me || 'staff') + ' (resend)', ...extra }).then(() => {}, () => {});
+      try { const cid = await contactFor({ full_name: name, email: orig.email }, orig.phone);
+        if (channel === 'email') { await sendEmailTo(cid, buildSeqEmail('AMA grading', orig.body)); await log('sent'); }
+        else { const gid = await sendSms(cid, orig.body); await log('sent', gid ? { ghl_id: gid } : {}); }
+        return json({ ok: true, channel, sent: true });
+      } catch (er) { const w = String(er.message || er).slice(0, 300); await log('failed', { error: w }); return fail('Resend failed: ' + w, 502); }
+    }
+
     // Staff: "Can't make grading" - mark it, stop the reminder texts, and (unless just marking) text them up to 3 other days.
     // Their reply of 1/2/3 (or 0 to keep the date) is handled by the same code as the automatic offer.
     if (body.action === 'cant_make_offer') {

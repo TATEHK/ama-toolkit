@@ -167,6 +167,19 @@
   .bounce{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
   .bounce:first-of-type{border-top:0}
   .bounce .be{color:var(--ink-3);font-size:11px}
+  .btn.mini{padding:5px 10px;font-size:12px;border-radius:9px}
+  .grdacts{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 0}
+  .rowi .rs-btn{margin-left:auto}
+  #sendBody{font-size:14px}
+  #sendBody label{display:block;margin:0 0 10px}
+  #sendBody textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 11px;font:inherit;min-height:90px;resize:vertical}
+  #sendBody .chrow{display:flex;gap:8px;margin:0 0 10px}
+  #sendBody .chip2{flex:1;text-align:center;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel);cursor:pointer;font-weight:700;font-size:13px}
+  #sendBody .chip2.on{border-color:var(--accent);color:var(--accent);background:rgba(245,197,24,.1)}
+  #sendBody .prev{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0 0;font-size:13px}
+  #sendBody .prev .cnt{font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--accent)}
+  #sendBody .prev .samp{color:var(--ink-2);margin-top:6px;white-space:pre-wrap;line-height:1.4}
+  #sendBody .hint{color:var(--ink-3);font-size:12px;margin:2px 0 0}
   .loading{padding:40px;text-align:center;color:var(--ink-3)}
 </style>
 </head>
@@ -214,6 +227,15 @@
   </div>
 </div>
 
+<div class="reqmodal" id="sendModal" hidden>
+  <div class="reqbox">
+    <h3 id="sendTitle">Send</h3>
+    <div id="sendBody"></div>
+    <div class="reqerr" id="sendErr" hidden></div>
+    <div class="reqact"><button type="button" class="btn" id="sendCancel">Cancel</button><button type="button" class="btn primary" id="sendGo" disabled>Send</button></div>
+  </div>
+</div>
+
 <script>
 const CFG = window.TOOLKIT_CONFIG || {};
 let sb, DATA = null, started = false, openKey = null, loc = null, prog = null;
@@ -253,7 +275,7 @@ function detailFor(key){
   if(key === 'errors'){ const it = d.booking_errors.items.filter(inFilt);
     return wrap('Booking errors (EFC booking failed)'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="err">${esc(x.error||'')}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), ((loc||prog)?it.length:d.booking_errors.count), it.length); }
   if(key === 'msgs'){ const it = d.failed_messages.items;
-    return wrap('Failed texts & emails (last 14 days)', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">${esc(x.channel)} · ${esc(x.kind||'')}</span><span class="meta">${esc((x.error||'').slice(0,60))}</span></div>`).join(''), d.failed_messages.count, it.length); }
+    return wrap('Failed texts & emails (last 14 days)', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">${esc(x.channel)} · ${esc(x.kind||'')}</span><span class="meta">${esc((x.error||'').slice(0,50))}</span>${x.message_id?`<button class="btn mini rs-btn" data-resend="${x.message_id}" data-name="${esc(x.name||'')}">Resend</button>`:''}</div>`).join(''), d.failed_messages.count, it.length); }
   if(key === 'notbooked'){ const it = d.chase_not_booked.items.filter(inFilt);
     return wrap('Invited but not booked'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)} · invited ${ago(x.invited_days_ago)} ago</span></div>`).join(''), ((loc||prog)?it.length:d.chase_not_booked.count), it.length); }
   if(key === 'unpaid'){ const it = d.chase_unpaid.items.filter(inFilt);
@@ -275,7 +297,9 @@ function grdCard(g){
   return `<div class="grd"><div class="gh"><span class="gd">${fmtDate(g.grading_date)}</span><span class="gl">${esc(g.location||'')}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.makeup?'<span class="badge mk">makeup</span>':''}<span class="gu">${until(g.days_until)}</span></div>`
     + `<div class="bar${low}"><i style="width:${Math.min(100,pct)}%"></i></div>`
     + `<div class="st"><span><b>${g.booked}</b>/${g.total} booked (${g.pct_booked==null?'—':g.pct_booked+'%'})</span><span><b>${g.paid}</b> paid</span>${g.not_booked?`<span><b>${g.not_booked}</b> not booked</span>`:''}</div>`
-    + helperLine + `</div>`;
+    + helperLine
+    + `<div class="grdacts">${hs?`<button class="btn mini" data-remind="${g.day_id}" data-loc="${esc(g.location||'')}">Remind ${hs} helper${hs>1?'s':''}</button>`:''}${(isAdmin&&g.booked)?`<button class="btn mini" data-announce="${g.day_id}" data-loc="${esc(g.location||'')}">Message families</button>`:''}</div>`
+    + `</div>`;
 }
 // #15 live grading-day board: checked-in vs expected, and results coming in
 function liveBoard(rows){
@@ -388,6 +412,76 @@ function render(){
   const cp = $('#calPrev'); if(cp) cp.onclick = () => { calOff--; render(); };
   const cn = $('#calNext'); if(cn) cn.onclick = () => { calOff++; render(); };
   const ct = $('#calToday'); if(ct) ct.onclick = () => { calOff = 0; render(); };
+  $('#board').querySelectorAll('[data-remind]').forEach(b => b.onclick = () => openRemind(b.dataset.remind, b.dataset.loc));
+  $('#board').querySelectorAll('[data-announce]').forEach(b => b.onclick = () => openAnnounce(b.dataset.announce, b.dataset.loc));
+  $('#board').querySelectorAll('[data-resend]').forEach(b => b.onclick = () => doResend(b.dataset.resend, b.dataset.name, b));
+}
+
+/* ---- Operations sends (helper reminders, announcements, resend) — all via the cb function, gated server-side ---- */
+async function cbCall(action, extra){ return await sb.functions.invoke('cb', { body: { action, ...extra } }); }
+function sendErr(m){ const e = $('#sendErr'); e.textContent = m; e.hidden = !m; }
+function closeSend(){ $('#sendModal').hidden = true; }
+$('#sendCancel').onclick = closeSend;
+$('#sendModal').addEventListener('click', e => { if(e.target === $('#sendModal')) closeSend(); });
+
+async function openRemind(dayId, locName){
+  $('#sendTitle').textContent = 'Remind helpers';
+  $('#sendBody').innerHTML = '<div class="prev">Loading helpers…</div>';
+  sendErr(''); const go = $('#sendGo'); go.disabled = true; go.textContent = 'Send reminders';
+  $('#sendModal').hidden = false;
+  const { data, error } = await cbCall('ops_helpers_remind', { day_id: dayId, preview: true });
+  if(error || !data || data.ok === false){ sendErr((data && data.error) || (error && error.message) || 'Could not load.'); return; }
+  if(!data.total){ $('#sendBody').innerHTML = `<div class="prev">No helpers have signed up for this grading yet.</div>`; return; }
+  $('#sendBody').innerHTML = `<div class="prev"><span class="cnt">${data.total}</span> helper${data.total>1?'s':''} for ${esc(locName||'')} · ${esc(data.day.when||'')}<div class="samp">${esc(data.sample||'')}</div></div><p class="hint">Sends each a text (or email if they have no mobile).</p>`;
+  go.disabled = false;
+  go.onclick = async () => { go.disabled = true; go.textContent = 'Sending…'; sendErr('');
+    const { data: r, error: e2 } = await cbCall('ops_helpers_remind', { day_id: dayId });
+    if(e2 || !r || r.ok === false){ sendErr((r && r.error) || (e2 && e2.message) || 'Send failed.'); go.disabled = false; go.textContent = 'Send reminders'; return; }
+    closeSend(); alert(`Sent ${r.sent} reminder${r.sent===1?'':'s'}${r.failed?` · ${r.failed} failed`:''}.`); await load();
+  };
+}
+
+let annChannel = 'sms';
+function openAnnounce(dayId, locName){
+  $('#sendTitle').textContent = 'Message families — ' + (locName||'');
+  annChannel = 'sms';
+  $('#sendBody').innerHTML = `
+    <div class="chrow"><button type="button" class="chip2 on" data-ch="sms">Text (SMS)</button><button type="button" class="chip2" data-ch="email">Email</button></div>
+    <label id="annSubWrap" hidden>Subject<input id="annSub" maxlength="120" style="width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 11px;font:inherit"></label>
+    <label>Message to booked families<textarea id="annText" maxlength="640" placeholder="e.g. Reminder: doors open 15 min before. Bring your uniform and water."></textarea></label>
+    <p class="hint">You can use {first} (student), {parent}, {school}, {date}. Goes to families who are booked for this grading.</p>
+    <div id="annPrev"></div>`;
+  sendErr(''); const go = $('#sendGo'); go.disabled = true; go.textContent = 'Preview';
+  $('#sendModal').hidden = false; setTimeout(() => $('#annText').focus(), 30);
+  $('#sendBody').querySelectorAll('[data-ch]').forEach(c => c.onclick = () => {
+    annChannel = c.dataset.ch; $('#sendBody').querySelectorAll('.chip2').forEach(x => x.classList.toggle('on', x.dataset.ch === annChannel));
+    $('#annSubWrap').hidden = annChannel !== 'email'; $('#annPrev').innerHTML = ''; go.textContent = 'Preview'; go.disabled = $('#annText').value.trim().length < 3;
+  });
+  const txt = $('#annText'); txt.oninput = () => { $('#annPrev').innerHTML = ''; go.textContent = 'Preview'; go.disabled = txt.value.trim().length < 3; };
+  go.onclick = async () => {
+    const text = txt.value.trim(); if(text.length < 3){ sendErr('Write a message first.'); return; }
+    if(go.textContent === 'Preview'){ go.disabled = true; sendErr('');
+      const { data, error } = await cbCall('ops_announce', { day_id: dayId, text, channel: annChannel, subject: ($('#annSub')||{}).value, preview: true });
+      if(error || !data || data.ok === false){ sendErr((data && data.error) || (error && error.message) || 'Could not preview.'); go.disabled = false; return; }
+      $('#annPrev').innerHTML = `<div class="prev"><span class="cnt">${data.reachable}</span> of ${data.booked} booked reachable by ${annChannel==='email'?'email':'text'}<div class="samp">${esc(data.sample||'')}</div></div>`;
+      go.textContent = `Send to ${data.reachable}`; go.disabled = data.reachable === 0; return;
+    }
+    // second click = send
+    if(!confirm(`Send this ${annChannel==='email'?'email':'text'} to the booked families now?`)) return;
+    go.disabled = true; go.textContent = 'Sending…'; sendErr('');
+    const { data: r, error: e2 } = await cbCall('ops_announce', { day_id: dayId, text, channel: annChannel, subject: ($('#annSub')||{}).value });
+    if(e2 || !r || r.ok === false){ sendErr((r && r.error) || (e2 && e2.message) || 'Send failed.'); go.disabled = false; go.textContent = 'Preview'; return; }
+    closeSend(); alert(`Sent ${r.sent} message${r.sent===1?'':'s'}${r.failed?` · ${r.failed} failed`:''}.`); await load();
+  };
+}
+
+async function doResend(mid, name, btn){
+  if(!confirm(`Resend this message${name?' to '+name:''}?`)) return;
+  if(btn){ btn.disabled = true; btn.textContent = '…'; }
+  const { data, error } = await cbCall('ops_message_resend', { message_id: mid });
+  if(error || !data || data.ok === false){ alert('Resend failed — ' + ((data && data.error) || (error && error.message) || 'try again')); if(btn){ btn.disabled = false; btn.textContent = 'Resend'; } return; }
+  if(btn){ btn.textContent = 'Sent ✓'; }
+  await load();
 }
 
 function fmtWhen(iso){ if(!iso) return ''; const d=new Date(iso), now=new Date(); const mins=Math.round((now-d)/60000);
