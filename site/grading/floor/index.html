@@ -621,7 +621,7 @@ function slotPos(g,n,rows){ const pos=positions(n,rows);
   const ys=[...new Set(pos.map(p=>p.y))].sort((a,b)=>a-b);
   return pos.slice().sort((a,b)=>(a.y-b.y)||(ys.indexOf(a.y)%2?b.x-a.x:a.x-b.x)); }
 const byId=id=>STUDENTS.find(s=>s.id===id)||null;
-const COMPONENTS=['Flexibility','Hand Techniques','Kicking Techniques','Self-Defence','One-Step Sparring','Kick Boxing','Meditation','Life Skill'];
+const COMPONENTS=['Flexibility','Hand Techniques','Kicking Techniques','Self-Defence','One-Step Sparring','Kick Boxing','Pad Sparring','Free Sparring','Meditation','Life Skill'];
 const CURR={"White":{"min":12,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stationary Low Block","Stationary Middle Block","Stationary High Block","Stationary Single Punch"],"Kicking Techniques":["Stationary Straight Rising Kick","Stationary Snap Kick","Stationary Axe Kick","Stationary Turning Kick","Stationary 2 Turning Kicks with landing","Master’s Choice of Technique (Optional)"],"Self-Defence":["Same Side Wrist Grab — Escape, Slide away, Side Kick","Bully Defence — Block, Defend, “Stop it I don’t like it”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to head","Step Right Leg Back, Block Left Hand Outwards, Right Leg Turning Kick to Head"],"Kick Boxing":["Jab Cross"],"Meditation":["Beginner One Minute"],"Life Skill":["Self Care.  Students must be able to:","Tie your own belt","Wear Uniform Correctly","Brush your teeth","Shower Regularly"]}},"Yellow":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block","Stepping Forward Middle Block","Stepping Forward High Block","Stationary Double Punch (Right then Left)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Turning Kicks without putting your leg down","Stepping Forward Snap Kick","Stepping Forward Two Turning Kicks","Stationary Side Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Same Side Wrist Grab — Escape, Slide away, Side Kick, Palm, “Back Away”","Opposite Side Wrist Grab","Bully Defence — Block, Defend, “Stop it I don’t like it”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to head","Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to Head","Step Right Leg Back, Block Left Hand Outwards, Right Leg Side Kick to the Ribs (Dragons/Ninjas need"],"Kick Boxing":["Jab Cross Hook Uppercut"],"Meditation":["Beginner One Minute"],"Life Skill":["Respect","Bow before you speak to teachers","Bow when you enter and leave the academy","Bow when you receive or give anything"]}},"Orange":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward then Backwards Low Block","Stepping Forward then Backwards Middle Block","Stepping Forward then Backwards High Block","Stationary Triple Punch (Tae-Kwon-Do)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Turning Kicks without putting your leg down","Stepping Forward Snap Kick then Side Kick (Different Legs)","Stepping Forward Low then High Turning Kicks (Different Legs)","Stationary Back Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Same Side Wrist Grab — Escape, Slide away, Side Kick, Palm, “Back Away”","Opposite Side Wrist Grab","Right Hand Front Collar Grab","Bully Defence — Block, Defend, “Stop it I don’t like it”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to head","Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to Head","Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to","Step Right Leg Back, Block Left Hand Inwards, Right Leg Back Kick to the Ribs (Dragons/Ninjas need"],"Kick Boxing":["Jab, Cross, Hook, Uppercut, Snap, Jumping Snap"],"Meditation":["Beginner One Minute"],"Life Skill":["Leadership","Be able to introduce yourself to a friend and an instructor"]}},"Green":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block and Punch (One Step Only)","Stepping Forward Middle Block and Punch (One Step Only)","Stepping Forward High Block and Punch (One Step Only)","Stepping Forward Triple Punch (Body, Body, Head) (One Step Only)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Four Turning Kicks without putting your leg down","Stepping Forward Snap Kick then Side Kick","Stepping Forward Double Kick (Body, Body) (Switching Legs in the air)","Stationary Reverse Turning Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Two Handed Collar Grab","Stranger Awareness — “You’re not my mum, you’re not my dad, you’re a stranger!”"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Block Left Hand Inwards, Right Leg Reverse Turning Kick to the Head"],"Kick Boxing":["Jab Cross Duck to the Left Hook"],"Meditation":["Intermediate Two Minutes"],"Life Skill":["Bully Busting Quiz","What are the Five Steps to Bully Defence? — Ask nicely to Stop — Confidently say “Stop it I don’t like it” — Create a safe space and repeat “Stop it I don’t like it” — Move away — Ask for help"]}},"Blue":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block, Middle Block, and Punch (One Step Only)","Stepping Forward Low Block, High Block, and Punch (One Step Only)","Stepping Forward Middle Block, High Block, and Punch (One Step Only)","Stepping Forward Triple Punch (Body, Body, Head) (One Step Only)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Five Turning Kicks without putting your leg down","Stationary Two Back Kicks","Stepping Forward Double Kick (Body, Head) (Switching Legs in the air)","Stationary Jumping Back Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Two Handed Collar Grab","Choke","Stranger Awareness — “You’re not my mum, you’re not my dad, you’re a stranger!”"],"One-Step Sparring":["Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Block Left Hand Inwards, Right Leg Jumping Back Kick to the Ribs"],"Kick Boxing":["Jab, Cross, Duck to the Left, Hook, Right Turning Kick"],"Meditation":["Intermediate Two minutes"],"Life Skill":["Stranger Awareness"]}},"Purple":{"min":20,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Low Block, Middle Block, High Block, and Punch (One Step Only) (Same Hand for","Stepping Forward Low Block, Middle Block, High Block, and Punch (One Step Only) (Alternating","Stepping Forward Double Punch (Body, Head) (One Step Only)","Stepping Forward Triple Punch (Body, Body, Head) (One Step Only)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Reverse Turning Kicks","Stationary Back Kick and Jumping Back Kick","Stepping Forward Turning Kick and Stationary Reverse Turning Kick","Stationary Hook and Instep Turning Kick","Master’s Choice of Technique (Optional)"],"Self-Defence":["Two Handed Collar Grab","Choke","Front Body Lock","Stranger Awareness — “You’re not my mum, you’re not my dad, you’re a stranger!”"],"One-Step Sparring":["Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Block Left Hand Inwards, Right Hand Grab the arm, Right Leg Hook & Instep"],"Kick Boxing":["Jab, Cross, Duck to the Left, Hook, Right Turning Kick, Left Reverse"],"Meditation":["Intermediate Two Minutes"],"Life Skill":["Leadership - Look after a beginner buddy in class"]}},"Brown":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block (In Back Stance)","Stepping Forward Double Lower Form Block (In Back Stance)"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Reverse Turning Kicks (Low then High)","Stationary Back Kick and Jumping Back Kick","Stepping Forward Turning Kick and Stationary Reverse Turning Kick, Followed by Stepping Forward","Stationary Reverse Hook and Instep","Master’s Choice of Technique (Optional)","First Five Moves of Pal-Jang Taeguk 8"],"Self-Defence":["Bear Hug from behind arms pinned"],"One-Step Sparring":["Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach","Step Right Leg Back, Block Left Hand Inwards, Right Leg Reverse Hook & Instep (Dragons/Ninjas"],"Kick Boxing":["Jab, Cross, Jab, Jab, Cross"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Stranger Awareness quiz on how to access help","Call out for help","Move away","Stay safe always have someone around you","Make sure your parents know where you are and who you are with at all times","If you ever feel uncomfortable call a parent"]}},"Red":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block and Elbow","Stepping Forward Double Lower Form Block and Scissor Kick"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Reverse Turning Kicks (Low, Middle, High)","Stepping Forward Back Kick and Jumping Back Kick","Stepping Forward Turning Kick and Stationary Reverse Turning Kick, Followed by Stepping Forward","Stationary Tornado Kick","Master’s Choice of Technique (Optional)","First Seven Moves of Pal-Jang Taeguk 8"],"Self-Defence":["Bear Hug from behind arms pinned","Grab From Behind Single Handed Grab"],"One-Step Sparring":["Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Block & Tornado"],"Kick Boxing":["Jab, Cross, Jab, Jab, Cross, Turning Kick"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Discipline","Memorise and say the whole student creed"]}},"Red Two":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block, Elbow, Hammer Fist","Stepping Forward Double Lower Form Block, Scissor Kick, Inner Form Block"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Reverse Turning Kicks (Head High)","Stepping Forward Two Jumping Back Kicks","Stepping Forward Turning and Tornado Kick","Stationary Jumping Reverse Hook Kick","Master’s Choice of Technique (Optional)","First Nine Moves of Pal-Jang Taeguk 8"],"Self-Defence":["Bear Hug from Behind Arms Pinned","Grab From Behind Single Handed Grab","Front Head Lock (Facing Same Way)"],"One-Step Sparring":["Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Block & Jumping Reverse (Dragons & Ninjas need this one)"],"Kick Boxing":["Jab, Cross, Jab, Jab, Cross, Turning Kick, Tornado Kick"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Discipline","Ensure shoes are put neatly away in the shoe cabinet"]}},"Red Three":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block, Elbow, Hammer Fist, Punch","Stepping Forward Double Lower Form Block, Scissor Kick, Inner Form Block, Double Punch"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Three Reverse Hook Kicks (Low, High, Jumping)","Stepping Forward Back Kick, Back Kick, and Jumping Back Kick","Stepping Forward Turning, Tornado and Reverse Hook Kick","Three Move Combination Move of Your Choice (Including Hands, Kicks and optional Gymnastics)","Master’s Choice of Technique (Optional)"],"One-Step Sparring":["Step Left Leg Out, Left Block inwards, Right punch to body, Left Punch to body, Right Punch to","Step Right Leg Out, Right Hand Knife Hand Block, Left Hand Knife Hand Block, Right Hand Knife","Step Right Leg Back, Left Hand Inwards Block, Right Leg Back Kick to Stomach, Right Leg Reverse","Left Hand Block, Right Hand Punch, Left Hand Grab, Right Elbow, Right Leg Trip (Left Hand hold"],"Kick Boxing":["Jab Cross Hook Uppercut Snap Jumping Snap","Jab Cross Duck to the Left Hook Right Turning Kick Left Reverse","Jab Cross Jab Jab Cross Turning Kick Tornado Kick"],"Meditation":["Advanced Three Minutes"],"Life Skill":["Discipline","Help students line up on the prep zone prior to class"]}},"Cho Dan Bo":{"min":24,"cats":{"Flexibility":["Side Splits"],"Hand Techniques":["Stepping Forward Knife Block, Elbow, Hammer Fist, Punch","Stepping Forward Double Lower Form Block, Scissor Kick, Inner Form Block, Double Punch"],"Kicking Techniques":["Stepping Forward Turning Kick","Stationary Two Jumping Back Kicks","Stationary Two Jumping Reverse Hook Kicks","Stationary Jumping Back Kick and Jumping Reverse Hook Kick","Stepping Forward Turning, Tornado and Reverse Hook Kick","Stepping Forward Back Kick, Back Kick and Jumping Back Kick","Stationary Three Reverse Hook Kicks (Low, High and Jumping)","Five to Seven Move Combination Move of Your Choice (Including Hands, Kicks and optional","Pal-Jang Taeguk 8 (All 23 Moves)"],"Self-Defence":["Self Defence against Beginner (Stage One), Intermediate (Stage Two), Advanced (Stage Three)"],"One-Step Sparring":["Hands Only","Kicks Only","Hand & Kicks","Takedown","Lock"],"Meditation":["Advanced Three Minutes"]}}};
 const scores={}, patt={}, ticks={}, said=new Set();
 const saidKey=(b,c,i)=>b+'|'+c+'|'+i;
@@ -1465,6 +1465,22 @@ function rsPresentInjectCSS(){ if(document.getElementById('rsPrezCSS')) return; 
   .pz-screen .pz-sd span{flex:1;max-width:240px;padding:6px 8px;border-radius:10px;font-weight:800;font-size:clamp(13px,1.6vw,18px);text-transform:uppercase;letter-spacing:.05em;border:1px solid}
   .pz-screen .pz-sd .k{color:#8fd0ff;border-color:#2a4a63;background:rgba(60,130,185,.12)}
   .pz-screen .pz-sd .a{color:#e8c766;border-color:#5a4e26;background:rgba(170,140,50,.12)}
+  .pz-screen .pz-split{flex:1;display:flex;gap:16px;min-height:0;margin:12px 0}
+  .pz-screen .pz-layout{flex:1;min-width:0;display:flex;flex-direction:column;background:#0f1211;border:1px solid #242a26;border-radius:18px;overflow:hidden}
+  .pz-screen .pz-layout .pz-lh{padding:10px 16px;color:#9aa39a;font-weight:800;font-size:clamp(14px,1.7vw,19px);border-bottom:1px solid #1d221f}
+  .pz-screen .pz-layout .floor{flex:1;min-height:0;position:relative;margin:0;border:0;border-radius:0}
+  .pz-screen .pz-right{flex:1;min-width:0;display:flex;flex-direction:column}
+  .pz-screen .pz-right .pz-mid{margin:0 0 12px}
+  @media (max-width:820px){ .pz-screen .pz-split{flex-direction:column} }
+  .pz-screen .pz-allwrap{flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:8px 0;overflow-y:auto}
+  .pz-screen .pz-row{display:flex;align-items:center;gap:14px;text-align:left;background:#15191700;border:1px solid #242a26;border-radius:14px;padding:14px 16px;cursor:pointer}
+  .pz-screen .pz-row.on{border-color:var(--accent,#4fae6d);background:rgba(79,174,109,.08)}
+  .pz-screen .pz-rtext{font-weight:700;font-size:clamp(17px,2vw,24px);line-height:1.2;color:#fff}
+  .pz-screen .pz-row.on .pz-rtext{color:var(--accent,#4fae6d)}
+  .pz-screen .pz-badge{flex:none;align-self:flex-start;font-size:clamp(11px,1.3vw,14px);font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:4px 9px;border-radius:8px;white-space:nowrap;border:1px solid}
+  .pz-screen .pz-badge.kids{color:#8fd0ff;border-color:#2a4a63;background:rgba(60,130,185,.14)}
+  .pz-screen .pz-badge.all{color:#9fe0b4;border-color:#2c5a3c;background:rgba(60,150,90,.12)}
+  .pz-screen .pz-agel{margin-top:10px}
   .pz-screen .pz-foot{display:flex;align-items:center;gap:14px}
   .pz-screen .pz-foot button{border:0;border-radius:14px;padding:24px;font-weight:800;cursor:pointer}
   .pz-screen .pz-next{flex:1;background:var(--accent,#4fae6d);color:#06240f;font-size:clamp(20px,2.8vw,28px)}
@@ -1511,9 +1527,25 @@ function renderRsPresent(){ const el=document.getElementById('rsPresent'); if(!e
 
 // size the big move text to its length so the whole panel (move + progress + up-next) always fits
 function mvSize(t){ const n=(t||'').length; const cap = n>85?26 : n>55?32 : n>34?42 : n>18?52 : 66; return `clamp(22px,7vw,${cap}px)`; }
+// pull an age/programme note out of a curriculum item, e.g. "... (Dragons/Ninjas need this one)" -> {text, age:'Dragons / Ninjas'}
+function ageInfo(text){ let m=(text||'').match(/\s*\(([^)]*)\)\s*$/);                                   // normal "(...)"
+  if(!m) m=(text||'').match(/\s*\(([^)]*(?:dragon|ninja|tiger|cub|adult|\bkid|junior)[^)]*)$/i);          // truncated "(... need" with no close
+  if(m && /dragon|ninja|tiger|cub|adult|\bkid|junior/i.test(m[1])){
+    const who=m[1].replace(/needs?\s+this\s+one/ig,'').replace(/\bneeds?\b\s*$/i,'').replace(/\bonly\b/ig,'').replace(/[\s,]+$/,'').replace(/\//g,' / ').trim();
+    return { text:text.slice(0,m.index).trim(), age:who||null }; }
+  return { text, age:null }; }
+// components whose steps are shown ALL together on one screen (so the caller sees every age group's steps at once)
+const CB_SHOW_ALL=new Set(['One-Step Sparring']);
+// round-style components that carry no move checklist — shown as a section to run on the floor
+const CB_ACTIVITY=new Map([['Pad Sparring','Pad sparring round'],['Free Sparring','Free sparring round']]);
 // ---- Coloured belt Present mode: the selected group's belt curriculum (CURR) big, one move at a time ----
 let cbpGi=0, cbpMove=0;
-function cbMovesFor(belt){ const cu=CURR[belt]; if(!cu) return []; const out=[]; COMPONENTS.forEach(comp=>{ ((cu.cats||{})[comp]||[]).forEach((text,ix)=>out.push({comp, ix, head:comp, text})); }); return out; }
+function cbMovesFor(belt){ const cu=CURR[belt]; if(!cu) return []; const out=[];
+  COMPONENTS.forEach(comp=>{ const items=(cu.cats||{})[comp]||[];
+    if(!items.length){ if(CB_ACTIVITY.has(comp)) out.push({comp, ix:0, head:comp, text:CB_ACTIVITY.get(comp), section:true}); return; }
+    if(CB_SHOW_ALL.has(comp)) out.push({comp, head:comp, all:true, items:items.map((t,ix)=>({ix, ...ageInfo(t)})) });
+    else items.forEach((text,ix)=>{ const a=ageInfo(text); out.push({comp, ix, head:comp, text:a.text, age:a.age}); }); });
+  return out; }
 function cbPartsFor(g){ return g ? beltsOf(g).filter(b=>CURR[b]).map(b=>({belt:b, moves:cbMovesFor(b)})) : []; }
 function cbMax(g){ const p=cbPartsFor(g); return Math.max(1, ...p.map(x=>x.moves.length)); }
 function openCbPresent(gi, move){ const a=(gi==null?state.active:Math.min(gi,state.groups.length-1)); const g=state.groups[a]; if(!g||!cbPartsFor(g).length) return toast('No curriculum for this group.',3500);
@@ -1525,25 +1557,43 @@ function savePos(){ try{ const el=document.getElementById('cbPresent'); localSto
 function cbMovePanel(part){ const tgt=esc(part.belt)+' → '+esc(nextOf(part.belt));
   if(!part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">No curriculum.</div></div>`;
   if(cbpMove>=part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">✓ Finished all moves</div><div class="pz-count">${part.moves.length} / ${part.moves.length}</div></div>`;
-  const mv=part.moves[cbpMove], ticked=said.has(saidKey(part.belt, mv.comp, mv.ix)), nx=part.moves[cbpMove+1];
+  const mv=part.moves[cbpMove], nx=part.moves[cbpMove+1];
   const pct=Math.round((cbpMove+1)/part.moves.length*100);
+  const foot=`<div class="pz-count">${cbpMove+1} / ${part.moves.length}</div><div class="pz-bar"><i style="width:${pct}%"></i></div><div class="pz-next-lbl">${nx?('Up next: <b>'+esc(nx.all?nx.head:nx.text)+'</b>'):'Last move'}</div>`;
+  const ageBadge=a=>`<span class="pz-badge ${a?'kids':'all'}">${a?esc(a):'Everyone'}</span>`;
+  if(mv.all){ // One-Step Sparring etc. — show every step at once, each labelled by who does it
+    const rows=mv.items.map(it=>{ const on=said.has(saidKey(part.belt, mv.comp, it.ix));
+      return `<div class="pz-row${on?' on':''}" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${it.ix}">${ageBadge(it.age)}<span class="pz-rtext">${on?'✓ ':''}${esc(it.text)}</span></div>`; }).join('');
+    return `<div class="pz-belt all" data-belt="${esc(part.belt)}"><div class="pz-bname">${tgt}</div><div class="pz-head">${esc(mv.head)}</div><div class="pz-allwrap">${rows}</div>${foot}</div>`;
+  }
+  const ticked=said.has(saidKey(part.belt, mv.comp, mv.ix));
   const head = mv.comp==='Self-Defence'
     ? `<div class="pz-sd"><span class="k">Kids self-defence</span><span class="a">Adults self-defence</span></div>`
-    : `<div class="pz-head">${esc(mv.head)}</div>`;
-  return `<div class="pz-belt" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${mv.ix}"><div class="pz-bname">${tgt}</div>${head}<div class="pz-move${ticked?' ticked':''}" style="font-size:${mvSize(mv.text)}">${ticked?'✓ ':''}${esc(mv.text)}</div><div class="pz-count">${cbpMove+1} / ${part.moves.length}</div><div class="pz-bar"><i style="width:${pct}%"></i></div><div class="pz-next-lbl">${nx?('Up next: <b>'+esc(nx.text)+'</b>'):'Last move'}</div></div>`;
+    : `<div class="pz-head">${esc(mv.head)}</div>${mv.age?('<div class="pz-agel">'+ageBadge(mv.age)+'</div>'):''}`;
+  return `<div class="pz-belt" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${mv.ix}"><div class="pz-bname">${tgt}</div>${head}<div class="pz-move${ticked?' ticked':''}" style="font-size:${mvSize(mv.text)}">${ticked?'✓ ':''}${esc(mv.text)}</div>${foot}</div>`;
 }
+// a compact, read-only floor layout of a group, to sit beside the moves in Present mode
+function cbPresentFloorHtml(g){ const spots=g.spots||Math.max(1,g.slots.filter(x=>x!=null).length), rows=g.rows||(spots>7?2:1);
+  const lay=layoutFor({slots:g.slots,spots}), pos=slotPos({slots:g.slots,spots,rows},spots,rows);
+  return `<div class="floor">`+'<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{ const s=byId(lay[i]);
+    if(!s) return `<div class="spot empty" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
+    return `<div class="spot" style="left:${p.x}%;top:${p.y}%"><div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div><div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
+  }).join('')+`</div>`; }
 function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!el||el.hidden) return;
   if(cbpGi>state.groups.length-1) cbpGi=state.groups.length-1; let g=state.groups[cbpGi]; if(!g){ cbPresentClose(); return; }
   const parts=cbPartsFor(g), max=cbMax(g); if(cbpMove>=max) cbpMove=max-1;
   const top=`<div class="pz-top"><span>${esc(schoolOf(DAYINFO.location))} grading</span><span>·</span><span>${gword()} ${g.cone||'?'} · ${esc(beltsOf(g).join(' + '))}</span><button class="pz-x" title="Close">✕</button></div>`;
+  const layout=`<div class="pz-layout"><div class="pz-lh">Floor — ${gword()} ${g.cone||'?'} · ${esc(beltsOf(g).join(' + '))}</div>${cbPresentFloorHtml(g)}</div>`;
   const mid=`<div class="pz-mid">${parts.map(cbMovePanel).join('')||'<div class="pz-belt"><div class="pz-move done">No curriculum for this group.</div></div>'}</div>`;
   const atEnd=cbpMove>=max-1, lastG=cbpGi>=state.groups.length-1;
   const foot=`<div class="pz-foot"><button class="pz-prev" id="cbPrev">‹ Back</button><span class="pz-pos">${parts.length>1?'':'Move '+(cbpMove+1)+' / '+max}</span><button class="pz-next" id="cbNext" ${(atEnd&&lastG)?'disabled':''}>${atEnd?(lastG?'Done':'Next group ›'):'Next move ›'}</button></div><div class="pz-tap">Tap a move to tick it off as you call it</div>`;
-  el.innerHTML=top+mid+foot; savePos();
+  el.innerHTML=top+`<div class="pz-split">${layout}<div class="pz-right">${mid}${foot}</div></div>`; savePos();
   el.querySelector('.pz-x').onclick=cbPresentClose;
   el.querySelector('#cbNext').onclick=()=>{ if(cbpMove<max-1) cbpMove++; else if(cbpGi<state.groups.length-1){ cbpGi++; cbpMove=0; } renderCbPresent(); };
   el.querySelector('#cbPrev').onclick=()=>{ if(cbpMove>0) cbpMove--; else if(cbpGi>0){ cbpGi--; cbpMove=cbMax(state.groups[cbpGi])-1; } renderCbPresent(); };
-  el.querySelectorAll('.pz-belt[data-belt]').forEach(p=>p.onclick=()=>{ const k=saidKey(p.dataset.belt, p.dataset.comp, +p.dataset.ix); said.has(k)?said.delete(k):said.add(k); renderCbPresent(); });
+  const tog=(b,c,i)=>{ const k=saidKey(b,c,+i); said.has(k)?said.delete(k):said.add(k); renderCbPresent(); };
+  el.querySelectorAll('.pz-belt[data-ix]').forEach(p=>p.onclick=()=>tog(p.dataset.belt,p.dataset.comp,p.dataset.ix));   // single-move cards: tap anywhere
+  el.querySelectorAll('.pz-row[data-ix]').forEach(r=>r.onclick=e=>{ e.stopPropagation(); tog(r.dataset.belt,r.dataset.comp,r.dataset.ix); });   // show-all cards: tap each step
 }
 
 // ---- Run sheet builder: create / edit run sheets and assign them to a day's gradings ----
@@ -1678,11 +1728,11 @@ async function loadDay(dayId) {
   if (!CODE) { const { data: c } = await sb.rpc('cb_floor_set_code', { p_day: dayId }); if (c) CODE = c; }
   showCode();
   if (DAYINFO.floor_spots) state.spotsOut = DAYINFO.floor_spots;
-  loadHelpers(data.helpers);
-  mapStudents(data.students);
-  if (data.groups && data.groups.length) { loadGroups(data.groups); state.autoBalance = false; } else { generateGroups(); }
+  try { loadHelpers(data.helpers);
+    mapStudents(data.students);
+    if (data.groups && data.groups.length) { loadGroups(data.groups); state.autoBalance = false; } else { generateGroups(); }
+  } finally { loading = false; }   // never leave `loading` stuck true (that would freeze all saves + the poll)
   $('#dayLabel').textContent = `${schoolOf(DAYINFO.location)} · ${fmtDay(DAYINFO.date)}`;
-  loading = false;
   if (!(data.groups && data.groups.length)) persistGroups();
   // come back to the group tab / present position you were on before a reload (same day, this device)
   let reopen=null; try{ const pos=JSON.parse(localStorage.getItem('cb_floor_pos')||'null');
@@ -1694,8 +1744,14 @@ async function loadDay(dayId) {
 }
 async function pollDay() {
   if (!DAYID || loading || state.sel || dragging || $('#modal').classList.contains('open')) return;   // don't clobber mid-action
-  const { data } = await sb.rpc('cb_floor_load', { p_day: DAYID }); if (!data) return;
-  loading = true; if (!helpT) loadHelpers(data.helpers); mapStudents(data.students); if (data.groups && data.groups.length) loadGroups(data.groups); loading = false; render();
+  let data; try { ({ data } = await sb.rpc('cb_floor_load', { p_day: DAYID })); } catch (e) { return; }
+  if (!data) return;
+  loading = true;
+  // try/finally so a throw in loadGroups/mapStudents can never leave `loading` stuck true — that would freeze every
+  // save (persistGroup/persistCheckin/persistScore all gate on it) and the poll itself, i.e. "only syncs client-side".
+  try { if (!helpT) loadHelpers(data.helpers); mapStudents(data.students); if (data.groups && data.groups.length) loadGroups(data.groups); }
+  finally { loading = false; }
+  render();
 }
 
 // day picker + sign-in
