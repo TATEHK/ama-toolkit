@@ -150,6 +150,23 @@ export async function handle(req, db) {
     const saRes = await db.from('staff_admins').select('email');
     const staffAdmins = new Set(saRes.error ? [] : (saRes.data || []).map(r => String(r.email).toLowerCase()));
 
+    // Granting rule: a non-owner may only add permissions they hold themselves, and only the owner can make admins.
+    // Owners can grant anything. Removing/keeping a permission the target already has is always allowed.
+    const permsOf = async (app, who) => { const A = APPS[app]; let q = db.from(A.table).select(A.col).eq('email', who); if (A.app) q = q.eq('app', A.app); const { data } = await q; return new Set((data || []).map(r => r[A.col])); };
+    const myPermCache = {};
+    const myPermsFor = async app => { if (!(app in myPermCache)) myPermCache[app] = await permsOf(app, me); return myPermCache[app]; };
+    const checkGrant = async (app, want, targetEmail) => {
+      if (amOwner || want === undefined) return null;
+      const mine = await myPermsFor(app), iAdmin = mine.has('admin');
+      const current = targetEmail ? await permsOf(app, targetEmail) : new Set();
+      for (const p of want) {
+        if (current.has(p) || p === 'view') continue;            // already has it, or the baseline "can open the app"
+        if (p === 'admin') return 'Only the owner can make someone an admin.';
+        if (!(iAdmin || mine.has(p))) return "You can only give access you have yourself. Ask the owner for anything higher.";
+      }
+      return null;
+    };
+
     if (action === 'list') {
       const [users, cardRes, appRes, tvRes] = await Promise.all([allUsers(db), db.from('staff_permissions').select('email, permission'), db.from('app_permissions').select('email, app, perm'),
         tvReady ? db.from('tv_permissions').select('email, permission') : Promise.resolve({ data: [] })]);
@@ -234,6 +251,8 @@ export async function handle(req, db) {
       if (!mobile || mobile.length !== 9) return fail('Enter their mobile, or an email.');
       const clash = mobileClash(mobile, null);
       if (clash) return fail(`That mobile already belongs to ${whoIs(clash)}.`);
+      { const want = { card: cardWantOf(body), bb: bbWantOf(body), cb: cbWantOf(body), aw: awWantOf(body), tv: tvWantOf(body, tvReady) };
+        for (const app of ['card', 'bb', 'cb', 'aw', 'tv']) { const err = await checkGrant(app, want[app], null); if (err) return fail(err, 403); } }
       const made = await makeHubOnly(name, mobile, { card: cardWantOf(body), bb: bbWantOf(body), cb: cbWantOf(body), aw: awWantOf(body), tv: tvWantOf(body, tvReady) });
       await audit('create', made, { hub_only: true });
       return json({ ok: true, existed: false, email: made, hub_only: true });
@@ -244,8 +263,16 @@ export async function handle(req, db) {
     const cardWant = cardWantOf(body), tvWant = tvWantOf(body, tvReady);
     const appWant = Object.fromEntries(GRADING_APPS.map(([app, f]) => [app, f(body)]));
     const setGrading = async (empty) => { for (const [app] of GRADING_APPS) if (appWant[app] !== undefined || empty) await setPerms(db, app, email, appWant[app] || []); };
+    // Block any disallowed grant across all apps before changing a login's permissions
+    const guardTarget = async (targetEmail) => {
+      for (const [app, want] of [['card', cardWant], ['bb', appWant.bb], ['cb', appWant.cb], ['aw', appWant.aw], ['tv', tvWant]]) {
+        const err = await checkGrant(app, want, targetEmail); if (err) return err;
+      }
+      return null;
+    };
 
     if (action === 'create') {
+      { const err = await guardTarget(email); if (err) return fail(err, 403); }
       if (mobile && hubReady) { const clash = mobileClash(mobile, email); if (clash) return fail(`That mobile already belongs to ${whoIs(clash)}.`); }
       if (mobile && mobile.length !== 9) return fail('Enter a full mobile number, or leave it blank.');
       const existing = await findUser(db, email);
@@ -351,6 +378,7 @@ export async function handle(req, db) {
     if (action === 'roles') {
       if (email === me && ((cardWant && !cardWant.includes('admin')) || (appWant.bb && !appWant.bb.includes('admin'))))
         return fail("You can't remove your own admin access.");
+      { const err = await guardTarget(email); if (err) return fail(err, 403); }
       for (const [app, want] of [['card', cardWant], ['bb', appWant.bb], ['cb', appWant.cb], ['aw', appWant.aw]]) {
         if (!want) continue;
         const last = await lastAdmin(db, app, email, want);
@@ -385,6 +413,7 @@ export async function handle(req, db) {
 
     // Grant or remove the "Staff admin" permission (who can manage logins). Owners are always Staff admins.
     if (action === 'staff_admin') {
+      if (!amOwner) return fail('Only the owner can change who is a Staff admin.', 403);
       if (!validEmail(email) && !email.endsWith(HUB_DOMAIN)) return fail('Enter a valid email.');
       if (owners.has(email)) return fail('The owner is always a Staff admin.');
       const on = body.on === true;

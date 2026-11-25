@@ -245,7 +245,7 @@ async function load() {
     const d = await api({ action: 'list' });
     if (!Array.isArray(d.card_perms)) { const er = new Error('The "staff" function in Supabase is an older copy. Update it with the latest supabase/functions/staff/index.ts.'); er.setup = true; er.outdated = true; throw er; }
     if (!Array.isArray(d.cb_perms)) { const er = new Error('The "staff" function in Supabase is an older copy without per-app permissions. Update it with the latest supabase/functions/staff/index.ts.'); er.setup = true; er.outdated = true; throw er; }
-    state.me = d.me; state.users = d.users.map(u => ({ ...u, card_perms: u.card_perms || [], tv_perms: u.tv_perms || [], bb_perms: u.bb_perms || [], cb_perms: u.cb_perms || [], aw_perms: u.aw_perms || [] }));
+    state.me = d.me; state.me_owner = d.me_owner === true; state.users = d.users.map(u => ({ ...u, card_perms: u.card_perms || [], tv_perms: u.tv_perms || [], bb_perms: u.bb_perms || [], cb_perms: u.cb_perms || [], aw_perms: u.aw_perms || [] }));
     state.audit = Array.isArray(d.audit) ? d.audit : [];   // activity log (supabase/staff-admin.sql)
     state.hub = d.hub === true;   // hub mobile links (supabase/hub-login.sql)
     state.tv = d.tv_perms === undefined ? 'outdated' : d.tv_perms === null ? 'setup' : 'ready';   // TV permissions: function and database ready?
@@ -357,8 +357,8 @@ function openPerson(email) {
       <div class="row"><button class="btn primary" id="saveRoles" type="submit">Save permissions</button></div>
     </form>
     ${u.has_login ? `<div class="section"><h3>Staff admin</h3>
-      <label class="check"><input type="checkbox" id="saToggle"${u.staff_admin ? ' checked' : ''}${(self || u.owner) ? ' disabled' : ''}> Can manage staff logins — add people, set permissions, and see the activity log</label>
-      <p class="hint">${u.owner ? 'The owner is always a Staff admin.' : self ? 'You can\'t remove your own Staff admin access.' : 'Staff admins are the only people who can open this page.'}</p></div>` : ''}
+      <label class="check"><input type="checkbox" id="saToggle"${u.staff_admin ? ' checked' : ''}${(self || u.owner || !state.me_owner) ? ' disabled' : ''}> Can manage staff logins — add people, set permissions, and see the activity log</label>
+      <p class="hint">${u.owner ? 'The owner is always a Staff admin.' : self ? 'You can\'t remove your own Staff admin access.' : !state.me_owner ? 'Only the owner can make someone a Staff admin.' : 'Staff admins are the only people who can open this page.'}</p></div>` : ''}
     ${u.hub_only ? '' : u.has_login ? `<form id="pwForm" class="section"><h3>New password</h3>
       <div class="row"><input type="text" id="newPw" class="grow" autocomplete="new-password" placeholder="At least 8 characters" aria-label="New password" style="flex:1 1 180px;width:auto"><button type="button" class="btn sm" id="genPw">Make one</button></div>
       <p class="hint">Give the new password to them in person. They can keep using it.</p>
@@ -369,6 +369,11 @@ function openPerson(email) {
   </div>`);
   linkAll();
   wireRoles();
+  // Only the owner can make admins: non-owners can't tick Admin anywhere.
+  if (!state.me_owner && !(u.owner && !self)) {
+    dlg.querySelectorAll('input[value="admin"]').forEach(c => { c.disabled = true; });
+    const rf = $('#rolesForm'); if (rf) { const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'Only the owner can grant Admin or access you don\'t have yourself.'; rf.insertBefore(note, rf.querySelector('.row')); }
+  }
   if (u.owner && !self) dlg.querySelectorAll('input, button:not([data-close]), select, textarea').forEach(el => { el.disabled = true; });
   $('#rolesForm').onsubmit = async e => {
     e.preventDefault(); $('#saveRoles').disabled = true;
