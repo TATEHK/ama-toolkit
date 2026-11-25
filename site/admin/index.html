@@ -125,6 +125,48 @@
   .grd .st b{color:var(--ink)} .grd .st span{color:var(--ink-3)}
   .grd .hp{margin-top:8px;font-size:12px;font-weight:700}
   .grd .hp.need{color:var(--warn)} .grd .hp.ok2{color:var(--ink-3)}
+  /* live grading-day board */
+  .live-grd{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin:8px 0 0}
+  .live-grd.running{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+  .live-grd .lgh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 9px}
+  .live-grd .lgh .gd{font-family:var(--font-display);font-weight:700}
+  .live-grd .lgh .gl{color:var(--ink-2)}
+  .live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .live-stats .ls{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+  .live-stats .ls b{display:block;font-size:19px;font-family:var(--font-display);line-height:1.1}
+  .live-stats .ls span{font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em}
+  .live-stats .ls.warn b{color:var(--warn)} .live-stats .ls.ok b{color:var(--ok)}
+  /* calendar */
+  .calbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:26px 0 10px}
+  .calbar h2{margin:0}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal .dow{font-size:10px;color:var(--ink-3);text-align:center;text-transform:uppercase;letter-spacing:.05em;padding:2px 0}
+  .cal .cell{min-height:46px;border:1px solid var(--line);border-radius:8px;padding:3px 4px;background:var(--panel);overflow:hidden}
+  .cal .cell.out{opacity:.4}
+  .cal .cell.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .cal .cell .dn{color:var(--ink-3);font-size:10px}
+  .cal .ev{display:block;border-radius:5px;padding:1px 4px;margin:2px 0 0;font-size:10px;font-weight:700;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cal .ev.scheduled{background:rgba(245,197,24,.16);color:var(--accent)}
+  .cal .ev.running{background:rgba(127,214,162,.2);color:var(--ok)}
+  .cal .ev.done{background:rgba(163,181,169,.16);color:var(--ink-2)}
+  .cal .ev.past{background:rgba(239,138,115,.14);color:var(--danger)}
+  .callegend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);margin:8px 0 0}
+  .callegend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:middle}
+  /* helper load + recent results rows */
+  .hlr{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:0 0 6px}
+  .hlr .hn{font-weight:700}
+  .hlr .hc{color:var(--ink-3);font-size:12px;margin-top:1px}
+  .hlr .ht{font-family:var(--font-display);font-weight:700;font-size:17px;flex:none}
+  /* message health */
+  .mh-top{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 10px}
+  .mh-top .mt{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+  .mh-top .mt b{display:block;font-size:20px;font-family:var(--font-display);line-height:1.1}
+  .mh-top .mt span{font-size:11px;color:var(--ink-3)}
+  .mh-top .mt.bad b{color:var(--danger)} .mh-top .mt.ok b{color:var(--ok)}
+  .panelc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 11px}
+  .bounce{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
+  .bounce:first-of-type{border-top:0}
+  .bounce .be{color:var(--ink-3);font-size:11px}
   .loading{padding:40px;text-align:center;color:var(--ink-3)}
 </style>
 </head>
@@ -235,6 +277,60 @@ function grdCard(g){
     + `<div class="st"><span><b>${g.booked}</b>/${g.total} booked (${g.pct_booked==null?'—':g.pct_booked+'%'})</span><span><b>${g.paid}</b> paid</span>${g.not_booked?`<span><b>${g.not_booked}</b> not booked</span>`:''}</div>`
     + helperLine + `</div>`;
 }
+// #15 live grading-day board: checked-in vs expected, and results coming in
+function liveBoard(rows){
+  return `<div class="today live"><div class="th">Live now · ${rows.length} grading${rows.length>1?'s':''}</div>`
+    + rows.map(g=>{ const bk=g.booked||0, ci=g.checked_in||0, gd=g.graded||0;
+        return `<div class="live-grd${g.running?' running':''}"><div class="lgh"><span class="gd">${fmtDate(g.grading_date)}</span><span class="gl">${esc(g.location||'')}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.running?'<span class="badge mk">running</span>':''}</div>`
+          + `<div class="live-stats"><div class="ls ${bk&&ci<bk?'warn':'ok'}"><b>${ci}/${bk}</b><span>checked in</span></div><div class="ls"><b>${gd}/${bk}</b><span>graded</span></div><div class="ls ok"><b>${g.passed||0}</b><span>passed${g.failed?` · ${g.failed} fail`:''}</span></div></div></div>`;
+      }).join('') + `</div>`;
+}
+// #13 month calendar of gradings across schools, colour-coded by status
+let calOff = 0;
+function isoLocal(dt){ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); }
+function calendarSection(){
+  const evs = (DATA.calendar||[]).filter(inFilt);
+  const base = new Date(); base.setDate(1); base.setMonth(base.getMonth()+calOff);
+  const y = base.getFullYear(), m = base.getMonth();
+  const start = new Date(y, m, 1 - new Date(y,m,1).getDay());   // Sunday on/ before the 1st
+  const today = new Date(); today.setHours(0,0,0,0);
+  const byDate = {}; evs.forEach(e=>{ (byDate[e.grading_date]=byDate[e.grading_date]||[]).push(e); });
+  let cells = '';
+  for(let i=0;i<42;i++){ const dt = new Date(start); dt.setDate(start.getDate()+i);
+    const iso = isoLocal(dt), out = dt.getMonth()!==m, isT = dt.getTime()===today.getTime();
+    const es = (byDate[iso]||[]).map(e=>`<span class="ev ${esc(e.status)}" title="${esc(e.location||'')} — ${e.booked}/${e.total} booked">${esc((e.location||'').slice(0,9))}${e.bb?' BB':''}</span>`).join('');
+    cells += `<div class="cell${out?' out':''}${isT?' today':''}"><span class="dn">${dt.getDate()}</span>${es}</div>`;
+  }
+  const mn = base.toLocaleDateString([], { month:'long', year:'numeric' });
+  const dow = ['S','M','T','W','T','F','S'].map(x=>`<div class="dow">${x}</div>`).join('');
+  return `<div class="calbar"><h2>Calendar — ${esc(mn)}</h2><div class="reqbtns"><button class="btn" id="calPrev">‹</button><button class="btn" id="calToday">Today</button><button class="btn" id="calNext">›</button></div></div>
+    <div class="cal">${dow}${cells}</div>
+    <div class="callegend"><span><i style="background:var(--accent)"></i>Scheduled</span><span><i style="background:var(--ok)"></i>Running</span><span><i style="background:var(--ink-2)"></i>Done</span><span><i style="background:var(--danger)"></i>Past · not closed</span></div>`;
+}
+// #16 recent results + who to rebook
+function resultsSection(){
+  const rr = DATA.results_recent; if(!rr) return '';
+  const days = (rr.days||[]).filter(inFilt), reb = (rr.rebook||[]).filter(inFilt);
+  if(!days.length && !reb.length) return '';
+  return `<h2>Recent results</h2>`
+    + (days.length ? days.map(x=>`<div class="hlr"><span><span class="hn">${fmtDate(x.grading_date)} · ${esc(x.location||'')}</span>${x.bb?' <span class="badge bb">BB</span>':''}<div class="hc">${x.passed} passed${x.failed?` · ${x.failed} failed`:''}${x.absent?` · ${x.absent} absent`:''}</div></span><span class="ht">${x.passed}/${x.total}</span></div>`).join('')
+        : '<div class="muted">No results recorded in the last 60 days.</div>')
+    + (reb.length ? `<h2 style="margin-top:18px">To rebook — ${reb.length}</h2>`+reb.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">${esc(x.result)}</span><span class="meta">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))} · ${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join('') : '');
+}
+// #7 helper load — who's helped most
+function helperLoadSection(){
+  const h = DATA.helper_load || []; if(!h.length) return '';
+  return `<h2>Helper load — who's helped most</h2>`
+    + h.slice(0,30).map(x=>`<div class="hlr"><span><span class="hn">${esc(x.name||'—')}</span>${x.little_dragons?' <span class="tag">LD</span>':''}<div class="hc">${x.recent} in last 12 mo${x.last_at?` · last ${fmtWhen(x.last_at)}`:''}</div></span><span class="ht">${x.total}</span></div>`).join('');
+}
+// #11 message health — delivery rate + numbers that keep bouncing
+function messageHealthSection(){
+  const mh = DATA.message_health; if(!mh) return '';
+  const tot = (mh.sent||0)+(mh.failed||0), rate = tot ? Math.round(100*mh.sent/tot) : 100;
+  return `<h2>Message health — last ${mh.window_days} days</h2>
+    <div class="mh-top"><div class="mt ${rate<95?'bad':'ok'}"><b>${rate}%</b><span>delivered</span></div><div class="mt"><b>${mh.sent||0}</b><span>sent</span></div><div class="mt ${mh.failed?'bad':''}"><b>${mh.failed||0}</b><span>failed</span></div></div>`
+    + ((mh.bouncing&&mh.bouncing.length) ? `<div class="panelc"><div class="muted" style="margin:0 0 2px;font-size:12px">Numbers &amp; emails that keep failing</div>${mh.bouncing.map(b=>`<div class="bounce"><span>${esc(b.to)}</span><span><b>${b.fails}×</b> <span class="be">${esc((b.last_error||'').slice(0,42))}</span></span></div>`).join('')}</div>` : '');
+}
 function render(){
   const d = DATA; if(!d) return;
   const needDetail = k => openKey === k ? detailFor(k) : '';
@@ -249,8 +345,9 @@ function render(){
   const locChip = (v,label)=>`<button class="lchip ${((loc||null)===(v||null))?'on':''}" data-loc="${v?esc(v):''}">${esc(label)}</button>`;
   const progChip = (v,label)=>`<button class="lchip ${((prog||null)===(v||null))?'on':''}" data-prog="${v?esc(v):''}">${esc(label)}</button>`;
   const progs = distinct('programme');
-  const todayBlock = today.length
-    ? `<div class="today live"><div class="th">Today · ${today.length} grading${today.length>1?'s':''}</div><div class="trow">${today.map(grdCard).join('')}</div></div>`
+  const liveRows = (d.today||[]).filter(inFilt);
+  const todayBlock = liveRows.length
+    ? liveBoard(liveRows)
     : `<div class="today"><div class="th">Today</div><div class="muted">No grading today${scope?' · '+esc(scope):''}.${soon[0]?` Next: ${fmtDate(soon[0].grading_date)} · ${esc(soon[0].location||'')} (${until(soon[0].days_until)})`:''}</div></div>`;
 
   $('#board').innerHTML =
@@ -275,7 +372,12 @@ function render(){
      ${['notbooked','unpaid'].includes(openKey) ? needDetail(openKey) : ''}
 
      <h2>Upcoming gradings${scope?` — ${esc(scope)}`:''} — ${gr.length}</h2>
-     <div class="grds">${gr.map(grdCard).join('') || `<div class="muted">No upcoming gradings${scope?' · '+esc(scope):''}.</div>`}</div>`;
+     <div class="grds">${gr.map(grdCard).join('') || `<div class="muted">No upcoming gradings${scope?' · '+esc(scope):''}.</div>`}</div>
+
+     ${calendarSection()}
+     ${resultsSection()}
+     ${helperLoadSection()}
+     ${messageHealthSection()}`;
 
   $('#board').querySelectorAll('.tile').forEach(b => b.onclick = () => { const k = b.dataset.key; openKey = openKey === k ? null : k; render(); });
   $('#board').querySelectorAll('.lchip[data-loc]').forEach(b => b.onclick = () => { loc = b.dataset.loc || null; render(); });
@@ -283,6 +385,9 @@ function render(){
   const rr = $('#reqRoster'); if(rr) rr.onclick = () => openReq('roster');
   const rp = $('#reqProblem'); if(rp) rp.onclick = () => openReq('problem');
   $('#board').querySelectorAll('[data-req]').forEach(b => b.onclick = () => resolveReq(b.dataset.req, b.dataset.act));
+  const cp = $('#calPrev'); if(cp) cp.onclick = () => { calOff--; render(); };
+  const cn = $('#calNext'); if(cn) cn.onclick = () => { calOff++; render(); };
+  const ct = $('#calToday'); if(ct) ct.onclick = () => { calOff = 0; render(); };
 }
 
 function fmtWhen(iso){ if(!iso) return ''; const d=new Date(iso), now=new Date(); const mins=Math.round((now-d)/60000);

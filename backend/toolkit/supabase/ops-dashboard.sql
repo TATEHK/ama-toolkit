@@ -44,7 +44,7 @@ select jsonb_build_object(
     'items', (select coalesce(jsonb_agg(jsonb_build_object(
         'name', coalesce(e.full_name, m.full_name), 'kind', msg.kind,
         'channel', case when msg.email is not null then 'email' else 'sms' end,
-        'error', msg.error, 'sent_at', msg.sent_at) order by msg.sent_at desc), '[]'::jsonb)
+        'error', msg.error, 'sent_at', msg.sent_at, 'message_id', msg.message_id) order by msg.sent_at desc), '[]'::jsonb)
       from (select * from public.cb_messages where status = 'failed' and sent_at >= now() - interval '14 days' order by sent_at desc limit 100) msg
       left join public.cb_entries e on e.entry_id = msg.entry_id
       left join public.efc_members m on m.member_key = msg.member_key)),
@@ -58,6 +58,66 @@ select jsonb_build_object(
     from public.cb_ops_requests r left join public.cb_days d on d.day_id = r.day_id
     where r.status = 'open' or r.created_at > now() - interval '7 days'),
   'requests_open', (select count(*) from public.cb_ops_requests where status = 'open'),
+
+  -- #7 Helper load: who has helped, and how often (spread the load fairly)
+  'helper_load', (select coalesce(jsonb_agg(jsonb_build_object(
+      'name', h.full_name, 'mobile', h.mobile, 'total', t.total, 'recent', t.recent, 'last_at', t.last_at,
+      'little_dragons', h.little_dragons) order by t.total desc, h.full_name), '[]'::jsonb)
+    from (select hs.helper_id, count(*) as total,
+            count(*) filter (where hs.created_at > now() - interval '12 months') as recent,
+            max(hs.created_at) as last_at
+          from public.cb_helper_signups hs group by hs.helper_id) t
+    join public.cb_helpers h on h.helper_id = t.helper_id),
+
+  -- #11 Message health: delivery over the last 30 days, a per-kind split, and numbers/emails that keep bouncing
+  'message_health', jsonb_build_object(
+    'window_days', 30,
+    'sent', (select count(*) from public.cb_messages where sent_at > now() - interval '30 days' and status = 'sent'),
+    'failed', (select count(*) from public.cb_messages where sent_at > now() - interval '30 days' and status = 'failed'),
+    'by_kind', (select coalesce(jsonb_agg(jsonb_build_object('kind', kind, 'sent', s, 'failed', f) order by (s + f) desc), '[]'::jsonb)
+      from (select coalesce(kind, '(other)') as kind, count(*) filter (where status = 'sent') as s, count(*) filter (where status = 'failed') as f
+            from public.cb_messages where sent_at > now() - interval '30 days' group by kind) q),
+    'bouncing', (select coalesce(jsonb_agg(jsonb_build_object('to', addr, 'fails', f, 'last_error', err) order by f desc), '[]'::jsonb)
+      from (select coalesce(phone, email) as addr, count(*) as f, (array_agg(error order by sent_at desc))[1] as err
+            from public.cb_messages where status = 'failed' and sent_at > now() - interval '90 days' and coalesce(phone, email) is not null
+            group by coalesce(phone, email) having count(*) >= 2 order by count(*) desc limit 20) q)),
+
+  -- #13 Calendar: every grading from a month back to ~3 months ahead, with a derived status for colour-coding
+  'calendar', (select coalesce(jsonb_agg(jsonb_build_object(
+      'day_id', d.day_id, 'grading_date', d.grading_date, 'location', d.location, 'programme', d.programme, 'bb', d.bb, 'private', d.private, 'makeup', d.makeup,
+      'status', case when coalesce(d.closed, false) then 'done' when d.grading_date < current_date then 'past'
+                     when d.started_prompt_at is not null then 'running' else 'scheduled' end,
+      'total', (select count(*) from public.cb_entries e where e.day_id = d.day_id and e.result is null),
+      'booked', (select count(*) from public.cb_entries e where e.day_id = d.day_id and e.result is null and e.booked_at is not null)
+      ) order by d.grading_date, d.location), '[]'::jsonb)
+    from public.cb_days d where d.grading_date between current_date - 31 and current_date + 92),
+
+  -- #15 Live board: today's gradings (and any mid-run), checked-in vs expected and results coming in
+  'today', (select coalesce(jsonb_agg(jsonb_build_object(
+      'day_id', d.day_id, 'location', d.location, 'programme', d.programme, 'bb', d.bb, 'grading_date', d.grading_date, 'start_time', d.start_time,
+      'running', d.started_prompt_at is not null,
+      'booked', (select count(*) from public.cb_entries e where e.day_id = d.day_id and e.result is null and e.booked_at is not null),
+      'checked_in', (select count(*) from public.cb_entries e where e.day_id = d.day_id and e.result is null and e.checked_in_at is not null),
+      'passed', (select count(*) from public.cb_entries e where e.day_id = d.day_id and e.result = 'pass'),
+      'failed', (select count(*) from public.cb_entries e where e.day_id = d.day_id and e.result = 'fail'),
+      'graded', (select count(*) from public.cb_entries e where e.day_id = d.day_id and e.result is not null)
+      ) order by d.grading_date, d.start_time, d.location), '[]'::jsonb)
+    from public.cb_days d where coalesce(d.closed, false) = false and (d.grading_date = current_date or d.started_prompt_at is not null)),
+
+  -- #16 Results summary for recent gradings, plus an auto-list of who to rebook (fails / absentees)
+  'results_recent', jsonb_build_object(
+    'days', (select coalesce(jsonb_agg(jsonb_build_object(
+        'day_id', d.day_id, 'grading_date', d.grading_date, 'location', d.location, 'programme', d.programme, 'bb', d.bb,
+        'passed', c.passed, 'failed', c.failed, 'absent', c.absent, 'total', c.total) order by d.grading_date desc, d.location), '[]'::jsonb)
+      from public.cb_days d join lateral (
+        select count(*) as total, count(*) filter (where result = 'pass') as passed,
+               count(*) filter (where result = 'fail') as failed, count(*) filter (where result = 'absent') as absent
+        from public.cb_entries e where e.day_id = d.day_id and e.result is not null) c on true
+      where d.grading_date between current_date - 60 and current_date and c.total > 0),
+    'rebook', (select coalesce(jsonb_agg(jsonb_build_object(
+        'name', e.full_name, 'belt_to', e.belt_to, 'location', d.location, 'programme', d.programme, 'grading_date', d.grading_date, 'result', e.result) order by d.grading_date desc), '[]'::jsonb)
+      from public.cb_entries e join public.cb_days d on d.day_id = e.day_id
+      where e.result in ('fail', 'absent') and d.grading_date between current_date - 60 and current_date)),
 
   'gradings', (select coalesce(jsonb_agg(jsonb_build_object(
       'day_id', day_id, 'location', location, 'programme', programme, 'grading_date', grading_date, 'bb', bb, 'makeup', makeup, 'private', private,
@@ -85,6 +145,7 @@ select jsonb_build_object(
         'booked_days_ago', (current_date - e.booked_at::date)) order by d.grading_date), '[]'::jsonb)
       from public.cb_entries e join up_days d on d.day_id = e.day_id
       where e.result is null and e.booked_at is not null and e.paid = false))
+    )
   );
 end $$;
 
