@@ -52,11 +52,6 @@
   .hero p { color: var(--sub); margin: 14px auto 0; font-size: 16px; max-width: 34ch; }
 
   h2 { font: 600 22px/1.2 var(--display); margin: 0 0 14px; letter-spacing: .005em; }
-  .vid { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #0c0b0a; border: 1px solid var(--line); }
-  .vid iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-  .vid-ph { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--faint); text-align: center; padding: 16px; }
-  .vid-ph svg { width: 46px; height: 46px; color: var(--gold); opacity: .85; }
-  .vid-ph span { font-size: 14px; }
 
   p.lead { margin: 0; color: var(--sub); font-size: 16px; }
   .benefits { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
@@ -138,16 +133,6 @@
     </section>
 
     <section class="card">
-      <h2>A message from the Grandmaster</h2>
-      <div class="vid" id="vidWrap">
-        <div class="vid-ph" id="vidPh">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z" fill="currentColor" stroke="none"/></svg>
-          <span>Video coming soon</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
       <h2>What is Black Belt Club?</h2>
       <p class="lead">Black Belt Club is our elite program for students serious about earning their black belt — advanced training beyond the regular classes, real skills, and a community for all ages held to a higher standard of honour, respect and confidence.</p>
       <ul class="benefits">
@@ -215,12 +200,6 @@ async function call(action, extra = {}) {
   return j;
 }
 
-function youTubeId(url) {
-  if (!url) return '';
-  const m = String(url).match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([A-Za-z0-9_-]{6,})/);
-  return m ? m[1] : (/^[A-Za-z0-9_-]{6,}$/.test(url) ? url : '');
-}
-
 function showError(html) {
   $('#loading').hidden = true; $('#content').hidden = true; $('#done').hidden = true;
   const e = $('#error'); e.hidden = false; e.className = 'card'; e.innerHTML = `<p class="err" style="border:0;padding:0">${html}</p>`;
@@ -246,10 +225,6 @@ function render(info) {
   }
 
   $('#heroName').textContent = info.first_name ? (', ' + info.first_name) : '';
-  const vid = youTubeId(info.video_url);
-  if (vid) {
-    $('#vidWrap').innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?rel=0" title="Black Belt Club" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>`;
-  }
   if (info.weekly) $('.price-row .now').textContent = '+$' + info.weekly;
   $('#content').hidden = false;
 
