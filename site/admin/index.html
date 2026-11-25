@@ -246,6 +246,27 @@
   .phitem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
   .phitem:first-child{border-top:0}
   .phitem small{color:var(--ink-3)}
+  /* pinned notes */
+  .noteadd{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px}
+  .noteadd select, .noteadd input{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 11px;font:inherit}
+  .noteadd input{flex:1;min-width:160px}
+  .noteitem{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:9px 11px;margin:0 0 7px}
+  .noteitem .nmeta{color:var(--ink-3);font-size:12px;flex:none}
+  .noteitem .ntext{flex:1;min-width:0}
+  .noterm{flex:none;background:transparent;border:0;color:var(--ink-3);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
+  .noterm:hover{color:var(--danger)}
+  .gnotes{display:flex;flex-direction:column;gap:4px;margin:8px 0 0}
+  .gnote{font-size:13px;color:var(--ink);background:var(--bg);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:5px 10px}
+  /* find a student */
+  #searchWrap{margin:0 0 6px}
+  #opsSearch{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px 15px;font:inherit;font-size:15px}
+  #opsSearch:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .scard2{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:0 0 8px}
+  .sc2h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .sc2h b{font-family:var(--font-display);font-size:16px}
+  .sc2m{color:var(--ink-2);font-size:13px;margin:3px 0 0}
+  .sc2s{color:var(--ink-3);font-size:12px;margin:4px 0 0}
+  .tag.ok{background:rgba(127,214,162,.16);color:var(--ok)}
   .loading{padding:40px;text-align:center;color:var(--ink-3)}
 </style>
 </head>
@@ -277,6 +298,8 @@
     <button class="btn" id="signOutBtn">Sign out</button>
   </div></header>
 
+  <div id="searchWrap"><input id="opsSearch" type="search" placeholder="Find a student…" autocomplete="off" aria-label="Find a student"></div>
+  <div id="searchResults" hidden></div>
   <div id="board"><div class="loading">Loading…</div></div>
 </main>
 
@@ -323,7 +346,7 @@
 <script>
 const CFG = window.TOOLKIT_CONFIG || {};
 let sb, DATA = null, started = false, openKey = null, loc = null, prog = null;
-let me = '', myPerms = [], isAdmin = false, busy = false, BBSESS = [], DATA2 = null;
+let me = '', myPerms = [], isAdmin = false, busy = false, BBSESS = [], DATA2 = null, NOTES = [];
 const OTABS = [['today','Today'],['action','Needs action'],['gradings','Gradings'],['helpers','Helpers'],['reports','Reports']];
 let OTAB = (()=>{ try{ const h = location.hash.replace('#',''); return OTABS.some(t=>t[0]===h) ? h : (localStorage.getItem('ops_tab')||'today'); }catch(e){ return 'today'; } })();
 function setTab(t){ OTAB = t; openKey = null; try{ localStorage.setItem('ops_tab', t); history.replaceState(null,'','#'+t); }catch(e){} render(); }
@@ -341,14 +364,16 @@ function showView(w){ $('#authView').hidden = w !== 'auth'; $('#noAccessView').h
 async function load(){
   $('#refreshBtn').disabled = true;
   try{
-    const [{ data, error }, bb, d2] = await Promise.all([
+    const [{ data, error }, bb, d2, nt] = await Promise.all([
       sb.rpc('cb_ops_dashboard'),
       sb.rpc('cb_ops_bb_sessions').then(r => r, () => ({ data: [] })),
-      sb.rpc('cb_ops_dashboard2').then(r => r, () => ({ data: null }))
+      sb.rpc('cb_ops_dashboard2').then(r => r, () => ({ data: null })),
+      sb.rpc('cb_ops_day_notes').then(r => r, () => ({ data: [] }))
     ]);
     if(error) throw error;
     BBSESS = (bb && bb.data) || [];
     DATA2 = (d2 && d2.data) || null;
+    NOTES = (nt && nt.data) || [];
     DATA = data; render();
     $('#updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }catch(e){ $('#board').innerHTML = `<div class="loading" style="color:var(--danger)">Couldn't load: ${esc(e.message||e)}</div>`; }
@@ -391,6 +416,7 @@ function grdCard(g){
     + `<div class="bar${low}"><i style="width:${Math.min(100,pct)}%"></i></div>`
     + `<div class="st"><span><b>${g.booked}</b>/${g.total} booked (${g.pct_booked==null?'—':g.pct_booked+'%'})</span><span><b>${g.paid}</b> paid</span>${g.not_booked?`<span><b>${g.not_booked}</b> not booked</span>`:''}</div>`
     + helperLine
+    + (notesForDay(g.day_id).length ? `<div class="gnotes">${notesForDay(g.day_id).map(n=>`<div class="gnote">${esc(n.note)}</div>`).join('')}</div>` : '')
     + `<div class="grdacts">${hs?`<button class="btn mini" data-remind="${g.day_id}" data-loc="${esc(g.location||'')}">Remind ${hs} helper${hs>1?'s':''}</button>`:''}${(isAdmin&&g.booked)?`<button class="btn mini" data-announce="${g.day_id}" data-loc="${esc(g.location||'')}">Message families</button>`:''}<button class="btn mini" data-photos="${g.day_id}" data-loc="${esc(g.location||'')}">Group photos</button></div>`
     + `</div>`;
 }
@@ -507,6 +533,16 @@ function bbcConversionSection(){
   const rows = (DATA2&&DATA2.bbc_conversion||[]).filter(x => !loc || x.school === loc); if(!rows.length) return '';
   return `<h2>Black Belt Club conversion</h2>` + rows.map(x => `<div class="bbconv"><div class="bch"><b>${esc(x.school||'')}</b><span class="bcp">${x.pct==null?'—':x.pct+'%'}</span></div><div class="bcbar"><i style="width:${x.pct||0}%"></i></div><div class="muted" style="font-size:12px;margin-top:3px">${x.signed} signed of ${x.entered} in the welcome flow</div></div>`).join('');
 }
+// Pinned notes per grading (Today tab) — add/remove, shown on the grading cards too
+function notesForDay(dayId){ return (NOTES||[]).filter(n => n.day_id === dayId); }
+function pinnedNotesSection(){
+  const ups = (DATA.gradings||[]).filter(inFilt);
+  const notes = (NOTES||[]).filter(n => !loc || n.location === loc);
+  const opts = ups.map(g => `<option value="${g.day_id}">${fmtDate(g.grading_date)} · ${esc(g.location||'')}</option>`).join('');
+  const composer = ups.length ? `<div class="noteadd"><select id="noteDay">${opts}</select><input id="noteText" maxlength="500" placeholder="Pin a note, e.g. parking closed — use side lane"><button class="btn mini primary" id="noteAdd">Pin</button></div>` : '';
+  const list = notes.length ? notes.map(n => `<div class="noteitem"><span class="nmeta">${fmtDate(n.grading_date)} · ${esc(n.location||'')}</span><span class="ntext">${esc(n.note)}</span><button class="noterm" data-noterm="${n.note_id}" aria-label="Remove note">×</button></div>`).join('') : '<div class="muted">No pinned notes.</div>';
+  return `<h2>Pinned notes</h2>${composer}${list}`;
+}
 function render(){
   const d = DATA; if(!d) return;
   const needDetail = k => openKey === k ? detailFor(k) : '';
@@ -577,6 +613,22 @@ function render(){
   $('#board').querySelectorAll('[data-announce]').forEach(b => b.onclick = () => openAnnounce(b.dataset.announce, b.dataset.loc));
   $('#board').querySelectorAll('[data-resend]').forEach(b => b.onclick = () => doResend(b.dataset.resend, b.dataset.name, b));
   $('#board').querySelectorAll('[data-photos]').forEach(b => b.onclick = () => openPhotos(b.dataset.photos, b.dataset.loc));
+  const na = $('#noteAdd'); if(na) na.onclick = addNote;
+  $('#board').querySelectorAll('[data-noterm]').forEach(b => b.onclick = () => removeNote(b.dataset.noterm, b));
+}
+async function addNote(){
+  const day = $('#noteDay') && $('#noteDay').value, text = $('#noteText') && $('#noteText').value.trim();
+  if(!day || !text) return;
+  const btn = $('#noteAdd'); btn.disabled = true;
+  const { error } = await sb.rpc('cb_ops_note_add', { p_day_id: day, p_note: text });
+  if(error){ alert('Could not pin note — ' + (error.message||'')); btn.disabled = false; return; }
+  const { data } = await sb.rpc('cb_ops_day_notes'); NOTES = data || NOTES; render();
+}
+async function removeNote(id, btn){
+  if(btn) btn.disabled = true;
+  const { data, error } = await sb.functions.invoke('cb', { body: { action: 'ops_note_remove', note_id: id } });
+  if(error || !data || data.ok === false){ alert('Could not remove note.'); if(btn) btn.disabled = false; return; }
+  const { data: n } = await sb.rpc('cb_ops_day_notes'); NOTES = n || []; render();
 }
 
 /* ---- Group photos (upload per grading, matched to each family's belt on the photo page) ---- */
@@ -760,6 +812,33 @@ async function startApp(session){
 }
 
 $('#refreshBtn').onclick = load;
+
+/* ---- Find a student (search box above the tabs) ---- */
+let searchTimer = null;
+function studentCard(x){
+  const nm = b => String(b||'').replace(/ Belt$/,'');
+  const chips = [];
+  if(x.result) chips.push(`<span class="tag ${x.result==='pass'?'':'bad'}">${esc(x.result)}</span>`);
+  else if(x.cant_make) chips.push('<span class="tag">can\'t make</span>');
+  else if(x.paid) chips.push('<span class="tag ok">paid</span>');
+  else if(x.booked) chips.push('<span class="tag">booked</span>');
+  else if(x.invited) chips.push('<span class="tag">invited</span>');
+  return `<div class="scard2"><div class="sc2h"><b>${esc(x.name||'—')}</b>${chips.join('')}</div>`
+    + `<div class="sc2m">${x.belt_from?esc(nm(x.belt_from))+' → ':''}${esc(nm(x.belt_to||''))} · ${esc(x.school||'')} · ${fmtDate(x.grading_date)}${x.days_until>0?` (${until(x.days_until)})`:''}</div>`
+    + `<div class="sc2s">${x.invited?'✓ invited ':'· not invited '}${x.booked?'· ✓ booked ':'· not booked '}${x.paid?'· ✓ paid':'· not paid'}${x.last_msg?` · last msg: ${esc(x.last_msg)}`:''}</div></div>`;
+}
+async function doSearch(q){
+  const panel = $('#searchResults');
+  if(!q || q.trim().length < 2){ panel.hidden = true; panel.innerHTML = ''; $('#board').hidden = false; return; }
+  $('#board').hidden = true; panel.hidden = false;
+  if(!panel.innerHTML) panel.innerHTML = '<div class="muted" style="padding:16px 0">Searching…</div>';
+  const { data, error } = await sb.rpc('cb_ops_find_student', { p_q: q.trim() });
+  if(error){ panel.innerHTML = `<p class="err">${esc(error.message||'Search failed')}</p>`; return; }
+  const rows = data || [];
+  panel.innerHTML = `<h2>Results for "${esc(q.trim())}" — ${rows.length}</h2>` + (rows.length ? rows.map(studentCard).join('') : '<div class="muted">No one found. Try part of the name.</div>');
+}
+const opsSearch = $('#opsSearch');
+if(opsSearch) opsSearch.oninput = () => { clearTimeout(searchTimer); const q = opsSearch.value; searchTimer = setTimeout(() => doSearch(q), 300); };
 
 /* ---- requests (staff rostering + problems) ---- */
 let reqKind = 'roster';

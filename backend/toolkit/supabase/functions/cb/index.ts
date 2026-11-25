@@ -2545,6 +2545,12 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (error) return fail(error.message, 500);
       return json({ ok: true });
     }
+    if (body.action === 'ops_note_remove') {
+      if (!can('ops')) return fail('You need Operations access for this.', 403);
+      const { error } = await db.from('cb_day_notes').delete().eq('note_id', String(body.note_id || ''));
+      if (error) return fail(error.message, 500);
+      return json({ ok: true });
+    }
 
     // #12 Announce to a grading's booked families. { day_id, text, subject, channel:'sms'|'email', preview }
     if (body.action === 'ops_announce') {
