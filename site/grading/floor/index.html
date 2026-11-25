@@ -170,9 +170,9 @@ body[data-role="signin"]{overflow:hidden}
     linear-gradient(135deg,var(--mat),var(--mat-2));
   border:3px solid var(--mat-line);box-shadow:inset 0 0 0 2px rgba(255,255,255,.06)}
 .floor .instr{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:"Barlow Semi Condensed";font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,0,0,.4);font-weight:700}
-.spot{position:absolute;transform:translate(-50%,-50%);width:80px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.spot{position:absolute;transform:translate(-50%,-50%);width:88px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .spot:active{cursor:grabbing}
-.spot .dot{position:relative;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:17px;color:#fff;transition:transform .1s;
+.spot .dot{position:relative;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:19px;color:#fff;transition:transform .1s;
   background:radial-gradient(circle at 36% 30%,#ff6f5f,#d5322a 72%);box-shadow:0 3px 7px rgba(120,18,14,.45),inset 0 -3px 6px rgba(0,0,0,.2);border:2px solid rgba(255,255,255,.55)}
 .spot:not(.empty) .dot{background:var(--belt);color:var(--ink-on,#fff);box-shadow:0 3px 7px rgba(0,0,0,.28)}
 .spot .dot::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:3.5px solid var(--att,transparent)}
@@ -181,7 +181,12 @@ body[data-role="signin"]{overflow:hidden}
 .spot:not(.empty):hover .dot{transform:translateY(-2px)}
 .spot.sel .dot{outline:3px solid #15181d;outline-offset:3px}
 .spot.drop .dot{outline:3px dashed #fff;outline-offset:3px;transform:scale(1.1)}
-.spot .nm{font-size:12.5px;font-weight:700;color:#2a2111;background:rgba(255,255,255,.9);padding:2.5px 8px;border-radius:7px;max-width:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+.spot .nm{font-size:13px;font-weight:700;color:#2a2111;background:rgba(255,255,255,.92);padding:3px 9px;border-radius:7px;max-width:112px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.spot .nm small{font-weight:700;color:#7a6a3e}
+.fllegend{display:flex;flex-wrap:wrap;align-items:center;gap:9px 16px;padding:12px 18px 15px;border-top:1px solid var(--line-2)}
+.fllegend .lgt{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+.fllegend .lg{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.fllegend .sw{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
 .ghost{position:fixed;transform:translate(-50%,-50%);z-index:70;pointer-events:none}
 .ghost .dot{position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:15px;color:#fff;background:radial-gradient(circle at 36% 30%,#ff6f5f,#d5322a 72%);box-shadow:0 10px 22px rgba(0,0,0,.4);border:2px solid #fff}
 .floor.empty{min-height:200px;display:grid;place-items:center}
@@ -522,6 +527,7 @@ body[data-role="signin"]{overflow:hidden}
         <span class="dim" id="flDim"></span></div>
       <div id="alertBar" class="alertbar" hidden></div>
       <div id="floor" class="floor"></div>
+      <div id="flLegend" class="fllegend" hidden></div>
     </div>
     <div class="side">
       <div class="card" id="checkinCard"><h3>Check-in</h3><div class="ch-sub" id="ciSub">Tap to mark who's arrived</div>
@@ -934,6 +940,11 @@ function render(){
     $('#flSub').textContent=masterWaiting?'The next group will show here the moment it starts'
       :cleanLive?`${hereIds.length} on the floor · ${booked.length} in this group`
       :`${filled} on the floor · ${g.spots} spots out · ${g.rows===1?'one line':'two rows'}`; }
+  // belt colour key
+  { const lg=$('#flLegend'), belts=[...new Set(state.groups.flatMap(beltsOf))].sort((a,b)=>beltR(a)-beltR(b));
+    if(belts.length && sMode!=='next'){ lg.hidden=false;
+      lg.innerHTML=`<span class="lgt">Belt key</span>`+belts.map(b=>`<span class="lg"><span class="sw" style="background:${beltC(b)}"></span>${esc(b)} → ${esc(nextOf(b))}</span>`).join('');
+    } else lg.hidden=true; }
   // host controls
   $('#flCtrl').innerHTML = sMode==='next' ? ''
     : sMode==='callout' ? `<button class="sbtn start" id="stGo">▶ Start grading</button>`
@@ -984,7 +995,7 @@ function render(){
     floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+(hereIds.length?pos.map((p,i)=>{ const s=byId(hereIds[i]); if(!s) return '';
       return `<div class="spot ${state.sel===s.id?'sel':''}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%;cursor:pointer">
         <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div>
-        <div class="nm">${floorName(s)}</div></div>`; }).join(''):'<div class="co-done" style="color:rgba(0,0,0,.5)">No one from this group has checked in yet.</div>');
+        <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}</div></div>`; }).join(''):'<div class="co-done" style="color:rgba(0,0,0,.5)">No one from this group has checked in yet.</div>');
     $$('#floor .spot').forEach(el=>el.onclick=()=>openProfile(+el.dataset.s));
   } else {
     floor.className='floor'+(g.status==='current'?' live':g.status==='past'?' past':'');
@@ -994,7 +1005,7 @@ function render(){
       if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
       return `<div class="spot ${state.sel===s.id?'sel':''}" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%">
         <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div>
-        <div class="nm">${floorName(s)}</div></div>`;
+        <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}</div></div>`;
     }).join('');
     wireFloor(state.active,g);
   }
