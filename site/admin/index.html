@@ -83,6 +83,41 @@
   .today.live{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
   .today .th{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--gold);margin:0 0 10px}
   .today .trow{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+  .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+  .reqs{margin:22px 0 6px}
+  .reqhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+  .reqhead h2{margin:0}
+  .reqbtns{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .reqlist{display:flex;flex-direction:column;gap:10px}
+  .reqc{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px}
+  .reqc.open{border-left:3px solid var(--accent)}
+  .reqc.resolved{opacity:.72}
+  .rtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .rtop b{font-size:15px}
+  .rb{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:6px;border:1px solid}
+  .rb.roster{color:var(--accent);border-color:var(--accent);background:rgba(245,197,24,.1)}
+  .rb.problem{color:var(--danger);border-color:var(--danger);background:rgba(239,138,115,.1)}
+  .rst{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:6px}
+  .rst.approved,.rst.done{color:var(--ok);background:rgba(127,214,162,.12)}
+  .rst.declined{color:var(--ink-3);background:rgba(255,255,255,.05)}
+  .rctx{color:var(--ink-2);font-weight:600;font-size:13px;margin-top:4px}
+  .rdet{color:var(--ink-2);font-size:14px;margin-top:6px;white-space:pre-wrap}
+  .rmeta{color:var(--ink-3);font-size:12px;margin-top:7px}
+  .racts{display:flex;gap:8px;margin-top:11px}
+  .rwait{color:var(--ink-3);font-size:12.5px;font-style:italic;margin-top:9px}
+  .reqrecent{margin-top:10px}
+  .reqrecent summary{cursor:pointer;color:var(--ink-2);font-size:13px;font-weight:600;padding:4px 0}
+  .reqrecent .reqlist{margin-top:8px}
+  .reqmodal{position:fixed;inset:0;z-index:9000;background:rgba(6,10,8,.6);display:flex;align-items:flex-end;justify-content:center;padding:0}
+  @media (min-width:560px){.reqmodal{align-items:center;padding:20px}}
+  .reqbox{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:460px;padding:20px 18px calc(18px + env(safe-area-inset-bottom,0px))}
+  @media (min-width:560px){.reqbox{border-radius:16px}}
+  .reqbox h3{margin:0 0 14px;font-family:var(--font-display);font-weight:700}
+  .reqbox label{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin:0 0 12px}
+  .reqbox input,.reqbox select,.reqbox textarea{display:block;width:100%;margin-top:5px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit}
+  .reqbox textarea{resize:vertical}
+  .reqerr{color:var(--danger);font-size:13px;margin:0 0 10px}
+  .reqact{display:flex;gap:10px;justify-content:flex-end;margin-top:4px}
   .bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin:10px 0 7px}
   .bar i{display:block;height:100%;background:var(--ok)}
   .bar.low i{background:var(--warn)} .bar.vlow i{background:var(--danger)}
@@ -124,9 +159,23 @@
   <div id="board"><div class="loading">Loading…</div></div>
 </main>
 
+<div class="reqmodal" id="reqModal" hidden>
+  <div class="reqbox">
+    <h3 id="reqModalTitle">Request</h3>
+    <form id="reqForm" autocomplete="off">
+      <label id="reqGradWrap">Grading<select id="reqGrad"></select></label>
+      <label><span id="reqMainLbl">What you need</span><input id="reqMain" maxlength="200" required></label>
+      <label>Details <span class="muted">(optional)</span><textarea id="reqDetails" rows="3" maxlength="2000"></textarea></label>
+      <div class="reqerr" id="reqErr" hidden></div>
+      <div class="reqact"><button type="button" class="btn" id="reqCancel">Cancel</button><button type="submit" class="btn primary" id="reqSubmit">Send to Mark</button></div>
+    </form>
+  </div>
+</div>
+
 <script>
 const CFG = window.TOOLKIT_CONFIG || {};
 let sb, DATA = null, started = false, openKey = null, loc = null, prog = null;
+let me = '', myPerms = [], isAdmin = false, busy = false;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -208,6 +257,7 @@ function render(){
     `<div class="lfilter">${locChip(null,'All schools')}${distinct('location').map(l=>locChip(l,l)).join('')}</div>
      ${progs.length>1?`<div class="lfilter">${progChip(null,'All programmes')}${progs.map(p=>progChip(p,progLabel(p))).join('')}</div>`:''}
      ${todayBlock}
+     ${requestsSection()}
 
      <h2>Needs action now</h2>
      <div class="tiles">
@@ -230,6 +280,41 @@ function render(){
   $('#board').querySelectorAll('.tile').forEach(b => b.onclick = () => { const k = b.dataset.key; openKey = openKey === k ? null : k; render(); });
   $('#board').querySelectorAll('.lchip[data-loc]').forEach(b => b.onclick = () => { loc = b.dataset.loc || null; render(); });
   $('#board').querySelectorAll('.lchip[data-prog]').forEach(b => b.onclick = () => { prog = b.dataset.prog || null; render(); });
+  const rr = $('#reqRoster'); if(rr) rr.onclick = () => openReq('roster');
+  const rp = $('#reqProblem'); if(rp) rp.onclick = () => openReq('problem');
+  $('#board').querySelectorAll('[data-req]').forEach(b => b.onclick = () => resolveReq(b.dataset.req, b.dataset.act));
+}
+
+function fmtWhen(iso){ if(!iso) return ''; const d=new Date(iso), now=new Date(); const mins=Math.round((now-d)/60000);
+  if(mins<1) return 'just now'; if(mins<60) return mins+'m ago'; const hrs=Math.round(mins/60); if(hrs<24) return hrs+'h ago';
+  return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; }
+function reqCard(r){
+  const open = r.status === 'open';
+  const badge = r.kind === 'roster' ? '<span class="rb roster">Rostering</span>' : '<span class="rb problem">Problem</span>';
+  const statusTag = open ? '' : `<span class="rst ${esc(r.status)}">${r.status==='approved'?'Approved':r.status==='declined'?'Dismissed':'Done'}</span>`;
+  const ctx = (r.kind==='roster' && r.grading_date) ? `<div class="rctx">${fmtDate(r.grading_date)} · ${esc(r.location||'')}</div>` : '';
+  let actions = '';
+  if(open && isAdmin){
+    actions = r.kind==='roster'
+      ? `<div class="racts"><button class="btn primary" data-req="${r.request_id}" data-act="approved">Approve</button><button class="btn" data-req="${r.request_id}" data-act="declined">Decline</button></div>`
+      : `<div class="racts"><button class="btn primary" data-req="${r.request_id}" data-act="done">Mark done</button><button class="btn" data-req="${r.request_id}" data-act="declined">Dismiss</button></div>`;
+  } else if(open){ actions = `<div class="rwait">Waiting for Mark to action</div>`; }
+  return `<div class="reqc ${open?'open':'resolved'}">
+    <div class="rtop">${badge}${statusTag}<b>${esc(r.title)}</b></div>
+    ${ctx}${r.details?`<div class="rdet">${esc(r.details)}</div>`:''}
+    <div class="rmeta">${esc(r.by||'someone')} · ${fmtWhen(r.created_at)}${r.resolved_by?` · handled by ${esc(r.resolved_by)}`:''}</div>
+    ${actions}</div>`;
+}
+function requestsSection(){
+  const reqs = DATA.requests || [];
+  const open = reqs.filter(r => r.status === 'open');
+  const recent = reqs.filter(r => r.status !== 'open');
+  return `<section class="reqs">
+    <div class="reqhead"><h2>Requests${open.length?` · ${open.length} open`:''}</h2>
+      <div class="reqbtns"><button class="btn primary" id="reqRoster">+ Request staff</button><button class="btn" id="reqProblem">+ Report a problem</button></div></div>
+    <div class="reqlist">${open.map(reqCard).join('') || '<div class="muted">Nothing open. Use the buttons above to request staff for a grading, or flag something that needs fixing — it goes to Mark to action.</div>'}</div>
+    ${recent.length?`<details class="reqrecent"><summary>Recently handled (${recent.length})</summary><div class="reqlist">${recent.map(reqCard).join('')}</div></details>`:''}
+  </section>`;
 }
 
 /* ---- auth ---- */
@@ -249,6 +334,7 @@ async function startApp(session){
   let perms = [];
   try{ perms = (await sb.rpc('app_my_perms', { p_app: 'cb' })).data || []; }catch(e){ perms = []; }
   if(!(perms.includes('ops') || perms.includes('admin'))){ $('#noAccessWho').textContent = who; showView('noaccess'); return; }
+  me = who; myPerms = perms; isAdmin = perms.includes('admin');
   showView('app');
   await load();
   setInterval(() => { if(!document.hidden) load(); }, 120000);   // refresh every 2 min
@@ -256,6 +342,44 @@ async function startApp(session){
 }
 
 $('#refreshBtn').onclick = load;
+
+/* ---- requests (staff rostering + problems) ---- */
+let reqKind = 'roster';
+function openReq(kind){
+  reqKind = kind;
+  $('#reqModalTitle').textContent = kind === 'roster' ? 'Request staff for a grading' : 'Report a problem';
+  $('#reqMainLbl').textContent = kind === 'roster' ? 'What you need (e.g. 2 more examiners)' : "What's the problem?";
+  $('#reqSubmit').textContent = kind === 'roster' ? 'Send to Mark' : 'Send';
+  $('#reqGradWrap').hidden = kind !== 'roster';
+  if(kind === 'roster'){
+    const opts = ((DATA && DATA.gradings) || []).map(g => `<option value="${g.day_id}">${fmtDate(g.grading_date)} · ${esc(g.location||'')}${g.bb?' (BB)':''}</option>`).join('');
+    $('#reqGrad').innerHTML = opts || '<option value="">No upcoming gradings</option>';
+  }
+  $('#reqMain').value = ''; $('#reqDetails').value = ''; $('#reqErr').hidden = true;
+  $('#reqModal').hidden = false; setTimeout(() => $('#reqMain').focus(), 30);
+}
+function closeReq(){ $('#reqModal').hidden = true; }
+function reqErr(m){ const e = $('#reqErr'); e.textContent = m; e.hidden = false; }
+$('#reqCancel').onclick = closeReq;
+$('#reqModal').addEventListener('click', e => { if(e.target === $('#reqModal')) closeReq(); });
+$('#reqForm').addEventListener('submit', async e => {
+  e.preventDefault(); if(busy) return;
+  const title = $('#reqMain').value.trim(); if(!title){ reqErr('Add a short line first.'); return; }
+  const day_id = reqKind === 'roster' ? ($('#reqGrad').value || null) : null;
+  if(reqKind === 'roster' && !day_id){ reqErr('Pick a grading.'); return; }
+  busy = true; $('#reqSubmit').disabled = true;
+  const { error } = await sb.rpc('cb_ops_request_create', { p_kind: reqKind, p_day_id: day_id, p_title: title, p_details: $('#reqDetails').value.trim() || null, p_name: me || null });
+  busy = false; $('#reqSubmit').disabled = false;
+  if(error){ reqErr('Could not send — ' + (error.message || 'try again')); return; }
+  closeReq(); await load();
+});
+async function resolveReq(id, status){
+  if(busy) return; busy = true;
+  const { error } = await sb.rpc('cb_ops_request_resolve', { p_request_id: id, p_status: status, p_resolution: null });
+  busy = false;
+  if(error){ alert('Could not update — ' + (error.message || 'please try again')); return; }
+  await load();
+}
 
 (function boot(){
   if(!window.supabase || !CFG.SUPABASE_URL){ document.body.innerHTML = '<p style="padding:40px">Not connected to the database (config.js).</p>'; return; }

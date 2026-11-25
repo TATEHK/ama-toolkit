@@ -49,6 +49,16 @@ select jsonb_build_object(
       left join public.cb_entries e on e.entry_id = msg.entry_id
       left join public.efc_members m on m.member_key = msg.member_key)),
 
+  'requests', (select coalesce(jsonb_agg(jsonb_build_object(
+      'request_id', r.request_id, 'kind', r.kind, 'title', r.title, 'details', r.details, 'status', r.status,
+      'by', coalesce(r.requested_by_name, r.requested_by_email), 'created_at', r.created_at,
+      'day_id', r.day_id, 'grading_date', d.grading_date, 'location', d.location, 'programme', d.programme,
+      'resolution', r.resolution, 'resolved_by', r.resolved_by, 'resolved_at', r.resolved_at)
+      order by (case when r.status='open' then 0 else 1 end), r.created_at desc), '[]'::jsonb)
+    from public.cb_ops_requests r left join public.cb_days d on d.day_id = r.day_id
+    where r.status = 'open' or r.created_at > now() - interval '7 days'),
+  'requests_open', (select count(*) from public.cb_ops_requests where status = 'open'),
+
   'gradings', (select coalesce(jsonb_agg(jsonb_build_object(
       'day_id', day_id, 'location', location, 'programme', programme, 'grading_date', grading_date, 'bb', bb, 'makeup', makeup, 'private', private,
       'days_until', days_until, 'total', total, 'booked', booked, 'paid', paid, 'not_booked', not_booked,
