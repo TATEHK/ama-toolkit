@@ -1438,6 +1438,25 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, sent, considered });
     }
 
+    // Mark specific entries booked (already sorted offline / in EFC) and send the booking confirmation text + email.
+    // cron-auth so staff tooling can trigger it; confirmSms/confirmEmail each send once and never re-send.
+    if (body.action === 'confirm_booked') {
+      const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
+      if (okCron !== true) return fail('Not allowed.', 403);
+      const ids = Array.isArray(body.entry_ids) ? body.entry_ids.map(String) : (body.entry_id ? [String(body.entry_id)] : []);
+      const out = [];
+      for (const id of ids) {
+        const { data: e } = await db.from('cb_entries').select('entry_id, day_id, member_key, full_name, belt_from, belt_to, booked_at, paid, result').eq('entry_id', id).maybeSingle();
+        if (!e) { out.push({ entry_id: id, error: 'not_found' }); continue; }
+        const already = !!e.booked_at;
+        if (!already) { e.booked_at = new Date().toISOString(); await db.from('cb_entries').update({ booked_at: e.booked_at, booking_error: null }).eq('entry_id', e.entry_id); }
+        const { data: d } = await db.from('cb_days').select('day_id, location, grading_date, start_time, belt_times, closed, programme, bb').eq('day_id', e.day_id).maybeSingle();
+        if (body.confirm !== false && d) { await confirmEmail(e, d, 'email_booked'); await confirmSms(e, d, 'sms_booked'); }
+        out.push({ entry_id: id, name: e.full_name, already_booked: already, confirmed: body.confirm !== false });
+      }
+      return json({ ok: true, done: out });
+    }
+
     // ---- The booking sequence, every 15 minutes (pg_cron, coloured-belts-23.sql) ----
     if (body.action === 'sequence') {
       const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
