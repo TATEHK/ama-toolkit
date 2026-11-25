@@ -506,7 +506,8 @@ body[data-role="signin"]{overflow:hidden}
   <span class="pill viewas" id="viewAsNote" hidden></span>
   <button class="pill code" id="codePill" hidden title="Check-in code — enter it on a check-in station">Code <b id="codeVal">—</b></button>
   <span class="pill" id="herePill">0 here</span>
-  <button class="pill" id="rsBtn" title="Runsheet — printable running order" hidden>Runsheet</button>
+  <button class="pill" id="rsLiveBtn" title="Live run sheet — step through the grading" hidden>▶ Run sheet</button>
+  <button class="pill" id="rsBtn" title="Runsheet — printable running order" hidden>Print</button>
   <button class="icon-btn" id="gearBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.8-1.4-1.9-3.3-2.2.9a7.6 7.6 0 0 0-2.6-1.5L13.9 2h-3.8l-.3 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.2-.9L3.1 8.3 4.9 9.7a7.8 7.8 0 0 0 0 3l-1.8 1.4 1.9 3.3 2.2-.9a7.6 7.6 0 0 0 2.6 1.5l.3 2.4h3.8l.3-2.4a7.6 7.6 0 0 0 2.6-1.5l2.2.9 1.9-3.3z"/></svg></button>
 </div></div>
 
@@ -651,7 +652,7 @@ function slotTimes(){ const bt=bbTimes(); return [...new Set(STUDENTS.map(s=>bt[
 const hasGradings=()=>slotTimes().length>0;
 const fmtSlot=t=>{ if(!t) return ''; const [h,m]=String(t).split(':').map(Number); return `${((h+11)%12)+1}${m?':'+String(m).padStart(2,'0'):''}${h<12?'am':'pm'}`; };
 function gradingIdxOf(s){ const arr=slotTimes(), i=arr.indexOf(bbTimes()[s&&s.target]); return i<0?arr.length:i; }   // no start time → an "Unscheduled" bucket at the end
-function gradingInfo(idx){ const arr=slotTimes(); return idx<arr.length ? {num:idx+1, label:fmtSlot(arr[idx])} : {num:arr.length+1, label:'Unscheduled'}; }
+function gradingInfo(idx){ const arr=slotTimes(); return idx<arr.length ? {num:idx+1, label:fmtSlot(arr[idx]), time:arr[idx]} : {num:arr.length+1, label:'Unscheduled', time:null}; }
 function lineGrading(g){ const first=(g.slots||[]).map(byId).find(Boolean); const idx=first?gradingIdxOf(first):(g.gslot!=null?g.gslot:0); return {idx, ...gradingInfo(idx)}; }
 // the gradings actually present today (only slots that have a line), in order
 function gradingsPresent(){ const seen=new Map(); state.groups.forEach(g=>{ const gi=(g.gslot!=null)?g.gslot:lineGrading(g).idx; if(!seen.has(gi)) seen.set(gi,{idx:gi, ...gradingInfo(gi), lines:0, people:0}); const o=seen.get(gi); o.lines++; o.people+=g.slots.filter(x=>x!=null).length; });
@@ -999,7 +1000,9 @@ function render(){
   $$('#roster .rrow').forEach(r=>r.onclick=()=>openProfile(+r.dataset.s));
   // role gating
   $('#gearBtn').hidden = !(role==='admin'||role==='super');     // admin + super set up the floor
-  $('#rsBtn').hidden = !(BBMODE() && (role==='admin'||role==='super'||role==='master'||role==='sarah'));   // runsheet: black belt days only
+  const bbStaff = BBMODE() && (role==='admin'||role==='super'||role==='master'||role==='sarah');
+  $('#rsBtn').hidden = !bbStaff;                                   // printable runsheet: black belt days only
+  $('#rsLiveBtn').hidden = !(bbStaff && hasGradings());            // live run sheet: black belt days with gradings
   const curSide = role==='sarah' && sMode==='floor' && !BBMODE();   // curriculum only once a group is live (coloured belts only)
   $('#checkinCard').hidden = (role==='sarah');                 // Sarah checks people in from the call-out list, not the roster
   $('#currCard').hidden = !curSide;
@@ -1181,6 +1184,7 @@ $('#fh').oninput=e=>{state.fh=Math.max(4,+e.target.value||10);render();};
 $('#addGrp').onclick=()=>{manual();addGroup();renderSettings();render();persistGroups();};
 $('#gearBtn').onclick=()=>{renderSettings();$('#modal').classList.add('open');};
 $('#rsBtn').onclick=openRunsheet;
+$('#rsLiveBtn').onclick=openRsLive;
 $('#mClose').onclick=$('#mDone').onclick=()=>$('#modal').classList.remove('open');
 $('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').classList.remove('open');};
 
@@ -1233,6 +1237,128 @@ function openRunsheet(){
   document.getElementById('rsPrint').onclick=()=>window.print();
   document.getElementById('rsClose').onclick=()=>{ el.hidden=true; };
 }
+
+// ---- Live run sheet: step through the grading, tick techniques off, synced across screens ----
+let RS=null;   // { slot, rid, title, note, window, flat:[{secName,step}], ix, ticks, touched, pollT }
+function rsFlat(doc){ const f=[]; (doc&&doc.sections||[]).forEach(sec=>{ (sec.steps||[]).forEach(step=>{ f.push({secName:sec.name||'', step}); }); }); return f; }
+function rsInjectCSS(){ if(document.getElementById('rsLiveCSS')) return; const st=document.createElement('style'); st.id='rsLiveCSS';
+  st.textContent=`#rsLive{position:fixed;inset:0;z-index:9998;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;overflow:hidden}
+  #rsLive .rsl-top{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  #rsLive .rsl-gt{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+  #rsLive .rsl-gt button{flex:none;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:7px 14px;font-weight:700;font-size:13px;cursor:pointer}
+  #rsLive .rsl-gt button[aria-selected="true"]{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+  #rsLive .rsl-x{margin-left:auto;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer}
+  #rsLive .rsl-head{padding:10px 16px 0}
+  #rsLive .rsl-title{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;font-size:19px}
+  #rsLive .rsl-sub{color:var(--ink-3);font-size:13px;margin-top:2px}
+  #rsLive .rsl-main{flex:1;display:flex;gap:14px;min-height:0;padding:12px 16px}
+  #rsLive .rsl-steps{width:230px;flex:none;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px}
+  #rsLive .rsl-secname{font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-3);margin:10px 2px 2px}
+  #rsLive .rsl-chip{text-align:left;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 11px;cursor:pointer;display:flex;align-items:center;gap:9px}
+  #rsLive .rsl-chip[aria-selected="true"]{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+  #rsLive .rsl-chip.live{background:color-mix(in srgb,var(--accent) 16%,var(--panel))}
+  #rsLive .rsl-chip .rct{font-size:12px;font-weight:700;color:var(--ink-3)}
+  #rsLive .rsl-chip .rtime{font-weight:800;font-size:13px;min-width:52px}
+  #rsLive .rsl-chip .rgrp{font-size:12.5px;line-height:1.2}
+  #rsLive .rsl-chip .rdone{margin-left:auto;font-size:11px;font-weight:800;color:var(--accent)}
+  #rsLive .rsl-detail{flex:1;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;min-width:0}
+  #rsLive .rsl-dh{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0 0 4px}
+  #rsLive .rsl-dh .dt{font-weight:800;font-size:18px}
+  #rsLive .rsl-dh .dg{font-weight:700;font-size:16px}
+  #rsLive .rsl-dh .db{font-size:13px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:1px 8px}
+  #rsLive .rsl-dh .dm{margin-left:auto;font-size:12px;color:var(--ink-3);font-weight:700}
+  #rsLive .rsl-dsec{font-size:12px;color:var(--ink-3);font-weight:700;margin:0 0 12px}
+  #rsLive .rsl-h{font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.02em;color:var(--ink-2);margin:14px 0 4px}
+  #rsLive .rsl-it{display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);color:var(--ink);padding:10px 2px;cursor:pointer;font-size:15px;line-height:1.35}
+  #rsLive .rsl-it .bx{flex:none;width:22px;height:22px;border:2px solid var(--ink-3);border-radius:6px;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
+  #rsLive .rsl-it.on .bx{background:var(--accent);border-color:var(--accent)}
+  #rsLive .rsl-it.on .tx{color:var(--ink-3);text-decoration:line-through}
+  #rsLive .rsl-grid{display:grid;gap:10px;margin:8px 0}
+  #rsLive .rsl-col h4{margin:0 0 6px;font-size:13px;font-weight:800;color:var(--accent)}
+  #rsLive .rsl-cell{display:flex;align-items:flex-start;gap:9px;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);color:var(--ink);padding:8px 2px;cursor:pointer;font-size:13.5px;line-height:1.3}
+  #rsLive .rsl-cell .bx{flex:none;width:19px;height:19px;border:2px solid var(--ink-3);border-radius:5px;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
+  #rsLive .rsl-cell.on .bx{background:var(--accent);border-color:var(--accent)}
+  #rsLive .rsl-cell.on{opacity:.55;text-decoration:line-through}
+  #rsLive .rsl-cell.blank{visibility:hidden}
+  #rsLive .rsl-prog{margin-top:14px;font-size:12px;color:var(--ink-3);font-weight:700}
+  #rsLive .rsl-foot{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
+  #rsLive .rsl-foot .nav{flex:1;background:var(--accent);color:var(--accent-ink,#06240f);border:0;border-radius:11px;padding:13px;font-weight:800;font-size:15px;cursor:pointer}
+  #rsLive .rsl-foot .nav.sec{flex:none;background:var(--panel);color:var(--ink);border:1px solid var(--line);min-width:120px}
+  #rsLive .rsl-foot .pos{flex:none;font-weight:800;font-size:13px;color:var(--ink-3)}
+  @media (max-width:720px){#rsLive .rsl-main{flex-direction:column}#rsLive .rsl-steps{width:auto;max-height:34vh}}`;
+  document.head.appendChild(st); }
+async function openRsLive(){
+  if(!(BBMODE()&&hasGradings())) return toast('Run sheets are for black belt grading days.',4000);
+  const gi = state.groups[state.active] ? lineGrading(state.groups[state.active]).idx : state.grading;
+  const info = gradingInfo(gi);
+  rsInjectCSS();
+  let el=document.getElementById('rsLive'); if(!el){ el=document.createElement('div'); el.id='rsLive'; document.body.appendChild(el); }
+  el.hidden=false; el.innerHTML='<div class="rsl-head"><div class="rsl-title">Loading run sheet…</div></div>';
+  await rsOpenSlot(info.time, info.num, info.label);
+}
+async function rsOpenSlot(slot, gnum, glabel){
+  if(RS&&RS.pollT){ clearInterval(RS.pollT); RS.pollT=null; }
+  let data=null;
+  try{ const r=await sb.rpc('cb_runsheet_for_slot',{p_day:DAYID,p_slot:slot}); data=r&&r.data; }catch(e){}
+  const el=document.getElementById('rsLive');
+  if(!data){ RS=null; renderRsShell(slot,gnum,glabel,'<div class="rsl-detail">No run sheet is assigned to Grading '+gnum+' ('+esc(glabel)+'). Assign one from <b>Run sheets</b> in Settings.</div>'); return; }
+  const doc=data.doc||{}; const live=data.live||{step_ix:0,ticks:{}};
+  RS={ slot, gnum, glabel, rid:data.runsheet_id, title:data.title||doc.title||'Run sheet', note:doc.note||'', window:doc.window||'',
+       flat:rsFlat(doc), ix:Math.max(0,Math.min((live.step_ix||0),Math.max(0,rsFlat(doc).length-1))), ticks:live.ticks||{}, touched:0, pollT:null };
+  renderRsLive();
+  RS.pollT=setInterval(rsPoll,4000);
+}
+function renderRsShell(slot,gnum,glabel,inner){
+  const el=document.getElementById('rsLive'); const grs=gradingsPresent();
+  el.innerHTML=`<div class="rsl-top"><div class="rsl-gt">${grs.map(g=>`<button data-gidx="${g.idx}" aria-selected="${g.idx===(RS?RS._curIdx:gnum-1)}">Grading ${g.num}${g.label?' · '+esc(g.label):''}</button>`).join('')}</div><button class="rsl-x" title="Close">✕</button></div>`+inner;
+  el.querySelector('.rsl-x').onclick=rsClose;
+  el.querySelectorAll('.rsl-gt button').forEach(b=>b.onclick=()=>{ const gi=+b.dataset.gidx, inf=gradingInfo(gi); rsOpenSlot(inf.time, inf.num, inf.label); });
+}
+function rsDoneCount(fi){ const e=RS.flat[fi]; if(!e) return [0,0]; const st=e.step; let done=0,tot=0;
+  (st.items||[]).forEach((it,j)=>{ if(it.h) return; tot++; if(RS.ticks[fi+'.i'+j]) done++; });
+  if(st.table){ (st.table.rows||[]).forEach((row,r)=>row.forEach((c,ci)=>{ if(!String(c||'').trim()) return; tot++; if(RS.ticks[fi+'.r'+r+'c'+ci]) done++; })); }
+  return [done,tot]; }
+function renderRsLive(){
+  const el=document.getElementById('rsLive'); if(!el||!RS) return; RS._curIdx = state.grading;
+  const grs=gradingsPresent();
+  const top=`<div class="rsl-top"><div class="rsl-gt">${grs.map(g=>`<button data-gidx="${g.idx}" aria-selected="${esc(fmtSlot(gradingInfo(g.idx).time))===esc(RS.glabel)}">Grading ${g.num}${g.label?' · '+esc(g.label):''}</button>`).join('')}</div><button class="rsl-x" title="Close">✕</button></div>`;
+  const head=`<div class="rsl-head"><div class="rsl-title">${esc(RS.title)}</div><div class="rsl-sub">Grading ${RS.gnum} · ${esc(RS.glabel)}${RS.window?' · '+esc(RS.window):''}${RS.note?' · <b>'+esc(RS.note)+'</b>':''}</div></div>`;
+  // step list grouped by section
+  let listHtml=''; let lastSec=null;
+  RS.flat.forEach((e,fi)=>{ if(e.secName!==lastSec){ lastSec=e.secName; listHtml+=`<div class="rsl-secname">${esc(e.secName)}</div>`; }
+    const [d,t]=rsDoneCount(fi); const st=e.step;
+    listHtml+=`<button class="rsl-chip${fi===RS.ix?' live':''}" data-ix="${fi}" aria-selected="${fi===RS.ix}"><span class="rtime">${esc(st.time||'')}</span><span class="rgrp">${esc(st.groups||'')}${st.belt?`<br><span class="rct">${esc(st.belt)}</span>`:''}</span>${t?`<span class="rdone">${d}/${t}</span>`:''}</button>`; });
+  // current step detail
+  const e=RS.flat[RS.ix]||{step:{},secName:''}; const st=e.step;
+  let items=''; (st.items||[]).forEach((it,j)=>{ if(it.h){ items+=`<div class="rsl-h">${esc(it.t)}</div>`; return; }
+    const on=!!RS.ticks[RS.ix+'.i'+j]; items+=`<button class="rsl-it${on?' on':''}" data-k="i${j}"><span class="bx">${on?'✓':''}</span><span class="tx">${esc(it.t)}</span></button>`; });
+  let tableHtml='';
+  if(st.table&&st.table.headers){ const H=st.table.headers; tableHtml=`<div class="rsl-grid" style="grid-template-columns:repeat(${H.length},1fr)">`+
+    H.map((h,ci)=>`<div class="rsl-col"><h4>${esc(h)}</h4>`+ (st.table.rows||[]).map((row,r)=>{ const c=row[ci]||''; const blank=!String(c).trim(); const on=!!RS.ticks[RS.ix+'.r'+r+'c'+ci];
+      return `<button class="rsl-cell${on?' on':''}${blank?' blank':''}" data-k="r${r}c${ci}"${blank?' tabindex="-1"':''}><span class="bx">${on?'✓':''}</span><span>${esc(c)}</span></button>`; }).join('')+`</div>`).join('')+`</div>`; }
+  const [d,t]=rsDoneCount(RS.ix);
+  const detail=`<div class="rsl-detail"><div class="rsl-dh"><span class="dt">${esc(st.time||'')}</span><span class="dg">${esc(st.groups||'')}</span>${st.belt?`<span class="db">${esc(st.belt)}</span>`:''}${st.mins?`<span class="dm">${st.mins} min</span>`:''}</div><div class="rsl-dsec">${esc(e.secName)}</div>${items}${tableHtml}${t?`<div class="rsl-prog">${d} of ${t} done</div>`:''}</div>`;
+  const foot=`<div class="rsl-foot"><button class="nav sec" id="rsPrev" ${RS.ix<=0?'disabled':''}>‹ Previous</button><span class="pos">${RS.ix+1} / ${RS.flat.length}</span><button class="nav" id="rsNext" ${RS.ix>=RS.flat.length-1?'disabled':''}>Next group up ›</button></div>`;
+  el.innerHTML=top+head+`<div class="rsl-main"><div class="rsl-steps">${listHtml}</div>${detail}</div>`+foot;
+  el.querySelector('.rsl-x').onclick=rsClose;
+  el.querySelectorAll('.rsl-gt button').forEach(b=>b.onclick=()=>{ const gi=+b.dataset.gidx, inf=gradingInfo(gi); rsOpenSlot(inf.time, inf.num, inf.label); });
+  el.querySelectorAll('.rsl-chip').forEach(b=>b.onclick=()=>{ RS.ix=+b.dataset.ix; rsSave(); renderRsLive(); });
+  el.querySelectorAll('.rsl-detail [data-k]').forEach(b=>b.onclick=()=>{ if(b.classList.contains('blank')) return; const k=RS.ix+'.'+b.dataset.k; if(RS.ticks[k]) delete RS.ticks[k]; else RS.ticks[k]=true; RS.touched=Date.now(); rsSave(); renderRsLive(); });
+  const pv=el.querySelector('#rsPrev'), nx=el.querySelector('#rsNext');
+  if(pv)pv.onclick=()=>{ if(RS.ix>0){ RS.ix--; rsSave(); renderRsLive(); } };
+  if(nx)nx.onclick=()=>{ if(RS.ix<RS.flat.length-1){ RS.ix++; rsSave(); renderRsLive(); } };
+}
+let rsSaveT=null;
+function rsSave(){ if(!RS||!DAYID) return; RS.touched=Date.now(); clearTimeout(rsSaveT); rsSaveT=setTimeout(()=>{ sb.rpc('cb_runsheet_live_save',{p_day:DAYID,p_slot:RS.slot,p_step_ix:RS.ix,p_ticks:RS.ticks}); },250); }
+async function rsPoll(){
+  if(!RS||document.getElementById('rsLive').hidden) return;
+  if(Date.now()-RS.touched < 3000) return;   // don't clobber a change the user just made
+  try{ const r=await sb.rpc('cb_runsheet_for_slot',{p_day:DAYID,p_slot:RS.slot}); const d=r&&r.data; if(!d) return;
+    const live=d.live||{}; const newTicks=JSON.stringify(live.ticks||{})!==JSON.stringify(RS.ticks); const newIx=(live.step_ix||0)!==RS.ix;
+    if(newTicks||newIx){ RS.ticks=live.ticks||{}; RS.ix=Math.max(0,Math.min(live.step_ix||0,RS.flat.length-1)); renderRsLive(); }
+  }catch(e){}
+}
+function rsClose(){ if(RS&&RS.pollT){ clearInterval(RS.pollT); RS.pollT=null; } const el=document.getElementById('rsLive'); if(el) el.hidden=true; }
 let helpT = null;
 function persistHelpers() { if (!DAYID || loading) return; clearTimeout(helpT); helpT = setTimeout(() => { helpT = null; sb.rpc('cb_floor_helpers_save', { p_day: DAYID, p_helpers: HELPERS }); }, 300); }
 function loadHelpers(h) { HELPERS = (h && typeof h === 'object') ? { names: Array.isArray(h.names) ? h.names : [], assign: (h.assign && typeof h.assign === 'object') ? h.assign : {} } : { names: [], assign: {} }; }
