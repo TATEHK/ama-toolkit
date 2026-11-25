@@ -1072,7 +1072,7 @@ function makeGhost(el){ const w=document.createElement('div'); w.className='ghos
 function spotUnder(e,self,root){ root=root||$('#floor'); for(const n of document.elementsFromPoint(e.clientX,e.clientY)){ const sp=n.closest&&n.closest('.spot'); if(sp&&sp!==self&&sp.parentElement===root) return sp; } return null; }
 // keep the Present overlay's floor + moves in step with state changes (drags, profile edits, live polls)
 function refreshPresent(){ const pz=document.getElementById('cbPresent'); if(pz && !pz.hidden) renderCbPresent(); }
-function dropMove(gi,g,from,to){ const s=state.groups[gi].slots, t=s[from]; s[from]=s[to]; s[to]=t; if(state.groups[gi].status==='future') state.groups[gi].order='manual'; persistGroups(); render(); refreshPresent(); } // swap the two dots
+function dropMove(gi,g,from,to){ const s=state.groups[gi].slots, t=s[from]; s[from]=s[to]; s[to]=t; state.groups[gi].order='manual'; persistGroups(); render(); refreshPresent(); } // swap the two dots — lock the arrangement so it's never reflowed
 
 function openProfile(id){
   const s=STUDENTS.find(x=>x.id===id); if(!s) return; state.sel=id;
@@ -1241,8 +1241,11 @@ try { if (window.AmaIdle) AmaIdle.watch({ sb }); } catch (e) {}
 
 const slotEntries = g => g.slots.map(id => id == null ? null : (id2entry[id] || null));
 function groupsJson() { return state.groups.map((g, i) => ({ ord: i, cone: g.cone, belt: beltsOf(g)[0] || null, spots: g.spots, rows: g.rows, status: g.status, slots: slotEntries(g), opts: { title: g.title || '', belts: beltsOf(g), order: g.order || 'young' } })); }
-let saveT = null;
-function persistGroups() { if (!DAYID || loading) return; clearTimeout(saveT); saveT = setTimeout(() => sb.rpc('cb_floor_save_groups', { p_day: DAYID, p_groups: groupsJson() }), 300); }
+let saveT = null, groupsSaveUntil = 0;   // while set, the poll must not overwrite local group arrangement (a save is pending/just-sent)
+function persistGroups() { if (!DAYID || loading) return; groupsSaveUntil = Date.now() + 4000; clearTimeout(saveT);
+  saveT = setTimeout(async () => { groupsSaveUntil = Date.now() + 4000;
+    try { await sb.rpc('cb_floor_save_groups', { p_day: DAYID, p_groups: groupsJson() }); } catch (e) {}
+    groupsSaveUntil = Date.now() + 1500; }, 300); }
 function persistGroup(i, patch) { if (!DAYID || loading) return; const p = { ...patch }; if ('slots' in patch) p.slots = slotEntries(state.groups[i]); sb.rpc('cb_group_patch', { p_day: DAYID, p_ord: i, p_patch: p }); }
 function persistScore(id, patch) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_score_save', { p_entry: id2entry[id], p_patch: patch }); }
 async function persistCheckin(id, on) { if (!DAYID || !id2entry[id]) return;
@@ -1579,7 +1582,7 @@ function cbMovePanel(part){ const tgt=esc(part.belt)+' → '+esc(nextOf(part.bel
 }
 // a live floor layout of the group being presented — draggable + tappable (open profile / invite to BBC), same as the main floor
 function cbPresentFloorHtml(g){ const spots=g.spots||Math.max(1,g.slots.filter(x=>x!=null).length), rows=g.rows||(spots>7?2:1);
-  const gg={slots:g.slots,spots,rows}, lay=layoutFor(gg), pos=slotPos(gg,spots,rows);
+  const gg={...g,spots,rows}, lay=layoutFor(gg), pos=slotPos(gg,spots,rows);   // keep belts so multi-belt ordering matches the main floor (no mirror)
   return `<div class="floor" id="cbFloor">`+'<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{ const s=byId(lay[i]);
     if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
     return `<div class="spot" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%"><div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div><div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
@@ -1755,7 +1758,9 @@ async function pollDay() {
   loading = true;
   // try/finally so a throw in loadGroups/mapStudents can never leave `loading` stuck true — that would freeze every
   // save (persistGroup/persistCheckin/persistScore all gate on it) and the poll itself, i.e. "only syncs client-side".
-  try { if (!helpT) loadHelpers(data.helpers); mapStudents(data.students); if (data.groups && data.groups.length) loadGroups(data.groups); }
+  try { if (!helpT) loadHelpers(data.helpers); mapStudents(data.students);
+    // don't clobber a just-moved arrangement: skip reloading groups while our own save is pending/in-flight
+    if (data.groups && data.groups.length && Date.now() >= groupsSaveUntil) loadGroups(data.groups); }
   finally { loading = false; }
   render();
 }
