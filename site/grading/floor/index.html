@@ -507,6 +507,7 @@ body[data-role="signin"]{overflow:hidden}
   <button class="pill code" id="codePill" hidden title="Check-in code — enter it on a check-in station">Code <b id="codeVal">—</b></button>
   <span class="pill" id="herePill">0 here</span>
   <button class="pill" id="rsLiveBtn" title="Live run sheet — step through the grading" hidden>▶ Run sheet</button>
+  <button class="pill" id="cbPresentBtn" title="Present the selected group's curriculum on the big screen" hidden>▶ Present</button>
   <button class="pill" id="rsBtn" title="Runsheet — printable running order" hidden>Print</button>
   <button class="icon-btn" id="gearBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.8-1.4-1.9-3.3-2.2.9a7.6 7.6 0 0 0-2.6-1.5L13.9 2h-3.8l-.3 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.2-.9L3.1 8.3 4.9 9.7a7.8 7.8 0 0 0 0 3l-1.8 1.4 1.9 3.3 2.2-.9a7.6 7.6 0 0 0 2.6 1.5l.3 2.4h3.8l.3-2.4a7.6 7.6 0 0 0 2.6-1.5l2.2.9 1.9-3.3z"/></svg></button>
 </div></div>
@@ -1003,8 +1004,10 @@ function render(){
   // role gating
   $('#gearBtn').hidden = !(role==='admin'||role==='super');     // admin + super set up the floor
   const bbStaff = BBMODE() && (role==='admin'||role==='super'||role==='master'||role==='sarah');
+  const rsStaff = (role==='admin'||role==='super'||role==='master'||role==='sarah');
   $('#rsBtn').hidden = !bbStaff;                                   // printable runsheet: black belt days only
   $('#rsLiveBtn').hidden = !(bbStaff && hasGradings());            // live run sheet: black belt days with gradings
+  $('#cbPresentBtn').hidden = !(!BBMODE() && rsStaff && state.groups[state.active] && cbPartsFor(state.groups[state.active]).length);   // present curriculum: coloured belt days
   const curSide = role==='sarah' && sMode==='floor' && !BBMODE();   // curriculum only once a group is live (coloured belts only)
   $('#checkinCard').hidden = (role==='sarah');                 // Sarah checks people in from the call-out list, not the roster
   $('#currCard').hidden = !curSide;
@@ -1188,6 +1191,7 @@ $('#addGrp').onclick=()=>{manual();addGroup();renderSettings();render();persistG
 $('#gearBtn').onclick=()=>{renderSettings();$('#modal').classList.add('open');};
 $('#rsBtn').onclick=openRunsheet;
 $('#rsLiveBtn').onclick=openRsLive;
+$('#cbPresentBtn').onclick=openCbPresent;
 $('#rsEditBtn').onclick=()=>{ $('#modal').classList.remove('open'); openRsEdit(); };
 $('#mClose').onclick=$('#mDone').onclick=()=>$('#modal').classList.remove('open');
 $('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').classList.remove('open');};
@@ -1414,25 +1418,26 @@ function rsMoves(items){ const out=[]; let head=''; (items||[]).forEach(it=>{ if
 function rsStepMoves(st){ return { a:{belt:st.belt||'', moves:rsMoves(st.items), table:st.table}, b: st.belt2 ? {belt:st.belt2, moves:rsMoves(st.items2), table:st.table2} : null }; }
 function rsMoveMax(st){ const m=rsStepMoves(st); return Math.max(m.a.moves.length, m.b?m.b.moves.length:0); }
 function rsPresentInjectCSS(){ if(document.getElementById('rsPrezCSS')) return; const st=document.createElement('style'); st.id='rsPrezCSS';
-  st.textContent=`#rsPresent{position:fixed;inset:0;z-index:9999;background:#0b0d0c;color:#fff;display:flex;flex-direction:column;padding:max(18px,env(safe-area-inset-top)) 20px max(18px,env(safe-area-inset-bottom))}
-  #rsPresent .pz-top{display:flex;align-items:center;gap:12px;color:#9aa39a;font-weight:700;font-size:15px}
-  #rsPresent .pz-top .pz-x{margin-left:auto;background:#1b1f1d;border:1px solid #2c322e;color:#fff;border-radius:10px;width:42px;height:42px;font-size:19px;cursor:pointer}
-  #rsPresent .pz-mid{flex:1;display:flex;gap:22px;align-items:stretch;min-height:0;margin:14px 0}
-  #rsPresent .pz-belt{flex:1;min-width:0;display:flex;flex-direction:column;background:#121513;border:1px solid #242a26;border-radius:18px;padding:22px 24px}
-  #rsPresent .pz-bname{font-weight:800;font-size:clamp(18px,3vw,26px);color:var(--gold,#e8c766)}
-  #rsPresent .pz-head{color:#9aa39a;font-weight:700;font-size:clamp(13px,1.6vw,17px);margin-top:14px;text-transform:uppercase;letter-spacing:.03em}
-  #rsPresent .pz-move{flex:1;display:flex;align-items:center;font-weight:800;line-height:1.15;font-size:clamp(26px,5.5vw,56px);padding:10px 0}
-  #rsPresent .pz-move.done{color:#6c756c;font-size:clamp(22px,3.5vw,34px)}
-  #rsPresent .pz-count{color:#9aa39a;font-weight:700;font-size:14px}
-  #rsPresent .pz-foot{display:flex;align-items:center;gap:14px}
-  #rsPresent .pz-foot button{border:0;border-radius:14px;padding:20px;font-weight:800;cursor:pointer}
-  #rsPresent .pz-next{flex:1;background:var(--accent,#4fae6d);color:#06240f;font-size:clamp(18px,2.4vw,24px)}
-  #rsPresent .pz-prev{flex:none;min-width:120px;background:#1b1f1d;color:#fff;border:1px solid #2c322e!important;font-size:16px}
-  #rsPresent .pz-pos{flex:none;color:#9aa39a;font-weight:800;min-width:90px;text-align:center}
-  #rsPresent .pz-tap{font-size:13px;color:#6c756c;margin-top:8px}
-  @media (max-width:640px){#rsPresent .pz-mid{flex-direction:column;gap:12px}}`;
+  st.textContent=`.pz-screen{position:fixed;inset:0;z-index:9999;background:#0b0d0c;color:#fff;display:flex;flex-direction:column;padding:max(18px,env(safe-area-inset-top)) 20px max(18px,env(safe-area-inset-bottom))}
+  .pz-screen .pz-top{display:flex;align-items:center;gap:12px;color:#9aa39a;font-weight:700;font-size:15px}
+  .pz-screen .pz-top .pz-x{margin-left:auto;background:#1b1f1d;border:1px solid #2c322e;color:#fff;border-radius:10px;width:42px;height:42px;font-size:19px;cursor:pointer}
+  .pz-screen .pz-mid{flex:1;display:flex;gap:22px;align-items:stretch;min-height:0;margin:14px 0}
+  .pz-screen .pz-belt{flex:1;min-width:0;display:flex;flex-direction:column;background:#121513;border:1px solid #242a26;border-radius:18px;padding:22px 24px;overflow-y:auto}
+  .pz-screen .pz-bname{font-weight:800;font-size:clamp(18px,3vw,26px);color:var(--gold,#e8c766)}
+  .pz-screen .pz-head{color:#9aa39a;font-weight:700;font-size:clamp(13px,1.6vw,17px);margin-top:14px;text-transform:uppercase;letter-spacing:.03em}
+  .pz-screen .pz-move{flex:1;display:flex;align-items:center;font-weight:800;line-height:1.15;font-size:clamp(24px,5vw,50px);padding:10px 0}
+  .pz-screen .pz-move.done{color:#6c756c;font-size:clamp(22px,3.5vw,34px)}
+  .pz-screen .pz-move.ticked{color:var(--accent,#4fae6d)}
+  .pz-screen .pz-count{color:#9aa39a;font-weight:700;font-size:14px}
+  .pz-screen .pz-foot{display:flex;align-items:center;gap:14px}
+  .pz-screen .pz-foot button{border:0;border-radius:14px;padding:20px;font-weight:800;cursor:pointer}
+  .pz-screen .pz-next{flex:1;background:var(--accent,#4fae6d);color:#06240f;font-size:clamp(18px,2.4vw,24px)}
+  .pz-screen .pz-prev{flex:none;min-width:120px;background:#1b1f1d;color:#fff;border:1px solid #2c322e!important;font-size:16px}
+  .pz-screen .pz-pos{flex:none;color:#9aa39a;font-weight:800;min-width:90px;text-align:center}
+  .pz-screen .pz-tap{font-size:13px;color:#6c756c;margin-top:8px}
+  @media (max-width:640px){.pz-screen .pz-mid{flex-direction:column;gap:12px}}`;
   document.head.appendChild(st); }
-function openRsPresent(){ if(!RS) return; rsPresentInjectCSS(); let el=document.getElementById('rsPresent'); if(!el){ el=document.createElement('div'); el.id='rsPresent'; document.body.appendChild(el); } el.hidden=false; renderRsPresent(); }
+function openRsPresent(){ if(!RS) return; rsPresentInjectCSS(); let el=document.getElementById('rsPresent'); if(!el){ el=document.createElement('div'); el.id='rsPresent'; el.className='pz-screen'; document.body.appendChild(el); } el.hidden=false; renderRsPresent(); }
 function rsPresentClose(){ const el=document.getElementById('rsPresent'); if(el) el.hidden=true; renderRsLive(); }
 function rsMovePanel(side, part, moveIx){ // side 'a'/'b' → tick key prefix i/j
   if(!part) return '';
@@ -1463,6 +1468,34 @@ function renderRsPresent(){ const el=document.getElementById('rsPresent'); if(!e
   el.querySelector('#pzNext').onclick=()=>{ if(RS.move<max-1){ RS.move++; } else if(RS.ix<RS.flat.length-1){ RS.ix++; RS.move=0; } rsSave(); renderRsPresent(); };
   el.querySelector('#pzPrev').onclick=()=>{ if(RS.move>0){ RS.move--; } else if(RS.ix>0){ RS.ix--; RS.move=Math.max(0,rsMoveMax(RS.flat[RS.ix].step)-1); } rsSave(); renderRsPresent(); };
   el.querySelectorAll('.pz-belt[data-itemix]').forEach(p=>{ p.onclick=()=>{ const ix=+p.dataset.itemix; if(ix<0) return; const ip=p.dataset.side==='a'?'i':'j'; const k=RS.ix+'.'+ip+ix; if(RS.ticks[k]) delete RS.ticks[k]; else RS.ticks[k]=true; RS.touched=Date.now(); rsSave(); renderRsPresent(); }; });
+}
+
+// ---- Coloured belt Present mode: the selected group's belt curriculum (CURR) big, one move at a time ----
+let cbpGi=0, cbpMove=0;
+function cbMovesFor(belt){ const cu=CURR[belt]; if(!cu) return []; const out=[]; COMPONENTS.forEach(comp=>{ ((cu.cats||{})[comp]||[]).forEach((text,ix)=>out.push({comp, ix, head:comp, text})); }); return out; }
+function cbPartsFor(g){ return g ? beltsOf(g).filter(b=>CURR[b]).map(b=>({belt:b, moves:cbMovesFor(b)})) : []; }
+function cbMax(g){ const p=cbPartsFor(g); return Math.max(1, ...p.map(x=>x.moves.length)); }
+function openCbPresent(){ const g=state.groups[state.active]; if(!g||!cbPartsFor(g).length) return toast('No curriculum for this group.',3500);
+  cbpGi=state.active; cbpMove=0; rsPresentInjectCSS();
+  let el=document.getElementById('cbPresent'); if(!el){ el=document.createElement('div'); el.id='cbPresent'; el.className='pz-screen'; document.body.appendChild(el); } el.hidden=false; renderCbPresent(); }
+function cbPresentClose(){ const el=document.getElementById('cbPresent'); if(el) el.hidden=true; render(); }
+function cbMovePanel(part){ if(!part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${esc(part.belt)}</div><div class="pz-move done">No curriculum.</div></div>`;
+  if(cbpMove>=part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${esc(part.belt)} → ${esc(nextOf(part.belt))}</div><div class="pz-move done">✓ Finished all moves</div><div class="pz-count">${part.moves.length} / ${part.moves.length}</div></div>`;
+  const mv=part.moves[cbpMove], ticked=said.has(saidKey(part.belt, mv.comp, mv.ix));
+  return `<div class="pz-belt" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${mv.ix}"><div class="pz-bname">${esc(part.belt)} → ${esc(nextOf(part.belt))}</div><div class="pz-head">${esc(mv.head)}</div><div class="pz-move${ticked?' ticked':''}">${ticked?'✓ ':''}${esc(mv.text)}</div><div class="pz-count">${cbpMove+1} / ${part.moves.length}</div></div>`;
+}
+function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!el||el.hidden) return;
+  if(cbpGi>state.groups.length-1) cbpGi=state.groups.length-1; let g=state.groups[cbpGi]; if(!g){ cbPresentClose(); return; }
+  const parts=cbPartsFor(g), max=cbMax(g); if(cbpMove>=max) cbpMove=max-1;
+  const top=`<div class="pz-top"><span>${esc(schoolOf(DAYINFO.location))} grading</span><span>·</span><span>${gword()} ${g.cone||'?'} · ${esc(beltsOf(g).join(' + '))}</span><button class="pz-x" title="Close">✕</button></div>`;
+  const mid=`<div class="pz-mid">${parts.map(cbMovePanel).join('')||'<div class="pz-belt"><div class="pz-move done">No curriculum for this group.</div></div>'}</div>`;
+  const atEnd=cbpMove>=max-1, lastG=cbpGi>=state.groups.length-1;
+  const foot=`<div class="pz-foot"><button class="pz-prev" id="cbPrev">‹ Back</button><span class="pz-pos">${parts.length>1?'':'Move '+(cbpMove+1)+' / '+max}</span><button class="pz-next" id="cbNext" ${(atEnd&&lastG)?'disabled':''}>${atEnd?(lastG?'Done':'Next group ›'):'Next move ›'}</button></div><div class="pz-tap">Tap a move to tick it off as you call it</div>`;
+  el.innerHTML=top+mid+foot;
+  el.querySelector('.pz-x').onclick=cbPresentClose;
+  el.querySelector('#cbNext').onclick=()=>{ if(cbpMove<max-1) cbpMove++; else if(cbpGi<state.groups.length-1){ cbpGi++; cbpMove=0; } renderCbPresent(); };
+  el.querySelector('#cbPrev').onclick=()=>{ if(cbpMove>0) cbpMove--; else if(cbpGi>0){ cbpGi--; cbpMove=cbMax(state.groups[cbpGi])-1; } renderCbPresent(); };
+  el.querySelectorAll('.pz-belt[data-belt]').forEach(p=>p.onclick=()=>{ const k=saidKey(p.dataset.belt, p.dataset.comp, +p.dataset.ix); said.has(k)?said.delete(k):said.add(k); renderCbPresent(); });
 }
 
 // ---- Run sheet builder: create / edit run sheets and assign them to a day's gradings ----
