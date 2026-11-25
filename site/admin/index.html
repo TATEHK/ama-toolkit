@@ -200,6 +200,42 @@
   .otab .tb{background:var(--danger);color:#1a120d;font-size:11px;font-weight:800;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center}
   .tabwrap{padding:2px 0}
   .tabwrap > h2:first-child{margin-top:10px}
+  .secbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  /* belt order */
+  .beltgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .beltrow{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;flex-wrap:wrap}
+  .beltrow .bsw{width:16px;height:16px;border-radius:5px;border:1px solid rgba(255,255,255,.25);flex:none}
+  .beltrow .bnm{font-weight:700;flex:1;min-width:0}
+  .beltrow .bn{font-family:var(--font-display);font-weight:700;font-size:20px;flex:none}
+  .beltrow .bsub{flex-basis:100%;color:var(--ink-3);font-size:11px}
+  /* countdown */
+  .cdgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+  .cdcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+  .cdh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 8px}
+  .cdh b{font-family:var(--font-display)}
+  .cdh .cdl{color:var(--ink-2);font-size:13px;flex:1;min-width:0}
+  .cdh .cdu{color:var(--ink-3);font-size:12px}
+  .cks{display:flex;flex-direction:column;gap:5px}
+  .ck{font-size:13px;font-weight:600}
+  .ck.ok{color:var(--ok)} .ck.no{color:var(--ink-3)}
+  /* who's on today */
+  .wot{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:0 0 8px}
+  .woth{display:flex;align-items:center;gap:8px;margin:0 0 7px}
+  .woth b{font-family:var(--font-display);font-size:16px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chips .chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:13px;font-weight:600}
+  /* retest */
+  .rbk{flex:none;font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px}
+  .rbk.ok{background:rgba(127,214,162,.16);color:var(--ok)}
+  .rbk.no{background:rgba(239,138,115,.16);color:var(--danger)}
+  .tag.bad{background:rgba(239,138,115,.16);color:var(--danger)}
+  /* bbc conversion */
+  .bbconv{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:0 0 8px}
+  .bch{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .bch b{font-family:var(--font-display);font-size:16px}
+  .bch .bcp{font-family:var(--font-display);font-weight:700;color:var(--accent)}
+  .bcbar{height:7px;border-radius:999px;background:var(--line);overflow:hidden;margin:7px 0 0}
+  .bcbar i{display:block;height:100%;background:var(--ok);border-radius:999px}
   .loading{padding:40px;text-align:center;color:var(--ink-3)}
 </style>
 </head>
@@ -259,7 +295,7 @@
 <script>
 const CFG = window.TOOLKIT_CONFIG || {};
 let sb, DATA = null, started = false, openKey = null, loc = null, prog = null;
-let me = '', myPerms = [], isAdmin = false, busy = false, BBSESS = [];
+let me = '', myPerms = [], isAdmin = false, busy = false, BBSESS = [], DATA2 = null;
 const OTABS = [['today','Today'],['action','Needs action'],['gradings','Gradings'],['helpers','Helpers'],['reports','Reports']];
 let OTAB = (()=>{ try{ const h = location.hash.replace('#',''); return OTABS.some(t=>t[0]===h) ? h : (localStorage.getItem('ops_tab')||'today'); }catch(e){ return 'today'; } })();
 function setTab(t){ OTAB = t; openKey = null; try{ localStorage.setItem('ops_tab', t); history.replaceState(null,'','#'+t); }catch(e){} render(); }
@@ -277,9 +313,14 @@ function showView(w){ $('#authView').hidden = w !== 'auth'; $('#noAccessView').h
 async function load(){
   $('#refreshBtn').disabled = true;
   try{
-    const [{ data, error }, bb] = await Promise.all([ sb.rpc('cb_ops_dashboard'), sb.rpc('cb_ops_bb_sessions').then(r => r, () => ({ data: [] })) ]);
+    const [{ data, error }, bb, d2] = await Promise.all([
+      sb.rpc('cb_ops_dashboard'),
+      sb.rpc('cb_ops_bb_sessions').then(r => r, () => ({ data: [] })),
+      sb.rpc('cb_ops_dashboard2').then(r => r, () => ({ data: null }))
+    ]);
     if(error) throw error;
     BBSESS = (bb && bb.data) || [];
+    DATA2 = (d2 && d2.data) || null;
     DATA = data; render();
     $('#updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }catch(e){ $('#board').innerHTML = `<div class="loading" style="color:var(--danger)">Couldn't load: ${esc(e.message||e)}</div>`; }
@@ -390,6 +431,54 @@ function bbSessionsSection(){
           + `</div>`; }).join('')
     + `</div>`).join('');
 }
+/* ---- Wave 2 feature sections (data from cb_ops_dashboard2) ---- */
+const BELTORD = ['white','yellow','orange','green','blue','purple','brown','red three','red two','red','cho dan bo','poom','black'];
+const BELTCLR = { white:'#e9e9ea', yellow:'#f5c518', orange:'#e8872b', green:'#46a86a', blue:'#3f73d0', purple:'#8a5cd0', brown:'#8a5a2b', red:'#d0463f', 'cho dan bo':'#cfcfcf', poom:'#d0463f', black:'#0c0c0c' };
+function beltMeta(b){ const k = String(b||'').toLowerCase(); let rank = 99, clr = 'var(--ink-3)';
+  for(let i=0;i<BELTORD.length;i++){ if(k.includes(BELTORD[i])){ rank = i; break; } }
+  for(const key in BELTCLR){ if(k.includes(key)){ clr = BELTCLR[key]; break; } }
+  return { rank, clr }; }
+let beltInv = false;
+function beltOrderSection(){
+  const rows = (DATA2&&DATA2.belt_order||[]).filter(x => !loc || x.location === loc); if(!rows.length) return '';
+  const agg = {}; rows.forEach(r => { const a = agg[r.belt_to] = agg[r.belt_to] || { belt_to:r.belt_to, booked:0, invited:0 }; a.booked += r.booked||0; a.invited += r.invited||0; });
+  const list = Object.values(agg).sort((a,b)=> beltMeta(a.belt_to).rank - beltMeta(b.belt_to).rank || a.belt_to.localeCompare(b.belt_to));
+  const tot = list.reduce((s,x)=> s + x.booked + (beltInv?x.invited:0), 0);
+  const nm = b => String(b||'').replace(/ Belt$/,'');
+  return `<div class="secbar"><h2>Belt order list${loc?` — ${esc(loc)}`:''}</h2><button class="btn mini" id="beltInv">${beltInv?'Booked only':'Include invited'}</button></div>`
+    + `<p class="muted" style="margin:-4px 0 10px;font-size:13px">${tot} belt${tot===1?'':'s'} for upcoming gradings${beltInv?' (booked + invited)':' (booked)'}.</p>`
+    + `<div class="beltgrid">` + list.map(x => { const n = x.booked + (beltInv?x.invited:0); const mt = beltMeta(x.belt_to);
+        return `<div class="beltrow"><span class="bsw" style="background:${mt.clr}"></span><span class="bnm">${esc(nm(x.belt_to))}</span><span class="bn">${n}</span>${beltInv&&x.invited?`<span class="bsub">${x.booked} booked · ${x.invited} to book</span>`:''}</div>`; }).join('') + `</div>`;
+}
+function countdownSection(){
+  const rows = (DATA2&&DATA2.countdown||[]).filter(inFilt); if(!rows.length) return '';
+  const chk = (ok,label) => `<span class="ck ${ok?'ok':'no'}">${ok?'✓':'○'} ${label}</span>`;
+  return `<h2>Countdown checklist</h2><div class="cdgrid">` + rows.slice(0,24).map(g => {
+      const helpersOk = (g.helper_cap||0) > 0 ? (g.helper_signups||0) >= g.helper_cap : (g.helper_signups||0) > 0;
+      const bookedOk = g.total>0 && g.booked >= g.total;
+      return `<div class="cdcard"><div class="cdh"><b>${fmtDate(g.grading_date)}</b><span class="cdl">${esc(g.location||'')}${g.bb?' · BB':''}</span><span class="cdu">${until(g.days_until)}</span></div>`
+        + `<div class="cks">${chk(g.invites_out,'Invites out')}${chk(bookedOk,`Booked ${g.booked}/${g.total}`)}${chk(helpersOk,`Helpers ${g.helper_signups||0}${g.helper_cap?'/'+g.helper_cap:''}`)}${chk(g.floor_set,'Floor set')}</div></div>`;
+    }).join('') + `</div>`;
+}
+function whosOnToday(){
+  const rows = (DATA2&&DATA2.whos_on_today||[]).filter(x => !loc || x.location === loc); if(!rows.length) return '';
+  return `<h2>Who's on today</h2>` + rows.map(g => `<div class="wot"><div class="woth"><b>${esc(g.location||'')}</b>${g.bb?' <span class="badge bb">BB</span>':''}<span class="muted">${(g.helpers||[]).length} helper${(g.helpers||[]).length===1?'':'s'}</span></div>`
+    + ((g.helpers||[]).length ? `<div class="chips">${g.helpers.map(h=>`<span class="chip">${esc(h)}</span>`).join('')}</div>` : '<div class="muted">No helpers signed up.</div>') + `</div>`).join('');
+}
+function cantMakeSection(){
+  const rows = (DATA2&&DATA2.cant_make||[]).filter(inFilt); if(!rows.length) return '';
+  return `<h2>Can't make it — ${rows.length}</h2>` + rows.slice(0,60).map(x => `<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}${x.reason?` — ${esc(x.reason)}`:''}</span></div>`).join('')
+    + (rows.length>60?`<div class="more">Showing 60 of ${rows.length}.</div>`:'');
+}
+function retestSection(){
+  const rows = (DATA2&&DATA2.retest||[]).filter(inFilt); if(!rows.length) return '';
+  const todo = rows.filter(x=>!x.rebooked).length;
+  return `<h2>Retest tracker${todo?` — ${todo} to rebook`:''}</h2>` + rows.map(x => `<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag ${x.result==='fail'?'bad':''}">${esc(x.result)}</span><span class="meta">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))} · ${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span><span class="rbk ${x.rebooked?'ok':'no'}">${x.rebooked?'rebooked ✓':'not rebooked'}</span></div>`).join('');
+}
+function bbcConversionSection(){
+  const rows = (DATA2&&DATA2.bbc_conversion||[]).filter(x => !loc || x.school === loc); if(!rows.length) return '';
+  return `<h2>Black Belt Club conversion</h2>` + rows.map(x => `<div class="bbconv"><div class="bch"><b>${esc(x.school||'')}</b><span class="bcp">${x.pct==null?'—':x.pct+'%'}</span></div><div class="bcbar"><i style="width:${x.pct||0}%"></i></div><div class="muted" style="font-size:12px;margin-top:3px">${x.signed} signed of ${x.entered} in the welcome flow</div></div>`).join('');
+}
 function render(){
   const d = DATA; if(!d) return;
   const needDetail = k => openKey === k ? detailFor(k) : '';
@@ -455,6 +544,7 @@ function render(){
   const cp = $('#calPrev'); if(cp) cp.onclick = () => { calOff--; render(); };
   const cn = $('#calNext'); if(cn) cn.onclick = () => { calOff++; render(); };
   const ct = $('#calToday'); if(ct) ct.onclick = () => { calOff = 0; render(); };
+  const bi = $('#beltInv'); if(bi) bi.onclick = () => { beltInv = !beltInv; render(); };
   $('#board').querySelectorAll('[data-remind]').forEach(b => b.onclick = () => openRemind(b.dataset.remind, b.dataset.loc));
   $('#board').querySelectorAll('[data-announce]').forEach(b => b.onclick = () => openAnnounce(b.dataset.announce, b.dataset.loc));
   $('#board').querySelectorAll('[data-resend]').forEach(b => b.onclick = () => doResend(b.dataset.resend, b.dataset.name, b));
