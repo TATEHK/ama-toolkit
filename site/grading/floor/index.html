@@ -1044,11 +1044,12 @@ function render(){
     $('#currPanel').innerHTML = cu?COMPONENTS.map(comp=>{const items=(cu.cats||{})[comp]||[]; return items.length?`<div class="cp-sec"><div class="cp-h">${comp}</div>${items.map((it,ix)=>{const k=saidKey(belt,comp,ix),done=mc&&said.has(k); return `<div class="cp-it ${mc?'say':''} ${done?'done':''}"${mc?` data-say="${k}"`:''}>${mc?'<span class="sk"></span>':''}<span>${it}</span></div>`;}).join('')}</div>`:'';}).join(''):'<div class="cp-it" style="color:var(--ink-3)">No curriculum for this group.</div>';
     if(mc) $$('#currPanel .cp-it.say').forEach(el=>el.onclick=()=>{ const k=el.dataset.say; said.has(k)?said.delete(k):said.add(k); render(); });
   }
+  refreshPresent();   // keep the Present overlay (layout + moves) in step with every state change
 }
 const shortBelt=b=>b;
 // drag a student from one red dot to another (works with touch + mouse); a short press with no move opens their profile
-function wireFloor(gi,g){
-  $$('#floor .spot').forEach(el=>{
+function wireFloor(gi,g,root){ root=root||$('#floor');
+  root.querySelectorAll('.spot').forEach(el=>{
     el.addEventListener('pointerdown',ev=>{
       if(ev.button&&ev.button!==0) return;
       const from=+el.dataset.i, startId=layoutFor(g)[from], sx=ev.clientX, sy=ev.clientY;
@@ -1056,18 +1057,20 @@ function wireFloor(gi,g){
       const move=e=>{
         if(!moved && Math.hypot(e.clientX-sx,e.clientY-sy)>8){ moved=true; dragging=true; if(startId!=null){ ghost=makeGhost(el); document.body.appendChild(ghost); el.style.opacity=.3; } }
         if(ghost){ ghost.style.left=e.clientX+'px'; ghost.style.top=e.clientY+'px';
-          const t=spotUnder(e,el); if(t!==tgt){ if(tgt)tgt.classList.remove('drop'); tgt=t; if(t)t.classList.add('drop'); } }
+          const t=spotUnder(e,el,root); if(t!==tgt){ if(tgt)tgt.classList.remove('drop'); tgt=t; if(t)t.classList.add('drop'); } }
       };
       const up=()=>{ document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); setTimeout(()=>dragging=false,50);
-        if(ghost){ ghost.remove(); if(tgt){ tgt.classList.remove('drop'); dropMove(gi,g,from,+tgt.dataset.i); } else render(); }
+        if(ghost){ ghost.remove(); if(tgt){ tgt.classList.remove('drop'); dropMove(gi,g,from,+tgt.dataset.i); } else { render(); refreshPresent(); } }
         else if(!moved && startId!=null){ openProfile(startId); } };
       document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
     });
   });
 }
 function makeGhost(el){ const w=document.createElement('div'); w.className='ghost'; w.appendChild(el.querySelector('.dot').cloneNode(true)); return w; }
-function spotUnder(e,self){ for(const n of document.elementsFromPoint(e.clientX,e.clientY)){ const sp=n.closest&&n.closest('.spot'); if(sp&&sp!==self&&sp.parentElement&&sp.parentElement.id==='floor') return sp; } return null; }
-function dropMove(gi,g,from,to){ const s=state.groups[gi].slots, t=s[from]; s[from]=s[to]; s[to]=t; if(state.groups[gi].status==='future') state.groups[gi].order='manual'; persistGroups(); render(); } // swap the two dots
+function spotUnder(e,self,root){ root=root||$('#floor'); for(const n of document.elementsFromPoint(e.clientX,e.clientY)){ const sp=n.closest&&n.closest('.spot'); if(sp&&sp!==self&&sp.parentElement===root) return sp; } return null; }
+// keep the Present overlay's floor + moves in step with state changes (drags, profile edits, live polls)
+function refreshPresent(){ const pz=document.getElementById('cbPresent'); if(pz && !pz.hidden) renderCbPresent(); }
+function dropMove(gi,g,from,to){ const s=state.groups[gi].slots, t=s[from]; s[from]=s[to]; s[to]=t; if(state.groups[gi].status==='future') state.groups[gi].order='manual'; persistGroups(); render(); refreshPresent(); } // swap the two dots
 
 function openProfile(id){
   const s=STUDENTS.find(x=>x.id===id); if(!s) return; state.sel=id;
@@ -1572,12 +1575,12 @@ function cbMovePanel(part){ const tgt=esc(part.belt)+' → '+esc(nextOf(part.bel
     : `<div class="pz-head">${esc(mv.head)}</div>${mv.age?('<div class="pz-agel">'+ageBadge(mv.age)+'</div>'):''}`;
   return `<div class="pz-belt" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${mv.ix}"><div class="pz-bname">${tgt}</div>${head}<div class="pz-move${ticked?' ticked':''}" style="font-size:${mvSize(mv.text)}">${ticked?'✓ ':''}${esc(mv.text)}</div>${foot}</div>`;
 }
-// a compact, read-only floor layout of a group, to sit beside the moves in Present mode
+// a live floor layout of the group being presented — draggable + tappable (open profile / invite to BBC), same as the main floor
 function cbPresentFloorHtml(g){ const spots=g.spots||Math.max(1,g.slots.filter(x=>x!=null).length), rows=g.rows||(spots>7?2:1);
-  const lay=layoutFor({slots:g.slots,spots}), pos=slotPos({slots:g.slots,spots,rows},spots,rows);
-  return `<div class="floor">`+'<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{ const s=byId(lay[i]);
-    if(!s) return `<div class="spot empty" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
-    return `<div class="spot" style="left:${p.x}%;top:${p.y}%"><div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div><div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
+  const gg={slots:g.slots,spots,rows}, lay=layoutFor(gg), pos=slotPos(gg,spots,rows);
+  return `<div class="floor" id="cbFloor">`+'<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{ const s=byId(lay[i]);
+    if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
+    return `<div class="spot" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%"><div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div><div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
   }).join('')+`</div>`; }
 function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!el||el.hidden) return;
   if(cbpGi>state.groups.length-1) cbpGi=state.groups.length-1; let g=state.groups[cbpGi]; if(!g){ cbPresentClose(); return; }
@@ -1594,6 +1597,7 @@ function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!e
   const tog=(b,c,i)=>{ const k=saidKey(b,c,+i); said.has(k)?said.delete(k):said.add(k); renderCbPresent(); };
   el.querySelectorAll('.pz-belt[data-ix]').forEach(p=>p.onclick=()=>tog(p.dataset.belt,p.dataset.comp,p.dataset.ix));   // single-move cards: tap anywhere
   el.querySelectorAll('.pz-row[data-ix]').forEach(r=>r.onclick=e=>{ e.stopPropagation(); tog(r.dataset.belt,r.dataset.comp,r.dataset.ix); });   // show-all cards: tap each step
+  const cbFloor=el.querySelector('#cbFloor'); if(cbFloor && !BBMODE()) wireFloor(cbpGi, g, cbFloor);   // drag to move + tap a dot for the profile / BBC invite
 }
 
 // ---- Run sheet builder: create / edit run sheets and assign them to a day's gradings ----
