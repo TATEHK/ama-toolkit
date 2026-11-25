@@ -57,12 +57,18 @@ begin
         from public.cb_entries e join public.cb_days d on d.day_id=e.day_id
         where e.result in ('fail','absent') and d.grading_date between current_date - 120 and current_date) t),
 
+    -- school resolved from the flow's grading day, else the person's most recent grading; rows with no school at all are dropped
     'bbc_conversion', (select coalesce(jsonb_agg(jsonb_build_object(
         'school', school, 'entered', entered, 'signed', signed,
         'pct', case when entered>0 then round(100.0*signed/entered) else null end) order by entered desc, school), '[]'::jsonb)
-      from (select coalesce(d.location,'(no school)') school, count(*) entered, count(*) filter (where f.status='signed') signed
-            from public.cb_bbc_flow f left join public.cb_days d on d.day_id=f.day_id
-            group by coalesce(d.location,'(no school)')) t)
+      from (select school, count(*) entered, count(*) filter (where signed) signed
+            from (select f.member_key, (f.status='signed') as signed,
+                    coalesce(d.location, (select d2.location from public.cb_entries e2 join public.cb_days d2 on d2.day_id=e2.day_id
+                                          where e2.member_key=f.member_key and d2.location is not null
+                                          order by d2.grading_date desc limit 1)) as school
+                  from public.cb_bbc_flow f left join public.cb_days d on d.day_id=f.day_id) x
+            where school is not null
+            group by school) t)
   );
 end $$;
 grant execute on function public.cb_ops_dashboard2() to authenticated;
