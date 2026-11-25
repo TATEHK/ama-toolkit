@@ -236,6 +236,16 @@
   .bch .bcp{font-family:var(--font-display);font-weight:700;color:var(--accent)}
   .bcbar{height:7px;border-radius:999px;background:var(--line);overflow:hidden;margin:7px 0 0}
   .bcbar i{display:block;height:100%;background:var(--ok);border-radius:999px}
+  /* group photo modal */
+  .phform{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+  .phrow{display:flex;flex-direction:column;gap:5px}
+  .phlbl{font-size:12px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .phlbl2{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2);font-weight:600}
+  .phform select, .phform input[type=text], #phLabel{background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 11px;font:inherit}
+  .phform input[type=file]{font:inherit;color:var(--ink-2);font-size:13px}
+  .phitem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+  .phitem:first-child{border-top:0}
+  .phitem small{color:var(--ink-3)}
   .loading{padding:40px;text-align:center;color:var(--ink-3)}
 </style>
 </head>
@@ -289,6 +299,24 @@
     <div id="sendBody"></div>
     <div class="reqerr" id="sendErr" hidden></div>
     <div class="reqact"><button type="button" class="btn" id="sendCancel">Cancel</button><button type="button" class="btn primary" id="sendGo" disabled>Send</button></div>
+  </div>
+</div>
+
+<div class="reqmodal" id="photoModal" hidden>
+  <div class="reqbox">
+    <h3 id="photoTitle">Group photos</h3>
+    <div id="photoList" class="muted">Loading…</div>
+    <div class="phform">
+      <div class="phrow"><span class="phlbl">Who's in it</span>
+        <div class="chrow" id="phScope"><button type="button" class="chip2 on" data-sc="belt">One belt</button><button type="button" class="chip2" data-sc="range">Belt range</button><button type="button" class="chip2" data-sc="session">Whole session</button></div>
+      </div>
+      <div class="phrow" id="phBeltOne"><label class="phlbl2">Belt<select id="phBelt"></select></label></div>
+      <div class="phrow" id="phBeltRange" hidden style="display:flex;gap:8px"><label class="phlbl2" style="flex:1">From<select id="phFrom"></select></label><label class="phlbl2" style="flex:1">To<select id="phTo"></select></label></div>
+      <div class="phrow"><label class="phlbl2">Label (optional)<input id="phLabel" maxlength="80" placeholder="e.g. New Yellow Belts"></label></div>
+      <div class="phrow"><label class="phlbl2">Photo<input id="phFile" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
+    </div>
+    <div class="reqerr" id="photoErr" hidden></div>
+    <div class="reqact"><button type="button" class="btn" id="photoClose">Close</button><button type="button" class="btn primary" id="photoUp" disabled>Upload photo</button></div>
   </div>
 </div>
 
@@ -363,7 +391,7 @@ function grdCard(g){
     + `<div class="bar${low}"><i style="width:${Math.min(100,pct)}%"></i></div>`
     + `<div class="st"><span><b>${g.booked}</b>/${g.total} booked (${g.pct_booked==null?'—':g.pct_booked+'%'})</span><span><b>${g.paid}</b> paid</span>${g.not_booked?`<span><b>${g.not_booked}</b> not booked</span>`:''}</div>`
     + helperLine
-    + `<div class="grdacts">${hs?`<button class="btn mini" data-remind="${g.day_id}" data-loc="${esc(g.location||'')}">Remind ${hs} helper${hs>1?'s':''}</button>`:''}${(isAdmin&&g.booked)?`<button class="btn mini" data-announce="${g.day_id}" data-loc="${esc(g.location||'')}">Message families</button>`:''}</div>`
+    + `<div class="grdacts">${hs?`<button class="btn mini" data-remind="${g.day_id}" data-loc="${esc(g.location||'')}">Remind ${hs} helper${hs>1?'s':''}</button>`:''}${(isAdmin&&g.booked)?`<button class="btn mini" data-announce="${g.day_id}" data-loc="${esc(g.location||'')}">Message families</button>`:''}<button class="btn mini" data-photos="${g.day_id}" data-loc="${esc(g.location||'')}">Group photos</button></div>`
     + `</div>`;
 }
 // #15 live grading-day board: checked-in vs expected, and results coming in
@@ -548,7 +576,65 @@ function render(){
   $('#board').querySelectorAll('[data-remind]').forEach(b => b.onclick = () => openRemind(b.dataset.remind, b.dataset.loc));
   $('#board').querySelectorAll('[data-announce]').forEach(b => b.onclick = () => openAnnounce(b.dataset.announce, b.dataset.loc));
   $('#board').querySelectorAll('[data-resend]').forEach(b => b.onclick = () => doResend(b.dataset.resend, b.dataset.name, b));
+  $('#board').querySelectorAll('[data-photos]').forEach(b => b.onclick = () => openPhotos(b.dataset.photos, b.dataset.loc));
 }
+
+/* ---- Group photos (upload per grading, matched to each family's belt on the photo page) ---- */
+const PH_BELTS = ['White Belt','Yellow Belt','Orange Belt','Green Belt','Blue Belt','Purple Belt','Brown Belt','Red Belt','Red Two','Red Three','Cho Dan Bo'];
+let phDay = null, phScope = 'belt';
+function phErr(m){ const e = $('#photoErr'); e.textContent = m||''; e.hidden = !m; }
+function closePhoto(){ $('#photoModal').hidden = true; }
+function opts(sel, cur){ sel.innerHTML = PH_BELTS.map(b=>`<option${b===cur?' selected':''}>${b}</option>`).join(''); }
+async function openPhotos(dayId, locName){
+  phDay = dayId; phScope = 'belt'; phErr('');
+  $('#photoTitle').textContent = 'Group photos — ' + (locName||'');
+  opts($('#phBelt'), 'Yellow Belt'); opts($('#phFrom'), 'White Belt'); opts($('#phTo'), 'Green Belt');
+  $('#phLabel').value = ''; $('#phFile').value = '';
+  $('#phScope').querySelectorAll('.chip2').forEach(c=>c.classList.toggle('on', c.dataset.sc==='belt'));
+  $('#phBeltOne').hidden = false; $('#phBeltRange').hidden = true; $('#photoUp').disabled = true;
+  $('#photoModal').hidden = false;
+  $('#photoList').className = 'muted'; $('#photoList').textContent = 'Loading…';
+  await loadPhotoList();
+}
+async function loadPhotoList(){
+  const { data, error } = await sb.rpc('cb_ops_group_photos', { p_day_id: phDay });
+  const list = (data && (Array.isArray(data) ? data : [])) || [];
+  const el = $('#photoList');
+  if(error){ el.className=''; el.innerHTML = `<p class="err">${esc(error.message||'Could not load')}</p>`; return; }
+  if(!list.length){ el.className='muted'; el.textContent = 'No group photos yet. Add one below.'; return; }
+  el.className = '';
+  el.innerHTML = list.map(g=>{ const who = g.scope==='session' ? 'Whole session' : g.scope==='range' ? `${(g.belt_from||'').replace(/ Belt$/,'')} → ${(g.belt_to||'').replace(/ Belt$/,'')}` : (g.belt_from||'').replace(/ Belt$/,'');
+    return `<div class="phitem"><span><b>${esc(g.label||who)}</b>${g.label?`<small> · ${esc(who)}</small>`:''}</span><button class="btn mini" data-phrm="${g.group_photo_id}">Remove</button></div>`; }).join('');
+  el.querySelectorAll('[data-phrm]').forEach(b=>b.onclick = async ()=>{ if(!confirm('Remove this group photo?')) return; b.disabled=true;
+    const { data: r, error: e2 } = await sb.functions.invoke('cb', { body: { action:'ops_group_photo_remove', group_photo_id: b.dataset.phrm } });
+    if(e2 || !r || r.ok===false){ phErr((r&&r.error)||(e2&&e2.message)||'Could not remove.'); b.disabled=false; return; }
+    await loadPhotoList();
+  });
+}
+$('#phScope').querySelectorAll('.chip2').forEach(c=>c.onclick = ()=>{ phScope = c.dataset.sc;
+  $('#phScope').querySelectorAll('.chip2').forEach(x=>x.classList.toggle('on', x.dataset.sc===phScope));
+  $('#phBeltOne').hidden = phScope!=='belt'; $('#phBeltRange').hidden = phScope!=='range'; });
+$('#phFile').onchange = ()=>{ $('#photoUp').disabled = !$('#phFile').files[0]; phErr(''); };
+$('#photoClose').onclick = closePhoto;
+$('#photoModal').addEventListener('click', e=>{ if(e.target===$('#photoModal')) closePhoto(); });
+$('#photoUp').onclick = async ()=>{
+  const f = $('#phFile').files[0]; if(!f){ phErr('Choose a photo first.'); return; }
+  const up = $('#photoUp'); up.disabled = true; up.textContent = 'Uploading…'; phErr('');
+  try {
+    const ext = (f.name.match(/\.(jpe?g|png|webp)$/i)||[,'jpg'])[1].toLowerCase();
+    const { data: u, error: ue } = await sb.functions.invoke('cb', { body: { action:'ops_group_photo_upload_url', day_id: phDay, ext } });
+    if(ue || !u || u.ok===false) throw new Error((u&&u.error)||(ue&&ue.message)||'Could not start upload.');
+    const { error: upErr } = await sb.storage.from('grading-photos').uploadToSignedUrl(u.path, u.token, f, { contentType: f.type || 'image/jpeg' });
+    if(upErr) throw upErr;
+    const belt_from = phScope==='belt' ? $('#phBelt').value : phScope==='range' ? $('#phFrom').value : null;
+    const belt_to = phScope==='range' ? $('#phTo').value : null;
+    const { error: se } = await sb.rpc('cb_ops_group_photo_save', { p_day_id: phDay, p_scope: phScope, p_belt_from: belt_from, p_belt_to: belt_to, p_label: $('#phLabel').value, p_path: u.path });
+    if(se) throw se;
+    $('#phFile').value = ''; $('#phLabel').value = ''; up.disabled = true;
+    await loadPhotoList();
+  } catch(e){ phErr(e.message || 'Upload failed.'); up.disabled = false; }
+  finally { up.textContent = 'Upload photo'; }
+};
 
 /* ---- Operations sends (helper reminders, announcements, resend) — all via the cb function, gated server-side ---- */
 async function cbCall(action, extra){ return await sb.functions.invoke('cb', { body: { action, ...extra } }); }

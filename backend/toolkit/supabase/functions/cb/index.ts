@@ -1346,7 +1346,23 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: e } = await db.from('cb_entries').select('entry_id, day_id, full_name, belt_to, photo_path, photo_removed_at').eq(byCode ? 'photo_code' : 'token', byCode ? body.code : body.token).maybeSingle();
       if (!e) return json({ ok: false, error: 'This link isn\'t valid. Ask the front desk for a new one.' }, 404);
       const { data: d } = await db.from('cb_days').select('location, grading_date').eq('day_id', e.day_id).maybeSingle();
-      const info = { ok: true, first: first(e.full_name), belt_to: e.belt_to, school: d ? venueOf(d.location) : null, date: d ? d.grading_date : null, photo: false };
+      // Group photo for this child's belt: a 'session' photo (everyone), or a 'belt'/'range' photo whose range covers their belt. Narrowest match wins.
+      let group = null;
+      try {
+        const { data: rkRow } = await db.rpc('cb_belt_rank', { p: e.belt_to });
+        const rk = typeof rkRow === 'number' ? rkRow : null;
+        const { data: gps } = await db.from('cb_group_photos').select('*').eq('day_id', e.day_id);
+        const match = (gps || [])
+          .filter(g => g.scope === 'session' || (rk != null && g.belt_from_rank != null && g.belt_to_rank != null && rk >= g.belt_from_rank && rk <= g.belt_to_rank))
+          .sort((a, b) => (a.scope === 'session' ? 99 : (a.belt_to_rank - a.belt_from_rank)) - (b.scope === 'session' ? 99 : (b.belt_to_rank - b.belt_from_rank)))[0];
+        if (match) {
+          const gname = `AMA-group-${String(match.label || match.belt_to || 'photo').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}.${(String(match.photo_path).match(/\.(jpe?g|png|webp)$/i) || [, 'jpg'])[1].toLowerCase()}`;
+          const gb = db.storage.from('grading-photos');
+          const [{ data: gv }, { data: gdl }] = await Promise.all([gb.createSignedUrl(match.photo_path, 3600), gb.createSignedUrl(match.photo_path, 3600, { download: gname })]);
+          if (gv) group = { url: gv.signedUrl, download: (gdl && gdl.signedUrl) || gv.signedUrl, filename: gname, label: match.label || null };
+        }
+      } catch (_) { /* group photo is a bonus; never block the main photo on it */ }
+      const info = { ok: true, first: first(e.full_name), belt_to: e.belt_to, school: d ? venueOf(d.location) : null, date: d ? d.grading_date : null, photo: false, group };
       if (!e.photo_path) return json({ ...info, removed: !!e.photo_removed_at, error: e.photo_removed_at ? 'Grading photos are kept for 30 days, and this one has been removed. Please ask the front desk if you need it.' : 'The photo isn\'t ready yet. Please check again soon.' });
       const name = `${String(e.full_name || 'grading').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}-AMA-grading.${(String(e.photo_path).match(/\.(jpe?g|png|webp)$/i) || [, 'jpg'])[1].toLowerCase()}`;
       const bucket = db.storage.from('grading-photos');
@@ -2507,6 +2523,27 @@ export async function handle(req, db, env = {}, http = fetch) {
         } catch (er) { const w = String(er.message || er).slice(0, 300); await log(r.phone ? 'sms' : 'email', 'failed', { error: w }); failed++; out.push({ name: r.name, error: w }); }
       }
       return json({ ok: true, total: recips.length, sent, failed, results: out });
+    }
+
+    // Group photos: start an upload (signed URL) and remove one. Saving the record is the cb_ops_group_photo_save RPC.
+    if (body.action === 'ops_group_photo_upload_url') {
+      if (!can('ops')) return fail('You need Operations access for this.', 403);
+      const dayId = String(body.day_id || ''); if (!dayId) return fail('Pick a grading.', 400);
+      const ext = /^(jpe?g|png|webp)$/i.test(String(body.ext || '')) ? String(body.ext).toLowerCase() : 'jpg';
+      const path = `group/${dayId}/${crypto.randomUUID()}.${ext}`;
+      const { data, error } = await db.storage.from('grading-photos').createSignedUploadUrl(path);
+      if (error) return fail('Could not start the upload: ' + error.message, 502);
+      return json({ ok: true, path, token: data.token, signed_url: data.signedUrl });
+    }
+    if (body.action === 'ops_group_photo_remove') {
+      if (!can('ops')) return fail('You need Operations access for this.', 403);
+      const id = String(body.group_photo_id || '');
+      const { data: g } = await db.from('cb_group_photos').select('photo_path').eq('group_photo_id', id).maybeSingle();
+      if (!g) return fail('Not found.', 404);
+      try { await db.storage.from('grading-photos').remove([g.photo_path]); } catch (_) { /* row delete is what matters */ }
+      const { error } = await db.from('cb_group_photos').delete().eq('group_photo_id', id);
+      if (error) return fail(error.message, 500);
+      return json({ ok: true });
     }
 
     // #12 Announce to a grading's booked families. { day_id, text, subject, channel:'sms'|'email', preview }

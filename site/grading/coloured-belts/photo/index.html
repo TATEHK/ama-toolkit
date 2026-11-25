@@ -48,6 +48,18 @@
       <img id="img" class="photo" alt="" hidden>
       <button class="btn" id="save" hidden>Save photo</button>
       <p class="hint" id="tip" hidden>On a phone, you can also press and hold the photo to save it. Please save it now: grading photos are removed 30 days after they're taken.</p>
+
+      <div id="groupWrap" hidden style="display:flex;flex-direction:column;gap:12px;margin-top:6px;padding-top:18px;border-top:1px solid var(--line)">
+        <h2 id="groupTitle" style="font:700 22px/1.1 var(--display);margin:0">Your group photo</h2>
+        <img id="gimg" class="photo" alt="" hidden>
+        <button class="btn" id="gsave" hidden>Save group photo</button>
+      </div>
+
+      <div id="reviewWrap" hidden style="display:flex;flex-direction:column;gap:10px;margin-top:6px;padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--panel);text-align:center">
+        <div style="font:700 20px/1.15 var(--display)">Enjoyed today?</div>
+        <p class="hint" style="margin:0">A quick review really helps our academy. It only takes a moment.</p>
+        <a class="btn" id="reviewBtn" target="_blank" rel="noopener">Leave us a review</a>
+      </div>
     </div>
     <p class="err" id="error" hidden></p>
   </div>
@@ -66,7 +78,26 @@ async function call() {
     return await r.json();
   } catch (e) { return { ok: false, error: 'Something went wrong. Please try again.' }; }
 }
-let photo = null;
+// Google review links per school (venue name as returned in r.school). Add more as they're confirmed.
+const REVIEW_LINKS = {
+  'Marrickville': 'https://g.page/r/CVe8ytsPTIsuEAE/review'
+};
+// Fallback used when a school has no link of its own (leave '' to hide the button for those schools).
+const MAIN_REVIEW = '';
+let photo = null, groupPhoto = null;
+// Save an image via the share sheet on phones (Save Image → Photos), or a plain download everywhere else
+async function saveImage(btn, url, download, filename, title) {
+  btn.disabled = true;
+  try {
+    if (navigator.canShare) {
+      const blob = await (await fetch(url)).blob();
+      const file = new File([blob], filename || 'AMA-grading.jpg', { type: blob.type || 'image/jpeg' });
+      if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title }); return; }
+    }
+    location.href = download;
+  } catch (e) { if (e && e.name !== 'AbortError') location.href = download; }
+  finally { btn.disabled = false; }
+}
 function show(r) {
   $('#loading').hidden = true;
   if (!r.first) { $('#error').textContent = r.error || 'This link isn\'t valid. Ask the front desk for a new one.'; $('#error').hidden = false; return; }
@@ -78,22 +109,22 @@ function show(r) {
     $('#img').src = r.url; $('#img').alt = `${r.first} with the Grandmaster`; $('#img').hidden = false;
     $('#save').hidden = false; $('#tip').hidden = false;
   }
+  // Group photo for this child's belt, when one has been uploaded
+  if (r.group && r.group.url) {
+    groupPhoto = r.group;
+    $('#groupWrap').hidden = false;
+    if (r.group.label) $('#groupTitle').textContent = r.group.label;
+    $('#gimg').src = r.group.url; $('#gimg').alt = 'Grading group photo'; $('#gimg').hidden = false;
+    $('#gsave').hidden = false;
+  }
+  // Review button, when we have a link for this school
+  const rl = r.review_url || REVIEW_LINKS[r.school] || MAIN_REVIEW;
+  if (rl) { $('#reviewBtn').href = rl; $('#reviewWrap').hidden = false; }
   if (r.error) { $('#error').textContent = r.error; $('#error').hidden = false; }
 }
 // Save: the share sheet on phones (Save Image puts it in Photos); a download everywhere else
-$('#save').onclick = async () => {
-  if (!photo) return;
-  $('#save').disabled = true;
-  try {
-    if (navigator.canShare) {
-      const blob = await (await fetch(photo.url)).blob();
-      const file = new File([blob], photo.filename || 'AMA-grading.jpg', { type: blob.type || 'image/jpeg' });
-      if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: `${photo.first}'s grading photo` }); return; }
-    }
-    location.href = photo.download;
-  } catch (e) { if (e && e.name !== 'AbortError') location.href = photo.download; }
-  finally { $('#save').disabled = false; }
-};
+$('#save').onclick = () => { if (photo) saveImage($('#save'), photo.url, photo.download, photo.filename, `${photo.first}'s grading photo`); };
+$('#gsave').onclick = () => { if (groupPhoto) saveImage($('#gsave'), groupPhoto.url, groupPhoto.download || groupPhoto.url, groupPhoto.filename || 'AMA-group-photo.jpg', 'AMA grading group photo'); };
 (async () => { if (!token && !code) return show({ error: 'This link is missing its code. Open it from the text message you were sent.' }); show(await call()); })();
 </script>
 </body>
