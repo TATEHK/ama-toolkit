@@ -115,7 +115,7 @@ begin
           'score', (select jsonb_build_object('scores',sc.scores,'pattern',sc.pattern,'ticks',sc.ticks) from public.cb_scores sc where sc.entry_id = e.entry_id)
         ) s
         from public.cb_entries e left join public.efc_members m on m.member_key = e.member_key
-        where e.day_id = p_day and e.paid
+        where e.day_id = p_day and (e.paid or e.booked_at is not null)   -- booked-but-unpaid still show (flagged Unpaid) so staff can grade + collect
       ) q)
   ) into out;
   return out;
@@ -183,7 +183,8 @@ create or replace function public.cb_floor_checkin(p_entry uuid, p_on boolean)
 returns jsonb language plpgsql security definer set search_path to 'public' as $$
 declare e public.cb_entries%rowtype;
 begin
-  if not public.cb_has_cb(array['view','days','readiness','results']) then
+  -- anyone who can open the floor and see the roster (cb_floor_load) may check people in
+  if not public.cb_has_cb(array['view','days','readiness','results','calls','texts','payments']) then
     raise exception 'not allowed' using errcode = '42501';
   end if;
   update public.cb_entries

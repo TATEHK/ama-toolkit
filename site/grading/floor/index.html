@@ -183,6 +183,8 @@ body[data-role="signin"]{overflow:hidden}
 .spot.drop .dot{outline:3px dashed #fff;outline-offset:3px;transform:scale(1.1)}
 .spot .nm{font-size:13px;font-weight:700;color:#2a2111;background:rgba(255,255,255,.92);padding:3px 9px;border-radius:7px;max-width:112px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
 .spot .nm small{font-weight:700;color:#7a6a3e}
+.upaid{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.05em;color:#fff;background:#c2410c;padding:1px 6px;border-radius:6px;vertical-align:middle;margin-left:6px}
+.spot .nm .upaid{font-size:8.5px;margin-left:4px;padding:0 5px;color:#fff}
 .fllegend{display:flex;flex-wrap:wrap;align-items:center;gap:9px 16px;padding:12px 18px 15px;border-top:1px solid var(--line-2)}
 .fllegend .lgt{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .fllegend .lg{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink-2)}
@@ -592,7 +594,7 @@ function mapStudents(list){
     const min=(CURR[belt]&&CURR[belt].min)||0, prog=min?Math.min(100,Math.round((r.classes||0)/min*100)):0;
     STUDENTS.push({ id, entry_id:r.entry_id, member_key:r.member_key, name:r.full_name||'—', belt, belt_to, rank:(r.belt_from||''), target:(r.belt_to||''),
       weeks:r.weeks||0, classes:r.classes||0, lastGap:r.weeks||0, prog, ready:!!r.ready, bbc:!!r.bbc, bbcInv:r.bbc_invited_at||null, bbcWritten:r.bbc_written_at||null,
-      sub:r.sub!==false, loc:r.loc||'', age:r.age||0, attend:r.attend||'green', fam:r.family||('f'+id),
+      sub:r.sub!==false, loc:r.loc||'', age:r.age||0, attend:r.attend||'green', fam:r.family||('f'+id), paid:r.paid!==false, booked:!!r.booked,
       programs:(r.programs==null?null:r.programs), referrals:(r.referrals==null?null:r.referrals), days:[], pack:null, fee:null });
     if(r.score){ if(r.score.scores && Object.keys(r.score.scores).length) scores[id]={...r.score.scores};
       if(r.score.pattern) patt[id]=r.score.pattern; if(Array.isArray(r.score.ticks)&&r.score.ticks.length) ticks[id]=new Set(r.score.ticks); }
@@ -995,7 +997,7 @@ function render(){
     floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+(hereIds.length?pos.map((p,i)=>{ const s=byId(hereIds[i]); if(!s) return '';
       return `<div class="spot ${state.sel===s.id?'sel':''}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%;cursor:pointer">
         <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div>
-        <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}</div></div>`; }).join(''):'<div class="co-done" style="color:rgba(0,0,0,.5)">No one from this group has checked in yet.</div>');
+        <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`; }).join(''):'<div class="co-done" style="color:rgba(0,0,0,.5)">No one from this group has checked in yet.</div>');
     $$('#floor .spot').forEach(el=>el.onclick=()=>openProfile(+el.dataset.s));
   } else {
     floor.className='floor'+(g.status==='current'?' live':g.status==='past'?' past':'');
@@ -1005,7 +1007,7 @@ function render(){
       if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
       return `<div class="spot ${state.sel===s.id?'sel':''}" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%">
         <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div>
-        <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}</div></div>`;
+        <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
     }).join('');
     wireFloor(state.active,g);
   }
@@ -1016,7 +1018,7 @@ function render(){
     const here=!absentIds.has(s.id);
     return `<div class="rrow ${here?'':'absent'}" data-s="${s.id}">
       <span class="dot" style="background:${beltC(s.belt)}"></span>
-      <div class="rn"><b>${s.name}</b><small>${/dan|black/i.test(s.belt)?s.belt:`${shortBelt(s.belt)} belt`} · age ${s.age}</small></div>
+      <div class="rn"><b>${s.name}${s.paid?'':' <span class="upaid">UNPAID</span>'}</b><small>${/dan|black/i.test(s.belt)?s.belt:`${shortBelt(s.belt)} belt`} · age ${s.age}</small></div>
       <button class="chk ${here?'on':''}" data-chk="${s.id}" aria-label="toggle">${here?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</button></div>`;
   }).join('');
   $$('#roster .chk').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const id=+b.dataset.chk; const wasAbsent=absentIds.has(id);
@@ -1238,7 +1240,9 @@ let saveT = null;
 function persistGroups() { if (!DAYID || loading) return; clearTimeout(saveT); saveT = setTimeout(() => sb.rpc('cb_floor_save_groups', { p_day: DAYID, p_groups: groupsJson() }), 300); }
 function persistGroup(i, patch) { if (!DAYID || loading) return; const p = { ...patch }; if ('slots' in patch) p.slots = slotEntries(state.groups[i]); sb.rpc('cb_group_patch', { p_day: DAYID, p_ord: i, p_patch: p }); }
 function persistScore(id, patch) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_score_save', { p_entry: id2entry[id], p_patch: patch }); }
-function persistCheckin(id, on) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_floor_checkin', { p_entry: id2entry[id], p_on: !!on }); }
+async function persistCheckin(id, on) { if (!DAYID || !id2entry[id]) return;
+  const { data, error } = await sb.rpc('cb_floor_checkin', { p_entry: id2entry[id], p_on: !!on });
+  if (error || (data && data.error)) toast("Couldn't save that check-in — your login may not have permission.", 4500); }
 function resetScoresRemote() { if (!DAYID) return; sb.rpc('cb_floor_reset', { p_day: DAYID }); }
 // Black belt runsheet — the lines in running order, each with its students, printable
 function openRunsheet(){
