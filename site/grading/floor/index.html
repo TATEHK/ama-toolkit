@@ -189,7 +189,7 @@ body[data-role="signin"]{overflow:hidden}
 .fllegend .lgt{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .fllegend .lg{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .fllegend .sw{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
-.ghost{position:fixed;transform:translate(-50%,-50%);z-index:70;pointer-events:none}
+.ghost{position:fixed;transform:translate(-50%,-50%);z-index:10070;pointer-events:none}
 .ghost .dot{position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:15px;color:#fff;background:radial-gradient(circle at 36% 30%,#ff6f5f,#d5322a 72%);box-shadow:0 10px 22px rgba(0,0,0,.4);border:2px solid #fff}
 .floor.empty{min-height:200px;display:grid;place-items:center}
 .floor.empty .instr{position:static;transform:none;color:rgba(0,0,0,.4)}
@@ -215,9 +215,9 @@ body[data-role="signin"]{overflow:hidden}
 .statline b{font-family:"Barlow Semi Condensed";font-size:22px;display:block;line-height:1}
 .statline span{font-size:11px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 /* profile drawer */
-.scrim{position:fixed;inset:0;background:rgba(10,14,20,.5);backdrop-filter:blur(2px);z-index:40;opacity:0;pointer-events:none;transition:.2s}
+.scrim{position:fixed;inset:0;background:rgba(10,14,20,.5);backdrop-filter:blur(2px);z-index:10040;opacity:0;pointer-events:none;transition:.2s}
 .scrim.open{opacity:1;pointer-events:auto}
-.drawer{position:fixed;top:0;right:0;bottom:0;width:min(470px,96vw);background:var(--panel);z-index:50;transform:translateX(100%);transition:transform .26s cubic-bezier(.22,.61,.36,1);box-shadow:-20px 0 50px rgba(0,0,0,.25);display:flex;flex-direction:column;
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(470px,96vw);background:var(--panel);z-index:10050;transform:translateX(100%);transition:transform .26s cubic-bezier(.22,.61,.36,1);box-shadow:-20px 0 50px rgba(0,0,0,.25);display:flex;flex-direction:column;
   padding-right:env(safe-area-inset-right,0px)}
 .drawer.open{transform:none}
 .dh{padding:22px 22px 18px;border-bottom:1px solid var(--line);padding-top:max(22px,env(safe-area-inset-top,0px))}
@@ -325,7 +325,7 @@ body[data-role="signin"]{overflow:hidden}
 .seg button{flex:1;border:0;background:var(--bg);color:var(--ink-2);padding:8px;font-size:12.5px;font-weight:600}
 .seg button.on{background:var(--accent);color:var(--accent-ink)}
 /* settings modal */
-.modal{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:18px;opacity:0;pointer-events:none;transition:.18s}
+.modal{position:fixed;inset:0;z-index:10060;display:grid;place-items:center;padding:18px;opacity:0;pointer-events:none;transition:.18s}
 .modal.open{opacity:1;pointer-events:auto}
 .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);width:min(460px,100%);max-height:88vh;overflow:auto;transform:scale(.97);transition:.18s}
 .modal.open .box{transform:none}
@@ -414,7 +414,7 @@ body[data-role="signin"]{overflow:hidden}
 .pk-belt{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 8px 3px 4px}
 .pk-belt i{width:10px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.35)}
 
-#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(14px);background:var(--ink);color:var(--panel);font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:999px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.22s;z-index:80;max-width:88vw;text-align:center}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(14px);background:var(--ink);color:var(--panel);font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:999px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.22s;z-index:10090;max-width:88vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 /* Sarah call-out flow: who's-next picker + arrival list */
 .floor.callout{position:static;aspect-ratio:auto!important;margin:16px;min-height:200px;padding:14px;background:var(--bg);border:1px solid var(--line);box-shadow:none;display:block;overflow:auto}
@@ -1554,8 +1554,14 @@ function cbMovesFor(belt){ const cu=CURR[belt]; if(!cu) return []; const cats=cu
     if(CB_SHOW_ALL.has(comp)) out.push({comp, head:comp, all:true, items:items.map((t,ix)=>({ix, ...ageInfo(t)})) });
     else items.forEach((text,ix)=>{ const a=ageInfo(text); out.push({comp, ix, head:comp, text:a.text, age:a.age}); }); });
   return out; }
-function cbPartsFor(g){ return g ? beltsOf(g).filter(b=>CURR[b]).map(b=>({belt:b, moves:cbMovesFor(b)})) : []; }
-function cbMax(g){ const p=cbPartsFor(g); return Math.max(1, ...p.map(x=>x.moves.length)); }
+// per-belt columns hold the belt-specific curriculum (sections pulled out); round-style sections are shared across the group
+function cbPartsFor(g){ return g ? beltsOf(g).filter(b=>CURR[b]).map(b=>({belt:b, moves:cbMovesFor(b).filter(m=>!m.section)})) : []; }
+// the round sections (Pad/Free/Group/Board Sparring) any belt in the group has — once each, in curriculum order; shown together for the whole group
+function cbSharedSections(g){ if(!g) return []; const seen=new Set(), out=[];
+  beltsOf(g).filter(b=>CURR[b]).forEach(b=>cbMovesFor(b).forEach(m=>{ if(m.section && !seen.has(m.comp)){ seen.add(m.comp); out.push(m); } }));
+  return out.sort((a,b)=>COMPONENTS.indexOf(a.comp)-COMPONENTS.indexOf(b.comp)); }
+function cbCurrMax(g){ const p=cbPartsFor(g); return Math.max(0, ...p.map(x=>x.moves.length)); }
+function cbMax(g){ return Math.max(1, cbCurrMax(g)+cbSharedSections(g).length); }
 function openCbPresent(gi, move){ const a=(gi==null?state.active:Math.min(gi,state.groups.length-1)); const g=state.groups[a]; if(!g||!cbPartsFor(g).length) return toast('No curriculum for this group.',3500);
   cbpGi=a; cbpMove=Math.max(0,move|0); rsPresentInjectCSS();
   let el=document.getElementById('cbPresent'); if(!el){ el=document.createElement('div'); el.id='cbPresent'; el.className='pz-screen'; document.body.appendChild(el); } el.hidden=false; renderCbPresent(); }
@@ -1592,7 +1598,14 @@ function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!e
   const parts=cbPartsFor(g), max=cbMax(g); if(cbpMove>=max) cbpMove=max-1;
   const top=`<div class="pz-top"><span>${esc(schoolOf(DAYINFO.location))} grading</span><span>·</span><span>${gword()} ${g.cone||'?'} · ${esc(beltsOf(g).join(' + '))}</span><button class="pz-x" title="Close">✕</button></div>`;
   const layout=`<div class="pz-layout"><div class="pz-lh">Floor — ${gword()} ${g.cone||'?'} · ${esc(beltsOf(g).join(' + '))}</div>${cbPresentFloorHtml(g)}</div>`;
-  const mid=`<div class="pz-mid">${parts.map(cbMovePanel).join('')||'<div class="pz-belt"><div class="pz-move done">No curriculum for this group.</div></div>'}</div>`;
+  // belt-specific curriculum first (one column per belt), then the shared round sections (Pad/Free/Group/Board Sparring) once for the whole group
+  const currMax=cbCurrMax(g), shared=cbSharedSections(g);
+  let mid;
+  if(cbpMove>=currMax && shared.length){ const sec=shared[Math.min(cbpMove-currMax, shared.length-1)];
+    mid=`<div class="pz-mid"><div class="pz-belt"><div class="pz-bname">${esc(beltsOf(g).join(' + '))}</div><div class="pz-head">${esc(sec.comp)}</div><div class="pz-move" style="font-size:${mvSize(sec.text)}">${esc(sec.text)}</div><div class="pz-count">${cbpMove+1} / ${max}</div><div class="pz-bar"><i style="width:${Math.round((cbpMove+1)/max*100)}%"></i></div><div class="pz-next-lbl">Whole group together</div></div></div>`;
+  } else {
+    mid=`<div class="pz-mid">${parts.map(cbMovePanel).join('')||'<div class="pz-belt"><div class="pz-move done">No curriculum for this group.</div></div>'}</div>`;
+  }
   const atEnd=cbpMove>=max-1, lastG=cbpGi>=state.groups.length-1;
   const foot=`<div class="pz-foot"><button class="pz-prev" id="cbPrev">‹ Back</button><span class="pz-pos">${parts.length>1?'':'Move '+(cbpMove+1)+' / '+max}</span><button class="pz-next" id="cbNext" ${(atEnd&&lastG)?'disabled':''}>${atEnd?(lastG?'Done':'Next group ›'):'Next move ›'}</button></div><div class="pz-tap">Tap a move to tick it off as you call it</div>`;
   el.innerHTML=top+`<div class="pz-split">${layout}<div class="pz-right">${mid}${foot}</div></div>`; savePos();
