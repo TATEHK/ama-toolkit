@@ -169,10 +169,10 @@ body[data-role="signin"]{overflow:hidden}
     repeating-linear-gradient(90deg,transparent,transparent calc(16.666% - 1px),var(--mat-line) 16.666%),
     linear-gradient(135deg,var(--mat),var(--mat-2));
   border:3px solid var(--mat-line);box-shadow:inset 0 0 0 2px rgba(255,255,255,.06)}
-.floor .instr{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:"Barlow Semi Condensed";font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,0,0,.34);font-weight:600}
-.spot{position:absolute;transform:translate(-50%,-50%);width:72px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.floor .instr{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:"Barlow Semi Condensed";font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,0,0,.4);font-weight:700}
+.spot{position:absolute;transform:translate(-50%,-50%);width:80px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .spot:active{cursor:grabbing}
-.spot .dot{position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:15px;color:#fff;transition:transform .1s;
+.spot .dot{position:relative;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:17px;color:#fff;transition:transform .1s;
   background:radial-gradient(circle at 36% 30%,#ff6f5f,#d5322a 72%);box-shadow:0 3px 7px rgba(120,18,14,.45),inset 0 -3px 6px rgba(0,0,0,.2);border:2px solid rgba(255,255,255,.55)}
 .spot:not(.empty) .dot{background:var(--belt);color:var(--ink-on,#fff);box-shadow:0 3px 7px rgba(0,0,0,.28)}
 .spot .dot::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:3.5px solid var(--att,transparent)}
@@ -181,7 +181,7 @@ body[data-role="signin"]{overflow:hidden}
 .spot:not(.empty):hover .dot{transform:translateY(-2px)}
 .spot.sel .dot{outline:3px solid #15181d;outline-offset:3px}
 .spot.drop .dot{outline:3px dashed #fff;outline-offset:3px;transform:scale(1.1)}
-.spot .nm{font-size:11px;font-weight:600;color:#2a2111;background:rgba(255,255,255,.86);padding:2px 7px;border-radius:7px;max-width:82px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+.spot .nm{font-size:12.5px;font-weight:700;color:#2a2111;background:rgba(255,255,255,.9);padding:2.5px 8px;border-radius:7px;max-width:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
 .ghost{position:fixed;transform:translate(-50%,-50%);z-index:70;pointer-events:none}
 .ghost .dot{position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:15px;color:#fff;background:radial-gradient(circle at 36% 30%,#ff6f5f,#d5322a 72%);box-shadow:0 10px 22px rgba(0,0,0,.4);border:2px solid #fff}
 .floor.empty{min-height:200px;display:grid;place-items:center}
@@ -1431,24 +1431,28 @@ function rsMoves(items){ const out=[]; let head=''; (items||[]).forEach(it=>{ if
 function rsStepMoves(st){ return { a:{belt:st.belt||'', moves:rsMoves(st.items), table:st.table}, b: st.belt2 ? {belt:st.belt2, moves:rsMoves(st.items2), table:st.table2} : null }; }
 function rsMoveMax(st){ const m=rsStepMoves(st); return Math.max(m.a.moves.length, m.b?m.b.moves.length:0); }
 function rsPresentInjectCSS(){ if(document.getElementById('rsPrezCSS')) return; const st=document.createElement('style'); st.id='rsPrezCSS';
-  st.textContent=`.pz-screen{position:fixed;inset:0;z-index:9999;background:#0b0d0c;color:#fff;display:flex;flex-direction:column;padding:max(18px,env(safe-area-inset-top)) 20px max(18px,env(safe-area-inset-bottom))}
-  .pz-screen .pz-top{display:flex;align-items:center;gap:12px;color:#9aa39a;font-weight:700;font-size:15px}
-  .pz-screen .pz-top .pz-x{margin-left:auto;background:#1b1f1d;border:1px solid #2c322e;color:#fff;border-radius:10px;width:42px;height:42px;font-size:19px;cursor:pointer}
-  .pz-screen .pz-mid{flex:1;display:flex;gap:22px;align-items:stretch;min-height:0;margin:14px 0}
-  .pz-screen .pz-belt{flex:1;min-width:0;display:flex;flex-direction:column;background:#121513;border:1px solid #242a26;border-radius:18px;padding:22px 24px;overflow-y:auto}
-  .pz-screen .pz-bname{font-weight:800;font-size:clamp(18px,3vw,26px);color:var(--gold,#e8c766)}
-  .pz-screen .pz-head{color:#9aa39a;font-weight:700;font-size:clamp(13px,1.6vw,17px);margin-top:14px;text-transform:uppercase;letter-spacing:.03em}
-  .pz-screen .pz-move{flex:1;display:flex;align-items:center;font-weight:800;line-height:1.15;font-size:clamp(24px,5vw,50px);padding:10px 0}
-  .pz-screen .pz-move.done{color:#6c756c;font-size:clamp(22px,3.5vw,34px)}
+  st.textContent=`.pz-screen{position:fixed;inset:0;z-index:9999;background:#0b0d0c;color:#fff;display:flex;flex-direction:column;padding:max(16px,env(safe-area-inset-top)) 22px max(16px,env(safe-area-inset-bottom))}
+  .pz-screen .pz-top{display:flex;align-items:center;gap:12px;color:#9aa39a;font-weight:700;font-size:clamp(15px,1.9vw,20px)}
+  .pz-screen .pz-top .pz-x{margin-left:auto;background:#1b1f1d;border:1px solid #2c322e;color:#fff;border-radius:10px;width:46px;height:46px;font-size:20px;cursor:pointer}
+  .pz-screen .pz-mid{flex:1;display:flex;gap:20px;align-items:stretch;min-height:0;margin:12px 0}
+  .pz-screen .pz-belt{flex:1;min-width:0;display:flex;flex-direction:column;background:#121513;border:1px solid #242a26;border-radius:18px;padding:22px 26px;overflow:hidden;text-align:center}
+  .pz-screen .pz-bname{font-weight:800;font-size:clamp(20px,3.4vw,32px);color:var(--gold,#e8c766);line-height:1.08}
+  .pz-screen .pz-head{color:#b4bdb4;font-weight:800;font-size:clamp(15px,2vw,22px);margin-top:12px;text-transform:uppercase;letter-spacing:.07em}
+  .pz-screen .pz-move{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:800;line-height:1.08;font-size:clamp(34px,6.4vw,74px);padding:14px 0;text-wrap:balance}
+  .pz-screen .pz-move.done{color:#6c756c;font-size:clamp(24px,3.6vw,38px)}
   .pz-screen .pz-move.ticked{color:var(--accent,#4fae6d)}
-  .pz-screen .pz-count{color:#9aa39a;font-weight:700;font-size:14px}
+  .pz-screen .pz-count{color:#9aa39a;font-weight:800;font-size:clamp(14px,1.6vw,18px);margin-top:6px}
+  .pz-screen .pz-bar{height:7px;border-radius:5px;background:#20251f;margin-top:10px;overflow:hidden}
+  .pz-screen .pz-bar i{display:block;height:100%;background:var(--accent,#4fae6d);border-radius:5px;transition:width .15s}
+  .pz-screen .pz-next-lbl{color:#7f887f;font-weight:700;font-size:clamp(14px,1.6vw,19px);margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pz-screen .pz-next-lbl b{color:#cdd5cd;font-weight:800}
   .pz-screen .pz-foot{display:flex;align-items:center;gap:14px}
-  .pz-screen .pz-foot button{border:0;border-radius:14px;padding:20px;font-weight:800;cursor:pointer}
-  .pz-screen .pz-next{flex:1;background:var(--accent,#4fae6d);color:#06240f;font-size:clamp(18px,2.4vw,24px)}
-  .pz-screen .pz-prev{flex:none;min-width:120px;background:#1b1f1d;color:#fff;border:1px solid #2c322e!important;font-size:16px}
-  .pz-screen .pz-pos{flex:none;color:#9aa39a;font-weight:800;min-width:90px;text-align:center}
-  .pz-screen .pz-tap{font-size:13px;color:#6c756c;margin-top:8px}
-  @media (max-width:640px){.pz-screen .pz-mid{flex-direction:column;gap:12px}}`;
+  .pz-screen .pz-foot button{border:0;border-radius:14px;padding:24px;font-weight:800;cursor:pointer}
+  .pz-screen .pz-next{flex:1;background:var(--accent,#4fae6d);color:#06240f;font-size:clamp(20px,2.8vw,28px)}
+  .pz-screen .pz-prev{flex:none;min-width:134px;background:#1b1f1d;color:#fff;border:1px solid #2c322e!important;font-size:18px}
+  .pz-screen .pz-pos{flex:none;color:#9aa39a;font-weight:800;min-width:96px;text-align:center;font-size:clamp(15px,1.7vw,19px)}
+  .pz-screen .pz-tap{font-size:13px;color:#6c756c;margin-top:8px;text-align:center}
+  @media (max-width:640px){.pz-screen .pz-mid{flex-direction:column;gap:12px}.pz-screen .pz-move{font-size:clamp(30px,9vw,48px)}}`;
   document.head.appendChild(st); }
 function openRsPresent(){ if(!RS) return; rsPresentInjectCSS(); let el=document.getElementById('rsPresent'); if(!el){ el=document.createElement('div'); el.id='rsPresent'; el.className='pz-screen'; document.body.appendChild(el); } el.hidden=false; renderRsPresent(); }
 function rsPresentClose(){ const el=document.getElementById('rsPresent'); if(el) el.hidden=true; renderRsLive(); }
@@ -1462,11 +1466,14 @@ function rsMovePanel(side, part, moveIx){ // side 'a'/'b' → tick key prefix i/
   // map this move to its tick key: the Nth non-heading item in the list
   let itemIx=-1, seen=-1; (RS.flat[RS.ix].step[side==='a'?'items':'items2']||[]).forEach((it,j)=>{ if(it.h) return; seen++; if(seen===moveIx) itemIx=j; });
   const ticked = itemIx>=0 && !!RS.ticks[RS.ix+'.'+ip+itemIx];
+  const nx = part.moves[moveIx+1], pct = Math.round(Math.min(moveIx+1,part.moves.length)/part.moves.length*100);
   return `<div class="pz-belt" data-side="${side}" data-itemix="${itemIx}">`
     + `<div class="pz-bname">${esc(part.belt||'')}</div>`
     + (done ? `<div class="pz-move done">✓ Finished this group's moves</div>`
-            : `<div class="pz-head">${esc(mv.head||'')}</div><div class="pz-move">${ticked?'✓ ':''}${esc(mv.text)}</div>`)
-    + `<div class="pz-count">${done?part.moves.length+' / '+part.moves.length:(moveIx+1)+' / '+part.moves.length}</div></div>`;
+            : `<div class="pz-head">${esc(mv.head||'')}</div><div class="pz-move${ticked?' ticked':''}" style="font-size:${mvSize(mv.text)}">${ticked?'✓ ':''}${esc(mv.text)}</div>`)
+    + `<div class="pz-count">${done?part.moves.length+' / '+part.moves.length:(moveIx+1)+' / '+part.moves.length}</div>`
+    + (done?'':`<div class="pz-bar"><i style="width:${pct}%"></i></div><div class="pz-next-lbl">${nx?('Up next: <b>'+esc(nx.text)+'</b>'):'Last move'}</div>`)
+    + `</div>`;
 }
 function renderRsPresent(){ const el=document.getElementById('rsPresent'); if(!el||el.hidden||!RS) return;
   const e=RS.flat[RS.ix]||{step:{},secName:''}, st=e.step, m=rsStepMoves(st), max=Math.max(1,rsMoveMax(st));
@@ -1483,6 +1490,8 @@ function renderRsPresent(){ const el=document.getElementById('rsPresent'); if(!e
   el.querySelectorAll('.pz-belt[data-itemix]').forEach(p=>{ p.onclick=()=>{ const ix=+p.dataset.itemix; if(ix<0) return; const ip=p.dataset.side==='a'?'i':'j'; const k=RS.ix+'.'+ip+ix; if(RS.ticks[k]) delete RS.ticks[k]; else RS.ticks[k]=true; RS.touched=Date.now(); rsSave(); renderRsPresent(); }; });
 }
 
+// size the big move text to its length so the whole panel (move + progress + up-next) always fits
+function mvSize(t){ const n=(t||'').length; const cap = n>85?26 : n>55?32 : n>34?42 : n>18?52 : 66; return `clamp(22px,7vw,${cap}px)`; }
 // ---- Coloured belt Present mode: the selected group's belt curriculum (CURR) big, one move at a time ----
 let cbpGi=0, cbpMove=0;
 function cbMovesFor(belt){ const cu=CURR[belt]; if(!cu) return []; const out=[]; COMPONENTS.forEach(comp=>{ ((cu.cats||{})[comp]||[]).forEach((text,ix)=>out.push({comp, ix, head:comp, text})); }); return out; }
@@ -1492,10 +1501,12 @@ function openCbPresent(){ const g=state.groups[state.active]; if(!g||!cbPartsFor
   cbpGi=state.active; cbpMove=0; rsPresentInjectCSS();
   let el=document.getElementById('cbPresent'); if(!el){ el=document.createElement('div'); el.id='cbPresent'; el.className='pz-screen'; document.body.appendChild(el); } el.hidden=false; renderCbPresent(); }
 function cbPresentClose(){ const el=document.getElementById('cbPresent'); if(el) el.hidden=true; render(); }
-function cbMovePanel(part){ if(!part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${esc(part.belt)}</div><div class="pz-move done">No curriculum.</div></div>`;
-  if(cbpMove>=part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${esc(part.belt)} → ${esc(nextOf(part.belt))}</div><div class="pz-move done">✓ Finished all moves</div><div class="pz-count">${part.moves.length} / ${part.moves.length}</div></div>`;
-  const mv=part.moves[cbpMove], ticked=said.has(saidKey(part.belt, mv.comp, mv.ix));
-  return `<div class="pz-belt" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${mv.ix}"><div class="pz-bname">${esc(part.belt)} → ${esc(nextOf(part.belt))}</div><div class="pz-head">${esc(mv.head)}</div><div class="pz-move${ticked?' ticked':''}">${ticked?'✓ ':''}${esc(mv.text)}</div><div class="pz-count">${cbpMove+1} / ${part.moves.length}</div></div>`;
+function cbMovePanel(part){ const tgt=esc(part.belt)+' → '+esc(nextOf(part.belt));
+  if(!part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">No curriculum.</div></div>`;
+  if(cbpMove>=part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">✓ Finished all moves</div><div class="pz-count">${part.moves.length} / ${part.moves.length}</div></div>`;
+  const mv=part.moves[cbpMove], ticked=said.has(saidKey(part.belt, mv.comp, mv.ix)), nx=part.moves[cbpMove+1];
+  const pct=Math.round((cbpMove+1)/part.moves.length*100);
+  return `<div class="pz-belt" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${mv.ix}"><div class="pz-bname">${tgt}</div><div class="pz-head">${esc(mv.head)}</div><div class="pz-move${ticked?' ticked':''}" style="font-size:${mvSize(mv.text)}">${ticked?'✓ ':''}${esc(mv.text)}</div><div class="pz-count">${cbpMove+1} / ${part.moves.length}</div><div class="pz-bar"><i style="width:${pct}%"></i></div><div class="pz-next-lbl">${nx?('Up next: <b>'+esc(nx.text)+'</b>'):'Last move'}</div></div>`;
 }
 function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!el||el.hidden) return;
   if(cbpGi>state.groups.length-1) cbpGi=state.groups.length-1; let g=state.groups[cbpGi]; if(!g){ cbPresentClose(); return; }
