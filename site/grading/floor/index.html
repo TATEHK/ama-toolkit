@@ -1461,6 +1461,10 @@ function rsPresentInjectCSS(){ if(document.getElementById('rsPrezCSS')) return; 
   .pz-screen .pz-bar i{display:block;height:100%;background:var(--accent,#4fae6d);border-radius:5px;transition:width .15s}
   .pz-screen .pz-next-lbl{color:#7f887f;font-weight:700;font-size:clamp(14px,1.6vw,19px);margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pz-screen .pz-next-lbl b{color:#cdd5cd;font-weight:800}
+  .pz-screen .pz-sd{display:flex;gap:10px;justify-content:center;margin-top:12px}
+  .pz-screen .pz-sd span{flex:1;max-width:240px;padding:6px 8px;border-radius:10px;font-weight:800;font-size:clamp(13px,1.6vw,18px);text-transform:uppercase;letter-spacing:.05em;border:1px solid}
+  .pz-screen .pz-sd .k{color:#8fd0ff;border-color:#2a4a63;background:rgba(60,130,185,.12)}
+  .pz-screen .pz-sd .a{color:#e8c766;border-color:#5a4e26;background:rgba(170,140,50,.12)}
   .pz-screen .pz-foot{display:flex;align-items:center;gap:14px}
   .pz-screen .pz-foot button{border:0;border-radius:14px;padding:24px;font-weight:800;cursor:pointer}
   .pz-screen .pz-next{flex:1;background:var(--accent,#4fae6d);color:#06240f;font-size:clamp(20px,2.8vw,28px)}
@@ -1523,7 +1527,10 @@ function cbMovePanel(part){ const tgt=esc(part.belt)+' → '+esc(nextOf(part.bel
   if(cbpMove>=part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">✓ Finished all moves</div><div class="pz-count">${part.moves.length} / ${part.moves.length}</div></div>`;
   const mv=part.moves[cbpMove], ticked=said.has(saidKey(part.belt, mv.comp, mv.ix)), nx=part.moves[cbpMove+1];
   const pct=Math.round((cbpMove+1)/part.moves.length*100);
-  return `<div class="pz-belt" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${mv.ix}"><div class="pz-bname">${tgt}</div><div class="pz-head">${esc(mv.head)}</div><div class="pz-move${ticked?' ticked':''}" style="font-size:${mvSize(mv.text)}">${ticked?'✓ ':''}${esc(mv.text)}</div><div class="pz-count">${cbpMove+1} / ${part.moves.length}</div><div class="pz-bar"><i style="width:${pct}%"></i></div><div class="pz-next-lbl">${nx?('Up next: <b>'+esc(nx.text)+'</b>'):'Last move'}</div></div>`;
+  const head = mv.comp==='Self-Defence'
+    ? `<div class="pz-sd"><span class="k">Kids self-defence</span><span class="a">Adults self-defence</span></div>`
+    : `<div class="pz-head">${esc(mv.head)}</div>`;
+  return `<div class="pz-belt" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${mv.ix}"><div class="pz-bname">${tgt}</div>${head}<div class="pz-move${ticked?' ticked':''}" style="font-size:${mvSize(mv.text)}">${ticked?'✓ ':''}${esc(mv.text)}</div><div class="pz-count">${cbpMove+1} / ${part.moves.length}</div><div class="pz-bar"><i style="width:${pct}%"></i></div><div class="pz-next-lbl">${nx?('Up next: <b>'+esc(nx.text)+'</b>'):'Last move'}</div></div>`;
 }
 function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!el||el.hidden) return;
   if(cbpGi>state.groups.length-1) cbpGi=state.groups.length-1; let g=state.groups[cbpGi]; if(!g){ cbPresentClose(); return; }
