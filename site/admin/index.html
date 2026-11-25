@@ -65,6 +65,14 @@
   .badge{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;border-radius:5px;padding:1px 6px;border:1px solid var(--line);color:var(--ink-3)}
   .badge.bb{color:var(--gold);border-color:var(--gold)}
   .badge.mk{color:var(--accent);border-color:var(--accent)}
+  .lfilter{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 18px}
+  .lchip{background:var(--panel);border:1px solid var(--line);color:var(--ink-2);border-radius:999px;padding:7px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+  .lchip:hover{border-color:var(--ink-3)}
+  .lchip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .today{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:0 0 6px}
+  .today.live{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+  .today .th{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--gold);margin:0 0 10px}
+  .today .trow{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
   .bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin:10px 0 7px}
   .bar i{display:block;height:100%;background:var(--accent)}
   .bar.low i{background:var(--warn)} .bar.vlow i{background:var(--danger)}
@@ -108,7 +116,7 @@
 
 <script>
 const CFG = window.TOOLKIT_CONFIG || {};
-let sb, DATA = null, started = false, openKey = null;
+let sb, DATA = null, started = false, openKey = null, loc = null;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -141,51 +149,70 @@ function detailFor(key){
   const wrap = (title, rows, total, shown) => `<div class="detail"><h3>${esc(title)}</h3>${rows||'<div class="more">Nothing here — all clear.</div>'}${total>shown?`<div class="more">Showing ${shown} of ${total}.</div>`:''}</div>`;
   if(key === 'bbc'){ const it = d.bbc_actions.items;
     return wrap('Black Belt Club sign-ups — set up EFC payment + call to confirm DDR', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span>${x.uniform?'<span class="tag">uniform</span>':''}<span class="meta">${x.phone?esc(x.phone)+' · ':''}waiting ${ago(x.waiting_days)}</span></div>`).join(''), d.bbc_actions.count, it.length); }
-  if(key === 'errors'){ const it = d.booking_errors.items;
-    return wrap('Booking errors (EFC booking failed)', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="err">${esc(x.error||'')}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), d.booking_errors.count, it.length); }
+  if(key === 'errors'){ const it = d.booking_errors.items.filter(inLoc);
+    return wrap('Booking errors (EFC booking failed)'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="err">${esc(x.error||'')}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), loc?it.length:d.booking_errors.count, it.length); }
   if(key === 'msgs'){ const it = d.failed_messages.items;
     return wrap('Failed texts & emails (last 14 days)', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">${esc(x.channel)} · ${esc(x.kind||'')}</span><span class="meta">${esc((x.error||'').slice(0,60))}</span></div>`).join(''), d.failed_messages.count, it.length); }
-  if(key === 'notbooked'){ const it = d.chase_not_booked.items;
-    return wrap('Invited but not booked', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)} · invited ${ago(x.invited_days_ago)} ago</span></div>`).join(''), d.chase_not_booked.count, it.length); }
-  if(key === 'unpaid'){ const it = d.chase_unpaid.items;
-    return wrap('Booked but not paid', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), d.chase_unpaid.count, it.length); }
+  if(key === 'notbooked'){ const it = d.chase_not_booked.items.filter(inLoc);
+    return wrap('Invited but not booked'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)} · invited ${ago(x.invited_days_ago)} ago</span></div>`).join(''), loc?it.length:d.chase_not_booked.count, it.length); }
+  if(key === 'unpaid'){ const it = d.chase_unpaid.items.filter(inLoc);
+    return wrap('Booked but not paid'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), loc?it.length:d.chase_unpaid.count, it.length); }
   return '';
 }
 
+const inLoc = x => !loc || x.location === loc;
+function allLocs(){ const d = DATA, s = new Set();
+  (d.gradings||[]).forEach(g=>g.location&&s.add(g.location));
+  [d.booking_errors,d.chase_not_booked,d.chase_unpaid].forEach(b=>(b.items||[]).forEach(x=>x.location&&s.add(x.location)));
+  return [...s].sort(); }
+function grdCard(g){
+  const pct = g.pct_booked == null ? 0 : +g.pct_booked;
+  const low = pct < 60 ? (pct < 35 ? ' vlow' : ' low') : '';
+  const cap = g.helper_cap || 0, hs = g.helper_signups || 0;
+  const helperLine = g.helper_open ? (hs < cap ? `<div class="hp need">Helpers: ${hs}/${cap} — needs ${cap-hs} more</div>` : `<div class="hp ok2">Helpers: ${hs}/${cap}</div>`) : (hs ? `<div class="hp ok2">Helpers: ${hs}</div>` : '');
+  return `<div class="grd"><div class="gh"><span class="gd">${fmtDate(g.grading_date)}</span><span class="gl">${esc(g.location||'')}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.makeup?'<span class="badge mk">makeup</span>':''}<span class="gu">${until(g.days_until)}</span></div>`
+    + `<div class="bar${low}"><i style="width:${Math.min(100,pct)}%"></i></div>`
+    + `<div class="st"><span><b>${g.booked}</b>/${g.total} booked (${g.pct_booked==null?'—':g.pct_booked+'%'})</span><span><b>${g.paid}</b> paid</span>${g.not_booked?`<span><b>${g.not_booked}</b> not booked</span>`:''}</div>`
+    + helperLine + `</div>`;
+}
 function render(){
   const d = DATA; if(!d) return;
   const needDetail = k => openKey === k ? detailFor(k) : '';
-  const grds = (d.gradings || []).map(g=>{
-    const pct = g.pct_booked == null ? 0 : +g.pct_booked;
-    const low = pct < 60 ? (pct < 35 ? ' vlow' : ' low') : '';
-    const cap = g.helper_cap || 0, hs = g.helper_signups || 0;
-    const helperLine = g.helper_open ? (hs < cap ? `<div class="hp need">Helpers: ${hs}/${cap} — needs ${cap-hs} more</div>` : `<div class="hp ok2">Helpers: ${hs}/${cap}</div>`) : (hs ? `<div class="hp ok2">Helpers: ${hs}</div>` : '');
-    return `<div class="grd"><div class="gh"><span class="gd">${fmtDate(g.grading_date)}</span><span class="gl">${esc(g.location||'')}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.makeup?'<span class="badge mk">makeup</span>':''}<span class="gu">${until(g.days_until)}</span></div>`
-      + `<div class="bar${low}"><i style="width:${Math.min(100,pct)}%"></i></div>`
-      + `<div class="st"><span><b>${g.booked}</b>/${g.total} booked (${g.pct_booked==null?'—':g.pct_booked+'%'})</span><span><b>${g.paid}</b> paid</span>${g.not_booked?`<span><b>${g.not_booked}</b> not booked</span>`:''}</div>`
-      + helperLine + `</div>`;
-  }).join('');
+  const gr = (d.gradings||[]).filter(inLoc);
+  const today = gr.filter(g=>g.days_until===0);
+  const soon = gr.filter(g=>g.days_until!=null && g.days_until>0).sort((a,b)=>a.days_until-b.days_until);
+  // location-filtered action counts (keep server totals when viewing All)
+  const cnt = (b)=> loc ? (b.items||[]).filter(inLoc).length : b.count;
+  const errN = cnt(d.booking_errors), nbN = cnt(d.chase_not_booked), upN = cnt(d.chase_unpaid);
+  const chip = (v,label)=>`<button class="lchip ${((loc||null)===(v||null))?'on':''}" data-loc="${v?esc(v):''}">${esc(label)}</button>`;
+  const todayBlock = today.length
+    ? `<div class="today live"><div class="th">Today · ${today.length} grading${today.length>1?'s':''}</div><div class="trow">${today.map(grdCard).join('')}</div></div>`
+    : `<div class="today"><div class="th">Today</div><div class="muted">No grading today${loc?' at '+esc(loc):''}.${soon[0]?` Next: ${fmtDate(soon[0].grading_date)} · ${esc(soon[0].location||'')} (${until(soon[0].days_until)})`:''}</div></div>`;
 
   $('#board').innerHTML =
-    `<h2>Needs action now</h2>
+    `<div class="lfilter">${chip(null,'All schools')}${allLocs().map(l=>chip(l,l)).join('')}</div>
+     ${todayBlock}
+
+     <h2>Needs action now</h2>
      <div class="tiles">
        ${tile('bbc', d.bbc_actions.count, 'BBC sign-ups', 'set up EFC + call for DDR', d.bbc_actions.count?'warn':'')}
-       ${tile('errors', d.booking_errors.count, 'Booking errors', 'EFC booking failed', d.booking_errors.count?'bad':'')}
+       ${tile('errors', errN, 'Booking errors', 'EFC booking failed', errN?'bad':'')}
        ${tile('msgs', d.failed_messages.count, 'Failed messages', 'texts & emails, 14 days', d.failed_messages.count?'bad':'')}
      </div>
      ${['bbc','errors','msgs'].includes(openKey) ? needDetail(openKey) : ''}
 
      <h2>Chase list</h2>
      <div class="tiles">
-       ${tile('notbooked', d.chase_not_booked.count, 'Not booked', 'invited, no booking', d.chase_not_booked.count?'warn':'ok')}
-       ${tile('unpaid', d.chase_unpaid.count, 'Not paid', 'booked, not paid', d.chase_unpaid.count?'warn':'ok')}
+       ${tile('notbooked', nbN, 'Not booked', 'invited, no booking', nbN?'warn':'ok')}
+       ${tile('unpaid', upN, 'Not paid', 'booked, not paid', upN?'warn':'ok')}
      </div>
      ${['notbooked','unpaid'].includes(openKey) ? needDetail(openKey) : ''}
 
-     <h2>Gradings at a glance — ${ (d.gradings||[]).length } upcoming</h2>
-     <div class="grds">${grds || '<div class="muted">No upcoming gradings.</div>'}</div>`;
+     <h2>Upcoming gradings${loc?` — ${esc(loc)}`:''} — ${gr.length}</h2>
+     <div class="grds">${gr.map(grdCard).join('') || `<div class="muted">No upcoming gradings${loc?' at '+esc(loc):''}.</div>`}</div>`;
 
   $('#board').querySelectorAll('.tile').forEach(b => b.onclick = () => { const k = b.dataset.key; openKey = openKey === k ? null : k; render(); });
+  $('#board').querySelectorAll('.lchip').forEach(b => b.onclick = () => { loc = b.dataset.loc || null; render(); });
 }
 
 /* ---- auth ---- */
