@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AMA Operations</title>
+<link rel="icon" href="../icons/favicon.svg">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../hub-signin.js"></script>
+<script src="../idle-logout.js"></script>
+<style>
+  :root{
+    --bg:#111312; --panel:#1a1d1b; --line:#2c302e; --ink:#eef1ee; --ink-2:#c6ccc6; --ink-3:#8b928b;
+    --accent:#4fae6d; --accent-ink:#06240f; --gold:#e8c766; --warn:#e0a84a; --danger:#e2605a; --danger-bg:#2a1816;
+    --r:14px; --shadow:0 1px 3px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding:max(14px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 48px max(14px,env(safe-area-inset-left))}
+  h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.01em}
+  h2{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);margin:26px 0 10px}
+  a{color:var(--accent)}
+  .wrap{max-width:1040px;margin:0 auto}
+  .top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 6px}
+  .top .sp{flex:1}
+  .btn{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 14px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{border-color:var(--ink-3)}
+  .btn.primary{background:var(--accent);color:var(--accent-ink);border:0}
+  .muted{color:var(--ink-3);font-size:13px}
+  /* auth */
+  .auth{max-width:380px;margin:12vh auto 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+  .field label{font-size:12px;font-weight:700;color:var(--ink-3)}
+  .field input{background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:10px 12px;font:inherit}
+  /* tiles */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;text-align:left;cursor:pointer;transition:.12s;display:flex;flex-direction:column;gap:3px}
+  .tile:hover{border-color:var(--ink-3)}
+  .tile[aria-expanded="true"]{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
+  .tile .n{font-family:"Barlow Semi Condensed",sans-serif;font-weight:800;font-size:34px;line-height:1}
+  .tile .l{font-size:13px;font-weight:700;color:var(--ink-2)}
+  .tile .s{font-size:12px;color:var(--ink-3)}
+  .tile.warn .n{color:var(--warn)} .tile.bad .n{color:var(--danger)} .tile.ok .n{color:var(--accent)}
+  .tile.zero{opacity:.62} .tile.zero .n{color:var(--ink-3)}
+  /* detail panel */
+  .detail{background:var(--panel);border:1px solid var(--accent);border-radius:var(--r);padding:4px 14px;margin:10px 0 0}
+  .detail h3{font-size:14px;margin:12px 2px 4px}
+  .rowi{display:flex;gap:10px;align-items:baseline;padding:9px 2px;border-bottom:1px solid var(--line);font-size:14px}
+  .rowi:last-child{border-bottom:0}
+  .rowi .nm{font-weight:700;min-width:0}
+  .rowi .meta{color:var(--ink-3);font-size:12.5px;margin-left:auto;text-align:right;white-space:nowrap}
+  .rowi .tag{font-size:11px;font-weight:700;color:var(--ink-3);border:1px solid var(--line);border-radius:6px;padding:1px 7px}
+  .rowi .err{color:var(--danger);font-size:12.5px}
+  .more{padding:9px 2px;color:var(--ink-3);font-size:12.5px}
+  /* gradings */
+  .grds{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+  .grd{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px 14px}
+  .grd .gh{display:flex;align-items:baseline;gap:8px}
+  .grd .gd{font-weight:800;font-size:15px}
+  .grd .gl{color:var(--ink-2);font-size:13px}
+  .grd .gu{margin-left:auto;font-size:12px;color:var(--ink-3);font-weight:700}
+  .badge{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;border-radius:5px;padding:1px 6px;border:1px solid var(--line);color:var(--ink-3)}
+  .badge.bb{color:var(--gold);border-color:var(--gold)}
+  .badge.mk{color:var(--accent);border-color:var(--accent)}
+  .bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin:10px 0 7px}
+  .bar i{display:block;height:100%;background:var(--accent)}
+  .bar.low i{background:var(--warn)} .bar.vlow i{background:var(--danger)}
+  .grd .st{display:flex;gap:12px;font-size:12.5px;flex-wrap:wrap}
+  .grd .st b{color:var(--ink)} .grd .st span{color:var(--ink-3)}
+  .grd .hp{margin-top:8px;font-size:12px;font-weight:700}
+  .grd .hp.need{color:var(--warn)} .grd .hp.ok2{color:var(--ink-3)}
+  .loading{padding:40px;text-align:center;color:var(--ink-3)}
+</style>
+</head>
+<body>
+
+<section class="auth" id="authView" hidden>
+  <div class="card">
+    <h2 style="margin-top:0">AMA Operations</h2>
+    <form id="loginForm" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="loginEmail">Email</label><input type="email" id="loginEmail" autocomplete="username" required></div>
+      <div class="field"><label for="loginPassword">Password</label><input type="password" id="loginPassword" autocomplete="current-password" required></div>
+      <p class="muted" id="loginError" style="color:var(--danger)" hidden></p>
+      <button type="submit" class="btn primary" id="loginBtn">Sign in</button>
+    </form>
+  </div>
+</section>
+
+<section class="auth" id="noAccessView" hidden>
+  <div class="card"><h2 style="margin-top:0">No access</h2><p>Your login (<strong id="noAccessWho"></strong>) doesn't have a grading role yet. Ask an admin to add you.</p><button class="btn" id="noAccessOut">Sign out</button></div>
+</section>
+
+<main class="wrap" id="appView" hidden>
+  <div class="top">
+    <a class="btn" href="/" title="AMA Toolkit">←</a>
+    <h1>Operations</h1>
+    <span class="sp"></span>
+    <span class="muted" id="updated"></span>
+    <button class="btn" id="refreshBtn">↻ Refresh</button>
+    <button class="btn" id="signOutBtn">Sign out</button>
+  </div>
+
+  <div id="board"><div class="loading">Loading…</div></div>
+</main>
+
+<script>
+const CFG = window.TOOLKIT_CONFIG || {};
+let sb, DATA = null, started = false, openKey = null;
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function fmtDate(iso){ if(!iso) return ''; const d = new Date(iso + 'T00:00:00'); return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; }
+function ago(n){ n = +n; return n <= 0 ? 'today' : n === 1 ? '1 day' : n + ' days'; }
+function until(n){ n = +n; return n <= 0 ? 'today' : n === 1 ? 'tomorrow' : 'in ' + n + ' days'; }
+
+function showView(w){ $('#authView').hidden = w !== 'auth'; $('#noAccessView').hidden = w !== 'noaccess'; $('#appView').hidden = w !== 'app'; }
+
+async function load(){
+  $('#refreshBtn').disabled = true;
+  try{
+    const { data, error } = await sb.rpc('cb_ops_dashboard');
+    if(error) throw error;
+    DATA = data; render();
+    $('#updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }catch(e){ $('#board').innerHTML = `<div class="loading" style="color:var(--danger)">Couldn't load: ${esc(e.message||e)}</div>`; }
+  $('#refreshBtn').disabled = false;
+}
+
+function tile(key, n, label, sub, tone){
+  const z = !n ? ' zero' : '';
+  return `<button class="tile ${tone||''}${z}" data-key="${key}" aria-expanded="${openKey===key}"><span class="n">${n}</span><span class="l">${label}</span>${sub?`<span class="s">${sub}</span>`:''}</button>`;
+}
+
+function detailFor(key){
+  const d = DATA; if(!d) return '';
+  const wrap = (title, rows, total, shown) => `<div class="detail"><h3>${esc(title)}</h3>${rows||'<div class="more">Nothing here — all clear.</div>'}${total>shown?`<div class="more">Showing ${shown} of ${total}.</div>`:''}</div>`;
+  if(key === 'bbc'){ const it = d.bbc_actions.items;
+    return wrap('Black Belt Club sign-ups — set up EFC payment + call to confirm DDR', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span>${x.uniform?'<span class="tag">uniform</span>':''}<span class="meta">${x.phone?esc(x.phone)+' · ':''}waiting ${ago(x.waiting_days)}</span></div>`).join(''), d.bbc_actions.count, it.length); }
+  if(key === 'errors'){ const it = d.booking_errors.items;
+    return wrap('Booking errors (EFC booking failed)', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="err">${esc(x.error||'')}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), d.booking_errors.count, it.length); }
+  if(key === 'msgs'){ const it = d.failed_messages.items;
+    return wrap('Failed texts & emails (last 14 days)', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">${esc(x.channel)} · ${esc(x.kind||'')}</span><span class="meta">${esc((x.error||'').slice(0,60))}</span></div>`).join(''), d.failed_messages.count, it.length); }
+  if(key === 'notbooked'){ const it = d.chase_not_booked.items;
+    return wrap('Invited but not booked', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)} · invited ${ago(x.invited_days_ago)} ago</span></div>`).join(''), d.chase_not_booked.count, it.length); }
+  if(key === 'unpaid'){ const it = d.chase_unpaid.items;
+    return wrap('Booked but not paid', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), d.chase_unpaid.count, it.length); }
+  return '';
+}
+
+function render(){
+  const d = DATA; if(!d) return;
+  const needDetail = k => openKey === k ? detailFor(k) : '';
+  const grds = (d.gradings || []).map(g=>{
+    const pct = g.pct_booked == null ? 0 : +g.pct_booked;
+    const low = pct < 60 ? (pct < 35 ? ' vlow' : ' low') : '';
+    const cap = g.helper_cap || 0, hs = g.helper_signups || 0;
+    const helperLine = g.helper_open ? (hs < cap ? `<div class="hp need">Helpers: ${hs}/${cap} — needs ${cap-hs} more</div>` : `<div class="hp ok2">Helpers: ${hs}/${cap}</div>`) : (hs ? `<div class="hp ok2">Helpers: ${hs}</div>` : '');
+    return `<div class="grd"><div class="gh"><span class="gd">${fmtDate(g.grading_date)}</span><span class="gl">${esc(g.location||'')}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.makeup?'<span class="badge mk">makeup</span>':''}<span class="gu">${until(g.days_until)}</span></div>`
+      + `<div class="bar${low}"><i style="width:${Math.min(100,pct)}%"></i></div>`
+      + `<div class="st"><span><b>${g.booked}</b>/${g.total} booked (${g.pct_booked==null?'—':g.pct_booked+'%'})</span><span><b>${g.paid}</b> paid</span>${g.not_booked?`<span><b>${g.not_booked}</b> not booked</span>`:''}</div>`
+      + helperLine + `</div>`;
+  }).join('');
+
+  $('#board').innerHTML =
+    `<h2>Needs action now</h2>
+     <div class="tiles">
+       ${tile('bbc', d.bbc_actions.count, 'BBC sign-ups', 'set up EFC + call for DDR', d.bbc_actions.count?'warn':'')}
+       ${tile('errors', d.booking_errors.count, 'Booking errors', 'EFC booking failed', d.booking_errors.count?'bad':'')}
+       ${tile('msgs', d.failed_messages.count, 'Failed messages', 'texts & emails, 14 days', d.failed_messages.count?'bad':'')}
+     </div>
+     ${['bbc','errors','msgs'].includes(openKey) ? needDetail(openKey) : ''}
+
+     <h2>Chase list</h2>
+     <div class="tiles">
+       ${tile('notbooked', d.chase_not_booked.count, 'Not booked', 'invited, no booking', d.chase_not_booked.count?'warn':'ok')}
+       ${tile('unpaid', d.chase_unpaid.count, 'Not paid', 'booked, not paid', d.chase_unpaid.count?'warn':'ok')}
+     </div>
+     ${['notbooked','unpaid'].includes(openKey) ? needDetail(openKey) : ''}
+
+     <h2>Gradings at a glance — ${ (d.gradings||[]).length } upcoming</h2>
+     <div class="grds">${grds || '<div class="muted">No upcoming gradings.</div>'}</div>`;
+
+  $('#board').querySelectorAll('.tile').forEach(b => b.onclick = () => { const k = b.dataset.key; openKey = openKey === k ? null : k; render(); });
+}
+
+/* ---- auth ---- */
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault(); const btn = $('#loginBtn'); btn.disabled = true; $('#loginError').hidden = true;
+  const { error } = await sb.auth.signInWithPassword({ email: $('#loginEmail').value.trim(), password: $('#loginPassword').value });
+  btn.disabled = false;
+  if(error){ $('#loginError').textContent = 'Sign in failed.'; $('#loginError').hidden = false; }
+});
+$('#signOutBtn').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('#noAccessOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+
+async function startApp(session){
+  if(started) return; started = true;
+  const who = (session.user.user_metadata || {}).full_name || session.user.email || '';
+  // any grading role may view; otherwise no access
+  let perms = [];
+  try{ perms = (await sb.rpc('app_my_perms', { p_app: 'cb' })).data || []; }catch(e){ perms = ['admin']; }
+  if(!perms.length){ $('#noAccessWho').textContent = who; showView('noaccess'); return; }
+  showView('app');
+  await load();
+  setInterval(() => { if(!document.hidden) load(); }, 120000);   // refresh every 2 min
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) load(); });
+}
+
+$('#refreshBtn').onclick = load;
+
+(function boot(){
+  if(!window.supabase || !CFG.SUPABASE_URL){ document.body.innerHTML = '<p style="padding:40px">Not connected to the database (config.js).</p>'; return; }
+  sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY, { auth: { lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
+  const hub = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#loginForm', onSignedIn: () => {} };
+  if(window.AmaHub){ AmaHub.mount(hub); AmaHub.recheck(hub); }
+  sb.auth.onAuthStateChange((event, session) => {
+    if(session) setTimeout(() => startApp(session), 0);
+    else if(!started) showView('auth');
+    else location.reload();
+  });
+})();
+</script>
+</body>
+</html>
