@@ -727,7 +727,20 @@ function placeLate(id){ // a late check-in can only join a FUTURE group of their
   return false;
 }
 function removeStudent(id){ for(const g of state.groups){ const k=g.slots.indexOf(id); if(k>=0){ g.slots[k]=null; if(g.status==='future') reflowFuture(g); return; } } }
-function setStatus(gi,st){ if(st==='current'){ state.groups.forEach((g,j)=>{ if(j!==gi && g.status==='current') g.status='past'; }); state.active=gi; } state.groups[gi].status=st; persistGroup(gi,{status:st}); render(); }
+// Finishing a group completes every present student's score card: full marks + all curriculum ticked.
+// A recorded Cho Dan Bo pattern fail is left as-is (not auto-passed); absentees aren't touched.
+function fillCardFull(gi){ const g=state.groups[gi]; if(!g) return;
+  g.slots.filter(x=>x!=null).map(byId).filter(Boolean).forEach(s=>{
+    if(absentIds.has(s.id)) return;
+    if(isCDB(s) && pattFor(s).res==='fail') return;
+    const sc=scoreFor(s); COMPONENTS.forEach(c=>sc[c]=10);
+    const cats=currOf(s).cats, set=tickedSet(s.id);
+    COMPONENTS.forEach(c=>(cats[c]||[]).forEach((_,ix)=>set.add(tickKey(s.id,c,ix))));
+    const patch={scores:{...sc}, ticks:[...set]};
+    if(isCDB(s)){ const x=pattFor(s); x.res='pass'; patch.pattern=x; }
+    persistScore(s.id, patch);
+  }); }
+function setStatus(gi,st){ if(st==='current'){ state.groups.forEach((g,j)=>{ if(j!==gi && g.status==='current'){ g.status='past'; fillCardFull(j); } }); state.active=gi; } if(st==='past') fillCardFull(gi); state.groups[gi].status=st; persistGroup(gi,{status:st}); render(); }
 function setSpots(g,n){ n=Math.max(1,Math.min(40,n)); const ids=g.slots.filter(x=>x!=null); g.spots=n; g.slots=spotsArr(n);
   ids.slice(0,n).forEach((id,k)=>g.slots[k]=id); ids.slice(n).forEach(id=>{ if(!placeLate(id)) state.alert=byId(id); }); }
 function layoutFor(g){ const a=g.slots.slice(0,g.spots); while(a.length<g.spots) a.push(null); return a; }
