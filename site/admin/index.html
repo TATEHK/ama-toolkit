@@ -574,6 +574,8 @@ function render(){
   const d = DATA; if(!d) return;
   const needDetail = k => openKey === k ? detailFor(k) : '';
   const gr = (d.gradings||[]).filter(inFilt);
+  const tKey = g => startOf(g.day_id) || '99:99';   // order each day's gradings by start time
+  gr.sort((a,b) => (a.grading_date < b.grading_date ? -1 : a.grading_date > b.grading_date ? 1 : 0) || (tKey(a) < tKey(b) ? -1 : tKey(a) > tKey(b) ? 1 : 0) || String(a.location||'').localeCompare(b.location||''));
   const today = gr.filter(g=>g.days_until===0);
   const soon = gr.filter(g=>g.days_until!=null && g.days_until>0).sort((a,b)=>a.days_until-b.days_until);
   const filtering = loc || prog;

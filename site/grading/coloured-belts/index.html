@@ -841,7 +841,7 @@ async function setApproval(key, prog, status, note) {
   state.all.students.forEach(x => { if (x.member_key === key && (x.programme || 'Taekwondo') === P) Object.assign(x, { approval: status, approval_note: status ? (note || null) : null, decided_by: status ? state.me : null }); });
 }
 // The next open grading day a student could go on (their school, their belt), soonest first
-const upcomingDayFor = s => state.days.filter(d => !d.closed && d.grading_date >= today() && forDay(d, s)).sort((a, b) => a.grading_date.localeCompare(b.grading_date))[0] || null;
+const upcomingDayFor = s => state.days.filter(d => !d.closed && d.grading_date >= today() && forDay(d, s)).sort((a, b) => a.grading_date.localeCompare(b.grading_date) || String(a.start_time || '99').localeCompare(String(b.start_time || '99')))[0] || null;
 function openStudent(key, prog) {
   const s = student(key, prog); if (!s) return;
   const P = s.programme || 'Taekwondo', open = () => openStudent(key, P);
@@ -1001,7 +1001,7 @@ function renderDays() {
   const locs = [...new Set(state.days.map(d => d.location).filter(Boolean))].sort();
   const beltsAll = [...new Set(state.belts.map(b => b.belt))];
   const match = d => (!daysFilt.location || d.location === daysFilt.location) && (!daysFilt.belt || !dayBelts(d) || dayBelts(d).includes(daysFilt.belt));
-  const allUp = state.days.filter(d => !d.closed && d.grading_date >= today()).sort((a, b) => a.grading_date.localeCompare(b.grading_date));
+  const allUp = state.days.filter(d => !d.closed && d.grading_date >= today()).sort((a, b) => a.grading_date.localeCompare(b.grading_date) || String(a.start_time || '99').localeCompare(String(b.start_time || '99')));
   const up = allUp.filter(match);
   const past = state.days.filter(d => !allUp.includes(d)).filter(match);
   const row = d => { const es = entriesOf(d.day_id), n = k => es.filter(k).length;
