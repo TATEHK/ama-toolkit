@@ -19,7 +19,7 @@ begin
             group by d.location, e.belt_to) t),
 
     'countdown', (select coalesce(jsonb_agg(jsonb_build_object(
-        'day_id', d.day_id, 'grading_date', d.grading_date, 'location', d.location, 'programme', d.programme, 'bb', d.bb,
+        'day_id', d.day_id, 'grading_date', d.grading_date, 'location', d.location, 'programme', d.programme, 'bb', d.bb, 'start_time', d.start_time,
         'days_until', (d.grading_date - current_date),
         'invites_out', (select count(*) from public.cb_entries e where e.day_id=d.day_id and e.invited_at is not null) > 0,
         'total', (select count(*) from public.cb_entries e where e.day_id=d.day_id and e.result is null),

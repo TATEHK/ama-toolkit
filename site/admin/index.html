@@ -70,6 +70,7 @@
   .grd{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px 14px}
   .grd .gh{display:flex;align-items:baseline;gap:8px}
   .grd .gd{font-weight:800;font-size:15px}
+  .grd .gt{color:var(--accent);font-weight:700;font-size:13px}
   .grd .gl{color:var(--ink-2);font-size:13px}
   .grd .gu{margin-left:auto;font-size:12px;color:var(--ink-3);font-weight:700}
   .badge{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;border-radius:5px;padding:1px 6px;border:1px solid var(--line);color:var(--ink-3)}
@@ -430,17 +431,20 @@ function distinct(field){ const d = DATA, s = new Set();
   (d.gradings||[]).forEach(g=>g[field]&&s.add(g[field]));
   [d.booking_errors,d.chase_not_booked,d.chase_unpaid].forEach(b=>(b.items||[]).forEach(x=>x[field]&&s.add(x[field])));
   return [...s].sort(); }
+function fmtTime(t){ if(!t) return ''; const p = String(t).split(':'); let H = +p[0]; const ap = H >= 12 ? 'pm' : 'am'; H = H % 12 || 12; return `${H}:${p[1]}${ap}`; }
+function startOf(dayId){ const c = (DATA2 && DATA2.countdown || []).find(x => x.day_id === dayId); return c ? c.start_time : null; }
 function grdCard(g){
   const pct = g.pct_booked == null ? 0 : +g.pct_booked;
+  const t = fmtTime(startOf(g.day_id));
   const low = pct < 60 ? (pct < 35 ? ' vlow' : ' low') : '';
   const cap = g.helper_cap || 0, hs = g.helper_signups || 0;
   const helperLine = g.helper_open ? (hs < cap ? `<div class="hp need">Helpers: ${hs}/${cap} — needs ${cap-hs} more</div>` : `<div class="hp ok2">Helpers: ${hs}/${cap}</div>`) : (hs ? `<div class="hp ok2">Helpers: ${hs}</div>` : '');
-  return `<div class="grd"><div class="gh"><span class="gd">${fmtDate(g.grading_date)}</span><span class="gl">${esc(g.location||'')}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.makeup?'<span class="badge mk">makeup</span>':''}<span class="gu">${until(g.days_until)}</span></div>`
+  return `<div class="grd"><div class="gh"><span class="gd">${fmtDate(g.grading_date)}</span>${t?`<span class="gt">${t}</span>`:''}<span class="gl">${esc(g.location||'')}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.makeup?'<span class="badge mk">makeup</span>':''}<span class="gu">${until(g.days_until)}</span></div>`
     + `<div class="bar${low}"><i style="width:${Math.min(100,pct)}%"></i></div>`
     + `<div class="st"><span><b>${g.booked}</b>/${g.total} booked (${g.pct_booked==null?'—':g.pct_booked+'%'})</span><span><b>${g.paid}</b> paid</span>${g.not_booked?`<span><b>${g.not_booked}</b> not booked</span>`:''}</div>`
     + helperLine
     + (notesForDay(g.day_id).length ? `<div class="gnotes">${notesForDay(g.day_id).map(n=>`<div class="gnote">${esc(n.note)}</div>`).join('')}</div>` : '')
-    + `<div class="grdacts">${hs?`<button class="btn mini" data-remind="${g.day_id}" data-loc="${esc(g.location||'')}">Remind ${hs} helper${hs>1?'s':''}</button>`:''}${(isAdmin&&g.booked)?`<button class="btn mini" data-announce="${g.day_id}" data-loc="${esc(g.location||'')}">Message families</button>`:''}<button class="btn mini" data-photos="${g.day_id}" data-loc="${esc(g.location||'')}">Group photos</button></div>`
+    + `<div class="grdacts">${hs?`<button class="btn mini" data-remind="${g.day_id}" data-loc="${esc(g.location||'')}">Remind ${hs} helper${hs>1?'s':''}</button>`:''}${(isAdmin&&g.booked)?`<button class="btn mini" data-announce="${g.day_id}" data-loc="${esc(g.location||'')}">Message families</button>`:''}${g.bb?'':`<button class="btn mini" data-photos="${g.day_id}" data-loc="${esc(g.location||'')}">Group photos</button>`}</div>`
     + `</div>`;
 }
 // #15 live grading-day board: checked-in vs expected, and results coming in
