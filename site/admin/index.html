@@ -75,8 +75,10 @@
   .badge{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;border-radius:5px;padding:1px 6px;border:1px solid var(--line);color:var(--ink-3)}
   .badge.bb{color:var(--gold);border-color:var(--gold)}
   .badge.mk{color:var(--accent);border-color:var(--accent)}
-  .lfilter{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 18px}
-  .lchip{background:var(--panel);border:1px solid var(--line);color:var(--ink-2);border-radius:999px;padding:7px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+  .lfilter{display:flex;flex-wrap:nowrap;gap:8px;margin:4px 0 8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .lfilter::-webkit-scrollbar{display:none}
+  .lfilter + .lfilter{margin-top:0}
+  .lchip{background:var(--panel);border:1px solid var(--line);color:var(--ink-2);border-radius:999px;padding:7px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;flex:none}
   .lchip:hover{border-color:var(--ink-3)}
   .lchip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
   .today{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:0 0 6px}
@@ -109,6 +111,23 @@
   .reqrecent summary{cursor:pointer;color:var(--ink-2);font-size:13px;font-weight:600;padding:4px 0}
   .reqrecent .reqlist{margin-top:8px}
   .reqmodal{position:fixed;inset:0;z-index:9000;background:rgba(6,10,8,.6);display:flex;align-items:flex-end;justify-content:center;padding:0}
+  @media (max-width:560px){
+    body{padding-bottom:40px}
+    h1{font-size:19px}
+    .appbar-inner{flex-wrap:nowrap;gap:7px}
+    .appbar .btn{padding:7px 10px;font-size:13px}
+    #updated{display:none}
+    h2{margin:18px 0 8px}
+    .otabs{gap:3px;padding:3px}
+    .otab{padding:8px 11px;font-size:13px}
+    .cal{gap:3px}
+    .cal .cell{min-height:38px;padding:2px 3px}
+    .cal .ev{font-size:9px;padding:1px 3px}
+    .beltgrid{grid-template-columns:1fr 1fr}
+    .cdgrid,.bbgrid{grid-template-columns:1fr}
+    .live-stats .ls b{font-size:17px}
+    .grd,.cdcard,.live-grd{padding:11px}
+  }
   @media (min-width:560px){.reqmodal{align-items:center;padding:20px}}
   .reqbox{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:460px;padding:20px 18px calc(18px + env(safe-area-inset-bottom,0px))}
   @media (min-width:560px){.reqbox{border-radius:16px}}
@@ -137,8 +156,12 @@
   .live-stats .ls span{font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em}
   .live-stats .ls.warn b{color:var(--warn)} .live-stats .ls.ok b{color:var(--ok)}
   /* calendar */
-  .calbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:26px 0 10px}
+  .calbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:26px 0 10px;flex-wrap:nowrap}
   .calbar h2{margin:0}
+  .caltitle{display:flex;align-items:baseline;gap:8px;min-width:0}
+  .calmon{font-size:12px;color:var(--ink-3);white-space:nowrap}
+  .calnav{display:flex;gap:6px;flex:none}
+  .calnav .btn{padding:7px 11px}
   .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .cal .dow{font-size:10px;color:var(--ink-3);text-align:center;text-transform:uppercase;letter-spacing:.05em;padding:2px 0}
   .cal .cell{min-height:46px;border:1px solid var(--line);border-radius:8px;padding:3px 4px;background:var(--panel);overflow:hidden}
@@ -446,7 +469,7 @@ function calendarSection(){
   }
   const mn = base.toLocaleDateString([], { month:'long', year:'numeric' });
   const dow = ['S','M','T','W','T','F','S'].map(x=>`<div class="dow">${x}</div>`).join('');
-  return `<div class="calbar"><h2>Calendar — ${esc(mn)}</h2><div class="reqbtns"><button class="btn" id="calPrev">‹</button><button class="btn" id="calToday">Today</button><button class="btn" id="calNext">›</button></div></div>
+  return `<div class="calbar"><div class="caltitle"><h2>Calendar</h2><span class="calmon">${esc(mn)}</span></div><div class="calnav"><button class="btn" id="calPrev" aria-label="Previous month">‹</button><button class="btn" id="calToday">Today</button><button class="btn" id="calNext" aria-label="Next month">›</button></div></div>
     <div class="cal">${dow}${cells}</div>
     <div class="callegend"><span><i style="background:var(--accent)"></i>Scheduled</span><span><i style="background:var(--ok)"></i>Running</span><span><i style="background:var(--ink-2)"></i>Done</span><span><i style="background:var(--danger)"></i>Past · not closed</span></div>`;
 }
@@ -599,6 +622,7 @@ function render(){
      <div class="tabwrap">${body}</div>`;
 
   $('#board').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+  try { const onTab = $('#board').querySelector('.otab.on'); if(onTab) onTab.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch(e){}
   $('#board').querySelectorAll('.tile').forEach(b => b.onclick = () => { const k = b.dataset.key; openKey = openKey === k ? null : k; render(); });
   $('#board').querySelectorAll('.lchip[data-loc]').forEach(b => b.onclick = () => { loc = b.dataset.loc || null; render(); });
   $('#board').querySelectorAll('.lchip[data-prog]').forEach(b => b.onclick = () => { prog = b.dataset.prog || null; render(); });
