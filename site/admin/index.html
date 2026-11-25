@@ -116,7 +116,7 @@
 
 <script>
 const CFG = window.TOOLKIT_CONFIG || {};
-let sb, DATA = null, started = false, openKey = null, loc = null;
+let sb, DATA = null, started = false, openKey = null, loc = null, prog = null;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -149,21 +149,22 @@ function detailFor(key){
   const wrap = (title, rows, total, shown) => `<div class="detail"><h3>${esc(title)}</h3>${rows||'<div class="more">Nothing here — all clear.</div>'}${total>shown?`<div class="more">Showing ${shown} of ${total}.</div>`:''}</div>`;
   if(key === 'bbc'){ const it = d.bbc_actions.items;
     return wrap('Black Belt Club sign-ups — set up EFC payment + call to confirm DDR', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span>${x.uniform?'<span class="tag">uniform</span>':''}<span class="meta">${x.phone?esc(x.phone)+' · ':''}waiting ${ago(x.waiting_days)}</span></div>`).join(''), d.bbc_actions.count, it.length); }
-  if(key === 'errors'){ const it = d.booking_errors.items.filter(inLoc);
-    return wrap('Booking errors (EFC booking failed)'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="err">${esc(x.error||'')}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), loc?it.length:d.booking_errors.count, it.length); }
+  if(key === 'errors'){ const it = d.booking_errors.items.filter(inFilt);
+    return wrap('Booking errors (EFC booking failed)'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="err">${esc(x.error||'')}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), ((loc||prog)?it.length:d.booking_errors.count), it.length); }
   if(key === 'msgs'){ const it = d.failed_messages.items;
     return wrap('Failed texts & emails (last 14 days)', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">${esc(x.channel)} · ${esc(x.kind||'')}</span><span class="meta">${esc((x.error||'').slice(0,60))}</span></div>`).join(''), d.failed_messages.count, it.length); }
-  if(key === 'notbooked'){ const it = d.chase_not_booked.items.filter(inLoc);
-    return wrap('Invited but not booked'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)} · invited ${ago(x.invited_days_ago)} ago</span></div>`).join(''), loc?it.length:d.chase_not_booked.count, it.length); }
-  if(key === 'unpaid'){ const it = d.chase_unpaid.items.filter(inLoc);
-    return wrap('Booked but not paid'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), loc?it.length:d.chase_unpaid.count, it.length); }
+  if(key === 'notbooked'){ const it = d.chase_not_booked.items.filter(inFilt);
+    return wrap('Invited but not booked'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)} · invited ${ago(x.invited_days_ago)} ago</span></div>`).join(''), ((loc||prog)?it.length:d.chase_not_booked.count), it.length); }
+  if(key === 'unpaid'){ const it = d.chase_unpaid.items.filter(inFilt);
+    return wrap('Booked but not paid'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="tag">→ ${esc((x.belt_to||'').replace(/ Belt$/,''))}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), ((loc||prog)?it.length:d.chase_unpaid.count), it.length); }
   return '';
 }
 
-const inLoc = x => !loc || x.location === loc;
-function allLocs(){ const d = DATA, s = new Set();
-  (d.gradings||[]).forEach(g=>g.location&&s.add(g.location));
-  [d.booking_errors,d.chase_not_booked,d.chase_unpaid].forEach(b=>(b.items||[]).forEach(x=>x.location&&s.add(x.location)));
+const inFilt = x => (!loc || x.location === loc) && (!prog || x.programme === prog);
+const progLabel = p => (p||'').replace(/^Taekwondo\s*-\s*/,'').trim() || p;   // "Taekwondo - Little Dragon" -> "Little Dragon"
+function distinct(field){ const d = DATA, s = new Set();
+  (d.gradings||[]).forEach(g=>g[field]&&s.add(g[field]));
+  [d.booking_errors,d.chase_not_booked,d.chase_unpaid].forEach(b=>(b.items||[]).forEach(x=>x[field]&&s.add(x[field])));
   return [...s].sort(); }
 function grdCard(g){
   const pct = g.pct_booked == null ? 0 : +g.pct_booked;
@@ -178,19 +179,24 @@ function grdCard(g){
 function render(){
   const d = DATA; if(!d) return;
   const needDetail = k => openKey === k ? detailFor(k) : '';
-  const gr = (d.gradings||[]).filter(inLoc);
+  const gr = (d.gradings||[]).filter(inFilt);
   const today = gr.filter(g=>g.days_until===0);
   const soon = gr.filter(g=>g.days_until!=null && g.days_until>0).sort((a,b)=>a.days_until-b.days_until);
-  // location-filtered action counts (keep server totals when viewing All)
-  const cnt = (b)=> loc ? (b.items||[]).filter(inLoc).length : b.count;
+  const filtering = loc || prog;
+  const scope = [loc, prog&&progLabel(prog)].filter(Boolean).join(' · ');
+  // filtered action counts (keep server totals when viewing everything)
+  const cnt = (b)=> filtering ? (b.items||[]).filter(inFilt).length : b.count;
   const errN = cnt(d.booking_errors), nbN = cnt(d.chase_not_booked), upN = cnt(d.chase_unpaid);
-  const chip = (v,label)=>`<button class="lchip ${((loc||null)===(v||null))?'on':''}" data-loc="${v?esc(v):''}">${esc(label)}</button>`;
+  const locChip = (v,label)=>`<button class="lchip ${((loc||null)===(v||null))?'on':''}" data-loc="${v?esc(v):''}">${esc(label)}</button>`;
+  const progChip = (v,label)=>`<button class="lchip ${((prog||null)===(v||null))?'on':''}" data-prog="${v?esc(v):''}">${esc(label)}</button>`;
+  const progs = distinct('programme');
   const todayBlock = today.length
     ? `<div class="today live"><div class="th">Today · ${today.length} grading${today.length>1?'s':''}</div><div class="trow">${today.map(grdCard).join('')}</div></div>`
-    : `<div class="today"><div class="th">Today</div><div class="muted">No grading today${loc?' at '+esc(loc):''}.${soon[0]?` Next: ${fmtDate(soon[0].grading_date)} · ${esc(soon[0].location||'')} (${until(soon[0].days_until)})`:''}</div></div>`;
+    : `<div class="today"><div class="th">Today</div><div class="muted">No grading today${scope?' · '+esc(scope):''}.${soon[0]?` Next: ${fmtDate(soon[0].grading_date)} · ${esc(soon[0].location||'')} (${until(soon[0].days_until)})`:''}</div></div>`;
 
   $('#board').innerHTML =
-    `<div class="lfilter">${chip(null,'All schools')}${allLocs().map(l=>chip(l,l)).join('')}</div>
+    `<div class="lfilter">${locChip(null,'All schools')}${distinct('location').map(l=>locChip(l,l)).join('')}</div>
+     ${progs.length>1?`<div class="lfilter">${progChip(null,'All programmes')}${progs.map(p=>progChip(p,progLabel(p))).join('')}</div>`:''}
      ${todayBlock}
 
      <h2>Needs action now</h2>
@@ -208,11 +214,12 @@ function render(){
      </div>
      ${['notbooked','unpaid'].includes(openKey) ? needDetail(openKey) : ''}
 
-     <h2>Upcoming gradings${loc?` — ${esc(loc)}`:''} — ${gr.length}</h2>
-     <div class="grds">${gr.map(grdCard).join('') || `<div class="muted">No upcoming gradings${loc?' at '+esc(loc):''}.</div>`}</div>`;
+     <h2>Upcoming gradings${scope?` — ${esc(scope)}`:''} — ${gr.length}</h2>
+     <div class="grds">${gr.map(grdCard).join('') || `<div class="muted">No upcoming gradings${scope?' · '+esc(scope):''}.</div>`}</div>`;
 
   $('#board').querySelectorAll('.tile').forEach(b => b.onclick = () => { const k = b.dataset.key; openKey = openKey === k ? null : k; render(); });
-  $('#board').querySelectorAll('.lchip').forEach(b => b.onclick = () => { loc = b.dataset.loc || null; render(); });
+  $('#board').querySelectorAll('.lchip[data-loc]').forEach(b => b.onclick = () => { loc = b.dataset.loc || null; render(); });
+  $('#board').querySelectorAll('.lchip[data-prog]').forEach(b => b.onclick = () => { prog = b.dataset.prog || null; render(); });
 }
 
 /* ---- auth ---- */
