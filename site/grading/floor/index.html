@@ -1245,6 +1245,18 @@ function openRunsheet(){
 // ---- Live run sheet: step through the grading, tick techniques off, synced across screens ----
 let RS=null;   // { slot, rid, title, note, window, flat:[{secName,step}], ix, ticks, touched, pollT }
 function rsFlat(doc){ const f=[]; (doc&&doc.sections||[]).forEach(sec=>{ (sec.steps||[]).forEach(step=>{ f.push({secName:sec.name||'', step}); }); }); return f; }
+// match a run sheet step to the real floor lines (groups) of the grading, by the belt they're grading for
+function bbNorm(b){ return String(b||'').toLowerCase()
+  .replace(/\bfirst\b/g,'1st').replace(/\bsecond\b/g,'2nd').replace(/\bthird\b/g,'3rd').replace(/\bfourth\b/g,'4th').replace(/\bfifth\b/g,'5th').replace(/\bsixth\b/g,'6th')
+  .replace(/\bone\b/g,'1').replace(/\btwo\b/g,'2').replace(/\bthree\b/g,'3').replace(/\bfour\b/g,'4').replace(/\bfive\b/g,'5').replace(/\bsix\b/g,'6')
+  .replace(/\bbelt\b/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
+function rsBeltHint(step){ const b=bbNorm(step.belt); if(b) return b;   // no belt → derive from the groups label, stripping the leading "Group N…" part
+  const g=String(step.groups||'').replace(/^\s*groups?\s+(?:(?:one|two|three|four|five|six|all)\b|\b\d+\b|and|to|[,&\s])+/i,'');
+  return bbNorm(g).replace(/^all\s+/,''); }
+function rsStepLines(step, lines){ const sb=rsBeltHint(step); if(!sb) return lines;   // no belt named → the whole grading
+  const exact=lines.filter(L=>bbNorm(L.target)===sb); if(exact.length) return exact;
+  if(/ levels?$/.test(sb)){ const base=sb.replace(/ levels?$/,'').trim(); const lv=lines.filter(L=>bbNorm(L.target).startsWith(base+' level')); if(lv.length) return lv; }
+  return lines.filter(L=>bbNorm(L.target).startsWith(sb)); }
 function rsInjectCSS(){ if(document.getElementById('rsLiveCSS')) return; const st=document.createElement('style'); st.id='rsLiveCSS';
   st.textContent=`#rsLive{position:fixed;inset:0;z-index:9998;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;overflow:hidden}
   #rsLive .rsl-top{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -1284,6 +1296,13 @@ function rsInjectCSS(){ if(document.getElementById('rsLiveCSS')) return; const s
   #rsLive .rsl-cell.on .bx{background:var(--accent);border-color:var(--accent)}
   #rsLive .rsl-cell.on{opacity:.55;text-decoration:line-through}
   #rsLive .rsl-cell.blank{visibility:hidden}
+  #rsLive .rsl-who{margin-top:16px;border-top:1px dashed var(--line);padding-top:12px}
+  #rsLive .rsl-line{margin:0 0 10px}
+  #rsLive .rsl-line .lh{font-weight:800;font-size:13px;color:var(--accent);display:flex;gap:8px;align-items:baseline}
+  #rsLive .rsl-line .lh .n{color:var(--ink-3);font-weight:700}
+  #rsLive .rsl-names{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+  #rsLive .rsl-nm{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:13px;font-weight:600}
+  #rsLive .rsl-noup{color:var(--ink-3);font-size:12.5px;margin-top:12px}
   #rsLive .rsl-prog{margin-top:14px;font-size:12px;color:var(--ink-3);font-weight:700}
   #rsLive .rsl-foot{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
   #rsLive .rsl-foot .nav{flex:1;background:var(--accent);color:var(--accent-ink,#06240f);border:0;border-radius:11px;padding:13px;font-weight:800;font-size:15px;cursor:pointer}
@@ -1341,7 +1360,16 @@ function renderRsLive(){
     H.map((h,ci)=>`<div class="rsl-col"><h4>${esc(h)}</h4>`+ (st.table.rows||[]).map((row,r)=>{ const c=row[ci]||''; const blank=!String(c).trim(); const on=!!RS.ticks[RS.ix+'.r'+r+'c'+ci];
       return `<button class="rsl-cell${on?' on':''}${blank?' blank':''}" data-k="r${r}c${ci}"${blank?' tabindex="-1"':''}><span class="bx">${on?'✓':''}</span><span>${esc(c)}</span></button>`; }).join('')+`</div>`).join('')+`</div>`; }
   const [d,t]=rsDoneCount(RS.ix);
-  const detail=`<div class="rsl-detail"><div class="rsl-dh"><span class="dt">${esc(st.time||'')}</span><span class="dg">${esc(st.groups||'')}</span>${st.belt?`<span class="db">${esc(st.belt)}</span>`:''}${st.mins?`<span class="dm">${st.mins} min</span>`:''}</div><div class="rsl-dsec">${esc(e.secName)}</div>${items}${tableHtml}${t?`<div class="rsl-prog">${d} of ${t} done</div>`:''}</div>`;
+  // the real students up for this step: match the step to this grading's floor lines by belt
+  const glines=state.groups.filter(g=>gradingInfo(lineGrading(g).idx).time===RS.slot);
+  const upLines=rsStepLines(st, glines).filter(g=>g.slots.some(x=>x!=null));
+  let whoHtml='';
+  if(upLines.length){ whoHtml=`<div class="rsl-who"><div class="rsl-h">Who's up${upLines===glines?' — whole grading':''}</div>`+
+    upLines.map(g=>{ const names=g.slots.filter(x=>x!=null).map(byId).filter(Boolean).sort((a,b)=>a.age-b.age||a.name.localeCompare(b.name));
+      const here=names.filter(s=>!absentIds.has(s.id)).length;
+      return `<div class="rsl-line"><div class="lh">Line ${g.cone} · ${esc(g.target||g.name)} <span class="n">${here}/${names.length} here</span></div><div class="rsl-names">${names.map(s=>`<span class="rsl-nm" style="${absentIds.has(s.id)?'opacity:.45':''}">${esc(s.name)}</span>`).join('')}</div></div>`; }).join('')+`</div>`;
+  } else if(rsBeltHint(st)) { whoHtml=`<div class="rsl-noup">No line on this grading matches “${esc(st.belt||st.groups)}”. Check the belt on this step in the builder, or it may be a break/ceremony.</div>`; }
+  const detail=`<div class="rsl-detail"><div class="rsl-dh"><span class="dt">${esc(st.time||'')}</span><span class="dg">${esc(st.groups||'')}</span>${st.belt?`<span class="db">${esc(st.belt)}</span>`:''}${st.mins?`<span class="dm">${st.mins} min</span>`:''}</div><div class="rsl-dsec">${esc(e.secName)}</div>${items}${tableHtml}${whoHtml}${t?`<div class="rsl-prog">${d} of ${t} done</div>`:''}</div>`;
   const foot=`<div class="rsl-foot"><button class="nav sec" id="rsPrev" ${RS.ix<=0?'disabled':''}>‹ Previous</button><span class="pos">${RS.ix+1} / ${RS.flat.length}</span><button class="nav" id="rsNext" ${RS.ix>=RS.flat.length-1?'disabled':''}>Next group up ›</button></div>`;
   el.innerHTML=top+head+`<div class="rsl-main"><div class="rsl-steps">${listHtml}</div>${detail}</div>`+foot;
   el.querySelector('.rsl-x').onclick=rsClose;
