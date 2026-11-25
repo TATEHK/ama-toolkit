@@ -1644,6 +1644,34 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, photos });
     }
 
+    // ---- Upcoming grading days feed for Mark's hub. key is cb_settings.hook_key. ----
+    // The next ~60 days of grading days, so the hub can show a "Today & coming up" strip and deep-link into the
+    // Grading Floor (/grading/floor/?day=<day_id>). No end time is stored on a day, so end_time is null.
+    // Status: 'on' (today, not closed), 'finished' (closed), else 'scheduled'. (Days are deleted, not "cancelled".)
+    if (body.action === 'grading_days') {
+      const { data: st } = await db.from('cb_settings').select('hook_key').eq('id', 1).maybeSingle();
+      if (!st || !st.hook_key || String(body.key || '') !== st.hook_key) return fail('Not allowed.', 403);
+      const now = new Date();
+      const todayIso = now.toISOString().slice(0, 10);
+      const untilIso = new Date(now.getTime() + 60 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const rows = await allRows(() => db.from('cb_days')
+        .select('day_id, grading_date, location, start_time, bb, private, closed')
+        .gte('grading_date', todayIso).lte('grading_date', untilIso).order('grading_date'));
+      const days = (rows || []).map(d => ({
+        day_id: d.day_id,
+        date: d.grading_date,
+        school: schoolLabel(d.location) || d.location || null,
+        venue: d.location || null,
+        start_time: d.start_time || null,
+        end_time: null,                                   // not stored on a grading day
+        status: d.closed ? 'finished' : (d.grading_date === todayIso ? 'on' : 'scheduled'),
+        bb: !!d.bb,
+        private: !!d.private,
+        floor_url: '/grading/floor/?day=' + d.day_id
+      }));
+      return json({ ok: true, days });
+    }
+
     // ---- The hub sends approved Little Dragons nominations (coloured-belts-36.sql) ----
     // { action:'ld_nominate', key, day_id?, nominations:[{ nomination_id?, efc_reference?, member_key?, full_name?, school?, belt, current_belt?, remove? }] }
     // Each nomination becomes (or updates) an entry on the Little Dragons grading day, so the family pipeline runs. key is cb_settings.hook_key.

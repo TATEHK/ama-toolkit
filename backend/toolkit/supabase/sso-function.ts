@@ -123,9 +123,12 @@ export async function handle(req, deps, env) {
     const { data: s, error: ve } = await deps.anon.auth.verifyOtp({ type: 'magiclink', token_hash: gl.properties.hashed_token });
     if (ve || !s || !s.session) throw ve || new Error('No session');
 
-    // next: only a safe same-site path is allowed (no absolute URLs / open redirect)
+    // next: only a safe same-site path is allowed (no absolute URLs / open redirect).
+    // Plus the Grading Floor deep-link /grading/floor/?day=<id> (day id is uuid-ish), so the hub can open a day signed in.
     let next = String(p.next || '');
-    if (!/^\/[A-Za-z0-9_\-./]*$/.test(next)) next = '';
+    const safePath = /^\/[A-Za-z0-9_\-./]*$/.test(next);
+    const floorDay = /^\/grading\/floor\/\?day=[A-Za-z0-9\-]{1,64}$/.test(next);
+    if (!safePath && !floorDay) next = '';
     return json({ ok: true, session: { access_token: s.session.access_token, refresh_token: s.session.refresh_token }, name: p.name || null, next, created });
   } catch (e) {
     console.error(e);
