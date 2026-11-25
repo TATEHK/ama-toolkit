@@ -920,7 +920,7 @@ function render(){
   }).join('');
   $$('#groups .gtab').forEach(b=>b.onclick=()=>{ const gi=+b.dataset.g; state.active=gi;
     if(role==='sarah') state.callout = state.groups[gi] && state.groups[gi].status==='future' ? gi : null;   // Sarah: tapping a future group calls it out
-    render(); });
+    savePos(); render(); });
   // alert bar — a late check-in with nowhere to go
   const ab=$('#alertBar');
   if(state.alert){ ab.hidden=false; const al=state.alert; ab.innerHTML=`<div class="al-ic">!</div><div class="al-tx"><b>${al.name} (${al.belt}) checked in late</b><span>No upcoming ${al.belt} group with room — they can't join one that's up or finished. Add a group or free a spot.</span></div><button class="al-add" id="alAdd">Add ${al.belt} group</button><button class="al-x" id="alX" aria-label="dismiss">✕</button>`;
@@ -1217,7 +1217,7 @@ $('#addGrp').onclick=()=>{manual();addGroup();renderSettings();render();persistG
 $('#gearBtn').onclick=()=>{renderSettings();$('#modal').classList.add('open');};
 $('#rsBtn').onclick=openRunsheet;
 $('#rsLiveBtn').onclick=openRsLive;
-$('#cbPresentBtn').onclick=openCbPresent;
+$('#cbPresentBtn').onclick=()=>openCbPresent();
 $('#rsEditBtn').onclick=()=>{ $('#modal').classList.remove('open'); openRsEdit(); };
 $('#mClose').onclick=$('#mDone').onclick=()=>$('#modal').classList.remove('open');
 $('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').classList.remove('open');};
@@ -1512,10 +1512,12 @@ let cbpGi=0, cbpMove=0;
 function cbMovesFor(belt){ const cu=CURR[belt]; if(!cu) return []; const out=[]; COMPONENTS.forEach(comp=>{ ((cu.cats||{})[comp]||[]).forEach((text,ix)=>out.push({comp, ix, head:comp, text})); }); return out; }
 function cbPartsFor(g){ return g ? beltsOf(g).filter(b=>CURR[b]).map(b=>({belt:b, moves:cbMovesFor(b)})) : []; }
 function cbMax(g){ const p=cbPartsFor(g); return Math.max(1, ...p.map(x=>x.moves.length)); }
-function openCbPresent(){ const g=state.groups[state.active]; if(!g||!cbPartsFor(g).length) return toast('No curriculum for this group.',3500);
-  cbpGi=state.active; cbpMove=0; rsPresentInjectCSS();
+function openCbPresent(gi, move){ const a=(gi==null?state.active:Math.min(gi,state.groups.length-1)); const g=state.groups[a]; if(!g||!cbPartsFor(g).length) return toast('No curriculum for this group.',3500);
+  cbpGi=a; cbpMove=Math.max(0,move|0); rsPresentInjectCSS();
   let el=document.getElementById('cbPresent'); if(!el){ el=document.createElement('div'); el.id='cbPresent'; el.className='pz-screen'; document.body.appendChild(el); } el.hidden=false; renderCbPresent(); }
-function cbPresentClose(){ const el=document.getElementById('cbPresent'); if(el) el.hidden=true; render(); }
+function cbPresentClose(){ const el=document.getElementById('cbPresent'); if(el) el.hidden=true; savePos(); render(); }
+// remember which group tab / present position you were on, so a reload comes back to it (per day, this device)
+function savePos(){ try{ const el=document.getElementById('cbPresent'); localStorage.setItem('cb_floor_pos', JSON.stringify({ day:DAYID, active:state.active, cbp:(el&&!el.hidden)?{gi:cbpGi,move:cbpMove}:null })); }catch(e){} }
 function cbMovePanel(part){ const tgt=esc(part.belt)+' → '+esc(nextOf(part.belt));
   if(!part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">No curriculum.</div></div>`;
   if(cbpMove>=part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">✓ Finished all moves</div><div class="pz-count">${part.moves.length} / ${part.moves.length}</div></div>`;
@@ -1530,7 +1532,7 @@ function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!e
   const mid=`<div class="pz-mid">${parts.map(cbMovePanel).join('')||'<div class="pz-belt"><div class="pz-move done">No curriculum for this group.</div></div>'}</div>`;
   const atEnd=cbpMove>=max-1, lastG=cbpGi>=state.groups.length-1;
   const foot=`<div class="pz-foot"><button class="pz-prev" id="cbPrev">‹ Back</button><span class="pz-pos">${parts.length>1?'':'Move '+(cbpMove+1)+' / '+max}</span><button class="pz-next" id="cbNext" ${(atEnd&&lastG)?'disabled':''}>${atEnd?(lastG?'Done':'Next group ›'):'Next move ›'}</button></div><div class="pz-tap">Tap a move to tick it off as you call it</div>`;
-  el.innerHTML=top+mid+foot;
+  el.innerHTML=top+mid+foot; savePos();
   el.querySelector('.pz-x').onclick=cbPresentClose;
   el.querySelector('#cbNext').onclick=()=>{ if(cbpMove<max-1) cbpMove++; else if(cbpGi<state.groups.length-1){ cbpGi++; cbpMove=0; } renderCbPresent(); };
   el.querySelector('#cbPrev').onclick=()=>{ if(cbpMove>0) cbpMove--; else if(cbpGi>0){ cbpGi--; cbpMove=cbMax(state.groups[cbpGi])-1; } renderCbPresent(); };
@@ -1675,7 +1677,12 @@ async function loadDay(dayId) {
   $('#dayLabel').textContent = `${schoolOf(DAYINFO.location)} · ${fmtDay(DAYINFO.date)}`;
   loading = false;
   if (!(data.groups && data.groups.length)) persistGroups();
+  // come back to the group tab / present position you were on before a reload (same day, this device)
+  let reopen=null; try{ const pos=JSON.parse(localStorage.getItem('cb_floor_pos')||'null');
+    if(pos && pos.day===DAYID){ if(Number.isInteger(pos.active) && pos.active>=0 && pos.active<state.groups.length) state.active=pos.active;
+      if(pos.cbp && !BBMODE() && state.groups[pos.active] && cbPartsFor(state.groups[pos.active]).length) reopen=pos.cbp; } }catch(e){}
   $('#gate').hidden = true; render();
+  if(reopen) openCbPresent(reopen.gi, reopen.move);
   if (pollT) clearInterval(pollT); pollT = setInterval(pollDay, 4000);
 }
 async function pollDay() {
