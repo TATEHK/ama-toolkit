@@ -1480,9 +1480,9 @@ function rsPresentInjectCSS(){ if(document.getElementById('rsPrezCSS')) return; 
   .pz-screen .pz-right{flex:1;min-width:0;display:flex;flex-direction:column}
   .pz-screen .pz-right .pz-mid{margin:0 0 12px}
   @media (max-width:820px){ .pz-screen .pz-split{flex-direction:column} }
-  .pz-screen .pz-allwrap{flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:6px 0;overflow-y:auto;min-height:0}
-  .pz-screen .pz-allwrap.many{justify-content:flex-start}
-  .pz-screen .pz-row{display:flex;align-items:center;gap:12px;text-align:left;background:#15191700;border:1px solid #242a26;border-radius:14px;padding:11px 14px;cursor:pointer}
+  .pz-screen .pz-allwrap{flex:1;display:flex;flex-direction:column;justify-content:center;gap:clamp(5px,1vh,10px);padding:4px 0;overflow-y:auto;min-height:0}
+  .pz-screen .pz-allwrap.many{justify-content:flex-start;gap:clamp(4px,.8vh,8px)}
+  .pz-screen .pz-row{display:flex;align-items:center;gap:10px;text-align:left;background:#15191700;border:1px solid #242a26;border-radius:12px;padding:clamp(7px,1.1vh,11px) clamp(10px,1.4vw,14px);cursor:pointer}
   .pz-screen .pz-row.on{border-color:var(--accent,#4fae6d);background:rgba(79,174,109,.08)}
   .pz-screen .pz-rtext{font-weight:700;line-height:1.18;color:#fff}
   .pz-screen .pz-row.on .pz-rtext{color:var(--accent,#4fae6d)}
@@ -1558,8 +1558,22 @@ function cbMovesFor(belt){ const cu=CURR[belt]; if(!cu) return []; const cats=cu
     if(CB_SHOW_ALL.has(comp)) out.push({comp, head:comp, all:true, items:items.map((t,ix)=>({ix, ...ageInfo(t)})) });
     else items.forEach((text,ix)=>{ const a=ageInfo(text); out.push({comp, ix, head:comp, text:a.text, age:a.age}); }); });
   return out; }
-// per-belt columns hold the belt-specific curriculum (sections pulled out); round-style sections are shared across the group
-function cbPartsFor(g){ return g ? beltsOf(g).filter(b=>CURR[b]).map(b=>({belt:b, moves:cbMovesFor(b).filter(m=>!m.section)})) : []; }
+// one shared step list for the whole group, aligned by COMPONENT so two belts are never on different components
+// (e.g. one on Self-Defence while the other is on Kicks). Round sections (Pad/Free/etc) are the shared tail, handled below.
+function cbSteps(g){ if(!g) return []; const bs=beltsOf(g).filter(b=>CURR[b]), steps=[];
+  COMPONENTS.forEach(comp=>{ if(CB_ACTIVITY.has(comp)) return;                                   // round sections -> shared tail
+    if(!bs.some(b=>((CURR[b].cats||{})[comp]||[]).length)) return;                                // no belt lists this component
+    if(CB_SHOW_ALL.has(comp)){ steps.push({comp, all:true}); }                                    // one-step / self-defence: all at once
+    else { const mx=Math.max(1,...bs.map(b=>((CURR[b].cats||{})[comp]||[]).length)); for(let i=0;i<mx;i++) steps.push({comp, i}); } });
+  return steps; }
+// per-belt columns, every belt aligned to the SAME component steps; a belt with no item at a step gets a {none} filler so the columns stay in lock-step
+function cbPartsFor(g){ if(!g) return []; const steps=cbSteps(g);
+  return beltsOf(g).filter(b=>CURR[b]).map(b=>{ const cats=CURR[b].cats||{};
+    const moves=steps.map(st=>{ const items=cats[st.comp]||[];
+      if(st.all) return items.length ? {comp:st.comp, head:st.comp, all:true, items:items.map((t,ix)=>({ix, ...ageInfo(t)}))} : {comp:st.comp, head:st.comp, none:true};
+      const raw=items[st.i]; if(raw==null) return {comp:st.comp, head:st.comp, none:true};
+      const a=ageInfo(raw); return {comp:st.comp, ix:st.i, head:st.comp, text:a.text, age:a.age}; });
+    return {belt:b, moves}; }); }
 // the round sections (Pad/Free/Group/Board Sparring) any belt in the group has — once each, in curriculum order; shown together for the whole group
 function cbSharedSections(g){ if(!g) return []; const seen=new Set(), out=[];
   beltsOf(g).filter(b=>CURR[b]).forEach(b=>cbMovesFor(b).forEach(m=>{ if(m.section && !seen.has(m.comp)){ seen.add(m.comp); out.push(m); } }));
@@ -1577,16 +1591,19 @@ function cbMovePanel(part, adults){ const tgt=esc(part.belt)+' → '+esc(nextOf(
   if(cbpMove>=part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">✓ Finished all moves</div><div class="pz-count">${part.moves.length} / ${part.moves.length}</div></div>`;
   const mv=part.moves[cbpMove], nx=part.moves[cbpMove+1];
   const pct=Math.round((cbpMove+1)/part.moves.length*100);
-  const foot=`<div class="pz-count">${cbpMove+1} / ${part.moves.length}</div><div class="pz-bar"><i style="width:${pct}%"></i></div><div class="pz-next-lbl">${nx?('Up next: <b>'+esc(nx.all?nx.head:nx.text)+'</b>'):'Last move'}</div>`;
+  const upnext = nx ? ((nx.all||nx.none) ? esc(nx.head) : esc(nx.text)) : '';
+  const foot=`<div class="pz-count">${cbpMove+1} / ${part.moves.length}</div><div class="pz-bar"><i style="width:${pct}%"></i></div><div class="pz-next-lbl">${nx?('Up next: <b>'+upnext+'</b>'):'Last move'}</div>`;
+  if(mv.none){ // this belt has nothing for the component the other belt is on — keep the column in step, show the component greyed
+    return `<div class="pz-belt" data-belt="${esc(part.belt)}"><div class="pz-bname">${tgt}</div><div class="pz-head">${esc(mv.head)}</div><div class="pz-move done" style="font-size:24px">— not for this belt —</div>${foot}</div>`; }
   if(mv.all){ // show every item at once. Marked (Dragons/Ninjas) = kids do it; unmarked = adults only; adults do everything.
     const splitable=mv.items.some(it=>it.age);                         // only split when the belt marks kids items (one-step)
     const shown=splitable && !adults ? mv.items.filter(it=>it.age) : mv.items;   // kids-only group: hide the adults-only items
     const badge=it=> splitable ? `<span class="pz-badge ${it.age?'all':'ad'}">${it.age?'Kids &amp; adults':'Adults only'}</span>` : '';
-    // size rows to fit the page: more items / longer text -> smaller text (and scroll from the top as a safety net)
+    // size rows to fit the page: more items / longer text -> smaller text, and shrink further on narrow screens (clamp with vw)
     const maxLen=Math.max(0,...shown.map(it=>(it.text||'').length)), n=shown.length;
-    const rfs = (n>=4||maxLen>150)?14 : (n===3||maxLen>90)?17 : (n===2||maxLen>50)?20 : 24;
+    const rfs = (n>=4||maxLen>150)?'clamp(12px,1.9vw,15px)' : (n===3||maxLen>90)?'clamp(13px,2.1vw,18px)' : (n===2||maxLen>50)?'clamp(14px,2.3vw,21px)' : 'clamp(15px,2.6vw,25px)';
     const rows=shown.map(it=>{ const on=said.has(saidKey(part.belt, mv.comp, it.ix));
-      return `<div class="pz-row${on?' on':''}" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${it.ix}">${badge(it)}<span class="pz-rtext" style="font-size:${rfs}px">${on?'✓ ':''}${esc(it.text)}</span></div>`; }).join('')
+      return `<div class="pz-row${on?' on':''}" data-belt="${esc(part.belt)}" data-comp="${esc(mv.comp)}" data-ix="${it.ix}">${badge(it)}<span class="pz-rtext" style="font-size:${rfs}">${on?'✓ ':''}${esc(it.text)}</span></div>`; }).join('')
       || '<div class="pz-row"><span class="pz-rtext">—</span></div>';
     return `<div class="pz-belt all" data-belt="${esc(part.belt)}"><div class="pz-bname">${tgt}</div><div class="pz-head">${esc(mv.head)}${splitable&&!adults?' <small style="opacity:.6">· kids group</small>':''}</div><div class="pz-allwrap${n>=3?' many':''}">${rows}</div>${foot}</div>`;
   }
