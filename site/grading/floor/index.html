@@ -680,12 +680,14 @@ function memberSort(g){ const o=g.order||'young';
   return (a,b)=> beltR(a.belt)-beltR(b.belt) || (o==='old'?b.age-a.age:o==='az'?0:a.age-b.age) || a.name.localeCompare(b.name); }
 // Where each spot stands. Front row first either way: a single-belt group fills it from the centre out; a mixed group
 // fills it left to right by belt (lowest belt on the left), so each belt stands together, then the back row
+// 4th Dan and up are placed by hand on black belt days: never re-sorted, spots stay where staff put them
+const handPlaced=g=>g.order==='manual' || (g.bb && (g.tier>=4 && g.tier<99 || bbTierNum(g.target)>=4 && bbTierNum(g.target)<99));
 function slotPos(g,n,rows){ const pos=positions(n,rows);
   // (the back row runs right to left, so a belt that wraps over stays on the same side)
   if(beltsOf(g).length<2){ const co=centreOut(pos);
     // the line still grows from the centre out, but the people in it read left to right in age order
     // (manual order keeps the plain centre-out spots, so nobody staff placed jumps)
-    if(g.order==='manual') return co;
+    if(handPlaced(g)) return co;
     let m=0; (g.slots||[]).slice(0,n).forEach((x,k)=>{ if(x!=null) m=k+1; }); if(!g.slots) m=n;
     const used=co.slice(0,m).sort((a,b)=>(a.y-b.y)||(a.x-b.x));
     return used.concat(co.slice(m)); }
@@ -796,8 +798,8 @@ function generateGroups(){ // belts in order; small belts share a group (each be
 function recone(){ if(BBMODE()){ let prev=null, n=0; state.groups.forEach(g=>{ const gi=(g.gslot!=null)?g.gslot:lineGrading(g).idx; if(gi!==prev){ prev=gi; n=0; } g.cone=String(++n); }); return; }   // bb: lines numbered 1,2,3… within each grading
   state.groups.forEach((g,i)=>{ g.cone=String.fromCharCode(65+i); g.name=g.title||autoName(g); }); }   // cone labels A, B, C… and names
 function groupOf(id){ return state.groups.findIndex(g=>g.slots.includes(id)); }
-function reflowFuture(g){ // keep a not-yet-started group in its order (belt by belt) in its first spots; manual order keeps where staff put them
-  if(g.order==='manual') return;
+function reflowFuture(g){ // keep a not-yet-started group in its order (belt by belt) in its first spots; manual order (and 4th Dan) keeps where staff put them
+  if(handPlaced(g)) return;
   const mem=g.slots.filter(x=>x!=null).map(byId).filter(Boolean).sort(memberSort(g));
   g.slots=spotsArr(g.spots); mem.forEach((s,k)=>{ if(k<g.spots) g.slots[k]=s.id; });
 }
