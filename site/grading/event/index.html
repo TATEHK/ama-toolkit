@@ -273,7 +273,7 @@ function vRun() {
       <span class="tiny">${(x.assess || []).length ? (x.assess || []).map(a => a.groups.join('+')).join(' · ') : 'Not assessed'}</span></span>
       ${closed ? '<span class="tag ok">Done</span>' : u && (x.assess || []).length && i <= bi ? `<span class="tag warn">${u} to score</span>` : ''}</button>`; }).join('')}</div>
     <div class="card now-card">
-      <div class="row"><span class="tag now">${hhmm(b.time)}</span><span class="muted small">${b.mins} min seminar${(b.assess || []).length ? ' · then ' + b.assess.length + ' assessment' + (b.assess.length > 1 ? 's' : '') : ''}</span><span class="grow"></span>${L['closed_' + b.id] ? `<span class="tag ok">Closed ${new Date(L['closed_' + b.id]).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}</span>` : ''}</div>
+      <div class="row"><span class="tag now">${hhmm(b.time)}</span><span class="muted small">${b.mins} min seminar${(b.assess || []).length ? ' · then ' + b.assess.length + ' assessment' + (b.assess.length > 1 ? 's' : '') : ''}</span><span class="grow"></span>${S.ev.day_id ? `<a class="btn sm ghost" href="/grading/floor/?day=${S.ev.day_id}" target="_blank" rel="noopener" title="The Grading Floor follows this run of day: same step on both">Grading Floor ↗</a>` : ''}${L['closed_' + b.id] ? `<span class="tag ok">Closed ${new Date(L['closed_' + b.id]).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}</span>` : ''}</div>
       <h2 style="margin-top:8px">${esc(b.title)}</h2>
       <div class="train">${esc(b.train)}</div>
       ${b.notes ? `<p class="muted" style="margin:0">${esc(b.notes)}</p>` : ''}
