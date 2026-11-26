@@ -152,7 +152,7 @@
 #geOv .aitem,.ge-inline .aitem{display:flex;gap:8px;align-items:center;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:7px 9px;font-size:14px;text-align:left;width:100%;cursor:pointer}
 #geOv .aitem.now,.ge-inline .aitem.now{border-color:var(--accent)}#geOv .aitem.done,.ge-inline .aitem.done{opacity:.5}
 #geOv table,.ge-inline table{border-collapse:collapse;width:100%}#geOv th,.ge-inline th,#geOv td,.ge-inline td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top;font-size:14px}
-#geOv th,.ge-inline th{color:var(--ink-2);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+#geOv th,.ge-inline th{color:var(--ink-2);font-size:12px;font-weight:600}
 #geDlg{z-index:10001;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:16px;padding:18px;width:min(560px,94vw)}
 #geDlg::backdrop{background:rgba(0,0,0,.6)}
 #geDlg .ge-btn{display:inline-flex;align-items:center;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:10px;padding:8px 13px;font-weight:700;cursor:pointer}
