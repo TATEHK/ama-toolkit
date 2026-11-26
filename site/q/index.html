@@ -66,6 +66,14 @@ const mmss = s => Math.floor(s / 60) + ':' + String(Math.max(0, s) % 60).padStar
 let [CODE, TAB] = (location.hash || '').slice(1).split('/');
 CODE = (CODE || ls('ama_quiz_code') || '').toUpperCase();
 let TOKEN = null, ST = null, QS = null, ANS = {}, cur = 0, timer = null, view = '', savedMsg = '', REDO = null;
+// A reload picks up where they were: the sign-in is kept on this phone and in the address (#CODE/token), and so is the question they're on
+const ss = (k, v) => { try { if (v === undefined) return sessionStorage.getItem(k); if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) { return null; } };
+function keepToken(t) {
+  TOKEN = t; ls('ama_quiz_tok_' + CODE, t); ss('ama_quiz_tok_' + CODE, t);
+  try { history.replaceState(null, '', '#' + CODE + (t ? '/' + t : '')); } catch (e) {}
+}
+function forget() { ls('ama_quiz_tok_' + CODE, null); ss('ama_quiz_tok_' + CODE, null); ls('ama_quiz_at_' + CODE, null); TOKEN = null; try { history.replaceState(null, '', '#' + CODE); } catch (e) {} }
+const keepAt = ix => ls('ama_quiz_at_' + CODE, String(ix));
 const list = () => REDO ? QS.filter(q => REDO.includes(q.ix)) : QS;   // when redoing, only the questions that were wrong
 const brand = `<div class="brand"><div class="logo">A</div>Theory test</div>`;
 async function call(body) {
@@ -84,9 +92,14 @@ function askCode(msg) {
 async function start() {
   if (!CODE) return askCode();
   ls('ama_quiz_code', CODE);
-  if (TAB) { TOKEN = TAB; ls('ama_quiz_tok_' + CODE, TOKEN); TAB = null; try { history.replaceState(null, '', '#' + CODE); } catch (e) {} return run(); }
-  TOKEN = ls('ama_quiz_tok_' + CODE);
-  if (TOKEN) { const s = await call({ action: 'state', code: CODE, token: TOKEN }); if (s.ok) return run(); }
+  const saved = [TAB, ls('ama_quiz_tok_' + CODE), ss('ama_quiz_tok_' + CODE)].filter(t => /^[A-Za-z0-9_-]{20,64}$/.test(t || ''));
+  TAB = null;
+  for (const t of [...new Set(saved)]) {
+    const s = await call({ action: 'state', code: CODE, token: t });
+    if (s.ok) { keepToken(t); return run(); }
+    if (s.offline) { keepToken(t); return run(); }   // no signal right now: keep going, the next check will catch up
+  }
+  forget();
   const j = await call({ action: 'join', code: CODE });
   if (!j.ok) return askCode(j.error);
   view = 'names';
@@ -95,16 +108,16 @@ async function start() {
   $$('[data-id]').forEach(b => b.onclick = () => claim(b.dataset.id, b.dataset.n));
 }
 async function claim(id, name, force) {
-  TOKEN = ls('ama_quiz_tok_' + CODE) || newToken();
+  TOKEN = TOKEN || newToken();
   const r = await call({ action: 'claim', code: CODE, cand_id: id, token: TOKEN, force: !!force });
   if (r.taken) { if (confirm(`${name} is already signed in on another device. Use this one instead?`)) return claim(id, name, true); return; }
   if (!r.ok) return alert(r.error || 'Try again.');
-  ls('ama_quiz_tok_' + CODE, TOKEN); run();
+  keepToken(TOKEN); run();
 }
 function run() { clearInterval(timer); poll(); timer = setInterval(poll, 3000); }
 async function poll() {
   const s = await call({ action: 'state', code: CODE, token: TOKEN, with_questions: !QS });
-  if (!s.ok) { if (s.rejoin) { ls('ama_quiz_tok_' + CODE, null); clearInterval(timer); return start(); } return; }
+  if (!s.ok) { if (s.rejoin) { forget(); clearInterval(timer); return start(); } return; }
   s.at = Date.now(); ST = s;
   if (s.questions) QS = s.questions;
   if (view !== 'test') { if (s.answers) ANS = { ...s.answers }; REDO = s.redo || null; }
@@ -116,14 +129,15 @@ function draw() {
   if (s.submitted) return page('done', `<div class="top">${brand}</div><div class="center"><div class="big">All ${s.total} right</div><p class="muted">Well done, ${me}. Your theory test is complete. You can put your phone away.</p></div>`);
   if (s.phase === 'ended') return page('ended', `<div class="top">${brand}</div><div class="center"><div class="big">Time is up</div><p class="muted">Thanks, ${me}. Your answers have been handed in. The panel will talk to you about your result.</p></div>`);
   if (s.phase !== 'open' || !QS) return page('wait', `<div class="top">${brand}</div><div class="center"><div class="big">You're signed in, ${me}</div><p class="muted">The test starts when the panel says go: ${s.total} questions, ${s.minutes} minutes, at your own pace. You can go back and change answers until you submit. To pass you need every answer right; if any are wrong you'll be asked to redo just those.</p>
-      <button class="btn ghost" id="notme" style="width:auto">Not ${me}? Change name</button></div>`, () => { $('#notme').onclick = () => { ls('ama_quiz_tok_' + CODE, null); clearInterval(timer); QS = null; view = ''; start(); }; });
-  if (view !== 'test') { view = 'test'; drawQ(); }
+      <button class="btn ghost" id="notme" style="width:auto">Not ${me}? Change name</button></div>`, () => { $('#notme').onclick = () => { forget(); clearInterval(timer); QS = null; view = ''; start(); }; });
+  if (view !== 'test') { view = 'test'; const at = Number(ls('ama_quiz_at_' + CODE)); const k = list().findIndex(q => q.ix === at); cur = k >= 0 ? k : 0; drawQ(); }
 }
 function page(v, html, wire) { if (view === v) return; view = v; $('#m').innerHTML = html; wire && wire(); }
 const isDone = q => ANS[q.ix] != null && !(Array.isArray(ANS[q.ix]) && ANS[q.ix].length !== q.options.length);
 function drawQ() {
   const L = list(); if (cur >= L.length) cur = 0;
   const q = L[cur], a = ANS[q.ix], n = L.filter(isDone).length;
+  keepAt(q.ix);
   let opts;
   if (q.type === 'order') {
     const ord = Array.isArray(a) ? a : [];
