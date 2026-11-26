@@ -96,16 +96,12 @@ export function buildOathEmail(v) {
   <tr><td class="pad" style="padding:30px 32px 6px;">
     <p style="margin:0;font-size:16px;line-height:1.55;color:#333;">Hi ${esc(v.greet)},</p>
     <p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#333;">${esc(intro)}</p></td></tr>
-  <tr><td class="pad" style="padding:18px 32px 0;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${cream};border-radius:10px;border:1px solid ${creamLine};"><tr><td style="padding:14px 20px;font-size:14px;line-height:1.5;color:#333;">
-      Read the oath, write your name, then sign with your finger. The date fills in for you. This link is just for ${esc(v.first)}, so please don't forward it.
-    </td></tr></table></td></tr>
   <tr><td class="pad" align="center" style="padding:24px 32px 6px;">
     <a href="${esc(v.link)}" style="display:inline-block;background:${night};color:${gold};text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:15px;letter-spacing:1px;padding:14px 30px;border-radius:8px;text-transform:uppercase;">Sign the oath</a></td></tr>
   <tr><td class="pad" style="padding:10px 32px 28px;font-size:12px;line-height:1.5;color:#777;" align="center">Button not working? Copy this into your browser:<br><span style="color:#333;word-break:break-all;">${esc(v.link)}</span></td></tr>
   <tr><td style="background:${night};padding:18px 32px;font-size:12px;color:#aaa;" align="center">Australian Martial Arts Academy &middot; (02) 9569 1943</td></tr>
 </table></td></tr></table></body></html>`;
-  const text = `Hi ${v.greet},\n\n${intro}\n\nSign here: ${v.link}\n\nThis link is just for ${v.first}, so please don't forward it.\n\nAustralian Martial Arts Academy`;
+  const text = `Hi ${v.greet},\n\n${intro}\n\nSign here: ${v.link}\n\nAustralian Martial Arts Academy`;
   return { subject, html, text };
 }
 

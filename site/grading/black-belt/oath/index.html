@@ -46,6 +46,18 @@
   .done-banner b { color: var(--gold); font-family: Oswald, Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; font-size: 18px; display: block; margin-bottom: 4px; }
   .sig-img { display: block; max-width: 100%; height: 120px; object-fit: contain; object-position: left center; border-bottom: 1.5px solid var(--ink); }
   .filled { border-bottom: 1.5px solid var(--ink); padding: 4px 2px; flex: 1; }
+  .intro { background: var(--night); color: #fff; border-radius: 6px; padding: 18px 20px; margin-bottom: 14px; font-family: Arial, sans-serif; font-size: 15px; line-height: 1.5; }
+  .intro b { display: block; color: var(--gold); font-family: Oswald, Arial, sans-serif; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 20px; margin-bottom: 4px; }
+  .intro a { display: inline-block; margin-top: 12px; color: var(--night); background: var(--gold); text-decoration: none; font-weight: 700; font-size: 14px; letter-spacing: .06em; padding: 10px 16px; border-radius: 6px; }
+  .read { margin-bottom: 14px; font-size: 17px; line-height: 1.6; }
+  .read h2 { font-family: Oswald, "Arial Narrow", Arial, sans-serif; font-weight: 600; font-size: 19px; letter-spacing: .02em; margin: 26px 0 8px; }
+  .read h2:first-of-type { margin-top: 0; }
+  .read p { margin: 0 0 12px; }
+  .read ol { margin-bottom: 4px; }
+  .read ol li { margin-bottom: 8px; }
+  .read .salute { font-weight: 600; margin: 0 0 4px; }
+  .read .gm { font-style: italic; margin-top: 18px; }
+  h1.small { font-size: 24px; }
   @media (min-width: 560px) { .foot { grid-template-columns: 1.7fr 1fr; align-items: end; } .sheet { padding: 36px 40px 32px; } }
   @media print { body { background: #fff; } main { padding: 0; } .sheet { border: 0; } .done-banner, .note { display: none; } }
 </style>
@@ -81,6 +93,35 @@
       .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Something went wrong. Please try again.' }; }); });
   }
   function oathList() { return '<ol>' + OATH.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>'; }
+  // The paper oath pack, pages 2 and 3: read before signing, and kept on the page afterwards
+  var WELCOME =
+    '<div class="sheet read"><h1 class="small">To our new black belt, congratulations!</h1>' +
+    '<h2>What is a black belt?</h2><p>A black belt is someone who:</p><ol>' +
+    '<li>Displays humility, accepts that they are always learning and challenges themself to always improve.</li>' +
+    '<li>Is loyal and honours their martial arts school, instructors, family and all who have supported their black belt journey. Pledges to continue what they have learnt with dignity and respect.</li>' +
+    '<li>Has a high-level skill which is maintained to defend themself, keep their body healthy and their mind sharp.</li>' +
+    '<li>Shows respect for self, maintains a disciplined lifestyle, takes care of their appearance, and keeps their body in its best shape.</li></ol>' +
+    '<h2>When do I get my first dan black belt and my name on my belt?</h2>' +
+    '<p>You have just received a provisional black belt, this means that you have the skills and ability to be a black belt. Your training over the next 6 months will determine whether you have the attitude, commitment to a black belt way of life and improvement to full black belt standard. Once completing your 6 months of full training and club requirements you will be tested at the next grading to confirm that you are eligible to receive a full status first degree black belt (in which your name will be placed on your belt and you will receive a first degree black belt).</p>' +
+    '<p>At AMA every student is important to us but you are now one of our most important students. We are always here to support your goals, help you set new ones, improve motivation and challenge you to do better, let us know if we can help you along your journey.</p>' +
+    '<h2>What is Masters Club?</h2>' +
+    '<p>You are now invited to (and it is highly recommended that you) join Masters Club, an exclusive club open only to those holding a black belt. This club will help you to learn: skills that require the mastery of a black belt, subsequent black belt curriculums and challenge even the best of us! Masters Club students are seen in the red and black Masters Club uniforms. You may take this up as another class or swap your membership from black belt club to masters club.</p>' +
+    '<h2>What are black belts expected to do during their full training?</h2><ol>' +
+    '<li><b>Train</b> at least 3 sessions per week including one masters or black belt club.</li>' +
+    '<li><b>Attend</b> as many gradings and events as possible to assist with pad holding and grading duties. Notice for non-attendance should be given.</li>' +
+    '<li><b>Always</b> set a good example for other students.</li>' +
+    '<li><b>Support</b> instructors and other students.</li>' +
+    '<li><b>Continue</b> to look after their body, mind &amp; train hard to always exemplify what it means to be a black belt.</li>' +
+    '<li><b>Learn</b> the 1st Dan Black Belt Curriculum.</li></ol></div>' +
+    '<div class="sheet read"><p class="salute">Dear Black Belt,</p><p class="salute">Congratulations!</p><p></p>' +
+    '<p>I want to let you know how proud the Instructors, Head Instructors, and I are of you for achieving your new black belt rank. I do not doubt that you will carry on the tradition of excellence that our schools’ seniors have established.</p>' +
+    '<p>Our black belt students are well known worldwide for their physical abilities, loyalty to their martial arts academy, and their outstanding work ethics. I think, however, they are especially known for having outstanding martial arts attitudes. I am very happy to see that you possess all of these very same qualities to a high degree.</p>' +
+    '<p>Before you celebrate, I would like you to think of three things:</p>' +
+    '<p>Firstly, think about your parents and spouses and how their sacrifice has really made this day possible. Think of all the time they dedicated to you so that you could achieve your black belt. Think of all their hours of waiting. Think of their commitment to your success in life. Remember as you go through life, no one loves you more and no one wishes you greater success than your parents and spouses.</p>' +
+    '<p>Secondly, think about your teachers. Think about how they worked so personally and tirelessly with you to accomplish this goal. Your teachers teach, exert and model proper behaviour. They want you to continue your study. They want you to continue to grow, and like the black belts that have graduated before you, they want you to be a positive, contributing and respected member of society.</p>' +
+    '<p>Lastly, think about yourself for a moment and what you have done today and what you have done to achieve your black belt. You should be very proud of yourself. Continue to study the virtues of a black belt. Practicing these principles will help ensure success in school, work and life. We have a saying “those who dare to teach or lead, must never cease to learn”. Well, now you are the leaders and you set the example for those who follow. Be loyal to your school. Think about how you can uphold the tradition of the black belt, always displaying black belt maturity and dignity in all your endeavours.</p>' +
+    '<p>The literal meaning of “Dan” is “to carve steps up the cliff”. You have come a long way in your training and have overcome many obstacles, both physical and mental. You are a serious student! I’m sure you will discover by continued practice that what you thought was a perfection of a technique was merely an introduction to it. A tremendous journey of self-discovery awaits you. Again, congratulations on your accomplishment and welcome to a higher level of study.</p>' +
+    '<p>Kind regards,</p><p class="gm">Grand Master Ridvan Manav</p></div>';
   function showState(text) { app.innerHTML = '<div class="state">' + esc(text) + '</div>'; }
 
   function showSigned(d, fresh) {
@@ -90,12 +131,15 @@
       '<div class="sheet"><h1>Black Belt Oath</h1>' +
       '<div class="iname"><span>I,</span><div class="filled">' + esc(d.name) + '</div></div>' + oathList() +
       '<div class="foot"><div><div class="label">Student signature</div>' + (d.signature ? '<img class="sig-img" alt="Signature" src="' + esc(d.signature) + '">' : '') + '</div>' +
-      '<div><div class="label">Date</div><div class="date">' + esc(longDate(d.signed_date)) + '</div></div></div></div>';
+      '<div><div class="label">Date</div><div class="date">' + esc(longDate(d.signed_date)) + '</div></div></div></div>' +
+      '<div style="height:14px"></div>' + WELCOME;
   }
 
   function showForm(d) {
     app.innerHTML =
-      '<div class="sheet"><h1>Black Belt Oath</h1>' +
+      '<div class="intro"><b>Congratulations, ' + esc(d.first || 'black belt') + '</b>Please read about your new black belt below, then sign the Black Belt Oath at the bottom of the page.<br><a href="#oath" id="jump">Go to the oath</a></div>' +
+      WELCOME +
+      '<div class="sheet" id="oath"><h1>Black Belt Oath</h1>' +
       '<label class="iname"><span>I,</span><input id="nm" type="text" autocomplete="name" autocapitalize="words" maxlength="80" placeholder="your full name" value="' + esc(d.full_name || '') + '"></label>' +
       oathList() +
       '<div class="foot"><div><div class="label"><span>Student signature</span><button type="button" class="clear" id="clr">Clear</button></div>' +
@@ -104,6 +148,7 @@
       '<button class="submit" id="go" type="button">Sign the oath</button><div class="msg" id="msg" role="alert"></div></div>' +
       '<p class="note">This page is private to ' + esc(d.first || 'you') + '. Once signed, the oath is saved to your AMA record.</p>';
 
+    document.getElementById('jump').onclick = function (e) { e.preventDefault(); document.getElementById('oath').scrollIntoView({ behavior: 'smooth', block: 'start' }); };   // keeps the token in the address
     var pad = document.getElementById('pad'), cv = document.getElementById('cv'), ctx = cv.getContext('2d');
     var strokes = [], cur = null, drawing = false;
     function size() {
