@@ -36,14 +36,33 @@
       db().from('ge_events').select('live, config, approved_at, approved_by').eq('event_id', id).maybeSingle(),
       db().from('ge_marks').select('cand_id, item_code, result, comment, scored_by, updated_at').eq('event_id', id),
       db().from('ge_outcomes').select('cand_id, outcome, note, set_by').eq('event_id', id)]);
-    if (ev.error || !ev.data) return;
-    Object.assign(S.ev, ev.data);
-    S.marks = {}; (mk2.data || []).forEach(r => S.marks[r.cand_id + '|' + r.item_code] = r);
-    S.outcomes = {}; (oc.data || []).forEach(r => S.outcomes[r.cand_id] = r);
+    const OFF = window.Off, ck = 'ge_live_' + id;
+    let got;
+    if (ev.error || !ev.data || mk2.error || oc.error) {   // no signal: keep what's on screen (or the copy on this device)
+      if (OFF && (OFF.netErr(ev) || OFF.netErr(mk2))) OFF.markOffline();
+      if (Object.keys(S.marks).length || !OFF) return;
+      got = OFF.cache(ck); if (!got) return;
+    } else { got = { ev: ev.data, marks: mk2.data || [], outcomes: oc.data || [] }; if (OFF) OFF.cache(ck, got); }
+    Object.assign(S.ev, got.ev);
+    S.marks = {}; got.marks.forEach(r => S.marks[r.cand_id + '|' + r.item_code] = r);
+    S.outcomes = {}; got.outcomes.forEach(r => S.outcomes[r.cand_id] = r);
+    // changes made here that haven't reached the server yet stay on screen
+    if (OFF) for (const op of OFF.pendingOf('ge_mark')) { const k = op.row.cand_id + '|' + op.row.item_code; if (op.del) delete S.marks[k]; else S.marks[k] = op.row; }
+    if (OFF) for (const op of OFF.pendingOf('ge_outcome')) { if (op.del) delete S.outcomes[op.cand_id]; else S.outcomes[op.cand_id] = op.row; }
+    if (OFF) for (const op of OFF.pendingOf('ge_live')) S.ev.live = { ...(S.ev.live || {}), ...op.patch };
   }
+  // scoring, results and the live step are saved through offline.js: sent now, or kept here and sent when back
+  const OQ = {
+    ge_mark: op => op.del ? db().from('ge_marks').delete().eq('event_id', op.row.event_id).eq('cand_id', op.row.cand_id).eq('item_code', op.row.item_code)
+                          : db().from('ge_marks').upsert(op.row, { onConflict: 'event_id,cand_id,item_code' }),
+    ge_outcome: op => op.del ? db().from('ge_outcomes').delete().eq('event_id', op.event_id).eq('cand_id', op.cand_id) : db().from('ge_outcomes').upsert(op.row),
+    ge_live: op => db().rpc('ge_live_set', { p_event: op.event_id, p_patch: op.patch }),
+  };
+  if (window.Off) Object.keys(OQ).forEach(t => Off.register(t, OQ[t]));
+  const save = op => window.Off ? Off.run(op) : OQ[op.t](op);
   async function setLive(patch) {
     S.ev.live = { ...live(), ...patch }; draw();
-    const { error } = await db().rpc('ge_live_set', { p_event: S.ev.event_id, p_patch: patch });
+    const { error } = await save({ t: 'ge_live', event_id: S.ev.event_id, patch });
     if (error) say('Not saved: ' + error.message, 4000);
   }
   // Calls the test server. If the sign-in on this device has been ended elsewhere (the server says 401), refresh it
@@ -69,9 +88,9 @@
     if (!can('scoring', 'grading', 'results')) return say('Your login can’t score.');
     const key = cid + '|' + code, cur = S.marks[key] || {};
     const row = { event_id: S.ev.event_id, cand_id: cid, item_code: code, result: result === undefined ? cur.result || null : result, comment: comment === undefined ? cur.comment || null : comment, scored_by: ME, updated_at: new Date().toISOString() };
-    if (!row.result && !row.comment) { delete S.marks[key]; draw(); const { error } = await db().from('ge_marks').delete().eq('event_id', row.event_id).eq('cand_id', cid).eq('item_code', code); if (error) say('Not saved: ' + error.message, 4000); return; }
+    if (!row.result && !row.comment) { delete S.marks[key]; draw(); const { error } = await save({ t: 'ge_mark', key: 'm:' + key, del: true, row }); if (error) say('Not saved: ' + error.message, 4000); return; }
     S.marks[key] = row; draw();
-    const { error } = await db().from('ge_marks').upsert(row, { onConflict: 'event_id,cand_id,item_code' });
+    const { error } = await save({ t: 'ge_mark', key: 'm:' + key, row });
     if (error) say('Not saved: ' + error.message, 4000);
   }
   const stepCodes = (st, c) => (st.items && st.items[c.syl]) || [];
@@ -366,7 +385,9 @@
       ${!appr && can('grading', 'results') ? '<div class="ge-row noprint" style="margin-top:10px"><button class="ge-btn sm" id="geFill">Set Pass for everyone suggested Pass</button></div>' : ''}`;
     inM('[data-o]').forEach(s => s.onchange = async () => {
       const id = s.dataset.o, v = s.value;
-      const r = v ? await db().from('ge_outcomes').upsert({ event_id: S.ev.event_id, cand_id: id, outcome: v, set_by: ME, set_at: new Date().toISOString() }) : await db().from('ge_outcomes').delete().eq('event_id', S.ev.event_id).eq('cand_id', id);
+      const row = { event_id: S.ev.event_id, cand_id: id, outcome: v, set_by: ME, set_at: new Date().toISOString() };
+      if (v) S.outcomes[id] = row; else delete S.outcomes[id];
+      const r = await save(v ? { t: 'ge_outcome', key: 'o:' + id, cand_id: id, row } : { t: 'ge_outcome', key: 'o:' + id, del: true, event_id: S.ev.event_id, cand_id: id });
       if (r.error) say(r.error.message, 4000); await loadLive(); draw();
     });
     const fp = $1('#geFill'); if (fp) fp.onclick = async () => { const r2 = rows.filter(r => r.s.suggest === 'pass' && !r.o).map(r => ({ event_id: S.ev.event_id, cand_id: r.c.id, outcome: 'pass', set_by: ME, set_at: new Date().toISOString() })); if (!r2.length) return say('Nobody new to set.'); const { error } = await db().from('ge_outcomes').upsert(r2); if (error) say(error.message); await loadLive(); draw(); };
@@ -400,8 +421,12 @@
   async function attach(dayId) {
     S.ev = null; pills(false);
     if (!dayId) return;
-    const { data } = await db().from('ge_events').select('*').eq('day_id', dayId).order('starts_at', { ascending: false }).limit(1);
-    const ev = data && data[0]; if (!ev) return;
+    const OFF = window.Off, ck = 'ge_ev_' + dayId;
+    const got = await db().from('ge_events').select('*').eq('day_id', dayId).order('starts_at', { ascending: false }).limit(1);
+    let ev = got.data && got.data[0];
+    if (got.error && OFF) ev = OFF.cache(ck);            // no signal: the copy on this device
+    else if (OFF) OFF.cache(ck, ev || null);
+    if (!ev) return;
     S.ev = ev;
     const [bb, cb] = await Promise.all([db().rpc('app_my_perms', { p_app: 'bb' }), db().rpc('app_my_perms', { p_app: 'cb' })]);
     const cbp = cb.data || [];

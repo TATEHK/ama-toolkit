@@ -1,0 +1,13 @@
+{
+  "name": "AMA Grading Floor",
+  "short_name": "Grading Floor",
+  "start_url": "/grading/floor/",
+  "scope": "/grading/floor/",
+  "display": "standalone",
+  "background_color": "#0f1713",
+  "theme_color": "#0f1713",
+  "icons": [
+    { "src": "/icons/ama-apple-touch.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icons/ama-id-cards.png", "sizes": "192x192", "type": "image/png" }
+  ]
+}

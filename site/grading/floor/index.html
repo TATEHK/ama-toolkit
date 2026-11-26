@@ -9,6 +9,10 @@
 <link rel="icon" href="../../icons/ama-id-cards.png">
 <link rel="apple-touch-icon" href="../../icons/ama-apple-touch.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="offline.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Grading Floor">
 <script src="../../config.js"></script>
 <script src="../../hub-signin.js"></script>
 <script src="../../idle-logout.js"></script>
@@ -1246,6 +1250,7 @@ $('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').classList.remove('
 // ================= live wiring: auth, day load, persistence, polling =================
 const CFG = window.TOOLKIT_CONFIG || {};
 const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY, { auth: { lock:(()=>{let q=Promise.resolve();return(n,t,f)=>{const r=q.then(f,f);q=r.catch(()=>{});return r;};})() } });
+if (window.Off) Off.wrap(sb);   // keeps working with no signal (offline.js)
 const SUPER_EMAIL = 'theggatonklenner@gmail.com';   // only this login gets the Super role
 let ME = '', PERMS = [], canSuper = false, loading = false, pollT = null;
 function toast(msg, ms) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); } t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms || 3000); }
@@ -1397,7 +1402,7 @@ async function rsOpenSlot(slot, gnum, glabel){
   const doc=data.doc||{}; const live=data.live||{step_ix:0,move_ix:0,ticks:{}};
   RS={ slot, gnum, glabel, rid:data.runsheet_id, title:data.title||doc.title||'Run sheet', note:doc.note||'', window:doc.window||'', event:doc.event_slug||'',
        flat:rsFlat(doc), ix:Math.max(0,Math.min((live.step_ix||0),Math.max(0,rsFlat(doc).length-1))), move:(live.move_ix||0), ticks:live.ticks||{}, touched:0, pollT:null };
-  renderRsLive();
+  renderRsLive(); savePos();
   RS.pollT=setInterval(rsPoll,4000);
 }
 function renderRsShell(slot,gnum,glabel,inner){
@@ -1473,7 +1478,7 @@ async function rsPoll(){
       if(liveEl&&!liveEl.hidden) renderRsLive(); if(presenting) renderRsPresent(); }
   }catch(e){}
 }
-function rsClose(){ if(RS&&RS.pollT){ clearInterval(RS.pollT); RS.pollT=null; } const el=document.getElementById('rsLive'); if(el) el.hidden=true; const pz=document.getElementById('rsPresent'); if(pz) pz.hidden=true; }
+function rsClose(){ if(RS&&RS.pollT){ clearInterval(RS.pollT); RS.pollT=null; } const el=document.getElementById('rsLive'); if(el) el.hidden=true; const pz=document.getElementById('rsPresent'); if(pz) pz.hidden=true; savePos(); }
 
 // ---- Present mode: big one-move-at-a-time screen with Next move, shows both belts when a step grades two ----
 function rsMoves(items){ const out=[]; let head=''; (items||[]).forEach(it=>{ if(it.h){ head=it.t; return; } out.push({ head, text:it.t }); }); return out; }  // flatten to moves, keeping the current heading
@@ -1525,8 +1530,8 @@ function rsPresentInjectCSS(){ if(document.getElementById('rsPrezCSS')) return; 
   .pz-screen .pz-tap{font-size:13px;color:#6c756c;margin-top:8px;text-align:center}
   @media (max-width:640px){.pz-screen .pz-mid{flex-direction:column;gap:12px}.pz-screen .pz-move{font-size:clamp(30px,9vw,48px)}}`;
   document.head.appendChild(st); }
-function openRsPresent(){ if(!RS) return; rsPresentInjectCSS(); let el=document.getElementById('rsPresent'); if(!el){ el=document.createElement('div'); el.id='rsPresent'; el.className='pz-screen'; document.body.appendChild(el); } el.hidden=false; renderRsPresent(); }
-function rsPresentClose(){ const el=document.getElementById('rsPresent'); if(el) el.hidden=true; renderRsLive(); }
+function openRsPresent(){ if(!RS) return; rsPresentInjectCSS(); let el=document.getElementById('rsPresent'); if(!el){ el=document.createElement('div'); el.id='rsPresent'; el.className='pz-screen'; document.body.appendChild(el); } el.hidden=false; renderRsPresent(); savePos(); }
+function rsPresentClose(){ const el=document.getElementById('rsPresent'); if(el) el.hidden=true; renderRsLive(); savePos(); }
 function rsMovePanel(side, part, moveIx){ // side 'a'/'b' → tick key prefix i/j
   if(!part) return '';
   const ip = side==='a'?'i':'j';
@@ -1611,7 +1616,9 @@ function openCbPresent(gi, move){ const a=(gi==null?state.active:Math.min(gi,sta
   let el=document.getElementById('cbPresent'); if(!el){ el=document.createElement('div'); el.id='cbPresent'; el.className='pz-screen'; document.body.appendChild(el); } el.hidden=false; renderCbPresent(); }
 function cbPresentClose(){ const el=document.getElementById('cbPresent'); if(el) el.hidden=true; savePos(); render(); }
 // remember which group tab / present position you were on, so a reload comes back to it (per day, this device)
-function savePos(){ try{ const el=document.getElementById('cbPresent'); localStorage.setItem('cb_floor_pos', JSON.stringify({ day:DAYID, active:state.active, cbp:(el&&!el.hidden)?{gi:cbpGi,move:cbpMove}:null })); }catch(e){} }
+function savePos(){ try{ const el=document.getElementById('cbPresent'), rl=document.getElementById('rsLive'), rp=document.getElementById('rsPresent');
+  const rs=(RS&&rl&&!rl.hidden)?{slot:RS.slot,gnum:RS.gnum,glabel:RS.glabel,present:!!(rp&&!rp.hidden)}:null;
+  localStorage.setItem('cb_floor_pos', JSON.stringify({ day:DAYID, active:state.active, cbp:(el&&!el.hidden)?{gi:cbpGi,move:cbpMove}:null, rs })); }catch(e){} }
 function cbMovePanel(part, adults){ const tgt=esc(part.belt)+' → '+esc(nextOf(part.belt));
   if(!part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">No curriculum.</div></div>`;
   if(cbpMove>=part.moves.length) return `<div class="pz-belt"><div class="pz-bname">${tgt}</div><div class="pz-move done">✓ Finished all moves</div><div class="pz-count">${part.moves.length} / ${part.moves.length}</div></div>`;
@@ -1813,12 +1820,17 @@ async function loadDay(dayId) {
   $('#dayLabel').textContent = `${schoolOf(DAYINFO.location)} · ${fmtDay(DAYINFO.date)}`;
   if (!(data.groups && data.groups.length)) persistGroups();
   // come back to the group tab / present position you were on before a reload (same day, this device)
-  let reopen=null; try{ const pos=JSON.parse(localStorage.getItem('cb_floor_pos')||'null');
-    if(pos && pos.day===DAYID){ if(Number.isInteger(pos.active) && pos.active>=0 && pos.active<state.groups.length) state.active=pos.active;
+  let reopen=null, reRs=null; try{ const pos=JSON.parse(localStorage.getItem('cb_floor_pos')||'null');
+    if(pos && pos.day===DAYID){ if(pos.rs && BBMODE() && hasGradings()) reRs=pos.rs; if(Number.isInteger(pos.active) && pos.active>=0 && pos.active<state.groups.length) state.active=pos.active;
       if(pos.cbp && !BBMODE() && state.groups[pos.active] && cbPartsFor(state.groups[pos.active]).length) reopen=pos.cbp; } }catch(e){}
   $('#gate').hidden = true; render();
-  if (window.GE) GE.attach(DAYID);   // a grading event on this day adds Scoring / Theory test / MC / Results (event.js)
+  const geReady = window.GE ? GE.attach(DAYID) : null;   // a grading event on this day adds its tools to the run sheet (event.js)
   if(reopen) openCbPresent(reopen.gi, reopen.move);
+  // a refresh comes back to the run sheet (and its Present screen) you had open; its step and ticks are saved live
+  if(reRs){ try{ await geReady; }catch(e){} rsInjectCSS(); let el=document.getElementById('rsLive'); if(!el){ el=document.createElement('div'); el.id='rsLive'; document.body.appendChild(el); }
+    el.hidden=false; await rsOpenSlot(reRs.slot, reRs.gnum, reRs.glabel); if(reRs.present && RS) openRsPresent(); }
+  // keep every grading's run sheet on this device, so it opens with no signal
+  if(BBMODE() && hasGradings()) gradingsPresent().forEach(g => { try{ sb.rpc('cb_runsheet_for_slot',{p_day:DAYID,p_slot:gradingInfo(g.idx).time}).then(()=>{},()=>{}); }catch(e){} });
   if (pollT) clearInterval(pollT); pollT = setInterval(pollDay, 4000);
 }
 async function pollDay() {
@@ -1866,7 +1878,8 @@ async function showDays() {
 }
 async function boot() {
   if (window.AmaHub) { try { await AmaHub.recheck({ sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY }); } catch (e) {} }
-  const { data: { session } } = await sb.auth.getSession();
+  let { data: { session } } = await sb.auth.getSession();
+  if (!session && window.Off) session = Off.storedSession();   // no signal: Supabase can't refresh it, but it's still yours
   if (!session) { $('#gate').hidden = false; $('#gate').classList.remove('board'); $('#gateMsg').textContent = 'Sign in with your AMA hub mobile and PIN'; $('#siForm').hidden = false; $('#daypick').hidden = true; try { if (window.AmaHub) AmaHub.mount(HUB); } catch (e) {} return; }
   ME = (session.user.email || '').toLowerCase();
   const { data: perms } = await sb.rpc('app_my_perms', { p_app: 'cb' }); PERMS = perms || [];

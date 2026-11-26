@@ -80,6 +80,8 @@
       if (goneOut) return;
       if (!signedIn) { hide(); return; }
       if (trusted) { hide(); return; }   // a trusted device stays signed in — no idle logout
+      // no signal: don't sign out a device that couldn't sign back in (or has changes waiting to send)
+      if (navigator.onLine === false || (window.Off && (Off.isOffline()))) { hide(); return; }
       var idle = now() - last();
       if (idle >= LIMIT) { goneOut = true; hide(); sb.auth.signOut({ scope: 'local' }).then(function () { location.reload(); }, function () { location.reload(); }); return; }
       if (idle >= LIMIT - WARN) { ui(); if (label) label.textContent = String(Math.ceil((LIMIT - idle) / 1000)); }
