@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f1713">
+<link rel="icon" href="../icons/ama-id-cards.png">
+<script src="../config.js"></script>
+<title>AMA Quiz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+:root{--bg:#0f1713;--panel:#15201a;--line:#253629;--ink:#edf2ee;--ink-2:#a3b5a9;--accent:#f5c518;--ok:#2f9e5b;--bad:#e05a44;--display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 Barlow,"Segoe UI",Arial,sans-serif;min-height:100%}
+main{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 24px);min-height:100vh;display:flex;flex-direction:column;gap:14px}
+h1,h2{font-family:var(--display);margin:0}
+.brand{display:flex;align-items:center;gap:10px;font:700 18px var(--display)}
+.logo{width:32px;height:32px;border-radius:9px;background:var(--accent);color:#14130a;display:grid;place-items:center;font:700 16px var(--display)}
+.btn{border:0;border-radius:14px;padding:14px 16px;font:700 18px Barlow,sans-serif;background:var(--accent);color:#14130a;width:100%}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+input{font:700 28px var(--display);letter-spacing:.2em;text-transform:uppercase;text-align:center;width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.names{display:flex;flex-direction:column;gap:8px}
+.names button{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-align:left;font:600 18px Barlow,sans-serif;color:var(--ink)}
+.names button small{color:var(--ink-2);font-weight:500}
+.center{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:12px}
+.big{font:700 34px/1.1 var(--display)}
+.muted{color:var(--ink-2)}
+.qhead{display:flex;justify-content:space-between;align-items:center;color:var(--ink-2);font:700 15px var(--display)}
+.left{font:700 30px var(--display);color:var(--accent)}
+.qtext{font:700 24px/1.2 var(--display)}
+.opts{display:grid;gap:10px;flex:1}
+.opt{border:0;border-radius:16px;color:#fff;font:700 21px/1.2 var(--display);padding:16px;text-align:left;display:flex;gap:12px;align-items:center;min-height:70px}
+.opt i{font-style:normal;background:rgba(0,0,0,.25);border-radius:9px;padding:2px 10px}
+.o0{background:#c0392b}.o1{background:#2e6fd8}.o2{background:#c99a06}.o3{background:#1f8f4e}
+.opt.picked{outline:4px solid #fff}.opt.dim{opacity:.35}
+.ord{display:flex;flex-direction:column;gap:8px}
+.ord button{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:14px;font:700 19px var(--display);text-align:left;display:flex;gap:10px}
+.ord button b{background:var(--accent);color:#14130a;border-radius:8px;min-width:30px;text-align:center}
+.ord button.used{opacity:.4}
+.res{border-radius:18px;padding:22px;text-align:center}
+.res.ok{background:#173a26}.res.no{background:#3a1f19}
+.fact{background:var(--panel);border-left:5px solid var(--accent);padding:12px 14px;border-radius:10px;text-align:left}
+.lb{display:flex;flex-direction:column;gap:6px;width:100%}
+.lb div{display:flex;justify-content:space-between;background:var(--panel);border-radius:12px;padding:10px 14px;font:700 18px var(--display)}
+.err{color:#ef8a73;text-align:center}
+</style>
+</head>
+<body>
+<main id="m"><div class="center"><p class="muted">Loading…</p></div></main>
+<script>
+const CFG = window.TOOLKIT_CONFIG || {};
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } };
+const newToken = () => { const b = crypto.getRandomValues(new Uint8Array(24)); return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+let [CODE, TAB] = (location.hash || '').slice(1).split('/');
+CODE = (CODE || ls('ama_quiz_code') || '').toUpperCase();
+let TOKEN = null, ST = null, pick = null, order = [], sentFor = -1, timer = null, lastKey = '';
+const head = `<div class="brand"><div class="logo">A</div>AMA Quiz</div>`;
+async function call(body) {
+  const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/gevent', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({ ok: false, error: 'No connection. Trying again…' }));
+  j.status = r.status; return j;
+}
+function askCode(msg) {
+  $('#m').innerHTML = `${head}<div class="center"><div class="big">Join the quiz</div><p class="muted">Type the code on the big screen</p>
+    <input id="code" maxlength="12" autocomplete="off" autocapitalize="characters" value="${esc(CODE)}"><button class="btn" id="go">Join</button>${msg ? `<p class="err">${esc(msg)}</p>` : ''}</div>`;
+  $('#go').onclick = () => { CODE = $('#code').value.trim().toUpperCase(); start(); };
+  $('#code').onkeydown = e => { if (e.key === 'Enter') $('#go').click(); };
+}
+async function start() {
+  if (!CODE) return askCode();
+  ls('ama_quiz_code', CODE);
+  if (TAB) { TOKEN = TAB; ls('ama_quiz_tok_' + CODE, TOKEN); TAB = null; try { history.replaceState(null, '', '#' + CODE); } catch (e) {} return play(); }
+  TOKEN = ls('ama_quiz_tok_' + CODE);
+  if (TOKEN) { const s = await call({ action: 'state', code: CODE, token: TOKEN }); if (s.ok) return play(); }
+  const j = await call({ action: 'join', code: CODE });
+  if (!j.ok) return askCode(j.error);
+  $('#m').innerHTML = `${head}<div><div class="big">${esc(j.title)}</div><p class="muted">Tap your name</p></div>
+    <div class="names">${j.players.map(p => `<button data-id="${p.id}">${esc(p.name)} ${p.taken ? '<small>· joined</small>' : ''}</button>`).join('')}</div>`;
+  document.querySelectorAll('[data-id]').forEach(b => b.onclick = () => claim(b.dataset.id, b.textContent.replace('· joined', '').trim()));
+}
+async function claim(id, name, force) {
+  TOKEN = ls('ama_quiz_tok_' + CODE) || newToken();
+  const r = await call({ action: 'claim', code: CODE, cand_id: id, token: TOKEN, force: !!force });
+  if (r.taken) { if (confirm(`${name} is already playing on another device. Play here instead?`)) return claim(id, name, true); return; }
+  if (!r.ok) return alert(r.error || 'Try again.');
+  ls('ama_quiz_tok_' + CODE, TOKEN); play();
+}
+function play() { clearInterval(timer); poll(); timer = setInterval(poll, 1000); }
+setInterval(tick, 250);
+async function poll() {
+  const s = await call({ action: 'state', code: CODE, token: TOKEN });
+  if (!s.ok) { if (s.rejoin) { ls('ama_quiz_tok_' + CODE, null); clearInterval(timer); return start(); } return; }
+  s.at = Date.now(); ST = s;
+  const key = [s.phase, s.question && s.question.ix, !!s.my_answer, s.top && s.top.map(t => t.points).join()].join('|');
+  if (key !== lastKey) { lastKey = key; draw(); }
+}
+function tick() { const el = $('#left'); if (el && ST) el.textContent = Math.max(0, Math.ceil((ST.ends_in_ms - (Date.now() - ST.at)) / 1000)); }
+function draw() {
+  const s = ST, q = s.question, me = esc(s.me.name.split(' ')[0]);
+  if (['closed', 'lobby'].includes(s.phase) || !q && !['leaderboard', 'podium'].includes(s.phase)) {
+    $('#m').innerHTML = `${head}<div class="center"><div class="big">You're in, ${me}</div><p class="muted">Watch the big screen. The first question appears here when Mark starts.</p>
+      <button class="btn ghost" id="notme" style="width:auto">Not ${me}? Change name</button></div>`;
+    $('#notme').onclick = () => { ls('ama_quiz_tok_' + CODE, null); clearInterval(timer); start(); };
+    return;
+  }
+  if (s.phase === 'question') {
+    if (q.ix !== sentFor && !s.my_answer) { /* fresh question */ }
+    if (s.my_answer || sentFor === q.ix) { $('#m').innerHTML = `${head}<div class="qhead"><span>Question ${q.ix + 1} of ${q.total}</span><span class="left" id="left"></span></div><div class="center"><div class="big">Locked in</div><p class="muted">Waiting for the answer…</p></div>`; return tick(); }
+    if (q.type === 'order') {
+      if (order._q !== q.ix) { order = []; order._q = q.ix; }
+      $('#m').innerHTML = `${head}<div class="qhead"><span>Q${q.ix + 1}/${q.total} · ${esc(q.round_name)}</span><span class="left" id="left"></span></div><div class="qtext">${esc(q.text)}</div>
+        <p class="muted" style="margin:0">Tap them in order, earliest first.</p>
+        <div class="ord">${q.options.map((o, i) => { const at = order.indexOf(i); return `<button data-o="${i}" class="${at >= 0 ? 'used' : ''}"><b>${at >= 0 ? at + 1 : ''}</b>${esc(o)}</button>`; }).join('')}</div>
+        <div style="display:flex;gap:8px"><button class="btn ghost" id="clr">Clear</button><button class="btn" id="send" ${order.length === q.options.length ? '' : 'disabled style="opacity:.5"'}>Lock it in</button></div>`;
+      document.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { const i = +b.dataset.o; if (!order.includes(i)) order.push(i); draw(); });
+      $('#clr').onclick = () => { order = []; order._q = q.ix; draw(); };
+      $('#send').onclick = () => { if (order.length === q.options.length) send(q.ix, order.slice()); };
+    } else {
+      $('#m').innerHTML = `${head}<div class="qhead"><span>Q${q.ix + 1}/${q.total} · ${esc(q.round_name)}</span><span class="left" id="left"></span></div><div class="qtext">${esc(q.text)}</div>
+        <div class="opts">${q.options.map((o, i) => `<button class="opt o${i}" data-a="${i}"><i>${'ABCD'[i]}</i>${esc(o)}</button>`).join('')}</div>`;
+      document.querySelectorAll('[data-a]').forEach(b => b.onclick = () => send(q.ix, +b.dataset.a));
+    }
+    return tick();
+  }
+  if (s.phase === 'reveal') {
+    const a = s.my_answer, ok = a && a.correct, ca = s.correct_answer;
+    const right = q.type === 'order' ? ca.map(i => q.options[i]).join(' → ') : q.options[ca];
+    $('#m').innerHTML = `${head}<div class="qhead"><span>Question ${q.ix + 1} of ${q.total}</span></div>
+      <div class="res ${ok ? 'ok' : 'no'}"><div class="big">${a ? (ok ? 'Correct!' : 'Not this time') : 'No answer'}</div>${ok ? `<p style="font:700 24px var(--display);margin:6px 0 0">+${a.points} points${a.streak >= 3 ? ` · ${a.streak} in a row` : ''}</p>` : ''}</div>
+      <p><span class="muted">Answer:</span> <b>${esc(right)}</b></p>${s.fact ? `<div class="fact">${esc(s.fact)}</div>` : ''}
+      ${s.my_total ? `<p class="muted" style="text-align:center">You're ${s.my_total.rank ? ordinal(s.my_total.rank) : '—'} with ${s.my_total.points} points</p>` : ''}`;
+    return;
+  }
+  if (s.phase === 'leaderboard' || s.phase === 'podium') {
+    const t = s.my_total || {};
+    $('#m').innerHTML = `${head}<div class="center"><div class="big">${s.phase === 'podium' ? 'Final results' : 'Leaderboard'}</div>
+      <p style="font:700 26px var(--display);margin:0">You're ${t.rank ? ordinal(t.rank) : '—'} of ${t.of || 0}</p><p class="muted" style="margin:0">${t.points || 0} points · ${t.correct || 0} correct</p>
+      <div class="lb">${(s.top || []).map((x, i) => `<div><span>${i + 1}. ${esc(x.name)}</span><span>${x.points}</span></div>`).join('')}</div>
+      ${s.phase === 'podium' ? '<p class="muted">Thanks for playing!</p>' : '<p class="muted">Next round coming up…</p>'}</div>`;
+  }
+}
+const ordinal = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)] || 'th');
+async function send(ix, answer) {
+  sentFor = ix; lastKey = ''; draw();
+  const r = await call({ action: 'answer', code: CODE, token: TOKEN, q_ix: ix, answer });
+  if (!r.ok && r.status !== 409) { sentFor = -1; alert(r.error || 'Not sent. Try again.'); }
+  lastKey = ''; poll();
+}
+start();
+</script>
+</body>
+</html>
