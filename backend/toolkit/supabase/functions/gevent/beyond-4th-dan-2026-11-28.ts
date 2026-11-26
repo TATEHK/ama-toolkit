@@ -299,7 +299,7 @@ export default {
     {
      "code": "4D-14",
      "section": "Theory",
-     "text": "Theory test on their phone, pass 24/30"
+     "text": "Theory test on their phone: all 30 right (redo any wrong)"
     }
    ]
   },
@@ -369,7 +369,7 @@ export default {
     {
      "code": "L1-13",
      "section": "Theory",
-     "text": "Theory test on their phone, pass 24/30"
+     "text": "Theory test on their phone: all 30 right (redo any wrong)"
     }
    ]
   },
@@ -439,7 +439,7 @@ export default {
     {
      "code": "L3-13",
      "section": "Theory",
-     "text": "Theory test on their phone, pass 24/30"
+     "text": "Theory test on their phone: all 30 right (redo any wrong)"
     }
    ]
   }
@@ -645,8 +645,8 @@ export default {
    "time": "11:30",
    "mins": 30,
    "title": "Theory test",
-   "train": "30 questions on their own phones, at their own pace, 30 minutes. Private: no scores shown.",
-   "notes": "Pass 24/30. Marked from the test",
+   "train": "30 questions on their own phones, at their own pace, 30 minutes. Pass is all 30 right: anyone with a wrong answer redoes just those questions. Private: no scores shown.",
+   "notes": "Pass 30/30 (redo wrong questions). Marked from the test",
    "quiz": true,
    "assess": [
     {
@@ -1852,7 +1852,7 @@ export default {
     "fact": ""
    }
   ],
-  "pass_mark": 24,
+  "pass_mark": 30,
   "theory_items": {
    "4D": "4D-14",
    "L1": "L1-13",

@@ -65,7 +65,8 @@ const newToken = () => { const b = crypto.getRandomValues(new Uint8Array(24)); r
 const mmss = s => Math.floor(s / 60) + ':' + String(Math.max(0, s) % 60).padStart(2, '0');
 let [CODE, TAB] = (location.hash || '').slice(1).split('/');
 CODE = (CODE || ls('ama_quiz_code') || '').toUpperCase();
-let TOKEN = null, ST = null, QS = null, ANS = {}, cur = 0, timer = null, view = '', savedMsg = '';
+let TOKEN = null, ST = null, QS = null, ANS = {}, cur = 0, timer = null, view = '', savedMsg = '', REDO = null;
+const list = () => REDO ? QS.filter(q => REDO.includes(q.ix)) : QS;   // when redoing, only the questions that were wrong
 const brand = `<div class="brand"><div class="logo">A</div>Theory test</div>`;
 async function call(body) {
   try {
@@ -106,22 +107,23 @@ async function poll() {
   if (!s.ok) { if (s.rejoin) { ls('ama_quiz_tok_' + CODE, null); clearInterval(timer); return start(); } return; }
   s.at = Date.now(); ST = s;
   if (s.questions) QS = s.questions;
-  if (s.answers && view !== 'test') ANS = { ...s.answers };   // answers saved on the server (e.g. after a reload); the phone's own copy wins once working
+  if (view !== 'test') { if (s.answers) ANS = { ...s.answers }; REDO = s.redo || null; }
   draw();
 }
 setInterval(() => { const el = $('#left'); if (!el || !ST) return; const left = Math.max(0, Math.round((ST.ends_in_ms - (Date.now() - ST.at)) / 1000)); el.textContent = mmss(left); el.classList.toggle('low', left < 120); }, 500);
 function draw() {
   const s = ST, me = esc((s.me.name || '').split(' ')[0]);
-  if (s.submitted) return page('done', `<div class="top">${brand}</div><div class="center"><div class="big">Test handed in</div><p class="muted">Thanks, ${me}. The panel will let you know your result. You can put your phone away.</p></div>`);
-  if (s.phase === 'ended') return page('ended', `<div class="top">${brand}</div><div class="center"><div class="big">Time is up</div><p class="muted">Thanks, ${me}. Your saved answers have been handed in.</p></div>`);
-  if (s.phase !== 'open' || !QS) return page('wait', `<div class="top">${brand}</div><div class="center"><div class="big">You're signed in, ${me}</div><p class="muted">The test starts when the panel says go: ${s.total} questions, ${s.minutes} minutes, at your own pace. You can go back and change answers until you submit.</p>
+  if (s.submitted) return page('done', `<div class="top">${brand}</div><div class="center"><div class="big">All ${s.total} right</div><p class="muted">Well done, ${me}. Your theory test is complete. You can put your phone away.</p></div>`);
+  if (s.phase === 'ended') return page('ended', `<div class="top">${brand}</div><div class="center"><div class="big">Time is up</div><p class="muted">Thanks, ${me}. Your answers have been handed in. The panel will talk to you about your result.</p></div>`);
+  if (s.phase !== 'open' || !QS) return page('wait', `<div class="top">${brand}</div><div class="center"><div class="big">You're signed in, ${me}</div><p class="muted">The test starts when the panel says go: ${s.total} questions, ${s.minutes} minutes, at your own pace. You can go back and change answers until you submit. To pass you need every answer right; if any are wrong you'll be asked to redo just those.</p>
       <button class="btn ghost" id="notme" style="width:auto">Not ${me}? Change name</button></div>`, () => { $('#notme').onclick = () => { ls('ama_quiz_tok_' + CODE, null); clearInterval(timer); QS = null; view = ''; start(); }; });
   if (view !== 'test') { view = 'test'; drawQ(); }
 }
 function page(v, html, wire) { if (view === v) return; view = v; $('#m').innerHTML = html; wire && wire(); }
 const isDone = q => ANS[q.ix] != null && !(Array.isArray(ANS[q.ix]) && ANS[q.ix].length !== q.options.length);
 function drawQ() {
-  const q = QS[cur], a = ANS[q.ix], n = QS.filter(isDone).length;
+  const L = list(); if (cur >= L.length) cur = 0;
+  const q = L[cur], a = ANS[q.ix], n = L.filter(isDone).length;
   let opts;
   if (q.type === 'order') {
     const ord = Array.isArray(a) ? a : [];
@@ -129,11 +131,12 @@ function drawQ() {
       <button class="btn ghost" id="clr" style="padding:10px">Clear</button>`;
   } else opts = `<div class="opts">${q.options.map((o, i) => `<button class="opt ${a != null && Number(a) === i ? 'on' : ''}" data-a="${i}"><i>${q.type === 'tf' ? (i ? 'F' : 'T') : 'ABCD'[i]}</i>${esc(o)}</button>`).join('')}</div>`;
   $('#m').innerHTML = `<div class="top">${brand}<span class="grow"></span><span class="time" id="left"></span></div>
-    <div class="qhead"><span>Question ${cur + 1} of ${QS.length}${q.section ? ' · ' + esc(q.section) : ''}</span><span>${n} answered</span></div>
+    ${REDO ? `<div class="saved" style="color:var(--accent);font-weight:700;text-align:left">Redo: ${L.length} question${L.length === 1 ? '' : 's'} to answer again. Your other answers are right.</div>` : ''}
+    <div class="qhead"><span>Question ${q.ix + 1} of ${QS.length}${q.section ? ' · ' + esc(q.section) : ''}</span><span>${n} of ${L.length} answered</span></div>
     <div class="qtext">${esc(q.text)}</div>${opts}<div class="saved" id="saved">${esc(savedMsg)}</div>
-    <div class="nav"><button class="btn ghost" id="prev" ${cur ? '' : 'disabled'}>Back</button>${cur < QS.length - 1 ? '<button class="btn" id="next">Next</button>' : '<button class="btn sub">Review and submit</button>'}</div>
-    <div class="dots">${QS.map((x, i) => `<button data-j="${i}" class="${isDone(x) ? 'done' : ''} ${i === cur ? 'cur' : ''}">${i + 1}</button>`).join('')}</div>
-    ${cur < QS.length - 1 ? '<button class="btn ghost sub">Submit test</button>' : ''}`;
+    <div class="nav"><button class="btn ghost" id="prev" ${cur ? '' : 'disabled'}>Back</button>${cur < L.length - 1 ? '<button class="btn" id="next">Next</button>' : '<button class="btn sub">Review and submit</button>'}</div>
+    <div class="dots">${L.map((x, i) => `<button data-j="${i}" class="${isDone(x) ? 'done' : ''} ${i === cur ? 'cur' : ''}">${x.ix + 1}</button>`).join('')}</div>
+    ${cur < L.length - 1 ? '<button class="btn ghost sub">Submit test</button>' : ''}`;
   savedMsg = '';
   $$('[data-a]').forEach(b => b.onclick = () => save(q.ix, +b.dataset.a));
   $$('[data-o]').forEach(b => b.onclick = () => { const ord = Array.isArray(ANS[q.ix]) ? ANS[q.ix].slice() : []; const i = +b.dataset.o; if (ord.includes(i)) return; ord.push(i); ANS[q.ix] = ord; if (ord.length === q.options.length) save(q.ix, ord); else drawQ(); });
@@ -153,13 +156,25 @@ async function save(ix, ans) {
   else { if (el) el.textContent = r.error || 'Not saved. Try again.'; if (r.status === 409) { view = ''; poll(); } }
 }
 function review() {
-  const missing = QS.filter(q => !isDone(q)).map(q => q.ix + 1);
+  const missing = list().filter(q => !isDone(q)).map(q => q.ix + 1);
   const d = $('#dlg');
-  d.innerHTML = `<h2>Submit your test?</h2><p class="muted">${missing.length ? `You haven't answered question${missing.length > 1 ? 's' : ''} ${missing.join(', ')}.` : 'You have answered every question.'} You can't change answers after you submit.</p>
+  d.innerHTML = `<h2>${REDO ? 'Submit your redo?' : 'Submit your test?'}</h2><p class="muted">${missing.length ? `You haven't answered question${missing.length > 1 ? 's' : ''} ${missing.join(', ')}.` : 'You have answered every question.'} ${REDO ? '' : 'Any wrong answers come back to you to redo.'}</p>
     <div style="display:flex;flex-direction:column;gap:8px"><button class="btn" id="dGo">Submit</button><button class="btn ghost" id="dNo">Keep working</button></div>`;
   d.showModal();
-  $('#dNo').onclick = () => { d.close(); if (missing.length) { cur = missing[0] - 1; drawQ(); } };
-  $('#dGo').onclick = async () => { $('#dGo').disabled = true; const r = await call({ action: 'submit', code: CODE, token: TOKEN }); d.close(); if (!r.ok && r.status !== 409) return alert(r.error || 'Not submitted. Try again.'); view = ''; poll(); };
+  $('#dNo').onclick = () => { d.close(); if (missing.length) { cur = list().findIndex(q => q.ix === missing[0] - 1); drawQ(); } };
+  $('#dGo').onclick = async () => {
+    $('#dGo').disabled = true; const r = await call({ action: 'submit', code: CODE, token: TOKEN }); d.close();
+    if (!r.ok && r.status !== 409) return alert(r.error || 'Not submitted. Try again.');
+    if (r.redo && r.redo.length) {
+      REDO = r.redo; r.redo.forEach(ix => delete ANS[ix]); cur = 0;
+      $('#m').innerHTML = `<div class="top">${brand}<span class="grow"></span><span class="time" id="left"></span></div><div class="center"><div class="big">${r.redo.length} to redo</div>
+        <p class="muted">${r.redo.length === 1 ? 'One answer isn\u2019t right' : r.redo.length + ' answers aren\u2019t right'}: question${r.redo.length === 1 ? '' : 's'} ${r.redo.map(i => i + 1).join(', ')}. Have another go at ${r.redo.length === 1 ? 'it' : 'those'}, then submit again.</p>
+        <button class="btn" id="goRedo">Start</button></div>`;
+      $('#goRedo').onclick = () => drawQ();
+      return;
+    }
+    view = ''; poll();
+  };
 }
 start();
 </script>
