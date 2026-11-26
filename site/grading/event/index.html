@@ -303,7 +303,7 @@ function vRun() {
   };
   $('#rNext').onclick = () => go(1); $('#rBack').onclick = () => go(-1);
   const s0 = $('#rStart'); if (s0) s0.onclick = () => setLive({ block: bi, step: si, started: new Date().toISOString() });
-  const sc = $('#rScore'); if (sc) sc.onclick = () => { S.sel = { b: bi, s: st.i }; show('score'); };
+  const sc = $('#rScore'); if (sc) sc.onclick = () => { S.sel = { b: bi, s: st.i }; keepUi(); show('score'); };
   const qz = $('#rQuiz'); if (qz) qz.onclick = () => show('quiz');
   const rr = $('#rRoll'); if (rr) rr.onclick = () => show('roll');
   const rm = $('#rMc'); if (rm) rm.onclick = () => show('mc');
@@ -351,7 +351,7 @@ function vScore() {
       return `<div class="srow ${here ? '' : 'absent'}"><div><b>${esc(c.name)}</b><div class="tiny">${esc(c.group)} · ${esc(c.to)}${c.dan_no ? ' · ' + c.dan_no : ''}${here ? '' : ' · not at roll call'}</div></div>
         <div class="chips">${codes.map(code => { const m = mk(c.id, code) || {}; return `<button class="chip ${m.result || ''}" data-m="${c.id}|${code}" title="${esc(itemOf(code).text)}">${code}<small>${m.result === 'pass' ? 'Pass' : m.result === 'fail' ? 'Fail' : esc(itemOf(code).section)}</small>${m.comment ? '<span class="c"></span>' : ''}</button>`; }).join('')}</div>
         <div class="row" style="gap:6px"><button class="btn sm" data-all="${c.id}">All pass</button><button class="btn sm ghost" data-note="${c.id}">Note</button></div></div>`; }).join('')}</div>`;
-  $('#stepSel').onchange = e => { const [b, s] = e.target.value.split(':').map(Number); S.sel = { b, s }; render(); };
+  $('#stepSel').onchange = e => { const [b, s] = e.target.value.split(':').map(Number); S.sel = { b, s }; keepUi(); render(); };
   $$('[data-m]').forEach(x => x.onclick = () => { const [cid, code] = x.dataset.m.split('|'), m = mk(cid, code) || {}; setMark(cid, code, m.result === 'pass' ? 'fail' : m.result === 'fail' ? null : 'pass'); });
   $$('[data-all]').forEach(x => x.onclick = () => { const c = cand(x.dataset.all); stepCodes(st, c).forEach(code => { if (!(mk(c.id, code) || {}).result) setMark(c.id, code, 'pass'); }); });
   $$('[data-note]').forEach(x => x.onclick = () => noteDlg(cand(x.dataset.note), stepCodes(st, cand(x.dataset.note))));
@@ -400,7 +400,7 @@ function vQuiz() {
   $('#main').innerHTML = `<div class="qz ${S.tv ? 'tv' : ''}">${body}${ctl}</div>`;
   $$('[data-q]').forEach(b => b.onclick = () => qCmd(b.dataset.q));
   const te = $('#tEnd'); if (te) te.onclick = () => { const open = nIn - nSub; if (open && !confirm(`${open} candidate${open === 1 ? ' hasn’t' : 's haven’t'} got every answer right yet. End the test now? They won’t pass the theory item unless you reopen it.`)) return; qCmd('end'); };
-  const tv = $('#qTv'); if (tv) tv.onclick = () => { S.tv = !S.tv; if (S.tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); else if (!S.tv && document.fullscreenElement) document.exitFullscreen().catch(() => {}); vQuiz(); };
+  const tv = $('#qTv'); if (tv) tv.onclick = () => { S.tv = !S.tv; keepUi(); if (S.tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); else if (!S.tv && document.fullscreenElement) document.exitFullscreen().catch(() => {}); vQuiz(); };
   const tb = $('#qTab'); if (tb) tb.onclick = () => {
     openDlg(`<h3>Use this tablet for a candidate</h3><p class="small muted">For someone without a phone. Pick who is sitting the test; it opens in a new tab on this device.</p>
       <select id="tbWho" style="width:100%">${cands().map(c => `<option value="${c.id}">${esc(c.name)}${pl[c.id] ? ' (already signed in)' : ''}</option>`).join('')}</select>
@@ -511,7 +511,9 @@ function openDlg(html) { const d = $('#dlg'); d.innerHTML = html; $$('#dlg [data
 function closeDlg() { $('#dlg').close(); }
 
 /* ---------- navigation + boot ---------- */
-function show(v) { S.view = v; try { history.replaceState(null, '', '#' + v); } catch (e) {} if (v !== 'quiz' && S.tv) S.tv = false; render(); if (v === 'quiz') pollQuiz(); }
+// A reload keeps the screen you're on (in the address), the big-screen layout and the scoring step (on this device)
+const keepUi = () => { try { localStorage.setItem('ge_ui', JSON.stringify({ tv: S.tv, sel: S.sel })); } catch (e) {} };
+function show(v) { S.view = v; try { history.replaceState(null, '', location.pathname + location.search + '#' + v); } catch (e) {} if (v !== 'quiz' && S.tv) S.tv = false; keepUi(); render(); if (v === 'quiz') pollQuiz(); }
 $$('#tabs [data-v]').forEach(b => b.onclick = () => show(b.dataset.v));
 async function openEvent(id) {
   if (!(await loadEvent(id))) return;
@@ -521,6 +523,7 @@ async function openEvent(id) {
   $('#evSub').textContent = new Date(S.ev.config.date + 'T12:00:00Z').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) + ' · ' + (S.ev.config.venue || '');
   await loadLive();
   const h = (location.hash || '').slice(1); if (['run', 'roll', 'score', 'quiz', 'mc', 'results'].includes(h)) S.view = h;
+  try { const u = JSON.parse(localStorage.getItem('ge_ui') || '{}'); if (S.view === 'quiz' && u.tv) S.tv = true; if (u.sel) S.sel = u.sel; } catch (e) {}
   render(); if (S.view === 'quiz') pollQuiz();
   setInterval(async () => { if ($('#dlg').open && S.view !== 'quiz') return; await loadLive(); if (!$('#dlg').open && S.view !== 'quiz') render(); }, 3000);
   setInterval(() => { if (S.view === 'quiz' && !$('#dlg').open) pollQuiz(); }, 2000);
