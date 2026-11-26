@@ -57,8 +57,8 @@
   }
   var passkey = {
     supported: pkSupported,
-    signIn: function (o) {
-      return pkClient(o).then(function (c) { return c.auth.signInWithPasskey(); }).then(function (r) {
+    signIn: function (o, opts) {
+      return pkClient(o).then(function (c) { return c.auth.signInWithPasskey(opts ? { options: opts } : undefined); }).then(function (r) {
         if (r.error) throw r.error;
         var s = r.data && (r.data.session || r.data); if (!s || !s.access_token) throw new Error('Passkey didn’t work. Try again.');
         return o.sb.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token }).then(function (x) { if (x && x.error) throw x.error; ls('ama_passkey_here', '1'); return x; });
@@ -121,7 +121,7 @@
     wrap.innerHTML =
       '<button type="button" id="hubShow" class="ama-si-alt">Use hub mobile and PIN instead</button>' +
       '<form id="hubForm" class="ama-si" style="display:none" novalidate>' +
-        '<div><label for="hubMobile">Mobile</label><input type="tel" id="hubMobile" inputmode="tel" autocomplete="tel" placeholder="0400 000 000" enterkeyhint="next" required></div>' +
+        '<div><label for="hubMobile">Mobile</label><input type="tel" id="hubMobile" inputmode="tel" autocomplete="tel webauthn" placeholder="0400 000 000" enterkeyhint="next" required></div>' +
         '<div><label for="hubPin">Hub PIN</label><div class="ama-si-pin"><input type="password" id="hubPin" inputmode="numeric" autocomplete="current-password" placeholder="••••" enterkeyhint="go" required>' +
           '<button type="button" class="ama-si-eye" id="hubEye" aria-label="Show PIN">Show</button></div></div>' +
         '<p id="hubError" class="ama-si-err" role="alert" style="display:none"></p>' +
@@ -138,6 +138,33 @@
         passkey.signIn(o).then(function (r) { pkb.innerHTML = 'Signed in'; if (o.onSignedIn) o.onSignedIn(r); else location.reload(); })
           .catch(function (e) { var m = pkMsg(e); pkb.disabled = false; pkb.innerHTML = was; if (m) { pke.textContent = m; pke.style.display = ''; } });
       };
+      // Ask for the passkey without a tap: on a device that has one, straight away (once per tab, a cancel stops it);
+      // otherwise the passkey is offered in the Mobile box's autofill. Phones that don't allow an unprompted
+      // request fall back to the autofill.
+      var ac = null;
+      function done(r) { if (o.onSignedIn) o.onSignedIn(r); else location.reload(); }
+      function autofill() {
+        if (!window.PublicKeyCredential || !PublicKeyCredential.isConditionalMediationAvailable) return;
+        PublicKeyCredential.isConditionalMediationAvailable().then(function (ok) {
+          if (!ok) return; ac = new AbortController();
+          passkey.signIn(o, { mediation: 'conditional', signal: ac.signal }).then(done, function () {});
+        }, function () {});
+      }
+      var pkClick = pkb.onclick; pkb.onclick = function () { if (ac) { ac.abort(); ac = null; } pkClick(); };
+      o.sb.auth.getSession().then(function (r) {
+        if (r && r.data && r.data.session) return;   // already signed in
+        var asked = false; try { asked = sessionStorage.getItem('ama_pk_asked') === '1'; } catch (e) {}
+        if (ls('ama_passkey_here') === '1' && !asked) {
+          try { sessionStorage.setItem('ama_pk_asked', '1'); } catch (e) {}
+          var t0 = Date.now(); pkb.disabled = true; var was = pkb.innerHTML; pkb.innerHTML = '<span class="ama-si-spin"></span>Waiting for your passkey…';
+          passkey.signIn(o).then(done, function (e) {
+            pkb.disabled = false; pkb.innerHTML = was;
+            if (Date.now() - t0 < 600) { try { sessionStorage.removeItem('ama_pk_asked'); } catch (x) {} }   // the browser wouldn't ask without a tap
+            var m = pkMsg(e); if (m && Date.now() - t0 >= 600) { pke.textContent = m; pke.style.display = ''; }
+            autofill();
+          });
+        } else autofill();
+      }, function () {});
     }
     var hubForm = wrap.querySelector('#hubForm'), show = wrap.querySelector('#hubShow'), err = wrap.querySelector('#hubError'), go = wrap.querySelector('#hubGo');
     var mob = wrap.querySelector('#hubMobile'), pin = wrap.querySelector('#hubPin'), eye = wrap.querySelector('#hubEye');
