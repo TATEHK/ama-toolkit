@@ -677,14 +677,18 @@ async function loadAll() {
 }
 // Supabase sends at most 1,000 rows at a time: fetch long lists page by page (every program together is well over 1,000 students)
 async function fetchAll(t, orders) {
-  // the first page also says how many rows there are, then every other page is fetched at the same time
-  const page = (from, count) => { let x = count ? sb.from(t).select('*', { count: 'exact' }) : sb.from(t).select('*'); for (const o of orders) x = x.order(o, { ascending: true }); return x.range(from, from + 999); };
-  const first = await page(0, true);
-  if (first.error) return first;
-  const rows = [...(first.data || [])], total = first.count || rows.length;
-  if (rows.length < 1000 || total <= 1000) return { data: rows, error: null };
-  const rest = await Promise.all(Array.from({ length: Math.ceil(total / 1000) - 1 }, (_, i) => page((i + 1) * 1000)));
-  for (const r of rest) { if (r.error) return r; rows.push(...(r.data || [])); }
+  // as many pages at once as this list had last time (remembered on the device), then more only if it has grown
+  const page = from => { let x = sb.from(t).select('*'); for (const o of orders) x = x.order(o, { ascending: true }); return x.range(from, from + 999); };
+  const ck = 'cb_pages_' + t; let n = 1; try { n = Math.min(20, Math.max(1, +localStorage.getItem(ck) || 1)); } catch (e) {}
+  const rows = []; let from = 0;
+  for (;;) {
+    const got = await Promise.all(Array.from({ length: n }, (_, i) => page(from + i * 1000)));
+    let short = false;
+    for (const r of got) { if (r.error) return r; if (short) continue; rows.push(...(r.data || [])); if ((r.data || []).length < 1000) short = true; }
+    if (short) break;
+    from += n * 1000; n = 1;
+  }
+  try { localStorage.setItem(ck, String(Math.max(1, Math.ceil((rows.length + 1) / 1000)))); } catch (e) {}
   return { data: rows, error: null };
 }
 // The latest 5,000 texts and emails, newest first: all five pages of 1,000 at once (one request only ever returns 1,000)
@@ -2667,6 +2671,8 @@ async function start() {
   if (!session) { showOnly('#signIn'); $('#signOut').hidden = true; return; }
   $('#signOut').hidden = false;
   state.me = (session.user.email || '').toLowerCase();
+  // permissions and the data load start together (the database only gives data a login may see anyway)
+  const loading = loadAll().then(() => null, e => e);
   const { data: roles } = await sb.rpc('app_my_perms', { p_app: 'cb' });
   state.roles = roles || [];
   if (!state.roles.length) {
@@ -2674,7 +2680,7 @@ async function start() {
     $('#noAccessText').textContent = `${(session.user.user_metadata || {}).full_name || state.me} can't use Coloured Belts yet. A Staff admin can tick what you need under Coloured Belts on Staff logins.`;
     return;
   }
-  try { await loadAll(); }
+  try { const le = await loading; if (le) throw le; }
   catch (e) { showOnly('#noAccess'); $('#noAccessText').textContent = /cb_|does not exist|schema cache/i.test(errMsg(e)) ? 'Gradings aren\'t set up in Supabase yet: run supabase/coloured-belts.sql (then -2 to -5, in order) in the SQL Editor.' : errMsg(e); return; }
   showOnly(null); $('#tabs').hidden = false;
   if (!has('readiness', 'days', 'texts', 'results', 'calls')) state.view = 'days';   // view or payments only: grading days
