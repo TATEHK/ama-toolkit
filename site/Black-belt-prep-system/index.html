@@ -539,6 +539,15 @@
   .sc-outcomes button .s { display: block; font-size: 11px; font-weight: 600; opacity: .75; }
   @media (max-width: 520px) { .sc-outcomes { grid-template-columns: 1fr 1fr; } }
   #askText { white-space: pre-line; }   /* line breaks in a message preview */
+  /* Oaths: results */
+  .oa-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .oa-bar .row { gap: 8px; flex-wrap: wrap; }
+  .oa-row { display: flex; align-items: center; gap: 8px; }
+  .oa-row .item { flex: 1; min-width: 0; }
+  .oa-res { display: flex; gap: 6px; padding-right: 12px; flex: none; }
+  .oa-res button { min-height: 40px; min-width: 64px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; }
+  .oa-res button.on.pass { background: var(--ok, #2f9e5b); border-color: var(--ok, #2f9e5b); color: #fff; }
+  .oa-res button.on.fail { background: #d0453a; border-color: #d0453a; color: #fff; }
 </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -1609,21 +1618,39 @@ const OATH_TEXT = [
   'My art has thousands of years of history; I further pledge to continue the tradition with humility and gratitude by continuing my physical and spiritual growth to the highest possible level, to lead by example and to share what I have learnt with others.'];
 const OATH_ST = { signed: ['Signed', 'ok'], sent: ['Link sent', 'info'], failed: ['Email failed', 'bad'], made: ['Link not sent', 'warn'], none: ['After grading', ''] };
 const oathTag = st => `<span class="tag ${OATH_ST[st][1]}">${OATH_ST[st][0]}</span>`;
-const oathUrl = token => 'https://app.train-ama.com/grading/black-belt/oath/#' + token;
+const oathUrl = token => 'https://app.train-ama.com/o/' + token;   // short link (old long codes work here too)
 const oathStatus = o => !o ? 'none' : o.signed_at ? 'signed' : o.sent_at ? 'sent' : o.send_error ? 'failed' : 'made';
 // Everyone in the cycle going for Probationary Black Belt, plus anyone with an oath for this cycle (their belt may have moved on)
 function oathRows(cid) {
-  const mine = state.oaths.filter(o => o.prep_cycle_id === cid), byRef = {};
+  const mine = state.oaths.filter(o => o.prep_cycle_id === cid), byRef = {}, resByRef = {};
   mine.forEach(o => { if (o.efc_reference && !byRef[o.efc_reference]) byRef[o.efc_reference] = o; });
-  const seen = new Set(), rows = [];
+  const R = state.oaRes && state.oaRes.cycle === cid ? state.oaRes.list : [];
+  const refOf = x => String(x || '').trim().toUpperCase();
+  R.forEach(e => { if (e.efc_reference) resByRef[refOf(e.efc_reference)] = e; });
+  const seenO = new Set(), seenE = new Set(), rows = [];
   [...enrolledIds(cid)].map(student).filter(Boolean).forEach(s => {
-    const o = s.efc_ref ? byRef[s.efc_ref] : null;
-    if (!o && nextBelt(s.belt_rank) !== 'Probationary Black Belt') return;
-    if (o) seen.add(o.oath_id);
-    rows.push({ s, o, name: s.full_name, st: oathStatus(o) });
+    const o = s.efc_ref ? byRef[s.efc_ref] : null, e = s.efc_ref ? resByRef[refOf(s.efc_ref)] : null;
+    if (!o && !e && nextBelt(s.belt_rank) !== 'Probationary Black Belt') return;
+    if (o) seenO.add(o.oath_id); if (e) seenE.add(e.entry_id);
+    rows.push({ s, o, e, name: s.full_name, st: oathStatus(o) });
   });
-  mine.filter(o => !seen.has(o.oath_id)).forEach(o => rows.push({ s: null, o, name: o.full_name || o.efc_reference || 'Unknown', st: oathStatus(o) }));
+  // booked on the grading but not in this cycle's prep list
+  R.filter(e => !seenE.has(e.entry_id)).forEach(e => { const o = byRef[e.efc_reference] || null; if (o) seenO.add(o.oath_id); rows.push({ s: null, o, e, name: e.full_name || e.efc_reference || 'Unknown', st: oathStatus(o) }); });
+  mine.filter(o => !seenO.has(o.oath_id)).forEach(o => rows.push({ s: null, o, e: null, name: o.full_name || o.efc_reference || 'Unknown', st: oathStatus(o) }));
   return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+// Results for the Oaths list: the Probationary Black Belt entries on this cycle's black belt grading days
+async function loadOathResults(cid, force) {
+  if (!force && state.oaRes && state.oaRes.cycle === cid) return;
+  const { data, error } = await sb.rpc('bb_cycle_results', { p_cycle: cid });
+  state.oaRes = { cycle: cid, list: error ? [] : (data || []), error: error ? error.message : null };
+}
+async function setResult(r, val) {
+  const was = r.e.result; r.e.result = val;
+  const { data, error } = await sb.rpc('cb_entry_result', { p_entry: r.e.entry_id, p_result: val });
+  if (error || (data && data.error)) { r.e.result = was; toast('Not saved: ' + ((error && error.message) || data.error), 5000); return false; }
+  if (val !== 'pass' && r.o && !r.o.signed_at) state.oaths = state.oaths.filter(x => x.oath_id !== r.o.oath_id);   // its unsigned link is cancelled
+  return true;
 }
 async function oathCall(body) {
   const { data: { session } } = await sb.auth.getSession();
@@ -1676,41 +1703,61 @@ function openOath(r) {
   };
 }
 state.oa = { cycle: null, filter: 'all', search: '' };
-const OA_FILTERS = { all: ['All', () => true], todo: ['Not signed', st => st !== 'signed'], signed: ['Signed', st => st === 'signed'] };
+const OA_FILTERS = { all: ['All', () => true], mark: ['To mark', (st, r) => !!(r && r.e && !r.e.result)], todo: ['Not signed', (st, r) => st !== 'signed' && !(r && r.e && r.e.result === 'fail')], signed: ['Signed', st => st === 'signed'] };
 function renderOaths() {
   const v = $('#view-oaths'), O = state.oa;
   if (!state.oathsReady || !canOaths()) { v.innerHTML = `${backToMore()}<div class="view-head"><h2>Oaths</h2></div><div class="card empty">Only grading staff can see Black Belt Oaths.</div>`; wireBack(); return; }
   if (!O.cycle || !cycle(O.cycle)) O.cycle = (currentCycle() || state.cycles[0] || {}).cycle_id;
   if (!O.cycle) { v.innerHTML = `${backToMore()}<div class="view-head"><h2>Oaths</h2></div><div class="card empty">No preparation cycles yet.</div>`; wireBack(); return; }
-  const rows = oathRows(O.cycle), n = k => rows.filter(r => OA_FILTERS[k][1](r.st)).length;
-  const unsent = rows.filter(r => r.o && !r.o.signed_at && !r.o.sent_at);
-  v.innerHTML = `${backToMore()}<div class="view-head"><h2>Oaths</h2><div class="row">${unsent.length ? `<button class="btn primary sm" id="oaSendAll">Email ${unsent.length} unsent link${unsent.length === 1 ? '' : 's'}</button>` : ''}</div></div>
-    <div class="field"><label for="oaCycle">Preparation cycle</label><select id="oaCycle">${state.cycles.map(x => `<option value="${x.cycle_id}"${x.cycle_id === O.cycle ? ' selected' : ''}>${esc(x.name)}${x.status === 'active' ? ' (active)' : ` (${label(x.status).toLowerCase()})`}</option>`).join('')}</select></div>
-    <p class="hint">Everyone who passes to Probationary Black Belt is emailed a private link to sign the Black Belt Oath when the grading is marked finished. Signed oaths also show on their hub page.</p>
+  if (!state.oaRes || state.oaRes.cycle !== O.cycle) {   // results come from the grading days: fetch, then draw
+    v.innerHTML = `${backToMore()}<div class="view-head"><h2>Oaths</h2></div><div class="card empty">Loading results…</div>`; wireBack();
+    const want = O.cycle; loadOathResults(want).then(() => { if (state.oa.cycle === want && document.body.contains(v)) renderOaths(); });
+    return;
+  }
+  const rows = oathRows(O.cycle), n = k => rows.filter(r => OA_FILTERS[k][1](r.st, r)).length;
+  const toMark = rows.filter(r => r.e && !r.e.result);
+  // who Send oaths reaches: marked Pass, with no oath sent or signed yet
+  const toSend = rows.filter(r => r.e && r.e.result === 'pass' && !(r.o && (r.o.sent_at || r.o.signed_at)));
+  const marked = rows.filter(r => r.e && r.e.result).length, withRes = rows.filter(r => r.e).length;
+  v.innerHTML = `${backToMore()}<div class="view-head"><h2>Oaths</h2></div>
+    <div class="field"><label for="oaCycle">Preparation cycle</label><select id="oaCycle">${state.cycles.map(x => `<option value="${x.cycle_id}"${x.cycle_id === O.cycle ? ' selected' : ''}>${esc(x.name)}${x.status === 'active' ? ' (active)' : ''}</option>`).join('')}</select></div>
+    ${withRes ? `<div class="card oa-bar"><div class="grow"><b>${marked} of ${withRes} marked</b><div class="small muted">Pass or fail each Probationary Black Belt here or on the Grading Floor. Marking Pass doesn't send anything.</div></div>
+      <div class="row">${toMark.length ? `<button class="btn sm" id="oaPassRest">Pass the ${toMark.length} not marked</button>` : ''}${toSend.length ? `<button class="btn primary sm" id="oaSend">Send ${toSend.length} oath${toSend.length === 1 ? '' : 's'}</button>` : ''}</div></div>`
+      : `<p class="hint">${state.oaRes.error ? esc(state.oaRes.error) : 'No one in this cycle is booked on a black belt grading to Probationary Black Belt yet.'}</p>`}
     <div class="seg" role="group" aria-label="Show">${Object.entries(OA_FILTERS).map(([k, [t]]) => `<button data-oaf="${k}" aria-pressed="${O.filter === k}">${t}<small>${n(k)}</small></button>`).join('')}</div>
     <input type="search" id="oaSearch" placeholder="Search name or Student ID" aria-label="Search" value="${esc(O.search)}">
     <ul class="list" id="oaList"></ul>`;
   wireBack();
   const list = () => {
-    const q = O.search.trim().toLowerCase(), sel = rows.filter(r => OA_FILTERS[O.filter][1](r.st) && (!q || r.name.toLowerCase().includes(q) || (r.s && r.s.student_id.toLowerCase().includes(q))));
-    $('#oaList').innerHTML = sel.length ? sel.map((r, i) => `<li><button class="item" data-oa="${rows.indexOf(r)}"><div class="main"><div class="name">${esc(r.name)}</div>
-      <div class="meta">${esc([r.s && r.s.student_id, r.o && r.o.signed_at ? 'signed ' + fmtShort(r.o.signed_date) : r.o && r.o.sent_at ? 'emailed ' + fmtShort(r.o.sent_at.slice(0, 10)) : r.st === 'none' ? 'going for Probationary Black Belt' : ''].filter(Boolean).join(' · '))}</div></div>
-      ${oathTag(r.st)}</button></li>`).join('')
+    const q = O.search.trim().toLowerCase(), sel = rows.filter(r => OA_FILTERS[O.filter][1](r.st, r) && (!q || r.name.toLowerCase().includes(q) || (r.s && r.s.student_id.toLowerCase().includes(q))));
+    $('#oaList').innerHTML = sel.length ? sel.map(r => { const i = rows.indexOf(r), res = r.e && r.e.result;
+      const meta = [r.s && r.s.student_id, r.o && r.o.signed_at ? 'signed ' + fmtShort(r.o.signed_date) : r.o && r.o.sent_at ? 'emailed ' + fmtShort(r.o.sent_at.slice(0, 10)) : res === 'pass' ? 'passed, oath not sent' : res === 'fail' ? 'not passed' : r.e ? 'not marked' : 'going for Probationary Black Belt'].filter(Boolean).join(' · ');
+      return `<li class="oa-row"><button class="item" data-oa="${i}"><div class="main"><div class="name">${esc(r.name)}</div><div class="meta">${esc(meta)}</div></div>${r.o ? oathTag(r.st) : ''}</button>
+        ${r.e && !(r.o && r.o.signed_at) ? `<div class="oa-res"><button class="${res === 'pass' ? 'on pass' : ''}" data-rs="${i}" data-v="pass" aria-pressed="${res === 'pass'}">Pass</button><button class="${res === 'fail' ? 'on fail' : ''}" data-rs="${i}" data-v="fail" aria-pressed="${res === 'fail'}">Fail</button></div>` : ''}</li>`; }).join('')
       : `<li><div class="empty">${rows.length ? 'No one matches.' : 'No one in this cycle is going for Probationary Black Belt.'}</div></li>`;
     $$('#oaList [data-oa]').forEach(b => b.onclick = () => openOath(rows[+b.dataset.oa]));
+    $$('#oaList [data-rs]').forEach(b => b.onclick = async () => { const r = rows[+b.dataset.rs], v2 = b.dataset.v === r.e.result ? null : b.dataset.v;   // tap again to clear
+      b.disabled = true; if (await setResult(r, v2)) renderOaths(); else b.disabled = false; });
   };
   list();
   $('#oaCycle').onchange = e => { O.cycle = e.target.value; renderOaths(); };
   $$('#view-oaths [data-oaf]').forEach(b => b.onclick = () => { O.filter = b.dataset.oaf; renderOaths(); });
   $('#oaSearch').oninput = e => { O.search = e.target.value; list(); };
-  const sa = $('#oaSendAll'); if (sa) sa.onclick = async () => {
-    if (!await ask(`${unsent.length} ${unsent.length === 1 ? 'person' : 'people'} who passed will be emailed their private signing link.`, 'Email links', false, 'Email the oath links?')) return;
-    sa.disabled = true; let sent = 0, failed = 0;
+  const pr = $('#oaPassRest'); if (pr) pr.onclick = async () => {
+    if (!await ask(`Mark the ${toMark.length} people not marked yet as Pass? You can change anyone afterwards. Nothing is sent until you tap Send oaths.`, 'Mark as Pass', false, 'Pass the rest?')) return;
+    pr.disabled = true; let bad = 0;
+    for (const r of toMark) if (!await setResult(r, 'pass')) bad++;
+    if (bad) toast(`${bad} couldn't be saved`, 5000);
+    renderOaths();
+  };
+  const sd = $('#oaSend'); if (sd) sd.onclick = async () => {
+    if (!await ask(`${toSend.length} ${toSend.length === 1 ? 'person' : 'people'} marked Pass will be emailed their private link to sign the Black Belt Oath.`, 'Send oaths', false, 'Send the oaths?')) return;
+    sd.disabled = true; sd.textContent = 'Sending…'; let sent = 0, failed = 0;
     try {
-      for (const d of [...new Set(unsent.map(r => r.o.day_id).filter(Boolean))]) { const j = await oathCall({ action: 'send', day_id: d }); sent += j.sent || 0; failed += j.failed || 0; }
+      for (const d of [...new Set(toSend.map(r => r.e.day_id))]) { const j = await oathCall({ action: 'send', day_id: d }); sent += j.sent || 0; failed += j.failed || 0; }
       toast(`Emailed ${sent}${failed ? `, ${failed} failed (tap them to see why)` : ''}`, 6000);
     } catch (er) { toast(errMsg(er), 6000); }
-    await loadAll(); render();
+    await loadAll(); await loadOathResults(O.cycle, true); render();
   };
 }
 
