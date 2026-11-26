@@ -2519,6 +2519,38 @@ export async function handle(req, db, env = {}, http = fetch) {
     const may = kind => can(...(KINDS[kind] || []));
     if (!perms.length) return fail('Your login cannot use Coloured Belts. Ask a Staff admin to give you access.', 403);
 
+    // Grading Floor: a photo for each student on a grading day, as short-lived links (the floor shrinks them and keeps
+    // a copy on the device). Their profile photo (cropped from a grading photo) first, else their black belt ID card
+    // photo (ID card -> Black Belt Gradings student -> EFC number, or the same full name). { day_id } -> { photos: { entry_id: url } }
+    if (body.action === 'floor_photos') {
+      const dayId = String(body.day_id || '');
+      const { data: ents } = await db.from('cb_entries').select('entry_id, member_key, full_name, paid, booked_at').eq('day_id', dayId);
+      const list = (ents || []).filter(e => e.paid || e.booked_at);
+      if (!list.length) return json({ ok: true, photos: {} });
+      const keys = [...new Set(list.map(e => e.member_key).filter(Boolean))];
+      const norm = v => String(v || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      const [{ data: prof }, { data: mems }, { data: ppl }] = await Promise.all([
+        db.from('cb_profile_photos').select('member_key, path').in('member_key', keys),
+        db.from('efc_members').select('member_key, efc_reference').in('member_key', keys),
+        db.from('people').select('name, student_id, photo_path').not('photo_path', 'is', null)]);
+      const refs = [...new Set((mems || []).map(m => String(m.efc_reference || '').trim().toUpperCase()).filter(Boolean))];
+      const { data: pss } = refs.length ? await db.from('prep_students').select('student_id, efc_ref').in('efc_ref', refs) : { data: [] };
+      const profBy = new Map((prof || []).map(r => [r.member_key, r.path]));
+      const refBy = new Map((mems || []).map(m => [m.member_key, String(m.efc_reference || '').trim().toUpperCase()]));
+      const sidByRef = new Map((pss || []).map(x => [String(x.efc_ref || '').trim().toUpperCase(), x.student_id]));
+      const cardBySid = new Map((ppl || []).filter(x => x.student_id).map(x => [x.student_id, x.photo_path]));
+      const cardByName = new Map((ppl || []).map(x => [norm(x.name), x.photo_path]));
+      const photos = {};
+      await Promise.all(list.map(async e => {
+        let bucket = 'profile-photos', path = profBy.get(e.member_key);
+        if (!path) { bucket = 'cards'; path = cardBySid.get(sidByRef.get(refBy.get(e.member_key))) || cardByName.get(norm(e.full_name)); }
+        if (!path) return;
+        const { data: v } = await db.storage.from(bucket).createSignedUrl(path, 12 * 3600);
+        if (v && v.signedUrl) photos[e.entry_id] = v.signedUrl;
+      }));
+      return json({ ok: true, photos });
+    }
+
     // Operations dashboard sends. All need the Operations permission ('ops'); admins always pass.
     const opsNiceDay = ymd => { const [y, mo, dd] = String(ymd || '').slice(0, 10).split('-').map(Number); if (!y) return ''; return new Date(Date.UTC(y, mo - 1, dd)).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).replace(',', ''); };
 
