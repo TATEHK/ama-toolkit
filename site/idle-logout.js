@@ -49,7 +49,7 @@
     var sb = o && o.sb; if (!sb || sb.__amaIdle) return; sb.__amaIdle = true;
     var LIMIT = Math.max(1, +(o.minutes) || 60) * 60000;
     var WARN = Math.min(60000, Math.floor(LIMIT / 2));   // how long before sign-out the warning appears
-    var signedIn = false, box = null, label = null, goneOut = false;
+    var signedIn = false, box = null, label = null, goneOut = false, confirming = false;
     var trusted = ls(TRUST) === '1';   // start from the cached flag so a trusted device isn't warned before the DB confirms
 
     function touch() { ls(ACT, String(now())); if (box) hide(); }
@@ -84,7 +84,20 @@
       // no signal: don't sign out a device that couldn't sign back in (or has changes waiting to send)
       if (navigator.onLine === false || (window.Off && (Off.isOffline()))) { hide(); return; }
       var idle = now() - last();
-      if (idle >= LIMIT) { goneOut = true; hide(); sb.auth.signOut({ scope: 'local' }).then(function () { location.reload(); }, function () { location.reload(); }); return; }
+      if (idle >= LIMIT) {
+        // Ask the database first: this device may be marked Stay signed in and the saved flag not caught up yet
+        // (just signed back in, or a phone waking from sleep). Only an answer of "not trusted" signs out.
+        if (confirming) return; confirming = true;
+        var id = ls(DEV);
+        Promise.resolve(id ? sb.from('app_devices').select('trusted').eq('device_id', id).maybeSingle() : { data: null }).then(function (res) {
+          confirming = false;
+          if (res && res.error) return;   // couldn't check: try again next tick rather than sign out
+          var t = !!(res && res.data && res.data.trusted); trusted = t; ls(TRUST, t ? '1' : '0');
+          if (t || goneOut || now() - last() < LIMIT) { hide(); return; }
+          goneOut = true; hide(); sb.auth.signOut({ scope: 'local' }).then(function () { location.reload(); }, function () { location.reload(); });
+        }, function () { confirming = false; });
+        return;
+      }
       if (idle >= LIMIT - WARN) { ui(); if (label) label.textContent = String(Math.ceil((LIMIT - idle) / 1000)); }
       else hide();
     }
@@ -128,7 +141,7 @@
       var was = signedIn; signedIn = !!session;
       if (ev === 'INITIAL_SESSION') { started = true; return; }
       if (ev === 'SIGNED_IN' && started && !was) { goneOut = false; touch(); registerDevice(true); }   // a real sign-in, not the page restoring one
-      if (!signedIn) { trusted = false; ls(TRUST, '0'); hide(); }
+      if (!signedIn) hide();   // the device keeps its Stay signed in flag; the database check refreshes it after the next sign-in
     });
     setInterval(tick, 1000);
     setInterval(checkDevice, 90000);   // notice a remote sign-out / trust change within ~90s
