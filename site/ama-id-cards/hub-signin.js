@@ -27,12 +27,14 @@
   }
   function watchSignOut(sb) {
     if (sb.__amaHubWatch) return; sb.__amaHubWatch = true;
-    sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') store.set(null); });
+    sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') { store.set(null); ls(PKS, null); } });
   }
 
   // ---- Passkeys (Supabase Auth, relying party train-ama.com: one passkey works on app.train-ama.com and ama-os.train-ama.com).
   // The pages use an older supabase-js; the passkey ceremony comes from a current one loaded only when needed, in a
   // client that keeps nothing itself. The session it gets is handed to the page's own client.
+  var PKS = 'ama_passkey_session';   // signed in with a passkey: when the hub was last asked about this login
+  function hubActive(o) { return Promise.resolve(o.sb.rpc('hub_still_active')).then(function (r) { return !(r && r.data === false); }, function () { return true; }); }
   var PK_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/+esm', pkMod = null;
   function pkSupported() { return !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext); }
   function pkClient(o) {
@@ -61,7 +63,14 @@
       return pkClient(o).then(function (c) { return c.auth.signInWithPasskey(opts ? { options: opts } : undefined); }).then(function (r) {
         if (r.error) throw r.error;
         var s = r.data && (r.data.session || r.data); if (!s || !s.access_token) throw new Error('Passkey didn’t work. Try again.');
-        return o.sb.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token }).then(function (x) { if (x && x.error) throw x.error; ls('ama_passkey_here', '1'); return x; });
+        return o.sb.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token }).then(function (x) {
+          if (x && x.error) throw x.error;
+          // a passkey skips the hub's mobile and PIN check, so ask whether the hub still has this person as Active
+          return hubActive(o).then(function (ok) {
+            if (!ok) return o.sb.auth.signOut({ scope: 'local' }).then(function () { throw new Error('Your hub access isn’t active any more. Ask an admin if that’s a mistake.'); });
+            ls('ama_passkey_here', '1'); ls(PKS, String(Date.now())); return x;
+          });
+        });
       });
     },
     register: function (o, name) {
@@ -193,7 +202,7 @@
         if (!r || !r.ok) throw new Error((r && r.error) || 'That mobile and PIN didn’t match. Check them and try again.');
         return o.sb.auth.setSession(r.session).then(function (s) {
           if (s && s.error) throw s.error;
-          store.set(r.hub_token); ls('ama_hub_mobile', m);
+          store.set(r.hub_token); ls('ama_hub_mobile', m); ls(PKS, null);
           go.innerHTML = 'Signed in';
           if (o.onSignedIn) o.onSignedIn(r); else location.reload();
         });
@@ -216,7 +225,15 @@
   function recheck(o) {
     watchSignOut(o.sb);
     var token = store.get();
-    if (!token) return Promise.resolve(true);
+    if (!token) {
+      var pk = Number(ls(PKS) || 0);
+      if (!pk || Date.now() - pk < EVERY) return Promise.resolve(true);
+      return hubActive(o).then(function (ok) {   // signed in by passkey: hourly, is the hub still allowing this login?
+        if (ok) { ls(PKS, String(Date.now())); return true; }
+        ls(PKS, null);
+        return o.sb.auth.signOut({ scope: 'local' }).then(function () { location.reload(); return false; });
+      });
+    }
     if (Date.now() - Number(ls(CHECKED) || 0) < EVERY) return Promise.resolve(true);   // checked recently
     return o.sb.auth.getSession().then(function (res) {
       if (!res.data.session) { store.set(null); return true; }
