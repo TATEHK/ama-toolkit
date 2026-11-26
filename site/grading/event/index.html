@@ -109,7 +109,7 @@ main{padding:16px;max-width:1400px;margin:0 auto}
 .lb .r{display:flex;gap:16px;align-items:center;background:var(--panel);border-radius:14px;padding:12px 18px;font:700 clamp(18px,2.2vw,32px) var(--display)}
 .lb .r .n{color:var(--accent);min-width:2ch}
 .podium{display:flex;align-items:flex-end;justify-content:center;gap:2vw;margin-top:4vh}
-.podium div{background:var(--panel);border-radius:16px 16px 0 0;text-align:center;padding:16px;width:22vw;font:700 clamp(18px,2.4vw,34px) var(--display)}
+.podium > div{background:var(--panel);border-radius:16px 16px 0 0;text-align:center;padding:16px;width:22vw;font:700 clamp(18px,2.4vw,34px) var(--display)}
 .podium .p1{height:42vh;border-top:8px solid var(--accent)} .podium .p2{height:32vh;border-top:8px solid #c0c7cf} .podium .p3{height:24vh;border-top:8px solid #c98a4b}
 .lobby{display:grid;grid-template-columns:auto 1fr;gap:4vw;align-items:center}
 .lobby .qr{background:#fff;padding:16px;border-radius:16px;width:min(38vh,360px)} .lobby .qr svg{width:100%;height:auto;display:block}
@@ -440,11 +440,11 @@ function vMc() {
   const planEnd = C().blocks.find(b => b.public) ? '16:00' : null;
   const leftMins = acts.slice(ai).reduce((s, x) => s + (x.kind === 'showcase' ? (x.secs_per_person || 45) * Math.max(1, (x.who || []).length) / 60 : x.mins || 0), 0);
   const n = new Date(), hourEnd = new Date(n.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }) + 'T16:00:00+11:00');
-  const slack = Math.round((hourEnd - n) / 60000 - leftMins);
+  const slack = n.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }) === C().date ? Math.round((hourEnd - n) / 60000 - leftMins) : null;
   const codes = (a.items || []);
   $('#main').innerHTML = `<div class="mc"><div class="card big">
       <div class="row"><span class="tag now">${ai + 1} of ${acts.length}</span><span class="muted small">${esc({ talk: 'MC', patterns: 'Patterns', board: 'Board breaking', showcase: 'Showcase' }[a.kind] || '')}</span><span class="grow"></span>
-      <span class="small ${slack < 0 ? '' : 'muted'}" style="${slack < 0 ? 'color:var(--bad)' : ''}">${slack >= 0 ? slack + ' min spare before 4:00pm' : -slack + ' min over: tighten changeovers'}</span></div>
+      ${slack == null ? '' : `<span class="small ${slack < 0 ? '' : 'muted'}" style="${slack < 0 ? 'color:var(--bad)' : ''}">${slack >= 0 ? slack + ' min spare before 4:00pm' : -slack + ' min over: tighten changeovers'}</span>`}</div>
       <h2 style="margin-top:10px">${esc(a.title)}</h2>${a.sub ? `<div class="sub">${esc(a.sub)}</div>` : ''}
       ${who.length > 1 ? `<p class="muted" style="font-size:18px">${who.map(c => esc(c.name)).join(', ')}</p>` : ''}
       <div class="row" style="align-items:flex-end;margin-top:12px">
