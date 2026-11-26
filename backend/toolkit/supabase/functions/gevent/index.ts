@@ -42,7 +42,7 @@ export function floorDoc(title, slug, c) {
     b.assess.forEach((a, si) => {
       const st = { time: t12(a.time), mins: a.mins, groups: 'Group ' + a.groups.join(' + ') + (a.note ? ' · ' + a.note : ''), lines: a.groups, ge: { block: bi, step: si + 1 } };
       const sy = ['4D', 'L1', 'L3'].filter(k => a.items[k]);
-      if (a.quiz) Object.assign(st, { belt: '', items: [{ h: false, t: 'Theory test on their phones. Run it from Theory test at the top of the floor.' }] });
+      if (a.quiz) Object.assign(st, { belt: '', items: [{ h: false, t: 'Theory test on their phones: sign-in, start and progress are below.' }] });
       else if (sy.length === 1 && sy[0] === '4D') Object.assign(st, { belt: '4th Dan', items: its(a.items['4D']) });
       else if (sy.join() === 'L1,L3') Object.assign(st, { belt: '4th Dan Level 1', items: its(a.items.L1), belt2: '4th Dan Level 3', items2: its(a.items.L3) });
       else Object.assign(st, { belt: '', items: sy.flatMap(k => its(a.items[k])) });
@@ -50,7 +50,7 @@ export function floorDoc(title, slug, c) {
     });
     return { name: `${t12(b.time)} · ${b.title}`, steps };
   });
-  return { title, note: 'Scoring, Theory test, MC and Results: the buttons at the top of the floor', window: c.hours || '', event_slug: slug,
+  return { title, note: 'Score each assessment in its step; Results is top right', window: c.hours || '', event_slug: slug,
     groups: c.groups.map((g, i) => ({ n: i + 1, name: g.id, belt: g.note || '', count: c.candidates.filter(x => x.group === g.id).length })), sections };
 }
 

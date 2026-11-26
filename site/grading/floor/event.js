@@ -1,17 +1,20 @@
 // AMA Toolkit: grading events inside the Grading Floor (grading-event-1..6.sql), first used for the Beyond 4th Dan grading
-// on Sat 28 Nov 2026. When the open day has an event (ge_events.day_id), the floor gets four more buttons:
-//   Scoring      pass/fail + note per candidate per item code, for each assessment on the run sheet; flags anything unscored
-//   Theory test  sign-in QR, the private own-pace test (all right to pass, redo wrong ones), big-screen view, record results
-//   MC           the public hour's running order with count-up timers, quick scoring and shared showcases
-//   Results      a summary per candidate, the overall result, and an admin's Approve (locks everything)
+// on Sat 28 Nov 2026. When the open day has an event (ge_events.day_id), its tools live inside the floor's run sheet:
+//   an assessment step    "Who's up" becomes pass/fail + note per candidate per item code (flags anything unscored)
+//   the theory test step  sign-in QR, the private own-pace test (all right to pass, redo wrong ones), big screen, record results
+//   the public hour step  the MC running order with count-up timers, quick scoring and shared showcases
+//   Results (run sheet header)  a summary per candidate, the overall result, and an admin's Approve (locks everything)
 // The floor's check-in is the roll call, and its live run sheet is the run of day (kept in step with ge_events.live).
-// Everything here lives in one closure; the floor calls GE.attach(dayId) when a day loads.
+// Everything here lives in one closure; the floor calls GE.attach(dayId) when a day loads and GE.mountStep(el, ge) per step.
 (function () {
   const $1 = s => document.querySelector(s), $all = s => [...document.querySelectorAll(s)];
   const h = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const say = (m, ms) => { try { toast(m, ms || 3000); } catch (e) { alert(m); } };
   const db = () => sb;   // the floor's Supabase client
-  const S = { ev: null, perms: [], marks: {}, outcomes: {}, view: 'score', sel: null, quiz: null, tv: false, open: false, timers: [] };
+  // el: where the current view draws (a run sheet step's panel, or the full-screen overlay); inline: drawing in the run sheet
+  const S = { ev: null, perms: [], marks: {}, outcomes: {}, view: 'score', sel: null, quiz: null, tv: false, open: false, el: null, inline: false, last: null };
+  const live_el = () => S.el && document.body.contains(S.el) ? S.el : null;
+  const inM = sel => live_el() ? [...S.el.querySelectorAll(sel)] : [];
   const can = (...w) => S.perms.includes('admin') || w.some(x => S.perms.includes(x));
   const C = () => S.ev.config, cands = () => C().candidates || [], cand = id => cands().find(c => c.id === id);
   const itemOf = code => { for (const k in C().syllabi) { const it = C().syllabi[k].items.find(i => i.code === code); if (it) return it; } return { section: code, text: '' }; };
@@ -78,56 +81,57 @@
 #geOv .ge-tabs button.on{background:var(--accent);color:var(--accent-ink)}
 #geOv .ge-x{margin-left:auto;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer}
 #geOv .ge-main{flex:1;overflow:auto;padding:16px}
-#geOv .ge-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:10px;padding:8px 13px;font-weight:700;font-size:14px;min-height:38px;cursor:pointer;text-decoration:none}
-#geOv .ge-btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-#geOv .ge-btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
-#geOv .ge-btn.ge-ghost{background:transparent}
-#geOv .ge-btn.sm{min-height:30px;padding:4px 10px;font-size:12.5px}
-#geOv .ge-btn.danger{border-color:var(--bad);color:var(--bad)}
-#geOv .ge-muted{color:var(--ink-2)} #geOv .ge-tiny{font-size:12px;color:var(--ink-3)} #geOv .ge-small{font-size:13px}
-#geOv .ge-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap} #geOv .ge-grow{flex:1}
-#geOv .ge-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
-#geOv h2,#geOv h3{font-family:var(--display);margin:0}
-#geOv .ge-tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--ink-2);white-space:nowrap;border:1px solid var(--line)}
-#geOv .ge-tag.ok{background:var(--okbg);color:var(--oktx);border-color:transparent} #geOv .ge-tag.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
-#geOv .ge-tag.warn{background:color-mix(in srgb,var(--warn) 18%,var(--panel));color:color-mix(in srgb,var(--warn) 70%,var(--ink));border-color:transparent} #geOv .ge-tag.now{background:var(--accent);color:var(--accent-ink);border-color:transparent}
-#geOv select,#geOv textarea,#geOv input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px}
-#geOv .srow{display:grid;grid-template-columns:minmax(170px,240px) 1fr auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
-#geOv .srow.absent{opacity:.5}
-#geOv .ge-chips{display:flex;gap:6px;flex-wrap:wrap}
-#geOv .ge-chip{border:1.5px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:10px;padding:6px 9px;min-width:64px;text-align:center;font-weight:700;font-size:13px;position:relative;cursor:pointer}
-#geOv .ge-chip small{display:block;font-size:10px;font-weight:600;color:var(--ink-3)}
-#geOv .ge-chip.pass{background:var(--okbg);border-color:var(--ok);color:var(--oktx)} #geOv .ge-chip.fail{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
-#geOv .ge-chip .c{position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;background:var(--info)}
-@media (max-width:700px){#geOv .srow{grid-template-columns:1fr}}
-#geOv .timer{font:700 60px/1 var(--display)} #geOv .timer.over{color:var(--bad)} #geOv .timer.soon{color:var(--warn)}
-#geOv .qz{display:flex;flex-direction:column;gap:16px;min-height:100%}
-#geOv .qz.tv{position:fixed;inset:0;z-index:2;background:var(--bg);padding:3vh 4vw}
-#geOv .qtext{font:700 clamp(28px,4.4vw,64px)/1.12 var(--display)}
-#geOv .meta{display:flex;justify-content:center;gap:16px;font:700 clamp(16px,1.8vw,26px) var(--display);color:var(--ink-2)}
-#geOv .ring{font:700 clamp(40px,6vw,96px)/1 var(--display);color:var(--accent)}
-#geOv .lobby{display:grid;grid-template-columns:auto 1fr;gap:4vw;align-items:center}
-#geOv .lobby .qr{background:#fff;padding:16px;border-radius:16px;width:min(38vh,360px)} #geOv .lobby .qr svg{width:100%;height:auto;display:block}
-#geOv .joined{display:flex;flex-wrap:wrap;gap:8px}
-#geOv .joined span{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-weight:700;color:var(--ink-3)}
-#geOv .joined span.in{background:var(--okbg);border-color:var(--ok);color:var(--oktx)}
-#geOv .ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-#geOv .qz.tv .ctl{position:fixed;right:14px;bottom:14px;opacity:.15;transition:opacity .2s} #geOv .qz.tv .ctl:hover{opacity:1}
-#geOv .mc{display:grid;grid-template-columns:1fr 360px;gap:16px} @media (max-width:900px){#geOv .mc{grid-template-columns:1fr}}
-#geOv .mc .big h2{font-size:40px;line-height:1.05} #geOv .mc .big .sub{font:700 30px var(--display);color:var(--accent);margin-top:6px}
-#geOv .alist{display:flex;flex-direction:column;gap:4px;max-height:70vh;overflow:auto}
-#geOv .aitem{display:flex;gap:8px;align-items:center;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:7px 9px;font-size:14px;text-align:left;width:100%;cursor:pointer}
-#geOv .aitem.now{border-color:var(--accent)} #geOv .aitem.done{opacity:.5}
-#geOv table{border-collapse:collapse;width:100%} #geOv th,#geOv td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top;font-size:14px}
-#geOv th{color:var(--ink-2);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+#geOv .ge-btn,.ge-inline .ge-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:10px;padding:8px 13px;font-weight:700;font-size:14px;min-height:38px;cursor:pointer;text-decoration:none}
+#geOv .ge-btn.primary,.ge-inline .ge-btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+#geOv .ge-btn.ok,.ge-inline .ge-btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+#geOv .ge-btn.ge-ghost,.ge-inline .ge-btn.ge-ghost{background:transparent}
+#geOv .ge-btn.sm,.ge-inline .ge-btn.sm{min-height:30px;padding:4px 10px;font-size:12.5px}
+#geOv .ge-btn.danger,.ge-inline .ge-btn.danger{border-color:var(--bad);color:var(--bad)}
+#geOv .ge-muted,.ge-inline .ge-muted{color:var(--ink-2)}#geOv .ge-tiny,.ge-inline .ge-tiny{font-size:12px;color:var(--ink-3)}#geOv .ge-small,.ge-inline .ge-small{font-size:13px}
+#geOv .ge-row,.ge-inline .ge-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}#geOv .ge-grow,.ge-inline .ge-grow{flex:1}
+#geOv .ge-card,.ge-inline .ge-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+#geOv h2,.ge-inline h2,#geOv h3,.ge-inline h3{font-family:var(--display);margin:0}
+#geOv .ge-tag,.ge-inline .ge-tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--ink-2);white-space:nowrap;border:1px solid var(--line)}
+#geOv .ge-tag.ok,.ge-inline .ge-tag.ok{background:var(--okbg);color:var(--oktx);border-color:transparent}#geOv .ge-tag.bad,.ge-inline .ge-tag.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+#geOv .ge-tag.warn,.ge-inline .ge-tag.warn{background:color-mix(in srgb,var(--warn) 18%,var(--panel));color:color-mix(in srgb,var(--warn) 70%,var(--ink));border-color:transparent}#geOv .ge-tag.now,.ge-inline .ge-tag.now{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+#geOv select,.ge-inline select,#geOv textarea,.ge-inline textarea,#geOv input[type=text],.ge-inline input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px}
+#geOv .srow,.ge-inline .srow{display:grid;grid-template-columns:minmax(170px,240px) 1fr auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+#geOv .srow.absent,.ge-inline .srow.absent{opacity:.5}
+#geOv .ge-chips,.ge-inline .ge-chips{display:flex;gap:6px;flex-wrap:wrap}
+#geOv .ge-chip,.ge-inline .ge-chip{border:1.5px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:10px;padding:6px 9px;min-width:64px;text-align:center;font-weight:700;font-size:13px;position:relative;cursor:pointer}
+#geOv .ge-chip small,.ge-inline .ge-chip small{display:block;font-size:10px;font-weight:600;color:var(--ink-3)}
+#geOv .ge-chip.pass,.ge-inline .ge-chip.pass{background:var(--okbg);border-color:var(--ok);color:var(--oktx)}#geOv .ge-chip.fail,.ge-inline .ge-chip.fail{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+#geOv .ge-chip .c,.ge-inline .ge-chip .c{position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;background:var(--info)}
+@media (max-width:700px){#geOv .srow,.ge-inline .srow{grid-template-columns:1fr}}
+#geOv .timer,.ge-inline .timer{font:700 60px/1 var(--display)}#geOv .timer.over,.ge-inline .timer.over{color:var(--bad)}#geOv .timer.soon,.ge-inline .timer.soon{color:var(--warn)}
+#geOv .qz,.ge-inline .qz{display:flex;flex-direction:column;gap:16px;min-height:100%}
+#geOv .qz.tv,.ge-inline .qz.tv{position:fixed;inset:0;z-index:2;background:var(--bg);padding:3vh 4vw}
+#geOv .qtext,.ge-inline .qtext{font:700 clamp(28px,4.4vw,64px)/1.12 var(--display)}
+#geOv .meta,.ge-inline .meta{display:flex;justify-content:center;gap:16px;font:700 clamp(16px,1.8vw,26px) var(--display);color:var(--ink-2)}
+#geOv .ring,.ge-inline .ring{font:700 clamp(40px,6vw,96px)/1 var(--display);color:var(--accent)}
+#geOv .lobby,.ge-inline .lobby{display:grid;grid-template-columns:auto 1fr;gap:4vw;align-items:center}
+#geOv .lobby .qr,.ge-inline .lobby .qr{background:#fff;padding:16px;border-radius:16px;width:min(38vh,360px)}#geOv .lobby .qr svg,.ge-inline .lobby .qr svg{width:100%;height:auto;display:block}
+#geOv .joined,.ge-inline .joined{display:flex;flex-wrap:wrap;gap:8px}
+#geOv .joined span,.ge-inline .joined span{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-weight:700;color:var(--ink-3)}
+#geOv .joined span.in,.ge-inline .joined span.in{background:var(--okbg);border-color:var(--ok);color:var(--oktx)}
+#geOv .ctl,.ge-inline .ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#geOv .qz.tv .ctl,.ge-inline .qz.tv .ctl{position:fixed;right:14px;bottom:14px;opacity:.15;transition:opacity .2s}#geOv .qz.tv .ctl:hover,.ge-inline .qz.tv .ctl:hover{opacity:1}
+#geOv .mc,.ge-inline .mc{display:grid;grid-template-columns:1fr 360px;gap:16px}@media (max-width:900px){#geOv .mc,.ge-inline .mc{grid-template-columns:1fr}}
+#geOv .mc .big h2,.ge-inline .mc .big h2{font-size:40px;line-height:1.05}#geOv .mc .big .sub,.ge-inline .mc .big .sub{font:700 30px var(--display);color:var(--accent);margin-top:6px}
+#geOv .alist,.ge-inline .alist{display:flex;flex-direction:column;gap:4px;max-height:70vh;overflow:auto}
+#geOv .aitem,.ge-inline .aitem{display:flex;gap:8px;align-items:center;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:7px 9px;font-size:14px;text-align:left;width:100%;cursor:pointer}
+#geOv .aitem.now,.ge-inline .aitem.now{border-color:var(--accent)}#geOv .aitem.done,.ge-inline .aitem.done{opacity:.5}
+#geOv table,.ge-inline table{border-collapse:collapse;width:100%}#geOv th,.ge-inline th,#geOv td,.ge-inline td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top;font-size:14px}
+#geOv th,.ge-inline th{color:var(--ink-2);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 #geDlg{z-index:10001;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:16px;padding:18px;width:min(560px,94vw)}
 #geDlg::backdrop{background:rgba(0,0,0,.6)}
 #geDlg .ge-btn{display:inline-flex;align-items:center;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:10px;padding:8px 13px;font-weight:700;cursor:pointer}
-#geDlg .ge-btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)} #geDlg .ge-btn.danger{border-color:#ef8a73;color:#ef8a73}
+#geDlg .ge-btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}#geDlg .ge-btn.danger{border-color:#ef8a73;color:#ef8a73}
 #geDlg textarea,#geDlg select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px;width:100%}
-#geDlg .ge-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap} #geDlg .ge-tiny{font-size:12px;color:var(--ink-3)}
-.ge-pill{border-color:color-mix(in srgb,var(--accent) 40%,var(--line))!important}
-@media print{#geOv .ge-top,#geOv .noprint{display:none!important} #geOv{position:static;background:#fff;color:#000}}`;
+#geDlg .ge-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}#geDlg .ge-tiny{font-size:12px;color:var(--ink-3)}
+.ge-inline{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);
+ --bad:var(--danger,#d8362f);--bad-bg:color-mix(in srgb,var(--danger,#d8362f) 16%,var(--panel));--info:#4b8fe0;--okbg:color-mix(in srgb,var(--ok) 18%,var(--panel));--oktx:var(--ok);--display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif}
+@media print{#geOv .ge-top,#geOv .noprint,.ge-inline .noprint{display:none!important}#geOv{position:static;background:#fff;color:#000}}`;
     document.head.appendChild(st);
     if (!$1('#geDlg')) { const d = document.createElement('dialog'); d.id = 'geDlg'; document.body.appendChild(d); }
   }
@@ -136,21 +140,43 @@
   const TABS = [['score', 'Scoring'], ['quiz', 'Theory test'], ['mc', 'MC'], ['results', 'Results']];
   function open(view, sel) {
     if (!S.ev) return;
-    css(); S.open = true; if (view) S.view = view; if (sel) S.sel = sel;
+    css(); S.open = true; S.inline = false; if (view) S.view = view; if (sel) S.sel = sel;
     let el = $1('#geOv'); if (!el) { el = document.createElement('div'); el.id = 'geOv'; document.body.appendChild(el); }
     el.hidden = false;
     el.innerHTML = `<div class="ge-top noprint"><b>${h(S.ev.title)}</b><div class="ge-tabs">${TABS.map(([k, t]) => `<button data-gv="${k}">${t}</button>`).join('')}</div>
       <span class="ge-tiny" id="geSync"></span><button class="ge-x" title="Back to the floor">✕</button></div><div class="ge-main" id="geMain"></div>`;
+    S.el = $1('#geMain');
     el.querySelector('.ge-x').onclick = close;
-    $all('#geOv [data-gv]').forEach(b => b.onclick = () => { S.view = b.dataset.gv; if (S.view !== 'quiz') S.tv = false; keepUi(); draw(); if (S.view === 'quiz') pollQuiz(); });
+    $all('#geOv .ge-tabs [data-gv]').forEach(b => b.onclick = () => { S.view = b.dataset.gv; if (S.view !== 'quiz') S.tv = false; keepUi(); draw(); if (S.view === 'quiz') pollQuiz(); });
     loadLive().then(draw); if (S.view === 'quiz') pollQuiz();
     keepUi(); draw();
   }
-  function close() { S.open = false; S.tv = false; keepUi(); const el = $1('#geOv'); if (el) el.hidden = true; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+  function close() {
+    S.open = false; S.tv = false; keepUi(); const el = $1('#geOv'); if (el) { el.hidden = true; el.innerHTML = ''; }
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    S.el = null; if (S.last && document.body.contains(S.last.el)) mountStep(S.last.el, S.last.ge);   // back to the run sheet step it came from
+  }
+  // A run sheet step's own tool, drawn inside the step: scoring for an assessment, the test, or the MC screen
+  function kindFor(ge) {
+    if (!S.ev || !ge) return null; const b = C().blocks[ge.block]; if (!b) return null;
+    if (b.public) return { view: 'mc' };
+    const a = ge.step > 0 ? b.assess[ge.step - 1] : null;
+    if (a && a.quiz) return { view: 'quiz' };
+    if (a) return { view: 'score', sel: { b: ge.block, s: ge.step - 1 } };
+    return null;
+  }
+  function mountStep(el, ge) {
+    const k = kindFor(ge); if (!k || !el) return false;
+    css(); S.last = { el, ge };
+    if (S.open) return true;                   // the overlay (Results / big screen) is on top; the step draws again when it closes
+    S.el = el; S.inline = true; S.view = k.view; if (k.sel) S.sel = k.sel; S.tv = false;
+    el.classList.add('ge-inline'); draw(); if (k.view === 'quiz') pollQuiz();
+    return true;
+  }
   const keepUi = () => { try { localStorage.setItem('ge_floor_ui', JSON.stringify({ day: S.ev && S.ev.day_id, open: S.open, view: S.view, tv: S.tv, sel: S.sel })); } catch (e) {} };
   function draw() {
-    if (!S.open || !S.ev || !$1('#geMain')) return;
-    $all('#geOv [data-gv]').forEach(b => b.classList.toggle('on', b.dataset.gv === S.view));
+    if (!S.ev || !live_el()) return;
+    if (S.open) $all('#geOv .ge-tabs [data-gv]').forEach(b => b.classList.toggle('on', b.dataset.gv === S.view));
     ({ score: vScore, quiz: vQuiz, mc: vMc, results: vResults })[S.view]();
   }
 
@@ -162,8 +188,8 @@
     const rows = inGroups(st.groups).sort((a, b) => (isHere(b.id) - isHere(a.id)) || 0);
     const legend = Object.entries(st.items).map(([k, codes]) => `<div class="ge-small"><b>${h(C().syllabi[k].name)}</b>: ${codes.map(c => `<b>${c}</b> ${h(itemOf(c).section)}`).join(' · ')}</div>`).join('');
     const un = unscoredIn(st).length, blockUn = (cur.block.assess || []).flatMap(unscoredIn);
-    $1('#geMain').innerHTML = `<div class="ge-row" style="margin-bottom:10px"><h2 class="ge-grow">Scoring</h2>
-        <select id="geStep">${list.map(x => `<option value="${x.b}:${x.s}" ${x === cur ? 'selected' : ''}>${hhmm(x.st.time)} · ${h(x.block.title)} · Group ${h(x.st.groups.join(' + '))}</option>`).join('')}</select></div>
+    S.el.innerHTML = `${S.inline ? `<div class="ge-row" style="margin:6px 0 8px"><h3 class="ge-grow">Who's up · score each item</h3></div>` : `<div class="ge-row" style="margin-bottom:10px"><h2 class="ge-grow">Scoring</h2>
+        <select id="geStep">${list.map(x => `<option value="${x.b}:${x.s}" ${x === cur ? 'selected' : ''}>${hhmm(x.st.time)} · ${h(x.block.title)} · Group ${h(x.st.groups.join(' + '))}</option>`).join('')}</select></div>`}
       ${S.ev.approved_at ? '<div class="ge-card" style="border-color:var(--ok);margin-bottom:10px">Results are approved and locked.</div>' : ''}
       ${st.quiz ? `<div class="ge-card" style="margin-bottom:10px">The theory item is marked from the test: open <b>Theory test</b> and press <b>Record theory results</b> once it has finished, or mark someone by hand below.</div>` : ''}
       <div style="display:flex;flex-direction:column;gap:4px;margin:8px 0 12px">${legend}</div>
@@ -174,10 +200,10 @@
         return `<div class="srow ${here ? '' : 'absent'}"><div><b>${h(c.name)}</b><div class="ge-tiny">Group ${h(c.group)} · ${h(c.to)}${c.dan_no ? ' · ' + c.dan_no : ''}${here ? '' : ' · not checked in'}</div></div>
           <div class="ge-chips">${codes.map(code => { const m = mk(c.id, code) || {}; return `<button class="ge-chip ${m.result || ''}" data-m="${c.id}|${code}" title="${h(itemOf(code).text)}">${code}<small>${m.result === 'pass' ? 'Pass' : m.result === 'fail' ? 'Fail' : h(itemOf(code).section)}</small>${m.comment ? '<span class="c"></span>' : ''}</button>`; }).join('')}</div>
           <div class="ge-row" style="gap:6px"><button class="ge-btn sm" data-all="${c.id}">All pass</button><button class="ge-btn sm ge-ghost" data-note="${c.id}">Note</button></div></div>`; }).join('')}</div>`;
-    $1('#geStep').onchange = e => { const [b, s] = e.target.value.split(':').map(Number); S.sel = { b, s }; keepUi(); draw(); };
-    $all('#geOv [data-m]').forEach(x => x.onclick = () => { const [cid, code] = x.dataset.m.split('|'), m = mk(cid, code) || {}; setMark(cid, code, m.result === 'pass' ? 'fail' : m.result === 'fail' ? null : 'pass'); });
-    $all('#geOv [data-all]').forEach(x => x.onclick = () => { const c = cand(x.dataset.all); stepCodes(st, c).forEach(code => { if (!(mk(c.id, code) || {}).result) setMark(c.id, code, 'pass'); }); });
-    $all('#geOv [data-note]').forEach(x => x.onclick = () => noteDlg(cand(x.dataset.note), stepCodes(st, cand(x.dataset.note))));
+    const gs = $1('#geStep'); if (gs) gs.onchange = e => { const [b, s] = e.target.value.split(':').map(Number); S.sel = { b, s }; keepUi(); draw(); };
+    inM('[data-m]').forEach(x => x.onclick = () => { const [cid, code] = x.dataset.m.split('|'), m = mk(cid, code) || {}; setMark(cid, code, m.result === 'pass' ? 'fail' : m.result === 'fail' ? null : 'pass'); });
+    inM('[data-all]').forEach(x => x.onclick = () => { const c = cand(x.dataset.all); stepCodes(st, c).forEach(code => { if (!(mk(c.id, code) || {}).result) setMark(c.id, code, 'pass'); }); });
+    inM('[data-note]').forEach(x => x.onclick = () => noteDlg(cand(x.dataset.note), stepCodes(st, cand(x.dataset.note))));
     const bu = $1('#geBlockUn'); if (bu) bu.onclick = () => openDlg(`<h3>Not scored yet: ${h(cur.block.title)}</h3><div style="max-height:50vh;overflow:auto;margin:10px 0">${blockUn.map(u => `<div class="ge-small">${h(u.c.name)} · <b>${u.code}</b> ${h(itemOf(u.code).section)}</div>`).join('')}</div><button class="ge-btn" data-x>Close</button>`);
   }
   function noteDlg(c, codes) {
@@ -188,7 +214,7 @@
   }
 
   /* ---------- Theory test (private, own pace; all right to pass, wrong ones come back to redo) ---------- */
-  async function pollQuiz() { try { S.quiz = await fn({ action: 'host_state' }); S.quiz.at = Date.now(); if (S.open && S.view === 'quiz' && !$1('#geDlg').open) vQuiz(); } catch (e) { const s = $1('#geSync'); if (s) s.textContent = e.message; } }
+  async function pollQuiz() { try { S.quiz = await fn({ action: 'host_state' }); S.quiz.at = Date.now(); if (live_el() && S.view === 'quiz' && !$1('#geDlg').open) vQuiz(); } catch (e) { const s = $1('#geSync'); if (s) s.textContent = e.message; } }
   async function qCmd(cmd, extra = {}) { try { await fn({ action: 'host', cmd, ...extra }); await pollQuiz(); } catch (e) { say(e.message, 4000); } }
   const testLeft = () => { const hs = S.quiz, z = hs && hs.quiz; if (!z || !z.q_ends_at) return 0; const skew = hs.server_now - hs.at; return Math.max(0, Math.ceil((Date.parse(z.q_ends_at) - (Date.now() + skew)) / 1000)); };
   function vQuiz() {
@@ -219,10 +245,14 @@
       ${ph === 'ended' ? `<button class="ge-btn ok" id="geRec">Record theory results</button><button class="ge-btn" data-q="extend">Reopen +5 min</button>` : ''}
       ${ph !== 'closed' ? `<button class="ge-btn" id="geTv">${S.tv ? 'Exit big screen' : 'Big screen'}</button><button class="ge-btn" id="geTab">Staff tablet</button>` : ''}
       ${ph !== 'closed' && can('grading') ? `<button class="ge-btn ge-ghost danger" id="geReset">Reset</button>` : ''}</div>`;
-    $1('#geMain').innerHTML = `<div class="qz ${S.tv ? 'tv' : ''}">${body}${ctl}</div>`;
-    $all('#geOv [data-q]').forEach(b => b.onclick = () => qCmd(b.dataset.q));
+    S.el.innerHTML = `<div class="qz ${S.tv ? 'tv' : ''}">${body}${ctl}</div>`;
+    inM('[data-q]').forEach(b => b.onclick = () => qCmd(b.dataset.q));
     const te = $1('#geTEnd'); if (te) te.onclick = () => { const left = nIn - nSub; if (left && !confirm(`${left} candidate${left === 1 ? ' hasn’t' : 's haven’t'} got every answer right yet. End the test now? They won’t pass the theory item unless you reopen it.`)) return; qCmd('end'); };
-    const tv = $1('#geTv'); if (tv) tv.onclick = () => { S.tv = !S.tv; keepUi(); if (S.tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); else if (!S.tv && document.fullscreenElement) document.exitFullscreen().catch(() => {}); vQuiz(); };
+    const tv = $1('#geTv'); if (tv) tv.onclick = () => {
+      if (S.inline) { open('quiz'); S.tv = true; keepUi(); if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); vQuiz(); return; }
+      if (S.tv && S.last) { close(); return; }   // leaving the big screen goes back to the run sheet step
+      S.tv = !S.tv; keepUi(); if (S.tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); else if (!S.tv && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      vQuiz(); };
     const tb = $1('#geTab'); if (tb) tb.onclick = () => {
       openDlg(`<h3>Use this tablet for a candidate</h3><p class="ge-tiny">For someone without a phone. Their test opens in a new tab on this device.</p>
         <select id="geTbWho">${cands().map(c => `<option value="${c.id}">${h(c.name)}${pl[c.id] ? ' (already signed in)' : ''}</option>`).join('')}</select>
@@ -247,7 +277,7 @@
     const n = new Date(), today = n.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
     const slack = today === C().date ? Math.round((new Date(today + 'T16:00:00+11:00') - n) / 60000 - leftMins) : null;
     const codes = a.items || [];
-    $1('#geMain').innerHTML = `<div class="mc"><div class="ge-card big">
+    S.el.innerHTML = `<div class="mc"><div class="ge-card big">
         <div class="ge-row"><span class="ge-tag now">${ai + 1} of ${acts.length}</span><span class="ge-muted ge-small">${h({ talk: 'MC', patterns: 'Patterns', board: 'Board breaking', showcase: 'Showcase' }[a.kind] || '')}</span><span class="ge-grow"></span>
         ${slack == null ? '' : `<span class="ge-small" style="${slack < 0 ? 'color:var(--bad)' : 'color:var(--ink-2)'}">${slack >= 0 ? slack + ' min spare before 4:00pm' : -slack + ' min over: tighten changeovers'}</span>`}</div>
         <h2 style="margin-top:10px">${h(a.title)}</h2>${a.sub ? `<div class="sub">${h(a.sub)}</div>` : ''}
@@ -262,12 +292,12 @@
       </div>
       <div class="ge-card"><div class="ge-row" style="margin-bottom:8px"><h3 class="ge-grow">Running order</h3>${can('grading') ? '<button class="ge-btn sm" id="geMEdit">Edit showcases</button>' : ''}</div>
         <div class="alist">${acts.map((x, i) => `<button class="aitem ${i === ai ? 'now' : i < ai ? 'done' : ''}" data-a="${i}"><span class="ge-tiny" style="min-width:20px">${i + 1}</span><span class="ge-grow"><b>${h(x.kind === 'board' || x.kind === 'showcase' ? x.sub : x.title)}</b>${x.kind === 'showcase' && (x.who || []).length > 1 ? ' <span class="ge-tag">shared</span>' : ''}<br><span class="ge-tiny">${h(x.kind === 'board' ? 'Board breaking' : x.kind === 'showcase' ? 'Showcase' : x.sub || '')}</span></span></button>`).join('')}</div></div></div>`;
-    $all('#geOv [data-a]').forEach(x => x.onclick = () => setLive({ act: +x.dataset.a, act_started: null }));
+    inM('[data-a]').forEach(x => x.onclick = () => setLive({ act: +x.dataset.a, act_started: null }));
     $1('#geMNext').onclick = () => setLive({ act: Math.min(acts.length - 1, ai + 1), act_started: ai + 1 < acts.length ? new Date().toISOString() : null });
     $1('#geMBack').onclick = () => setLive({ act: Math.max(0, ai - 1), act_started: null });
     const ms = $1('#geMStart'); if (ms) ms.onclick = () => setLive({ act: ai, act_started: new Date().toISOString() });
-    $all('#geOv [data-ms]').forEach(x => x.onclick = () => { const [c, code, r] = x.dataset.ms.split('|'); setMark(c, code, (mk(c, code) || {}).result === r ? null : r); });
-    $all('#geOv [data-mn]').forEach(x => x.onclick = () => { const [c, code] = x.dataset.mn.split('|'); noteDlg(cand(c), [code]); });
+    inM('[data-ms]').forEach(x => x.onclick = () => { const [c, code, r] = x.dataset.ms.split('|'); setMark(c, code, (mk(c, code) || {}).result === r ? null : r); });
+    inM('[data-mn]').forEach(x => x.onclick = () => { const [c, code] = x.dataset.mn.split('|'); noteDlg(cand(c), [code]); });
     const me = $1('#geMEdit'); if (me) me.onclick = editActs;
     tick();
   }
@@ -296,7 +326,7 @@
   function summary(c) { const p = [], f = [], u = []; candCodes(c).forEach(code => { const r = (mk(c.id, code) || {}).result; (r === 'pass' ? p : r === 'fail' ? f : u).push(code); }); return { p, f, u, suggest: f.length ? 'review' : u.length ? 'incomplete' : 'pass' }; }
   function vResults() {
     const appr = S.ev.approved_at, rows = cands().map(c => ({ c, s: summary(c), o: S.outcomes[c.id] })), ready = rows.filter(r => r.o).length;
-    $1('#geMain').innerHTML = `<div class="ge-row" style="margin-bottom:12px"><h2 class="ge-grow">Results</h2><button class="ge-btn sm noprint" id="geCsv">Download CSV</button><button class="ge-btn sm noprint" id="gePrint">Print</button></div>
+    S.el.innerHTML = `<div class="ge-row" style="margin-bottom:12px"><h2 class="ge-grow">Results</h2><button class="ge-btn sm noprint" id="geCsv">Download CSV</button><button class="ge-btn sm noprint" id="gePrint">Print</button></div>
       <div class="ge-card" style="margin-bottom:12px;${appr ? 'border-color:var(--ok)' : ''}">${appr ? `<b>Approved</b> by ${h(S.ev.approved_by || '')} at ${new Date(appr).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}. Marks and results are locked.${can('admin') ? ' <button class="ge-btn sm ge-ghost noprint" id="geUnAp">Unlock</button>' : ''}`
         : `<b>Held for Mark to approve.</b> Nothing goes to candidates or families until results are approved. ${ready} of ${rows.length} results set.${can('admin') ? ` <button class="ge-btn sm primary noprint" id="geAp">Approve results</button>` : ''}`}</div>
       <div class="ge-card" style="overflow:auto"><table><thead><tr><th>Candidate</th><th>Grading</th><th>Scored</th><th>Failed items</th><th>Suggested</th><th>Result</th></tr></thead><tbody>
@@ -308,7 +338,7 @@
           : `<select data-o="${c.id}"><option value="">Set…</option>${['pass', 'retest', 'fail'].map(v => `<option value="${v}" ${o && o.outcome === v ? 'selected' : ''}>${v[0].toUpperCase() + v.slice(1)}</option>`).join('')}</select>`}</td></tr>`).join('')}
       </tbody></table></div>
       ${!appr && can('grading', 'results') ? '<div class="ge-row noprint" style="margin-top:10px"><button class="ge-btn sm" id="geFill">Set Pass for everyone suggested Pass</button></div>' : ''}`;
-    $all('#geOv [data-o]').forEach(s => s.onchange = async () => {
+    inM('[data-o]').forEach(s => s.onchange = async () => {
       const id = s.dataset.o, v = s.value;
       const r = v ? await db().from('ge_outcomes').upsert({ event_id: S.ev.event_id, cand_id: id, outcome: v, set_by: ME, set_at: new Date().toISOString() }) : await db().from('ge_outcomes').delete().eq('event_id', S.ev.event_id).eq('cand_id', id);
       if (r.error) say(r.error.message, 4000); await loadLive(); draw();
@@ -350,16 +380,17 @@
     const [bb, cb] = await Promise.all([db().rpc('app_my_perms', { p_app: 'bb' }), db().rpc('app_my_perms', { p_app: 'cb' })]);
     const cbp = cb.data || [];
     S.perms = [...(bb.data || []), ...(cbp.includes('admin') ? ['admin'] : []), ...(cbp.some(p => p === 'results' || p === 'days') ? ['grading', 'scoring', 'results'] : [])];
-    pills(true);
     await loadLive();
-    try { const u = JSON.parse(localStorage.getItem('ge_floor_ui') || '{}'); if (u.day === dayId) { S.sel = u.sel || null; S.tv = !!u.tv; if (u.open) open(u.view || 'score'); } } catch (e) {}
+    try { const u = JSON.parse(localStorage.getItem('ge_floor_ui') || '{}'); if (u.day === dayId && u.open && u.view === 'results') open('results'); } catch (e) {}
   }
-  setInterval(async () => { if (!S.ev) return; if (S.open && $1('#geDlg') && $1('#geDlg').open) return; await loadLive(); if (S.open && S.view !== 'quiz') draw(); }, 3000);
-  setInterval(() => { if (S.open && S.view === 'quiz' && !($1('#geDlg') && $1('#geDlg').open)) pollQuiz(); }, 2000);
+  setInterval(async () => { if (!S.ev) return; if ($1('#geDlg') && $1('#geDlg').open) return; await loadLive(); if (live_el() && S.view !== 'quiz') draw(); }, 3000);
+  setInterval(() => { if (live_el() && S.view === 'quiz' && !($1('#geDlg') && $1('#geDlg').open)) pollQuiz(); }, 2000);
   setInterval(tick, 250);
   window.GE = {
-    attach, open,
+    attach, open, mountStep,
     has: () => !!S.ev,
+    hasTool: ge => !!kindFor(ge),
+    results: () => open('results'),
     // the floor's run sheet: "Score this step" for an assessment step, and a timer for any event step
     scoreStep: ge => { if (!S.ev || !ge) return; const b = C().blocks[ge.block]; if (b && ge.step > 0 && b.assess[ge.step - 1]) { if (b.assess[ge.step - 1].quiz) open('quiz'); else open('score', { b: ge.block, s: ge.step - 1 }); } else open('score'); },
     stepTimer: (ge, mins) => S.ev && ge ? `<span class="dm" data-gestep="${ge.block}:${ge.step}:${Number(mins) || 0}"></span>` : '',
