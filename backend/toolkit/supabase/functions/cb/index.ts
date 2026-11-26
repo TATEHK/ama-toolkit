@@ -24,6 +24,7 @@
 //   { action: 'pay', token, back? }         pay the fee by card: returns the Stripe payment page (no sign-in); paying books it
 //   Stripe's webhook (has a Stripe-Signature header)
 //   { action: 'photo', code | token }       a family's grading photo link (short code from /p#<code>): a short-lived address for the photo (no sign-in)
+//   { act: 'amaos-photo', path } + x-amaos-sync-key header  AMA OS: a 1-hour signed URL for a grading photo (amaos-photos-1.sql)
 //   { action: 'cleanup' } + x-cb-cron header  the nightly job: delete grading photos older than 30 days (secret in Supabase Vault)
 //   { action: 'reply', key, phone, message }  GoHighLevel workflow: a family replied; a YES marks them and texts the booking link
 //   { action: 'sequence' } + x-cb-cron header  every 15 minutes: the automated booking sequence (coloured-belts-23.sql).
@@ -171,7 +172,7 @@ export const EFC_LOCATIONS = {
 const KINDS = { invite: ['text_invite', 'texts'], not_booked: ['text_followup', 'texts'], reminder: ['text_invite', 'texts'], unpaid: ['text_followup', 'texts'], congrats: ['text_result', 'texts'], retest: ['text_result', 'texts'], photo: ['text_result', 'results', 'texts'], not_ready: ['text_followup', 'readiness'], bbc_followup: ['text_followup', 'readiness'], makeup: ['text_followup', 'texts'] };
 const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cb-cron, stripe-signature',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cb-cron, x-amaos-sync-key, stripe-signature',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -1268,6 +1269,23 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ received: true });
     }
     let body = {}; try { body = JSON.parse(raw || '{}'); } catch (e) { /* not JSON */ }
+
+    // ---- AMA OS (Mark's hub, amaos-photos-1.sql): a 1-hour signed URL for a grading photo listed in ama_os.grading_photos,
+    //      so the hub can copy it before the 30-day clean-up. Header x-amaos-sync-key must match the vault's ama_os_sync_key,
+    //      and the path must be a student or group photo the Toolkit knows about. ----
+    if (body.act === 'amaos-photo') {
+      const { data: okKey } = await db.rpc('amaos_sync_ok', { p_key: req.headers.get('x-amaos-sync-key') || '' });
+      if (okKey !== true) return fail('Not allowed.', 403);
+      const path = String(body.path || '');
+      if (!path || path.length > 300 || path.includes('..')) return fail('Which photo?');
+      const [{ data: pe }, { data: pg }] = await Promise.all([
+        db.from('cb_entries').select('entry_id').eq('photo_path', path).limit(1),
+        db.from('cb_group_photos').select('group_photo_id').eq('photo_path', path).limit(1)]);
+      if (!(pe && pe.length) && !(pg && pg.length)) return fail('That photo wasn\'t found.', 404);
+      const { data: su, error: se } = await db.storage.from('grading-photos').createSignedUrl(path, 3600);
+      if (se || !su) return fail('That photo is no longer stored (photos are kept for 30 days).', 404);
+      return json({ url: su.signedUrl });
+    }
 
     // ---- Families (no sign-in): the booking link ----
     if (body.action === 'info' || body.action === 'book' || body.action === 'pay') {
