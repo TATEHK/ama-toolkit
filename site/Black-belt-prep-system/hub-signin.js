@@ -2,6 +2,7 @@
 // The same file is copied into ama-id-cards/docs and Black-belt-prep-system/docs; keep the copies the same.
 //
 //   AmaHub.mount({ sb, url, key, form })   adds the hub option under a page's email and password form
+//   AmaHub.passkey.register/list/remove(o, ...)   passkeys for the signed-in login (the Profile page)
 //   AmaHub.recheck({ sb, url, key })       on page load: if signed in through the hub, check the hub still
 //                                          allows it (12-hour hub session, Active in the hub); if not, sign out
 //
@@ -29,6 +30,52 @@
     sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') store.set(null); });
   }
 
+  // ---- Passkeys (Supabase Auth, relying party train-ama.com: one passkey works on app.train-ama.com and ama-os.train-ama.com).
+  // The pages use an older supabase-js; the passkey ceremony comes from a current one loaded only when needed, in a
+  // client that keeps nothing itself. The session it gets is handed to the page's own client.
+  var PK_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/+esm', pkMod = null;
+  function pkSupported() { return !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext); }
+  function pkClient(o) {
+    pkMod = pkMod || import(PK_LIB);
+    return pkMod.then(function (m) { return m.createClient(o.url, o.key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'ama-pk-tmp' } }); });
+  }
+  // a client signed in as the page's current login (fresh tokens from the page, so nothing gets rotated)
+  function pkAs(o) {
+    return o.sb.auth.getSession().then(function (r) {
+      var s = r && r.data && r.data.session; if (!s) throw new Error('Sign in first.');
+      return pkClient(o).then(function (c) { return c.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token }).then(function (x) { if (x && x.error) throw x.error; return c; }); });
+    });
+  }
+  function pkMsg(e) {
+    var m = String((e && (e.code || e.name)) || '') + ' ' + String((e && e.message) || '');
+    if (/NotAllowed|abort|cancel/i.test(m)) return '';   // they closed the prompt
+    if (/passkey.*(disabled|not enabled)|not_enabled|feature_disabled|404/i.test(m)) return 'Passkeys aren’t switched on yet. Use your mobile and PIN.';
+    if (/credential_not_found/i.test(m)) return 'That passkey isn’t set up for AMA any more. Sign in with your mobile and PIN, then add it again on your Profile.';
+    if (/InvalidState|already/i.test(m)) return 'This device already has a passkey for your login.';
+    if (/failed to fetch|network|load failed/i.test(m)) return 'No connection. Check the Wi-Fi or signal and try again.';
+    return (e && e.message) || 'Passkey didn’t work. Try again.';
+  }
+  var passkey = {
+    supported: pkSupported,
+    signIn: function (o) {
+      return pkClient(o).then(function (c) { return c.auth.signInWithPasskey(); }).then(function (r) {
+        if (r.error) throw r.error;
+        var s = r.data && (r.data.session || r.data); if (!s || !s.access_token) throw new Error('Passkey didn’t work. Try again.');
+        return o.sb.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token }).then(function (x) { if (x && x.error) throw x.error; ls('ama_passkey_here', '1'); return x; });
+      });
+    },
+    register: function (o, name) {
+      return pkAs(o).then(function (c) { return c.auth.registerPasskey().then(function (r) {
+        if (r.error) throw r.error; ls('ama_passkey_here', '1');
+        var id = r.data && (r.data.id || (r.data.passkey && r.data.passkey.id));
+        if (id && name) return c.auth.passkey.update({ passkeyId: id, friendlyName: String(name).slice(0, 120) }).then(function () { return r.data; }, function () { return r.data; });
+        return r.data; }); });
+    },
+    list: function (o) { return pkAs(o).then(function (c) { return c.auth.passkey.list(); }).then(function (r) { if (r.error) throw r.error; return r.data || []; }); },
+    remove: function (o, id) { return pkAs(o).then(function (c) { return c.auth.passkey.delete({ passkeyId: id }); }).then(function (r) { if (r && r.error) throw r.error; return true; }); },
+    message: pkMsg
+  };
+
   // One look for every AMA sign-in: big, clear fields that follow the page's colours (theme variables), the mobile
   // remembered on this device, PIN show/hide, and the page's own email form restyled to match.
   var CSS = '' +
@@ -51,6 +98,11 @@
     '.ama-si-alt{align-self:center;background:none;border:0;padding:8px 6px;margin:0;font:inherit;font-size:14px;font-weight:600;color:var(--ink-3,#6f7d74);text-decoration:underline;text-underline-offset:3px;cursor:pointer}' +
     '.ama-si-alt:hover{color:var(--ink,#14201a)}' +
     '.ama-si-hint{margin:-4px 0 0;font-size:12.5px;color:var(--ink-3,#7a887f);text-align:center;line-height:1.4}' +
+    '.ama-si-pk{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:54px;border-radius:14px;border:1.5px solid var(--line-2,var(--line,#cfd8d2));background:var(--panel,#fff);color:var(--ink,#14201a);font:inherit;font-size:16px;font-weight:700;cursor:pointer;transition:border-color .15s,transform .08s}' +
+    '.ama-si-pk:hover{border-color:var(--accent,#f5c518)}.ama-si-pk:active{transform:scale(.985)}.ama-si-pk svg{width:22px;height:22px}' +
+    '.ama-si-or{display:flex;align-items:center;gap:12px;margin:14px 0;color:var(--ink-3,#7a887f);font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}' +
+    '.ama-si-or::before,.ama-si-or::after{content:"";flex:1;height:1px;background:var(--line,#dbe2dd)}' +
+    '.ama-si-pkerr{margin:10px 0 0}' +
     '.hub-signin{width:100%}';
   function css() { if (document.getElementById('amaSiCss')) return; var st = document.createElement('style'); st.id = 'amaSiCss'; st.textContent = CSS; document.head.appendChild(st); }
   // 0412345678 -> 0412 345 678 as it's typed (+61 numbers left alone apart from spacing)
@@ -64,6 +116,8 @@
     form.classList.add('ama-si-email');
     var wrap = document.createElement('div');
     wrap.className = 'hub-signin';
+    var KEY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3m-3 3 2 2m-5 1 2 2"/></svg>';
+    var pkTop = pkSupported() ? '<button type="button" class="ama-si-pk" id="hubPk">' + KEY_SVG + 'Sign in with a passkey</button><p class="ama-si-err ama-si-pkerr" id="hubPkErr" role="alert" style="display:none"></p><div class="ama-si-or">or</div>' : '';
     wrap.innerHTML =
       '<button type="button" id="hubShow" class="ama-si-alt">Use hub mobile and PIN instead</button>' +
       '<form id="hubForm" class="ama-si" style="display:none" novalidate>' +
@@ -76,6 +130,15 @@
         '<button type="button" id="hubBack" class="ama-si-alt">Use email and password instead</button>' +
       '</form>';
     form.parentNode.insertBefore(wrap, form.nextSibling);
+    if (pkTop) {   // the passkey button sits above whichever form is showing
+      var top = document.createElement('div'); top.className = 'hub-signin ama-si-top'; top.innerHTML = pkTop; form.parentNode.insertBefore(top, form);
+      var pkb = top.querySelector('#hubPk'), pke = top.querySelector('#hubPkErr');
+      pkb.onclick = function () {
+        pke.style.display = 'none'; pkb.disabled = true; var was = pkb.innerHTML; pkb.innerHTML = '<span class="ama-si-spin"></span>Waiting for your passkey…';
+        passkey.signIn(o).then(function (r) { pkb.innerHTML = 'Signed in'; if (o.onSignedIn) o.onSignedIn(r); else location.reload(); })
+          .catch(function (e) { var m = pkMsg(e); pkb.disabled = false; pkb.innerHTML = was; if (m) { pke.textContent = m; pke.style.display = ''; } });
+      };
+    }
     var hubForm = wrap.querySelector('#hubForm'), show = wrap.querySelector('#hubShow'), err = wrap.querySelector('#hubError'), go = wrap.querySelector('#hubGo');
     var mob = wrap.querySelector('#hubMobile'), pin = wrap.querySelector('#hubPin'), eye = wrap.querySelector('#hubEye');
     var formDisplay = form.style.display;
@@ -144,5 +207,5 @@
     }).catch(function () { return true; });
   }
 
-  window.AmaHub = { mount: mount, recheck: recheck };
+  window.AmaHub = { mount: mount, recheck: recheck, passkey: passkey };
 })();
