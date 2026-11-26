@@ -161,7 +161,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
     <div class="row brand" style="gap:10px"><div class="logo">A</div><div><b id="evTitle">Grading</b><small id="evSub"></small></div></div>
     <div class="tabs" id="tabs">
       <button data-v="run">Run of day</button><button data-v="roll">Roll call</button><button data-v="score">Scoring</button>
-      <button data-v="quiz">Quiz</button><button data-v="mc">MC</button><button data-v="results">Results</button>
+      <button data-v="quiz">Theory test</button><button data-v="mc">MC</button><button data-v="results">Results</button>
     </div>
     <span class="grow"></span>
     <span id="sync" class="tiny"></span>
@@ -286,7 +286,7 @@ function vRun() {
       </div>
       ${st.kind === 'assess' ? `<div class="card" style="margin-top:14px;background:var(--bg)">
         <div class="row"><h3 class="grow">Assessing ${esc(st.groups.join(' + '))}${st.note ? ' <span class="muted small">' + esc(st.note) + '</span>' : ''}</h3>
-        ${st.quiz ? '<button class="btn primary" id="rQuiz">Open the quiz</button>' : `<button class="btn primary" id="rScore">Score this</button>`}</div>
+        ${st.quiz ? '<button class="btn primary" id="rQuiz">Open the theory test</button>' : `<button class="btn primary" id="rScore">Score this</button>`}</div>
         <div class="items">${Object.entries(st.items).map(([k, codes]) => codes.map(code => { const it = itemOf(code); return `<div class="item"><code>${code}</code><div><b>${esc(it.section)}</b> <span class="muted">${esc(it.text)}</span></div></div>`; }).join('')).join('')}</div>
         <p class="tiny" style="margin:8px 0 0">${unscoredIn(st).length ? unscoredIn(st).length + ' still to score in this step' : 'All scored'}</p></div>` : ''}
       ${b.rollcall ? `<div class="row" style="margin-top:14px"><span class="muted">${S.present.size} of ${cands().length} marked present</span><button class="btn" id="rRoll">Open roll call</button></div>` : ''}
@@ -344,7 +344,7 @@ function vScore() {
   $('#main').innerHTML = `<div class="row" style="margin-bottom:10px"><h2 class="grow">Scoring</h2>
       <select id="stepSel">${list.map(x => `<option value="${x.b}:${x.s}" ${x === cur ? 'selected' : ''}>${hhmm(x.st.time)} · ${esc(x.block.title)} · ${esc(x.st.groups.join(' + '))}</option>`).join('')}</select></div>
     ${S.ev.approved_at ? '<div class="card" style="border-color:var(--ok);margin-bottom:10px">Results are approved and locked.</div>' : ''}
-    ${st.quiz ? `<div class="card" style="margin-bottom:10px">The theory item is marked from the quiz. Open the <b>Quiz</b> tab and press <b>Record theory results</b> after the last question, or mark someone by hand below.</div>` : ''}
+    ${st.quiz ? `<div class="card" style="margin-bottom:10px">The theory item is marked from the test. Open the <b>Theory test</b> tab and press <b>Record theory results</b> once it has finished, or mark someone by hand below.</div>` : ''}
     <div class="legend">${legend}</div>
     <div class="row small muted" style="margin-bottom:8px"><span class="grow">Tap an item: pass, then fail, then clear. Press <b>Note</b> to add a comment.</span><span class="${un ? '' : 'tag ok'}" style="${un ? 'color:var(--warn)' : ''}">${un ? un + ' to score' : 'All scored'}</span></div>
     <div style="display:flex;flex-direction:column;gap:6px">${rows.map(c => { const codes = stepCodes(st, c), here = isHere(c.id);
@@ -363,73 +363,59 @@ function noteDlg(c, codes) {
   $('#nSave').onclick = () => { $$('#dlg [data-n]').forEach(t => { const code = t.dataset.n, v = t.value.trim() || null; if ((mk(c.id, code) || {}).comment !== v && !(v === null && !(mk(c.id, code) || {}).comment)) setMark(c.id, code, undefined, v); }); closeDlg(); };
 }
 
-// ----- Quiz host -----
-let qPoll = null, autoRevealFor = -1;
-async function pollQuiz() { try { S.quiz = await fn({ action: 'host_state' }); S.quiz.at = Date.now(); if (S.view === 'quiz') vQuiz(); } catch (e) { $('#sync').textContent = e.message; } }
+// ----- Theory test (private, own pace on their phones) -----
+async function pollQuiz() { try { S.quiz = await fn({ action: 'host_state' }); S.quiz.at = Date.now(); if (S.view === 'quiz' && !$('#dlg').open) vQuiz(); } catch (e) { $('#sync').textContent = e.message; } }
 async function qCmd(cmd, extra = {}) { try { const r = await fn({ action: 'host', cmd, ...extra }); if (S.quiz) S.quiz.quiz = r.quiz; await pollQuiz(); } catch (e) { toast(e.message, 4000); } }
+const testLeft = () => { const hs = S.quiz, z = hs && hs.quiz; if (!z || !z.q_ends_at) return 0; const skew = hs.server_now - hs.at; return Math.max(0, Math.ceil((Date.parse(z.q_ends_at) - (Date.now() + skew)) / 1000)); };
 function vQuiz() {
-  const Q = C().quiz, hs = S.quiz, z = hs && hs.quiz, ph = z ? z.phase : 'closed', q = z && Q.questions[z.q_ix], r = q && Q.rounds[q.round];
-  const joined = new Set(((hs && hs.players) || []).map(p => p.cand_id)), nJoined = joined.size;
+  const Q = C().quiz, hs = S.quiz, z = hs && hs.quiz;
+  let ph = z ? z.phase : 'closed'; if (ph === 'open' && testLeft() <= 0) ph = 'ended';
+  const pl = Object.fromEntries(((hs && hs.players) || []).map(p => [p.cand_id, p]));
+  const nIn = Object.keys(pl).length, nSub = Object.values(pl).filter(p => p.submitted_at).length, total = (hs && hs.total) || Q.questions.length;
   const url = location.origin + '/q/#' + S.ev.join_code;
   let body = '';
-  if (!hs) body = '<p class="muted">Loading the quiz…</p>';
-  else if (ph === 'closed') body = `<div class="card" style="max-width:640px"><h2>Theory quiz</h2><p class="muted">30 questions in 5 rounds, about 30 minutes. Candidates join on their phones with a QR code and pick their name. Pass mark ${Q.pass_mark}/30 correct; points and speed are just for fun.</p><button class="btn primary" data-q="open">Open the lobby</button></div>`;
+  if (!hs) body = '<p class="muted">Loading…</p>';
+  else if (ph === 'closed') body = `<div class="card" style="max-width:680px"><h2>Theory test</h2><p class="muted">${total} questions. Each candidate signs in on their own phone, works through the test at their own pace for ${Q.minutes || 30} minutes, can change answers, then submits. It's private: nobody sees scores except staff, here. Pass mark ${Q.pass_mark}/${total}.</p><button class="btn primary" data-q="open">Open sign-in</button></div>`;
   else if (ph === 'lobby') {
     let qr = ''; try { const g = qrcode(0, 'M'); g.addData(url); g.make(); qr = g.createSvgTag({ cellSize: 8, margin: 2, scalable: true }); } catch (e) { qr = ''; }
-    body = `<div class="lobby"><div class="qr">${qr}</div><div><div class="qtext">Scan to join the quiz</div><p style="font-size:clamp(18px,2vw,30px);margin:10px 0">or go to <b>${esc(location.host)}/q</b> and enter <b style="color:var(--accent);letter-spacing:.1em">${esc(S.ev.join_code)}</b></p>
-      <p class="meta"><span>${nJoined} of ${cands().length} joined</span></p><div class="joined">${cands().map(c => `<span class="${joined.has(c.id) ? 'in' : ''}">${esc(shortName(c.name))}</span>`).join('')}</div></div></div>`;
-  } else if (q && (ph === 'question' || ph === 'reveal')) {
-    const ends = Date.parse(z.q_ends_at), skew = hs.server_now - hs.at, left = Math.max(0, Math.ceil((ends - (Date.now() + skew)) / 1000));
-    const rev = ph === 'reveal', tot = hs.answered || 0;
-    const opts = q.type === 'order' ? `<div class="olist">${(rev ? q.answer.map(i => q.options[i]) : q.options).map((o, i) => `<div>${rev ? (i + 1) + '. ' : ''}${esc(o)}</div>`).join('')}</div>`
-      : `<div class="opts">${q.options.map((o, i) => `<div class="opt o${i} ${rev ? (i === q.answer ? 'right' : 'dim') : ''}"><i>${'ABCD'[i]}</i><span class="grow">${esc(o)}${rev && hs.dist ? `<div class="bar2" style="width:${tot ? Math.round(hs.dist[i] / tot * 100) : 0}%"></div>` : ''}</span>${rev && hs.dist ? `<span>${hs.dist[i]}</span>` : ''}</div>`).join('')}</div>`;
-    body = `<div class="meta"><span>Round ${q.round + 1}: ${esc(r.name)} · Question ${z.q_ix + 1} of ${Q.questions.length}</span><span>${r.points} pts</span></div>
-      <div class="row" style="align-items:flex-start"><div class="qtext grow">${esc(q.text)}</div>${rev ? '' : `<div class="ring" id="qLeft">${left}</div>`}</div>
-      ${opts}
-      <div class="meta"><span>${tot} of ${nJoined} answered${rev ? ` · ${hs.correct_now} correct` : ''}</span>${q.type === 'order' && !rev ? '<span>Put them in order on your phone</span>' : ''}</div>
-      ${rev && q.fact ? `<div class="fact">${esc(q.fact)}</div>` : ''}`;
-    // reveal automatically when time is up or everyone who joined has answered
-    if (!rev && autoRevealFor !== z.q_ix && ((left <= 0 && Date.now() + skew > ends + 1500) || (nJoined && tot >= nJoined))) { autoRevealFor = z.q_ix; setTimeout(() => qCmd('reveal'), 600); }
-  } else if (ph === 'leaderboard' || ph === 'podium') {
-    const lb = hs.leaderboard || [];
-    if (ph === 'podium') { const p = [lb[1], lb[0], lb[2]]; body = `<div class="qtext" style="text-align:center">Final podium</div><div class="podium">${p.map((x, i) => x ? `<div class="p${[2, 1, 3][i]}"><div style="font-size:1.6em">${[2, 1, 3][i]}</div>${esc(x.name)}<div class="muted">${x.points} pts</div></div>` : '<div style="visibility:hidden"></div>').join('')}</div>`; }
-    else body = `<div class="qtext" style="text-align:center">Leaderboard${q ? ` after round ${q.round + 1}` : ''}</div><div class="lb">${lb.slice(0, 10).map((x, i) => `<div class="r"><span class="n">${i + 1}</span><span class="grow">${esc(x.name)}</span><span>${x.points}</span></div>`).join('') || '<p class="muted">No answers yet.</p>'}</div>`;
+    body = `<div class="lobby"><div class="qr">${qr}</div><div><div class="qtext">Theory test: scan to sign in</div><p style="font-size:clamp(18px,2vw,30px);margin:10px 0">or go to <b>${esc(location.host)}/q</b> and enter <b style="color:var(--accent);letter-spacing:.1em">${esc(S.ev.join_code)}</b></p>
+      <p class="meta"><span>${nIn} of ${cands().length} signed in</span></p><div class="joined">${cands().map(c => `<span class="${pl[c.id] ? 'in' : ''}">${esc(shortName(c.name))}</span>`).join('')}</div></div></div>`;
+  } else {
+    const left = testLeft();
+    const big = `<div style="text-align:center;margin-top:${S.tv ? '14vh' : '10px'}"><div class="meta" style="justify-content:center">${ph === 'ended' ? 'Test finished' : 'Theory test in progress'}</div>
+      <div class="ring" id="tLeft" style="font-size:${S.tv ? 'clamp(80px,16vw,240px)' : '80px'};text-align:center">${ph === 'ended' ? '0:00' : mmss(left)}</div>
+      <div class="qtext" style="font-size:clamp(22px,3vw,44px)">${nSub} of ${nIn} submitted</div>${ph !== 'ended' && S.tv ? '<p class="muted" style="font-size:clamp(16px,1.8vw,26px)">Work at your own pace. You can go back and change answers until you submit.</p>' : ''}</div>`;
+    const table = S.tv ? '' : `<div class="card" style="margin-top:16px;overflow:auto"><div class="row" style="margin-bottom:6px"><h3 class="grow">Candidates</h3><span class="tiny">Only staff see this</span></div><table><thead><tr><th>Candidate</th><th>Status</th><th>Answered</th>${ph === 'ended' ? '<th>Score</th><th>Theory</th>' : ''}</tr></thead><tbody>
+      ${cands().map(c => { const p = pl[c.id]; return `<tr><td>${esc(c.name)}<div class="tiny">${esc(c.group)}</div></td><td>${!p ? '<span class="tag">Not signed in</span>' : p.submitted_at ? '<span class="tag ok">Submitted</span>' : ph === 'ended' ? '<span class="tag warn">Time up</span>' : '<span class="tag now">Answering</span>'}${p && p.via === 'tablet' ? ' <span class="tiny">tablet</span>' : ''}</td>
+        <td>${p ? p.answered + ' / ' + total : '—'}</td>${ph === 'ended' ? `<td><b>${p ? p.correct : '—'}</b>${p ? ' / ' + total : ''}</td><td>${p ? (p.correct >= Q.pass_mark ? '<span class="tag ok">Pass</span>' : '<span class="tag bad">Below pass</span>') : ''}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>`;
+    body = big + table;
   }
-  const lastQ = z && z.q_ix >= Q.questions.length - 1;
   const ctl = !hs ? '' : `<div class="ctl noprint">
-    ${ph === 'lobby' ? `<button class="btn primary" data-q="start">Start question 1</button>` : ''}
-    ${ph === 'question' ? `<button class="btn primary" data-q="reveal">Reveal answer</button>` : ''}
-    ${ph === 'reveal' ? `<button class="btn primary" data-q="next">${lastQ ? 'Leaderboard' : (Q.questions[z.q_ix + 1].round !== q.round ? 'Round leaderboard' : 'Next question')}</button>` : ''}
-    ${ph === 'leaderboard' ? `<button class="btn primary" data-q="${lastQ ? 'podium' : 'next'}">${lastQ ? 'Podium' : 'Next round'}</button>` : ''}
-    ${['question', 'reveal'].includes(ph) ? `<button class="btn" data-q="back" title="Re-ask this question (clears its answers)">Re-ask</button>` : ''}
-    <button class="btn" id="qTv">${S.tv ? 'Exit big screen' : 'Big screen'}</button>
-    ${ph !== 'closed' ? `<button class="btn" id="qTab">Staff tablet</button>` : ''}
-    ${ph === 'podium' || ph === 'leaderboard' ? `<button class="btn ok" id="qRec">Record theory results</button>` : ''}
+    ${ph === 'lobby' ? `<button class="btn primary" data-q="start">Start the test (${Q.minutes || 30} min)</button>` : ''}
+    ${ph === 'open' ? `<button class="btn" data-q="extend">+5 minutes</button><button class="btn primary" id="tEnd">End the test</button>` : ''}
+    ${ph === 'ended' ? `<button class="btn ok" id="qRec">Record theory results</button><button class="btn" data-q="extend">Reopen +5 min</button>` : ''}
+    ${ph !== 'closed' ? `<button class="btn" id="qTv">${S.tv ? 'Exit big screen' : 'Big screen'}</button><button class="btn" id="qTab">Staff tablet</button>` : ''}
     ${ph !== 'closed' && can('grading') ? `<button class="btn ghost danger" id="qReset">Reset</button>` : ''}
   </div>`;
   $('#main').innerHTML = `<div class="qz ${S.tv ? 'tv' : ''}">${body}${ctl}</div>`;
   $$('[data-q]').forEach(b => b.onclick = () => qCmd(b.dataset.q));
+  const te = $('#tEnd'); if (te) te.onclick = () => { const open = nIn - nSub; if (open && !confirm(`${open} candidate${open === 1 ? ' hasn’t' : 's haven’t'} submitted. End the test now? Their saved answers still count.`)) return; qCmd('end'); };
   const tv = $('#qTv'); if (tv) tv.onclick = () => { S.tv = !S.tv; if (S.tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); else if (!S.tv && document.fullscreenElement) document.exitFullscreen().catch(() => {}); vQuiz(); };
   const tb = $('#qTab'); if (tb) tb.onclick = () => {
-    openDlg(`<h3>Play on this tablet</h3><p class="small muted">For someone without a phone. Pick who is playing; their quiz opens in a new tab on this device.</p>
-      <select id="tbWho" style="width:100%">${cands().map(c => `<option value="${c.id}">${esc(c.name)}${joined.has(c.id) ? ' (already joined)' : ''}</option>`).join('')}</select>
-      <div class="row" style="margin-top:12px"><button class="btn primary" id="tbGo">Open their quiz</button><button class="btn ghost" data-x>Cancel</button></div>`);
+    openDlg(`<h3>Use this tablet for a candidate</h3><p class="small muted">For someone without a phone. Pick who is sitting the test; it opens in a new tab on this device.</p>
+      <select id="tbWho" style="width:100%">${cands().map(c => `<option value="${c.id}">${esc(c.name)}${pl[c.id] ? ' (already signed in)' : ''}</option>`).join('')}</select>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="tbGo">Open their test</button><button class="btn ghost" data-x>Cancel</button></div>`);
     $('#tbGo').onclick = async () => { try { const r = await fn({ action: 'tablet', cand_id: $('#tbWho').value }); window.open(`/q/#${S.ev.join_code}/${r.token}`, '_blank'); closeDlg(); } catch (e) { toast(e.message); } };
   };
-  const rc = $('#qRec'); if (rc) rc.onclick = async () => { try { const r = await fn({ action: 'quiz_record' }); toast(`Theory recorded for ${r.recorded}${r.not_played.length ? '. Not played: ' + r.not_played.join(', ') : ''}`, 7000); await loadLive(); } catch (e) { toast(e.message, 5000); } };
+  const rc = $('#qRec'); if (rc) rc.onclick = async () => { try { const r = await fn({ action: 'quiz_record' }); toast(`Theory recorded for ${r.recorded}${r.not_sat.length ? '. Didn’t sit: ' + r.not_sat.join(', ') : ''}`, 7000); await loadLive(); } catch (e) { toast(e.message, 5000); } };
   const rs = $('#qReset'); if (rs) rs.onclick = () => {
-    openDlg(`<h3>Reset the quiz?</h3><p class="small">Clears every answer and goes back to the lobby. Use it after a test run.</p><label class="row small"><input type="checkbox" id="rsP"> Also remove who has joined</label>
+    openDlg(`<h3>Reset the test?</h3><p class="small">Clears every answer and goes back to sign-in. Use it after a test run.</p><label class="row small"><input type="checkbox" id="rsP"> Also sign everyone out</label>
       <div class="row" style="margin-top:12px"><button class="btn danger" id="rsGo">Reset</button><button class="btn ghost" data-x>Cancel</button></div>`);
     $('#rsGo').onclick = () => { closeDlg(); qCmd('reset', { players: $('#rsP').checked }); };
   };
 }
-function quizTick() { const el = $('#qLeft'); if (el && S.quiz && S.quiz.quiz) { const skew = S.quiz.server_now - S.quiz.at; el.textContent = Math.max(0, Math.ceil((Date.parse(S.quiz.quiz.q_ends_at) - (Date.now() + skew)) / 1000)); } }
-document.addEventListener('keydown', e => {
-  if (S.view !== 'quiz' || $('#dlg').open || /input|textarea|select/i.test(e.target.tagName)) return;
-  const z = S.quiz && S.quiz.quiz; if (!z) return;
-  if (e.key === ' ' || e.key === 'ArrowRight') { e.preventDefault(); const b = $('.ctl .btn.primary'); if (b) b.click(); }
-  if (e.key === 'f') { const b = $('#qTv'); if (b) b.click(); }
-});
+function quizTick() { const el = $('#tLeft'); if (el && S.quiz && S.quiz.quiz && S.quiz.quiz.phase === 'open') el.textContent = mmss(testLeft()); }
+document.addEventListener('keydown', e => { if (S.view === 'quiz' && e.key === 'f' && !$('#dlg').open && !/input|textarea|select/i.test(e.target.tagName)) { const b = $('#qTv'); if (b) b.click(); } });
 
 // ----- MC (public hour) -----
 function vMc() {
@@ -537,7 +523,7 @@ async function openEvent(id) {
   const h = (location.hash || '').slice(1); if (['run', 'roll', 'score', 'quiz', 'mc', 'results'].includes(h)) S.view = h;
   render(); if (S.view === 'quiz') pollQuiz();
   setInterval(async () => { if ($('#dlg').open && S.view !== 'quiz') return; await loadLive(); if (!$('#dlg').open && S.view !== 'quiz') render(); }, 3000);
-  setInterval(() => { if (S.view === 'quiz' && !$('#dlg').open) pollQuiz(); }, 1000);
+  setInterval(() => { if (S.view === 'quiz' && !$('#dlg').open) pollQuiz(); }, 2000);
   setInterval(() => { tickClock(); quizTick(); }, 250);
 }
 async function boot() {

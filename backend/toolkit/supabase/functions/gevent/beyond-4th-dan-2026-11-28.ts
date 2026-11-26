@@ -299,7 +299,7 @@ export default {
     {
      "code": "4D-14",
      "section": "Theory",
-     "text": "Toolkit quiz, pass 24/30"
+     "text": "Theory test on their phone, pass 24/30"
     }
    ]
   },
@@ -369,7 +369,7 @@ export default {
     {
      "code": "L1-13",
      "section": "Theory",
-     "text": "Toolkit quiz, pass 24/30"
+     "text": "Theory test on their phone, pass 24/30"
     }
    ]
   },
@@ -439,7 +439,7 @@ export default {
     {
      "code": "L3-13",
      "section": "Theory",
-     "text": "Toolkit quiz, pass 24/30"
+     "text": "Theory test on their phone, pass 24/30"
     }
    ]
   }
@@ -644,9 +644,9 @@ export default {
    "id": "quiz",
    "time": "11:30",
    "mins": 30,
-   "title": "Theory quiz",
-   "train": "Live quiz from the Grading Toolkit: 30 questions in 5 rounds",
-   "notes": "Pass 24/30. Marked from the quiz",
+   "title": "Theory test",
+   "train": "30 questions on their own phones, at their own pace, 30 minutes. Private: no scores shown.",
+   "notes": "Pass 24/30. Marked from the test",
    "quiz": true,
    "assess": [
     {
@@ -1442,33 +1442,23 @@ export default {
   "rounds": [
    {
     "name": "Warm-up",
-    "level": "easy",
-    "secs": 15,
-    "points": 100
+    "level": "easy"
    },
    {
     "name": "History",
-    "level": "medium",
-    "secs": 20,
-    "points": 200
+    "level": "medium"
    },
    {
     "name": "Tenets and Korean terms",
-    "level": "medium",
-    "secs": 20,
-    "points": 200
+    "level": "medium"
    },
    {
     "name": "Patterns",
-    "level": "medium",
-    "secs": 20,
-    "points": 200
+    "level": "medium"
    },
    {
     "name": "Boss round",
-    "level": "hard",
-    "secs": 30,
-    "points": 300
+    "level": "hard"
    }
   ],
   "questions": [
@@ -1863,14 +1853,12 @@ export default {
    }
   ],
   "pass_mark": 24,
-  "speed_bonus": 0.5,
-  "streak_at": 3,
-  "streak_bonus": 100,
   "theory_items": {
    "4D": "4D-14",
    "L1": "L1-13",
    "L3": "L3-13"
-  }
+  },
+  "minutes": 30
  },
  "notes": [
   "Georgia Kirkwood (5th Dan Level 4) grades the following week and is not in this event.",
