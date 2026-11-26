@@ -46,10 +46,21 @@
     const { error } = await db().rpc('ge_live_set', { p_event: S.ev.event_id, p_patch: patch });
     if (error) say('Not saved: ' + error.message, 4000);
   }
+  // Calls the test server. If the sign-in on this device has been ended elsewhere (the server says 401), refresh it
+  // once and retry; if that can't be done, say so plainly so the fix (sign in again) is one tap away.
+  async function call(body, token) {
+    const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/gevent', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, Authorization: 'Bearer ' + (token || '') }, body: JSON.stringify({ event_id: S.ev.event_id, ...body }) });
+    return { r, j: await r.json().catch(() => ({})) };
+  }
   async function fn(body) {
     const { data: { session } } = await db().auth.getSession();
-    const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/gevent', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, Authorization: 'Bearer ' + (session ? session.access_token : '') }, body: JSON.stringify({ event_id: S.ev.event_id, ...body }) });
-    const j = await r.json().catch(() => ({}));
+    let { r, j } = await call(body, session && session.access_token);
+    if (r.status === 401) {
+      const { data } = await db().auth.refreshSession().catch(() => ({ data: {} }));
+      if (data && data.session) ({ r, j } = await call(body, data.session.access_token));
+      if (r.status === 401) { S.signedOut = true; throw new Error('Your sign-in has ended. Sign out and back in to use the test.'); }
+    }
+    S.signedOut = false;
     if (!r.ok || j.ok === false) throw new Error(j.error || 'That didn’t work.');
     return j;
   }
@@ -219,6 +230,8 @@
   // If the server can't be reached the panel says so (and keeps the sign-in QR up) instead of sitting on "Loading".
   const QKEY = () => 'ge_quiz_' + (S.ev && S.ev.event_id);
   async function pollQuiz() {
+    if (S.signedOut && S.quizTry && Date.now() - S.quizTry < 15000) return;   // don't hammer while signed out
+    S.quizTry = Date.now();
     try { S.quiz = await fn({ action: 'host_state' }); S.quiz.at = Date.now(); S.quizErr = null; try { localStorage.setItem(QKEY(), JSON.stringify(S.quiz)); } catch (e) {} }
     catch (e) { S.quizErr = e.message || 'Can\u2019t reach the test'; if (!S.quiz) { try { const c = JSON.parse(localStorage.getItem(QKEY()) || 'null'); if (c) { c.at = Date.now(); c.stale = true; S.quiz = c; } } catch (x) {} } }
     if (live_el() && S.view === 'quiz' && !$1('#geDlg').open) vQuiz();
@@ -235,7 +248,7 @@
     if (!hs) {   // first moment, or the server can't be reached: the sign-in QR is still useful
       let qr = ''; try { const g = qrcode(0, 'M'); g.addData(url); g.make(); qr = g.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); } catch (e) { qr = ''; }
       body = `<div class="lobby"><div class="qr" style="width:min(30vh,240px)">${qr}</div><div><div class="qtext" style="font-size:clamp(22px,3vw,40px)">Theory test sign-in</div><p style="font-size:18px;margin:8px 0">${h(location.host)}/q · code <b style="color:var(--accent);letter-spacing:.1em">${h(S.ev.join_code)}</b></p>
-        <p class="ge-small" style="${S.quizErr ? 'color:var(--bad)' : 'color:var(--ink-3)'}">${S.quizErr ? h(S.quizErr) + ' · trying again…' : 'Connecting…'}</p></div></div>`;
+        <p class="ge-small" style="${S.quizErr ? 'color:var(--bad)' : 'color:var(--ink-3)'}">${S.quizErr ? h(S.quizErr) + (S.signedOut ? '' : ' · trying again…') : 'Connecting…'}</p>${S.signedOut ? '<button class="ge-btn" id="geReSign">Sign in again</button>' : ''}</div></div>`;
     }
     else if (ph === 'closed') body = `<div class="ge-card" style="max-width:680px"><h2>Theory test</h2><p class="ge-muted">${total} questions. Each candidate signs in on their own phone and works through the test at their own pace for ${Q.minutes || 30} minutes. Pass is all ${total} right: anyone with a wrong answer is told only which questions to redo (not the answers) and redoes just those. Private: only staff see scores, here.</p><button class="ge-btn primary" data-q="open">Open sign-in</button></div>`;
     else if (ph === 'lobby') {
@@ -257,7 +270,8 @@
       ${ph === 'ended' ? `<button class="ge-btn ok" id="geRec">Record theory results</button><button class="ge-btn" data-q="extend">Reopen +5 min</button>` : ''}
       ${ph !== 'closed' ? `<button class="ge-btn" id="geTv">${S.tv ? 'Exit big screen' : 'Big screen'}</button><button class="ge-btn" id="geTab">Staff tablet</button>` : ''}
       ${ph !== 'closed' && can('grading') ? `<button class="ge-btn ge-ghost danger" id="geReset">Reset</button>` : ''}</div>`;
-    S.el.innerHTML = `<div class="qz ${S.tv ? 'tv' : ''}">${hs && S.quizErr ? `<div class="ge-small noprint" style="color:var(--bad)">${h(S.quizErr)} · showing the last update, trying again…</div>` : ''}${body}${ctl}</div>`;
+    S.el.innerHTML = `<div class="qz ${S.tv ? 'tv' : ''}">${hs && S.quizErr ? `<div class="ge-small noprint" style="color:var(--bad)">${h(S.quizErr)} · showing the last update${S.signedOut ? '' : ', trying again…'}</div>${S.signedOut ? '<button class="ge-btn" id="geReSign">Sign in again</button>' : ''}` : ''}${body}${ctl}</div>`;
+    const reSign = S.el.querySelector('#geReSign'); if (reSign) reSign.onclick = async () => { try { await db().auth.signOut({ scope: 'local' }); } catch (e) {} location.reload(); };
     inM('[data-q]').forEach(b => b.onclick = () => qCmd(b.dataset.q));
     const te = $1('#geTEnd'); if (te) te.onclick = () => { const left = nIn - nSub; if (left && !confirm(`${left} candidate${left === 1 ? ' hasn’t' : 's haven’t'} got every answer right yet. End the test now? They won’t pass the theory item unless you reopen it.`)) return; qCmd('end'); };
     const tv = $1('#geTv'); if (tv) tv.onclick = () => {
