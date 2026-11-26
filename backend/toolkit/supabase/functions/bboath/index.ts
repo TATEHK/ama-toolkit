@@ -18,7 +18,8 @@
 //   { action: 'preview', day_id }                     staff: who would be emailed, and the email itself (sends nothing)
 //   { action: 'send', day_id }                        staff or cron: prepare, then email every unsent, unsigned link
 //   { action: 'status', day_id }                      staff: passes, sent, signed
-// Staff = Coloured Belts permission admin or results (app_permissions, app 'cb'). Cron = x-cb-cron header (cb_cron_ok).
+//   { action: 'resend', oath_id }                     staff: email one person's link again (not once signed)
+// Staff = app_permissions 'cb' admin/results, or 'bb' admin/grading/results. Cron = x-cb-cron header (cb_cron_ok).
 
 const API = 'https://services.leadconnectorhq.com';
 const PAGE = 'https://app.train-ama.com/grading/black-belt/oath/#';
@@ -156,13 +157,23 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: who } = jwt ? await db.auth.getUser(jwt) : { data: null };
       const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
       if (!me) return fail('Sign in first.', 401);
-      const { data: pr } = await db.from('app_permissions').select('perm').eq('email', me).eq('app', 'cb');
-      const perms = (pr || []).map(r => r.perm);
-      if (!perms.some(p => p === 'admin' || p === 'results')) return fail('You need Coloured Belts results access for this.', 403);
+      // Coloured Belts admin/results, or Black Belt Gradings admin/grading/results (the prep system's Oaths screen)
+      const { data: pr } = await db.from('app_permissions').select('app, perm').eq('email', me).in('app', ['cb', 'bb']);
+      const ok = (pr || []).some(r => (r.app === 'cb' && ['admin', 'results'].includes(r.perm)) || (r.app === 'bb' && ['admin', 'grading', 'results'].includes(r.perm)));
+      if (!ok) return fail('You need grading results access for this.', 403);
       actor = me;
     }
     if (body.action === 'preview' && actor === 'automatic') return fail('Not allowed.', 403);
 
+    let one = null;   // resend: a single oath, looked up by its id; its day is the day
+    if (body.action === 'resend') {
+      if (!/^[0-9a-f-]{36}$/i.test(String(body.oath_id || ''))) return fail('Which oath?');
+      const { data: o1 } = await db.from('bb_oath').select('oath_id, day_id, signed_at').eq('oath_id', body.oath_id).maybeSingle();
+      if (!o1) return fail('That oath wasn\'t found.', 404);
+      if (o1.signed_at) return fail('They have already signed.');
+      if (!o1.day_id) return fail('That oath isn\'t linked to a grading day.');
+      one = o1; body.day_id = o1.day_id;
+    }
     const dayId = String(body.day_id || '');
     if (!/^[0-9a-f-]{36}$/i.test(dayId)) return fail('Which grading day?');
     const { data: d } = await db.from('cb_days').select('day_id, bb, grading_date, location, prep_cycle_id, closed').eq('day_id', dayId).maybeSingle();
@@ -187,7 +198,9 @@ export async function handle(req, db, env = {}, http = fetch) {
       return (ins || []).length;
     };
     const pending = async () => {
-      const { data: os, error } = await db.from('bb_oath').select('oath_id, member_key, full_name, token, sent_at, signed_at').eq('day_id', dayId).is('signed_at', null).is('sent_at', null);
+      let qy = db.from('bb_oath').select('oath_id, member_key, full_name, token, sent_at, signed_at').eq('day_id', dayId).is('signed_at', null);
+      qy = one ? qy.eq('oath_id', one.oath_id) : qy.is('sent_at', null);
+      const { data: os, error } = await qy;
       if (error) throw error;
       const keys = (os || []).map(o => o.member_key);
       const { data: ms } = keys.length ? await db.from('efc_members').select('member_key, full_name, email, phone, date_of_birth').in('member_key', keys) : { data: [] };
@@ -212,8 +225,8 @@ export async function handle(req, db, env = {}, http = fetch) {
       const list = await pending();
       return json({ ok: true, created, count: list.length, recipients: list.map(x => ({ name: x.o.full_name, to: x.to })), sample: list[0] ? list[0].mail : null });
     }
-    if (body.action === 'send') {
-      const created = await prepare();
+    if (body.action === 'send' || body.action === 'resend') {
+      const created = one ? 0 : await prepare();
       const list = await pending();
       const ghl = async (path, opts = {}, version = '2021-07-28') => {
         const r = await http(API + path, { ...opts, headers: { Authorization: 'Bearer ' + env.GHL_TOKEN, Version: version, Accept: 'application/json', 'Content-Type': 'application/json' } });
