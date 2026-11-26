@@ -54,3 +54,8 @@ begin
 end $$;
 grant execute on function public.cb_checkin_feed(text) to anon, authenticated;
 grant execute on function public.cb_checkin_mark(text, uuid, boolean) to anon, authenticated;
+
+-- Applied after: families are linked by the member's own email (guardian_email/phone are almost always empty in EFC),
+-- for both the station's family tag and the floor's kiosk (cb_floor_load 'family'). Run as a DO block that swaps the
+-- expression inside the live function definitions:
+--   lower(coalesce(nullif(m.guardian_email,''), nullif(m.email,''), nullif(m.guardian_phone,''), m.phone, ''))
