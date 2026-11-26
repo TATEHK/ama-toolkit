@@ -75,31 +75,26 @@ export function cleanName(n) {
 
 export function buildOathEmail(v) {
   const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const gold = '#FFD200', night = '#0E0E0E', cream = '#F4F2EC', creamLine = '#E3DFD4';
+  const gold = '#FFD200', night = '#0E0E0E';
   const subject = `Sign your Black Belt Oath, ${v.first}`;
   const intro = v.self
-    ? `Congratulations on passing your grading to Probationary Black Belt. The last step is to sign the AMA Black Belt Oath. It takes a minute on your phone.`
-    : `Congratulations to ${v.first} on passing their grading to Probationary Black Belt. The last step is for ${v.first} to sign the AMA Black Belt Oath. It takes a minute on a phone.`;
+    ? `You've passed your grading to Probationary Black Belt. The last step is to sign the AMA Black Belt Oath, which takes a minute on your phone.`
+    : `${v.first} has passed their grading to Probationary Black Belt. The last step is for ${v.first} to sign the AMA Black Belt Oath, which takes a minute on a phone.`;
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(subject)}</title>
-<style>@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap');body{margin:0;padding:0;background:#E9E6DE;}@media (max-width:620px){.wrap{width:100%!important;}.pad{padding-left:22px!important;padding-right:22px!important;}}</style></head>
-<body style="margin:0;padding:0;background:#E9E6DE;">
+<style>body{margin:0;padding:0;background:#F1EFE9;}@media (max-width:620px){.wrap{width:100%!important;}.pad{padding-left:24px!important;padding-right:24px!important;}}</style></head>
+<body style="margin:0;padding:0;background:#F1EFE9;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(intro)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E9E6DE;"><tr><td align="center" style="padding:24px 12px;">
-<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:4px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#1c1c1c;">
-  <tr><td style="background:${night};padding:26px 40px 22px;" align="center">
-    <img src="${LOGO}" width="72" alt="Australian Martial Arts Academy" style="display:block;width:72px;height:auto;border:0;margin:0 auto;">
-    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:4px;color:#FFFFFF;padding-top:12px;text-transform:uppercase;">Australian Martial Arts Academy</div>
-    <div style="font-weight:bold;font-size:10px;letter-spacing:3px;color:${gold};padding-top:6px;">Sydney &middot; Since 1982</div></td></tr>
-  <tr><td class="pad" style="background:${night};padding:8px 32px 28px;border-top:1px solid #222;">
-    <div style="color:${gold};font-size:12px;letter-spacing:3px;text-transform:uppercase;font-weight:bold;padding-top:16px;">Black Belt Oath</div>
-    <div style="font-family:Oswald,'Arial Narrow',Arial,sans-serif;color:#ffffff;font-weight:700;font-size:36px;line-height:1.05;text-transform:uppercase;margin-top:8px;">One last step.</div></td></tr>
-  <tr><td class="pad" style="padding:30px 32px 6px;">
-    <p style="margin:0;font-size:16px;line-height:1.55;color:#333;">Hi ${esc(v.greet)},</p>
-    <p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#333;">${esc(intro)}</p></td></tr>
-  <tr><td class="pad" align="center" style="padding:24px 32px 6px;">
-    <a href="${esc(v.link)}" style="display:inline-block;background:${night};color:${gold};text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:15px;letter-spacing:1px;padding:14px 30px;border-radius:8px;text-transform:uppercase;">Sign the oath</a></td></tr>
-  <tr><td class="pad" style="padding:10px 32px 28px;font-size:12px;line-height:1.5;color:#777;" align="center">Button not working? Copy this into your browser:<br><span style="color:#333;word-break:break-all;">${esc(v.link)}</span></td></tr>
-  <tr><td style="background:${night};padding:18px 32px;font-size:12px;color:#aaa;" align="center">Australian Martial Arts Academy &middot; (02) 9569 1943</td></tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1EFE9;"><tr><td align="center" style="padding:28px 12px;">
+<table role="presentation" class="wrap" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#1c1c1c;">
+  <tr><td style="background:${night};padding:18px 32px;" align="center">
+    <img src="${LOGO}" width="48" alt="Australian Martial Arts Academy" style="display:block;width:48px;height:auto;border:0;margin:0 auto;"></td></tr>
+  <tr><td class="pad" style="padding:32px 40px 8px;">
+    <h1 style="margin:0;font-size:24px;line-height:1.3;font-weight:bold;color:#1c1c1c;">Congratulations, ${esc(v.first)}</h1>
+    <p style="margin:12px 0 0;font-size:16px;line-height:1.6;color:#444;">${esc(intro)}</p></td></tr>
+  <tr><td class="pad" style="padding:24px 40px 8px;">
+    <a href="${esc(v.link)}" style="display:inline-block;background:${night};color:${gold};text-decoration:none;font-weight:bold;font-size:16px;padding:14px 28px;border-radius:8px;">Sign the oath</a></td></tr>
+  <tr><td class="pad" style="padding:16px 40px 32px;font-size:13px;line-height:1.5;color:#888;">Button not working? Open this link:<br><a href="${esc(v.link)}" style="color:#555;word-break:break-all;">${esc(v.link)}</a></td></tr>
+  <tr><td style="border-top:1px solid #ECE9E1;padding:16px 40px;font-size:12px;line-height:1.5;color:#999;">Australian Martial Arts Academy &middot; (02) 9569 1943</td></tr>
 </table></td></tr></table></body></html>`;
   const text = `Hi ${v.greet},\n\n${intro}\n\nSign here: ${v.link}\n\nAustralian Martial Arts Academy`;
   return { subject, html, text };
