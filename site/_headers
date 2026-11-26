@@ -1,0 +1,22 @@
+# Cloudflare Pages: let browsers use their copy of the shared files straight away and check for a newer one in the
+# background (a deploy shows up on the next visit), instead of asking the server about each file before every page.
+/config.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/hub-signin.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/idle-logout.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/theme.css
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/ama-id-cards/hub-signin.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/Black-belt-prep-system/hub-signin.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/grading/floor/event.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/grading/floor/offline.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/icons/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+/grading/floor/sw.js
+  Cache-Control: no-cache

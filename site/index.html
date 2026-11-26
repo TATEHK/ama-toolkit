@@ -127,13 +127,13 @@ const item = a => a.soon ? `<li><div class="item" aria-disabled="true" style="op
   <div class="main"><div class="name">${esc(a.name)}${a.chip ? `<span class="chip">${esc(a.chip)}</span>` : ''}</div><div class="meta">${esc(a.meta)}</div></div>
   <span class="chev" aria-hidden="true">›</span></a></li>`;
 
-async function access() {
+async function access(email) {
   const rpc = async (fn, args) => { try { const { data, error } = await sb.rpc(fn, args); return error ? null : data; } catch (e) { return null; } };
-  const [card, prep, edit, party, remote, cb, aw] = await Promise.all([rpc('my_permissions'), rpc('app_my_perms', { p_app: 'bb' }), rpc('tv_can', { p_perm: 'edit' }), rpc('tv_can', { p_perm: 'party' }), rpc('tv_can', { p_perm: 'remote' }),
-    rpc('app_my_perms', { p_app: 'cb' }), rpc('app_my_perms', { p_app: 'awards' })]);
-  let owner = false;
-  try { const { data: { user } } = await sb.auth.getUser(); const em = (user && user.email || '').toLowerCase();
-    if (em) { const { data } = await sb.from('toolkit_owners').select('email').eq('email', em); owner = Array.isArray(data) && data.length > 0; } } catch (e) { /* owner stays false */ }
+  const em = String(email || '').toLowerCase();
+  const own = async () => { if (!em) return false; try { const { data } = await sb.from('toolkit_owners').select('email').eq('email', em); return Array.isArray(data) && data.length > 0; } catch (e) { return false; } };
+  // every check at once (no waiting on one to start the next)
+  const [card, prep, edit, party, remote, cb, aw, owner] = await Promise.all([rpc('my_permissions'), rpc('app_my_perms', { p_app: 'bb' }), rpc('tv_can', { p_perm: 'edit' }), rpc('tv_can', { p_perm: 'party' }), rpc('tv_can', { p_perm: 'remote' }),
+    rpc('app_my_perms', { p_app: 'cb' }), rpc('app_my_perms', { p_app: 'awards' }), own()]);
   return { card: card || [], prep: prep || [], cb: cb || [], aw: aw || [], edit: !!edit, party: !!party || !!edit, remote: !!remote || !!edit, owner };
 }
 function draw(a) {
@@ -167,7 +167,12 @@ async function start() {
   $('#signIn').hidden = true;
   $('#who').textContent = (session.user.user_metadata || {}).full_name || session.user.email; $('#who').hidden = $('#signOut').hidden = false;
   $('#intro').textContent = 'Apps for AMA Marrickville. Showing the ones your login can use.';
-  draw(await access()); $('#apps').hidden = false;
+  // your apps show straight away from the last visit on this device, then refresh quietly
+  const ck = 'ama_home_apps_' + session.user.id;
+  try { const c = JSON.parse(localStorage.getItem(ck) || 'null'); if (c) { draw(c); $('#apps').hidden = false; } } catch (e) {}
+  const a = await access(session.user.email);
+  try { localStorage.setItem(ck, JSON.stringify(a)); } catch (e) {}
+  draw(a); $('#apps').hidden = false;
 }
 $('#siForm').onsubmit = async e => {
   e.preventDefault(); $('#siGo').disabled = true; $('#siMsg').hidden = true;
