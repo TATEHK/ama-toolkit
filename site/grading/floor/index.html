@@ -766,7 +766,7 @@ const pad=x=>Math.max(6,Math.min(94,x));
 function positions(n,rows){
   if(n<=0) return [];
   if(rows===1 || n<=2) return Array.from({length:n},(_,i)=>({x:pad(4+(i+.5)/n*92),y:50}));   // evenly spaced inside the edge margin, so the end spots never bunch up
-  const nf=Math.ceil(n/2), nb=n-nf, y1=30, y2=70, pos=[];
+  const nf=Math.ceil(n/2), nb=n-nf, y1=35, y2=72, pos=[];
   for(let c=0;c<nf;c++) pos.push({x:pad((c+.5)/nf*100),y:y1});       // front row
   const off=(nf-nb)/2;                                                // a shorter back row is centred on the same columns
   for(let c=0;c<nb;c++) pos.push({x:pad((c+off+.5)/nf*100),y:y2});   // back row, in line behind the front
