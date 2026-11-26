@@ -215,7 +215,7 @@ $('#siForm').onsubmit = async e=>{
   if(error){ $('#siMsg').textContent=/invalid/i.test(error.message)?'Wrong email or password.':error.message; $('#siMsg').hidden=false; return; }
   boot();
 };
-$('#signOut').onclick = async()=>{ await sb.auth.signOut(); boot(); };
+$('#signOut').onclick = async()=>{ await sb.auth.signOut({ scope: 'local' }); boot(); };
 sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'||ev==='SIGNED_OUT') boot(); });
 boot();
 </script>

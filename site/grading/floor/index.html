@@ -1905,7 +1905,7 @@ $('#codePill').onclick = () => {
   const url = location.origin + '/grading/check-in';
   toast(`Check-in code ${CODE} — open ${url} on each station and enter it`, 6000);
 };
-$('#gateOut').onclick = async () => { keepDay(''); await sb.auth.signOut(); location.reload(); };
+$('#gateOut').onclick = async () => { keepDay(''); await sb.auth.signOut({ scope: 'local' }); location.reload(); };
 boot();
 </script>
 <!-- Grading events (e.g. Beyond 4th Dan): scoring, theory test, MC and results on the floor -->

@@ -182,7 +182,7 @@ function renderDevices(){
     const id=b.dataset.out, me=id===THIS;
     if(!confirm(me?'Sign out this device now?':'Sign out that device? It will be signed out within a minute or two.')) return;
     b.disabled=true;
-    if(me){ await sb.from('app_devices').update({ revoked_at:new Date().toISOString() }).eq('device_id',id); await sb.auth.signOut(); location.reload(); return; }
+    if(me){ await sb.from('app_devices').update({ revoked_at:new Date().toISOString() }).eq('device_id',id); await sb.auth.signOut({ scope: 'local' }); location.reload(); return; }
     const { error } = await sb.from('app_devices').update({ revoked_at:new Date().toISOString() }).eq('device_id',id);
     b.disabled=false;
     if(error){ toast('Could not sign that device out.'); return; }
@@ -213,7 +213,7 @@ $('#siForm').onsubmit = async e=>{
   if(error){ $('#siMsg').textContent=/invalid/i.test(error.message)?'Wrong email or password.':error.message; $('#siMsg').hidden=false; return; }
   boot();
 };
-$('#signOut').onclick = async()=>{ await sb.auth.signOut(); boot(); };
+$('#signOut').onclick = async()=>{ await sb.auth.signOut({ scope: 'local' }); boot(); };
 sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'||ev==='SIGNED_OUT') boot(); });
 boot();
 </script>

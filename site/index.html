@@ -177,7 +177,7 @@ $('#siForm').onsubmit = async e => {
   start();
 };
 $('#forgot').onclick = () => { $('#siMsg').textContent = 'Ask an admin for a new set-up link. It lets you choose a new password.'; $('#siMsg').className = 'msg'; $('#siMsg').hidden = false; };
-$('#signOut').onclick = async () => { await sb.auth.signOut(); start(); };
+$('#signOut').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); start(); };
 start();
 </script>
 </body>

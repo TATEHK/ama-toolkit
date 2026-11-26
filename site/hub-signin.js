@@ -95,7 +95,7 @@
           // A trusted device (the owner's own phone) stays signed in on its Supabase session even after the
           // 12-hour hub session ends — "Stay signed in on this device". Others are signed out as before.
           if (trustedDevice()) return true;
-          return o.sb.auth.signOut().then(function () { location.reload(); return false; });
+          return o.sb.auth.signOut({ scope: 'local' }).then(function () { location.reload(); return false; });
         }
         if (r && r.ok) ls(CHECKED, String(Date.now()));
         return true;

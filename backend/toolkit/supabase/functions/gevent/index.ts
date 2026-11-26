@@ -75,7 +75,16 @@ const testMins = quiz => Number(quiz.minutes || 30);
 
 // Who is signed in: ask Supabase Auth with the service client, and if that doesn't answer, ask it directly with the
 // public key (the same check the browser makes). Logs why when neither works.
+let JWKS = null;
 async function staffEmail(db, jwt, env) {
+  // Same check the database makes: a token signed by our Auth server and not expired is a valid sign-in.
+  try {
+    const { createRemoteJWKSet, jwtVerify } = await import('npm:jose@5.9.6');
+    const base = String(env.SUPABASE_URL || '').replace(/\/$/, '');
+    JWKS = JWKS || createRemoteJWKSet(new URL(base + '/auth/v1/.well-known/jwks.json'));
+    const { payload } = await jwtVerify(jwt, JWKS, { issuer: base + '/auth/v1' });
+    if (payload && payload.role === 'authenticated' && payload.email) return String(payload.email).toLowerCase();
+  } catch (e) { console.error('gevent jwt verify:', String(e && e.message || e)); }
   try { const { data, error } = await db.auth.getUser(jwt); if (data && data.user && data.user.email) return data.user.email.toLowerCase(); if (error) console.error('gevent getUser:', error.status, error.message); }
   catch (e) { console.error('gevent getUser threw:', String(e)); }
   try {
