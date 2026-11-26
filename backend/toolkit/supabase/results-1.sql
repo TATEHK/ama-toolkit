@@ -1,0 +1,4 @@
+-- Results for black belt days (applied as migration cb_entry_result).
+-- cb_entry_result(p_entry uuid, p_result text): 'pass' | 'fail' | null. Coloured Belts admin/results/days or Black Belt
+-- Gradings admin/grading/results. Sets result/result_at/result_by; anything other than pass deletes an unsigned
+-- bb_oath for that entry (its link stops working). Used by the Grading Floor profile and the Oaths screen.
