@@ -179,7 +179,7 @@ body[data-role="signin"]{overflow:hidden}
     repeating-linear-gradient(90deg,transparent,transparent calc(16.666% - 1px),var(--mat-line) 16.666%),
     linear-gradient(135deg,var(--mat),var(--mat-2));
   border:3px solid var(--mat-line);box-shadow:inset 0 0 0 2px rgba(255,255,255,.06)}
-.floor .instr{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:var(--fd);font-size:13px;letter-spacing:.02em;text-transform:none;color:color-mix(in srgb,var(--ink) 55%,transparent);font-weight:700}
+.floor .instr{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:var(--fd);font-size:13px;letter-spacing:.02em;text-transform:none;color:rgba(255,255,255,.6);font-weight:700}
 .spot{position:absolute;transform:translate(-50%,-50%);width:88px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .spot:active{cursor:grabbing}
 .spot .dot{position:relative;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-family:var(--fd);font-weight:700;font-size:19px;color:#fff;transition:transform .1s;
@@ -223,6 +223,22 @@ body[data-role="signin"]{overflow:hidden}
 .rrow.absent .rn{color:var(--ink-3)}
 .rrow.absent .rn b{font-weight:600}
 .chk{width:30px;height:30px;border-radius:8px;border:1.5px solid color-mix(in srgb,var(--ink-3) 60%,transparent);background:var(--panel);flex:none;display:grid;place-items:center;color:var(--ink-3)}
+/* Stand mode (the iPad on its stand): only the floor, check-in and run sheet; bigger targets */
+body.stand #viewSwitch,body.stand #viewAsNote,body.stand #rsBtn,body.stand #gearBtn{display:none!important}
+body.stand #brand{cursor:default}
+body.stand .bar .pill,body.stand .bar .icon-btn{min-height:48px;padding:0 18px;font-size:16px}
+body.stand .flctrl button,body.stand .rrow .chk{min-height:48px;min-width:48px}
+body.stand .ci-q{font-size:17px;padding:12px 14px}
+body.stand .ci-seg button{padding:10px 4px;font-size:15px;white-space:nowrap}
+body.stand #rsLive button{min-height:48px}
+body.stand #rsLive .rsl-foot button,body.stand #rsLive [class*="foot"] button{min-height:56px;font-size:18px}
+.stand-tag{display:none;font-size:12px;font-weight:600;color:var(--ink-3);margin-left:8px}
+body.stand .stand-tag{display:inline}
+.stand-exit{position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:24px}
+.stand-exit .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;max-width:360px;width:100%;text-align:center}
+.stand-exit h3{font-family:var(--fd);font-size:22px;margin:0 0 6px}.stand-exit p{color:var(--ink-3);margin:0 0 18px}
+.stand-exit .row{display:flex;gap:10px}.stand-exit .row button{flex:1;min-height:52px;border-radius:12px;font-size:16px;font-weight:600;border:1px solid var(--line-2);background:var(--raise);color:var(--ink)}
+.stand-exit .row .go{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .chk.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 /* check-in card: progress, search, Not here / Here / All */
 .ci-tools{padding:2px 12px 4px;display:flex;flex-direction:column;gap:8px}
@@ -536,7 +552,7 @@ body[data-role="signin"]{overflow:hidden}
   </div>
 </div>
 <div class="bar"><div class="wrap">
-  <div class="brand" id="brand" title="Switch grading day" role="button"><div class="logo">A</div><div><b>Grading Floor</b><small id="dayLabel">—</small></div></div>
+  <div class="brand" id="brand" title="Switch grading day" role="button"><div class="logo">A</div><div><b>Grading Floor<span class="stand-tag">Stand mode</span></b><small id="dayLabel">—</small></div></div>
   <div class="bar-sp"></div>
 
   <div class="roleseg" id="viewSwitch" hidden></div>
@@ -587,6 +603,9 @@ body[data-role="signin"]{overflow:hidden}
 <div class="modal" id="modal"><div class="box">
   <div class="mh"><h2>Floor settings</h2><button class="closex" id="mClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="mbody">
+    <div class="field stand-field"><label>Stand mode</label>
+      <div class="note" style="margin:0 0 10px">For the iPad on its stand: just the floor, check-in and run sheet, with bigger buttons and the screen kept awake. No settings, day switching, views or print. To leave, press and hold the green A for 3 seconds.</div>
+      <button class="btn primary" id="standOn" type="button">Turn on stand mode on this device</button></div>
     <div class="field"><label>Spots out (per group)</label><div class="dimrow">
       <input class="inp" id="dsize" type="number" min="1" max="40">
       <button class="btn ghost" id="rebal" style="white-space:nowrap">Balance evenly</button></div>
@@ -1901,7 +1920,7 @@ async function loadDay(dayId) {
   const { data, error } = await sb.rpc('cb_floor_load', { p_day: dayId });
   if (error || !data || !data.day) { loading = false; DAYID = null; keepDay(''); showDays(); return false; }
   keepDay(dayId);   // remember the picked day across refreshes (in the address and on this device)
-  window.AmaIdleHold = true;   // a grading open on this floor never signs itself out for being idle (it sits on a stand between groups)
+  window.AmaIdleHold = true;   // (stand mode also holds it) a grading open on this floor never signs itself out for being idle (it sits on a stand between groups)
   DAYINFO = data.day || {}; CODE = DAYINFO.checkin_code || null;
   if (!CODE) { const { data: c } = await sb.rpc('cb_floor_set_code', { p_day: dayId }); if (c) CODE = c; }
   showCode();
@@ -1996,8 +2015,36 @@ function keepDay(id) {
   try { const u = new URL(location.href); if (id) u.searchParams.set('day', id); else u.searchParams.delete('day'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {}
 }
 // reopen the day picker (to switch grading days)
-function openPicker() { window.AmaIdleHold = false; if (pollT) clearInterval(pollT); if (window.GE) GE.attach(null); $('#gate').hidden = false; showDays(); }
-$('#brand').onclick = openPicker;
+function openPicker() { window.AmaIdleHold = STAND; if (pollT) clearInterval(pollT); if (window.GE) GE.attach(null); $('#gate').hidden = false; showDays(); }
+$('#brand').onclick = () => { if (!STAND) openPicker(); };
+// ---- Stand mode: the iPad on its stand. On in Settings (or ?stand=1), off by holding the logo for 3 seconds (or ?stand=0).
+// Hides settings, day switching, views and print; bigger buttons; keeps the screen awake; never idles out.
+var STAND = false, wake = null;   // var: openPicker can run before this line on boot
+function keepAwake(){ if (!STAND || !navigator.wakeLock || document.hidden) return; navigator.wakeLock.request('screen').then(w => { wake = w; }).catch(() => {}); }
+function setStand(on){
+  STAND = !!on; try { localStorage.setItem('floor_stand', STAND ? '1' : '0'); } catch (e) {}
+  document.body.classList.toggle('stand', STAND);
+  if (STAND) { window.AmaIdleHold = true; keepAwake(); $('#modal').classList.remove('open'); }
+  else { if (wake) { try { wake.release(); } catch (e) {} wake = null; } window.AmaIdleHold = !!DAYID; }
+  try { render(); } catch (e) {}
+}
+(function(){ const q = new URLSearchParams(location.search).get('stand'); let on = false;
+  try { on = q != null ? q === '1' : localStorage.getItem('floor_stand') === '1'; } catch (e) {}
+  STAND = on; document.body.classList.toggle('stand', on); if (on) { window.AmaIdleHold = true; keepAwake(); } })();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+$('#standOn').onclick = () => setStand(true);
+(function(){ let t = null; const b = $('#brand');
+  const start = () => { if (!STAND) return; clearTimeout(t); t = setTimeout(() => {
+    const d = document.createElement('div'); d.className = 'stand-exit';
+    d.innerHTML = '<div class="box"><h3>Leave stand mode?</h3><p>Settings, views and day switching come back on this device.</p><div class="row"><button type="button" class="no">Stay</button><button type="button" class="go">Leave</button></div></div>';
+    document.body.appendChild(d);
+    d.querySelector('.no').onclick = () => d.remove();
+    d.querySelector('.go').onclick = () => { d.remove(); setStand(false); };
+  }, 3000); };
+  const stop = () => clearTimeout(t);
+  b.addEventListener('pointerdown', start); ['pointerup','pointerleave','pointercancel'].forEach(e => b.addEventListener(e, stop));
+  b.addEventListener('contextmenu', e => { if (STAND) e.preventDefault(); });
+})();
 $('#siForm').addEventListener('submit', async e => {
   e.preventDefault(); const go = $('#siGo'); go.disabled = true; go.textContent = 'Signing in…'; $('#siErr').hidden = true;
   const { error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
