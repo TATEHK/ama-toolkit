@@ -59,7 +59,20 @@
   /* the one gold thing on the page: the belt on Gradings */
   .item .glyph.belt { color: var(--gold); }
   footer { color: var(--faint); font-size: 14px; margin-top: 16px; }
-  @media (max-width: 480px) { .appbar .who { display: none; } }
+  /* a screen with several jobs (the TV): the row opens the main one, its buttons sit on the right */
+  .list li.multi { display: flex; align-items: center; }
+  .list li.multi .item { flex: 1; min-width: 0; }
+  .acts { display: flex; gap: 8px; padding-right: 16px; flex: none; }
+  .act { display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); color: var(--fg);
+    font-size: 14px; font-weight: 500; text-decoration: none; white-space: nowrap; transition: background-color .15s ease-out, border-color .15s ease-out; }
+  .act:hover { background: var(--hover); }
+  .act:first-child { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 480px) {
+    .appbar .who { display: none; }
+    .list li.multi { flex-wrap: wrap; }
+    .list li.multi .item { flex-basis: 100%; padding-bottom: 8px; }
+    .acts { padding: 0 16px 12px 56px; }
+  }
   .appbar-inner .grow { flex: 1; }
   .who { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
   .btn { font: inherit; font-weight: 600; white-space: nowrap; min-height: 40px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--surface); color: var(--fg); cursor: pointer; }
@@ -130,7 +143,10 @@ const ICON = {
 };
 const SVG = (k, cls) => `<span class="glyph${cls ? ' ' + cls : ''}" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg></span>`;
 const CHEV = '<span class="chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>';
-const item = a => `<li><a class="item" href="${a.href}"${a.ext ? ' target="_blank" rel="noopener"' : ''}>${SVG(a.icon, a.icon === 'belt' ? 'belt' : '')}
+const item = a => a.acts ? `<li class="multi"><a class="item" href="${a.href}">${SVG(a.icon)}
+  <div class="main"><div class="name">${esc(a.name)}</div><div class="meta">${esc(a.meta)}</div></div></a>
+  <div class="acts">${a.acts.map(([h, t]) => `<a class="act" href="${h}">${esc(t)}</a>`).join('')}</div></li>`
+  : `<li><a class="item" href="${a.href}"${a.ext ? ' target="_blank" rel="noopener"' : ''}>${SVG(a.icon, a.icon === 'belt' ? 'belt' : '')}
   <div class="main"><div class="name">${esc(a.name)}${a.chip ? `<span class="chip">${esc(a.chip)}</span>` : ''}</div><div class="meta">${esc(a.meta)}</div></div>${CHEV}</a></li>`;
 
 async function access(email) {
@@ -151,10 +167,11 @@ function draw(a) {
       (a.cb.includes('admin') || a.cb.includes('days') || a.cb.includes('settings')) && { href: 'grading/helpers/admin/', icon: 'helpers', name: 'Grading Helpers', meta: 'Open grading days for helpers and invite black belts to sign up' }]],
     ['Members', [a.aw.length > 0 && { href: 'awards/', icon: 'medal', name: 'Long service awards', meta: 'Who reaches 5, 10, 15 years and more in time for the December order' }]],
     ['Dojang TV', [
-      a.party && { href: 'tv/edit/', icon: 'tv', name: a.edit ? 'TV Display' : 'TV party mode', meta: a.edit ? 'Change the photos, videos and notices on the dojang TV' : 'Birthday posters and messages on the dojang TV' },
-      a.party && { href: 'tv/edit/?display=tablet', icon: 'tablet', name: a.edit ? 'Tablet Display' : 'Tablet party mode', meta: a.edit ? 'Slides for the upright front-desk tablets' : 'Birthday posters and messages on the tablets' },
-      a.remote && { href: 'tv/remote/', icon: 'remote', name: 'TV Remote', meta: 'Next, Back, Pause and show any slide from your phone' },
-      tvAny && { href: 'tv/', icon: 'play', name: 'Play on this screen', meta: "Open on the TV's browser to show the slideshow" }]],
+      (a.party || a.remote) && { href: a.party ? 'tv/edit/' : 'tv/remote/', icon: 'tv', name: 'TV', meta: a.edit ? 'Photos, videos and notices on the big screen' : 'Birthday posters and messages on the big screen',
+        acts: [a.party && ['tv/edit/', a.edit ? 'Edit slides' : 'Party mode'], a.remote && ['tv/remote/', 'Remote']].filter(Boolean) },
+      a.party && { href: 'tv/edit/?display=tablet', icon: 'tablet', name: 'Front-desk tablets', meta: a.edit ? 'Slides on the upright tablets' : 'Birthday posters and messages on the tablets',
+        acts: [['tv/edit/?display=tablet', a.edit ? 'Edit slides' : 'Party mode']] },
+      tvAny && { href: 'tv/', icon: 'play', name: 'Play on this screen', meta: "Open this on the TV or a tablet's browser to start the slideshow" }]],
     ['Personal', [
       { href: '/profile/', icon: 'user', name: 'My profile', meta: 'Passkeys, and the devices signed in to your login' },
       admin && { href: '/clipboard/', icon: 'clip', name: 'Clipboard', meta: 'Text templates you copy with one tap' }]],
