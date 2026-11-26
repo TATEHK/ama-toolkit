@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Black Belt Oath · Australian Martial Arts Academy</title>
+<link rel="icon" href="../../../icons/ama-id-cards.png">
+<script src="../../../config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root { --night:#0E0E0E; --gold:#FFD200; --paper:#FBFAF6; --ink:#1c1c1c; --muted:#6b675e; --line:#D9D4C7; --err:#B3261E; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #E9E6DE; color: var(--ink); font-family: "Source Serif 4", Georgia, serif; -webkit-text-size-adjust: 100%; }
+  header { background: var(--night); color: #fff; text-align: center; padding: 22px 20px 18px; }
+  header img { width: 64px; height: auto; display: block; margin: 0 auto; }
+  header .org { font-family: Oswald, "Arial Narrow", Arial, sans-serif; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; font-size: 14px; margin-top: 10px; }
+  header .sub { font-family: Arial, sans-serif; font-weight: 700; font-size: 10px; letter-spacing: .3em; color: var(--gold); margin-top: 5px; text-transform: uppercase; }
+  main { max-width: 640px; margin: 0 auto; padding: 18px 14px 40px; }
+  .sheet { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 28px 24px 26px; box-shadow: 0 1px 0 rgba(0,0,0,.04); }
+  h1 { font-family: Oswald, "Arial Narrow", Arial, sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; text-align: center; font-size: 30px; margin: 0 0 22px; }
+  h1::after { content: ""; display: block; width: 48px; height: 3px; background: var(--gold); margin: 12px auto 0; }
+  .iname { display: flex; align-items: baseline; gap: 10px; font-size: 19px; margin: 0 0 18px; }
+  .iname span { flex: none; font-weight: 600; }
+  .iname input { flex: 1; min-width: 0; font: inherit; font-size: 19px; border: 0; border-bottom: 1.5px solid var(--ink); background: transparent; padding: 4px 2px; border-radius: 0; color: var(--ink); }
+  .iname input:focus { outline: none; border-bottom-color: #8a6d00; background: #fff8d6; }
+  ol { margin: 0; padding-left: 1.4em; font-size: 17px; line-height: 1.6; }
+  ol li { margin: 0 0 14px; padding-left: 4px; }
+  .foot { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 26px; }
+  .label { font-family: Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .pad { position: relative; height: 180px; border: 1.5px dashed #b9b2a2; border-radius: 6px; background: #fff; touch-action: none; }
+  .pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  .pad .hint { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; color: #b0a993; font-style: italic; pointer-events: none; font-size: 15px; }
+  .pad .base { position: absolute; left: 18px; right: 18px; bottom: 28px; border-bottom: 1px solid #cfc9ba; pointer-events: none; }
+  .pad.signed .hint { display: none; }
+  .clear { font: 700 11px Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+  .date { font-size: 18px; border-bottom: 1.5px solid var(--ink); padding: 4px 2px; }
+  .submit { margin-top: 26px; width: 100%; font: 700 16px Arial, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); background: var(--night); border: 0; border-radius: 8px; padding: 16px; cursor: pointer; }
+  .submit[disabled] { opacity: .55; cursor: default; }
+  .msg { margin-top: 14px; font-family: Arial, sans-serif; font-size: 14px; color: var(--err); min-height: 1em; text-align: center; }
+  .note { font-family: Arial, sans-serif; font-size: 13px; color: var(--muted); text-align: center; margin: 14px 4px 0; line-height: 1.5; }
+  .state { text-align: center; font-family: Arial, sans-serif; padding: 40px 10px; color: var(--muted); }
+  .done-banner { background: var(--night); color: #fff; border-radius: 6px; padding: 16px 18px; margin-bottom: 14px; font-family: Arial, sans-serif; }
+  .done-banner b { color: var(--gold); font-family: Oswald, Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; font-size: 18px; display: block; margin-bottom: 4px; }
+  .sig-img { display: block; max-width: 100%; height: 120px; object-fit: contain; object-position: left center; border-bottom: 1.5px solid var(--ink); }
+  .filled { border-bottom: 1.5px solid var(--ink); padding: 4px 2px; flex: 1; }
+  @media (min-width: 560px) { .foot { grid-template-columns: 1.7fr 1fr; align-items: end; } .sheet { padding: 36px 40px 32px; } }
+  @media print { body { background: #fff; } main { padding: 0; } .sheet { border: 0; } .done-banner, .note { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <img src="https://www.australianmartialarts.com.au/wp-content/uploads/2019/12/logo1.png" alt="AMA">
+  <div class="org">Australian Martial Arts Academy</div>
+  <div class="sub">Sydney · Since 1982</div>
+</header>
+<main id="app"><div class="state">Loading your oath…</div></main>
+
+<script>
+(function () {
+  var CFG = window.TOOLKIT_CONFIG || {};
+  var FN = (CFG.SUPABASE_URL || 'https://ptdrcxngaptcgswfbjhg.supabase.co') + '/functions/v1/bboath';
+  var OATH = [
+    'Accept with honour and privilege my black belt in martial arts and hereby promise to uphold standards of honesty, integrity, courtesy, high moral code and indomitable spirit.',
+    'I sincerely pledge to honour my instructors and school with loyalty, to value and carry on what I have learnt with respect and dignity.',
+    'My art has thousands of years of history; I further pledge to continue the tradition with humility and gratitude by continuing my physical and spiritual growth to the highest possible level, to lead by example and to share what I have learnt with others.'
+  ];
+  var app = document.getElementById('app');
+  var token = (location.hash || '').replace(/^#/, '').trim() || new URLSearchParams(location.search).get('t') || '';
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function longDate(ymd) {
+    if (!ymd) return '';
+    var p = String(ymd).slice(0, 10).split('-').map(Number);
+    return new Date(Date.UTC(p[0], p[1] - 1, p[2])).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  }
+  function call(body) {
+    return fetch(FN, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, CFG.SUPABASE_KEY ? { apikey: CFG.SUPABASE_KEY } : {}), body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Something went wrong. Please try again.' }; }); });
+  }
+  function oathList() { return '<ol>' + OATH.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>'; }
+  function showState(text) { app.innerHTML = '<div class="state">' + esc(text) + '</div>'; }
+
+  function showSigned(d, fresh) {
+    app.innerHTML =
+      '<div class="done-banner"><b>' + (fresh ? 'Signed. Thank you, ' + esc(d.first) + '.' : 'Already signed') + '</b>' +
+      (fresh ? 'Your Black Belt Oath has been saved with AMA. You can close this page.' : 'This oath was signed on ' + esc(longDate(d.signed_date)) + '.') + '</div>' +
+      '<div class="sheet"><h1>Black Belt Oath</h1>' +
+      '<div class="iname"><span>I,</span><div class="filled">' + esc(d.name) + '</div></div>' + oathList() +
+      '<div class="foot"><div><div class="label">Student signature</div>' + (d.signature ? '<img class="sig-img" alt="Signature" src="' + esc(d.signature) + '">' : '') + '</div>' +
+      '<div><div class="label">Date</div><div class="date">' + esc(longDate(d.signed_date)) + '</div></div></div></div>';
+  }
+
+  function showForm(d) {
+    app.innerHTML =
+      '<div class="sheet"><h1>Black Belt Oath</h1>' +
+      '<label class="iname"><span>I,</span><input id="nm" type="text" autocomplete="name" autocapitalize="words" maxlength="80" placeholder="your full name" value="' + esc(d.full_name || '') + '"></label>' +
+      oathList() +
+      '<div class="foot"><div><div class="label"><span>Student signature</span><button type="button" class="clear" id="clr">Clear</button></div>' +
+      '<div class="pad" id="pad"><canvas id="cv" aria-label="Signature pad. Sign with your finger."></canvas><div class="base"></div><div class="hint">Sign here with your finger</div></div></div>' +
+      '<div><div class="label">Date</div><div class="date">' + esc(longDate(d.today)) + '</div></div></div>' +
+      '<button class="submit" id="go" type="button">Sign the oath</button><div class="msg" id="msg" role="alert"></div></div>' +
+      '<p class="note">This page is private to ' + esc(d.first || 'you') + '. Once signed, the oath is saved to your AMA record.</p>';
+
+    var pad = document.getElementById('pad'), cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+    var strokes = [], cur = null, drawing = false;
+    function size() {
+      var r = cv.getBoundingClientRect(), dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); redraw();
+    }
+    function line(s) {
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111'; ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      if (s.length === 1) { ctx.arc(s[0][0], s[0][1], 1.3, 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill(); return; }
+      ctx.moveTo(s[0][0], s[0][1]);
+      for (var i = 1; i < s.length - 1; i++) { var mx = (s[i][0] + s[i + 1][0]) / 2, my = (s[i][1] + s[i + 1][1]) / 2; ctx.quadraticCurveTo(s[i][0], s[i][1], mx, my); }
+      ctx.lineTo(s[s.length - 1][0], s[s.length - 1][1]); ctx.stroke();
+    }
+    function redraw() { var r = cv.getBoundingClientRect(); ctx.clearRect(0, 0, r.width, r.height); strokes.forEach(line); }
+    function pt(e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+    cv.addEventListener('pointerdown', function (e) { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} drawing = true; cur = [pt(e)]; strokes.push(cur); pad.classList.add('signed'); redraw(); });
+    cv.addEventListener('pointermove', function (e) { if (!drawing) return; e.preventDefault(); var ev = e.getCoalescedEvents ? e.getCoalescedEvents() : [e]; (ev.length ? ev : [e]).forEach(function (x) { cur.push(pt(x)); }); redraw(); });
+    function end() { drawing = false; cur = null; }
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); cv.addEventListener('pointerleave', function () { if (drawing) end(); });
+    document.getElementById('clr').onclick = function () { strokes = []; pad.classList.remove('signed'); redraw(); };
+    window.addEventListener('resize', function () { var r = cv.getBoundingClientRect(); if (Math.round(r.width) !== Math.round(cv.width / (window.devicePixelRatio || 1))) size(); });
+    size();
+
+    function inkLength() { var n = 0; strokes.forEach(function (s) { for (var i = 1; i < s.length; i++) n += Math.hypot(s[i][0] - s[i - 1][0], s[i][1] - s[i - 1][1]); }); return n; }
+    // Export a trimmed PNG of just the signature, at 2x, max 1200px wide
+    function exportPng() {
+      var xs = [], ys = [];
+      strokes.forEach(function (s) { s.forEach(function (p) { xs.push(p[0]); ys.push(p[1]); }); });
+      var pad0 = 8, minX = Math.min.apply(null, xs) - pad0, minY = Math.min.apply(null, ys) - pad0, w = Math.max.apply(null, xs) - minX + pad0, h = Math.max.apply(null, ys) - minY + pad0;
+      var scale = Math.min(2, 1200 / w), out = document.createElement('canvas');
+      out.width = Math.max(1, Math.round(w * scale)); out.height = Math.max(1, Math.round(h * scale));
+      var o = out.getContext('2d'); o.setTransform(scale, 0, 0, scale, -minX * scale, -minY * scale);
+      var keep = ctx; ctx = o; strokes.forEach(line); ctx = keep;
+      return out.toDataURL('image/png');
+    }
+
+    var go = document.getElementById('go'), msg = document.getElementById('msg'), nm = document.getElementById('nm');
+    go.onclick = function () {
+      msg.textContent = '';
+      var name = nm.value.replace(/\s+/g, ' ').trim();
+      if (name.length < 2) { msg.textContent = 'Please write your full name after "I,".'; nm.focus(); return; }
+      if (inkLength() < 40) { msg.textContent = 'Please sign in the box with your finger.'; return; }
+      go.disabled = true; go.textContent = 'Saving…';
+      call({ action: 'sign', token: token, name: name, signature: exportPng() }).then(function (r) {
+        if (r && r.ok) { window.scrollTo(0, 0); showSigned(r, true); return; }
+        if (r && r.signed) { showSigned(r, false); return; }
+        msg.textContent = (r && r.error) || 'That didn’t save. Please try again.';
+        go.disabled = false; go.textContent = 'Sign the oath';
+      }).catch(function () { msg.textContent = 'No connection. Please check your internet and try again.'; go.disabled = false; go.textContent = 'Sign the oath'; });
+    };
+  }
+
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) { showState('This link isn’t valid. Please use the link from your email, or ask the front desk for a new one.'); return; }
+  call({ action: 'info', token: token }).then(function (d) {
+    if (!d || !d.ok) { showState((d && d.error) || 'This link isn’t valid.'); return; }
+    if (d.signed) showSigned(d, false); else showForm(d);
+  }).catch(function () { showState('No connection. Please check your internet and reload.'); });
+})();
+</script>
+</body>
+</html>

@@ -1400,8 +1400,9 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!gphone || (gst && gst.grading_alert_on === false)) return json({ ok: true, skipped: 'off or no number' });
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
       const nowMin = (() => { const [h, m] = new Date().toLocaleTimeString('en-GB', { timeZone: 'Australia/Sydney', hour12: false }).slice(0, 5).split(':').map(Number); return h * 60 + (m || 0); })();
-      const { data: due } = await db.from('cb_days').select('day_id, location, start_time')
-        .eq('bb', false).eq('closed', false).eq('grading_date', today).is('started_prompt_at', null).not('start_time', 'is', null);
+      // Black belt days too (bb-oath-1): finishing one emails the Black Belt Oath links to everyone who passed to Probationary Black Belt.
+      const { data: due } = await db.from('cb_days').select('day_id, location, start_time, bb')
+        .eq('closed', false).eq('grading_date', today).is('started_prompt_at', null).not('start_time', 'is', null);
       const startMin = t => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + (m || 0); };
       // Start time has passed, but not so long ago (> 6h) that it's a stale day someone forgot to close.
       const toText = (due || []).filter(d => { const s = startMin(d.start_time); return s <= nowMin && nowMin - s <= 360; });
@@ -1410,7 +1411,8 @@ export async function handle(req, db, env = {}, http = fetch) {
         try {
           const cid = await contactFor({ guardian_name: 'AMA grading', full_name: 'AMA grading' }, gphone);
           if (!cid) continue;
-          await sendSms(cid, `Grading started at AMA ${schoolLabel(d.location)}. Reply FINISHED when it's done and the Black Belt Club invites will go out.`);
+          await sendSms(cid, d.bb ? `Black belt grading started at AMA ${schoolLabel(d.location)}. Reply FINISHED when it's done and results are entered, and the Black Belt Oath links will go out.`
+            : `Grading started at AMA ${schoolLabel(d.location)}. Reply FINISHED when it's done and the Black Belt Club invites will go out.`);
           await db.from('cb_days').update({ started_prompt_at: new Date().toISOString() }).eq('day_id', d.day_id);
           sent++;
         } catch (_) { /* leave started_prompt_at null so the next run retries */ }
@@ -1891,8 +1893,8 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (gp9 && p9 === gp9 && /\b(finish|finished|finito|done|complete|completed|wrapped|all done|ended)\b/i.test(msg)) {
           const replyAdmin = async text => { try { const cid = await contactFor({ guardian_name: 'AMA grading', full_name: 'AMA grading' }, phoneE164(body.phone)); if (cid) await sendSms(cid, text); } catch (_) { /* ignore */ } };
           const since = new Date(Date.now() - 36 * 3600e3).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-          const { data: od } = await db.from('cb_days').select('day_id, location, grading_date')
-            .eq('bb', false).eq('closed', false).not('started_prompt_at', 'is', null).gte('grading_date', since)
+          const { data: od } = await db.from('cb_days').select('day_id, location, grading_date, bb')
+            .eq('closed', false).not('started_prompt_at', 'is', null).gte('grading_date', since)
             .order('grading_date', { ascending: false });
           const openDays = od || [];
           if (!openDays.length) { await replyAdmin("There's no grading open to finish right now — you'll get a text when one starts."); return json({ ok: true, grading: 'none_open' }); }
@@ -1904,6 +1906,18 @@ export async function handle(req, db, env = {}, http = fetch) {
             return json({ ok: true, grading: hits.length > 1 ? 'ambiguous_multi' : 'ambiguous', open: openDays.length });
           }
           await db.from('cb_days').update({ closed: true }).eq('day_id', target.day_id);
+          if (target.bb) {
+            // Black belt day: email the oath links (bboath function, authorised with the service role key).
+            let sent = null, failed = 0;
+            try {
+              const r = await http(env.SUPABASE_URL + '/functions/v1/bboath', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY },
+                body: JSON.stringify({ action: 'send', day_id: target.day_id }) });
+              const j = await r.json().catch(() => ({})); if (j && j.ok) { sent = j.sent; failed = j.failed || 0; }
+            } catch (_) { /* reported below */ }
+            await replyAdmin(sent == null ? `AMA ${schoolLabel(target.location)} black belt grading marked finished, but the Black Belt Oath emails didn't go. Check the Toolkit.`
+              : `Done — AMA ${schoolLabel(target.location)} black belt grading marked finished. Black Belt Oath links emailed to ${sent}${failed ? `, ${failed} couldn't be sent (check the Toolkit)` : ''}.`);
+            return json({ ok: true, grading: 'finished', day_id: target.day_id, oath_sent: sent, oath_failed: failed });
+          }
           await replyAdmin(`Done — AMA ${schoolLabel(target.location)} grading marked finished. The Black Belt Club invites are on their way.`);
           return json({ ok: true, grading: 'finished', day_id: target.day_id });
         }
@@ -3056,6 +3070,7 @@ if (typeof Deno !== 'undefined') {
   const db = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
   const env = { GHL_TOKEN: Deno.env.get('GHL_TOKEN'), GHL_LOCATION_ID: Deno.env.get('GHL_LOCATION_ID'), GHL_TEST: Deno.env.get('GHL_TEST'),
     STRIPE_SECRET_KEY: Deno.env.get('STRIPE_SECRET_KEY'), STRIPE_WEBHOOK_SECRET_GRADING: Deno.env.get('STRIPE_WEBHOOK_SECRET_GRADING'),
-    EFC_API_KEY_MARRICKVILLE: Deno.env.get('EFC_API_KEY_MARRICKVILLE'), EFC_API_KEY_SYDENHAM: Deno.env.get('EFC_API_KEY_SYDENHAM'), EFC_API_KEY_CONCORD: Deno.env.get('EFC_API_KEY_CONCORD'), EFC_API_KEY_WEST: Deno.env.get('EFC_API_KEY_WEST'), EFC_API_KEY_SYLVANIA: Deno.env.get('EFC_API_KEY_SYLVANIA') };
+    EFC_API_KEY_MARRICKVILLE: Deno.env.get('EFC_API_KEY_MARRICKVILLE'), EFC_API_KEY_SYDENHAM: Deno.env.get('EFC_API_KEY_SYDENHAM'), EFC_API_KEY_CONCORD: Deno.env.get('EFC_API_KEY_CONCORD'), EFC_API_KEY_WEST: Deno.env.get('EFC_API_KEY_WEST'), EFC_API_KEY_SYLVANIA: Deno.env.get('EFC_API_KEY_SYLVANIA'),
+    SUPABASE_URL: Deno.env.get('SUPABASE_URL'), SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') };
   Deno.serve(req => handle(req, db, env));
 }
