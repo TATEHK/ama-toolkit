@@ -72,6 +72,13 @@
   <p class="hint" id="loading" hidden>Loading…</p>
 
   <div id="app" hidden>
+    <section class="card" id="pkCard">
+      <h2>Passkeys</h2>
+      <p class="hint">Sign in with your face, fingerprint or phone instead of your mobile and PIN. One passkey works on the AMA Toolkit and AMA OS.</p>
+      <ul class="rows" id="pkList"></ul>
+      <p class="msg bad" id="pkMsg" hidden></p>
+      <div style="margin-top:12px"><button class="btn primary" id="pkAdd">Add a passkey on this device</button></div>
+    </section>
     <section class="card">
       <h2>Signed-in devices</h2>
       <p class="hint" id="devHint">Every device signed in to your login. Sign out any you don't recognise.</p>
@@ -189,6 +196,31 @@ function renderDevices(){
     DEVICES = DEVICES.filter(x=>x.device_id!==id); renderDevices(); toast('Signed out');
   });
 }
+// ---- Passkeys (hub-signin.js does the Supabase part) ----
+async function loadPasskeys(){
+  const card=$('#pkCard'), P=window.AmaHub&&AmaHub.passkey;
+  if(!P){ card.hidden=true; return; }
+  $('#pkAdd').hidden=!P.supported();
+  if(!P.supported()) $('#pkMsg').textContent='This browser can’t make passkeys. Try Safari or Chrome on your phone.', $('#pkMsg').hidden=false;
+  let list=[];
+  try{ list=await P.list(HUB); }catch(e){ const m=P.message(e); $('#pkList').innerHTML=''; if(m){ $('#pkMsg').textContent=m; $('#pkMsg').hidden=false; } return; }
+  const KEY='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3m-3 3 2 2m-5 1 2 2"/></svg>';
+  const day=t=>{ try{ return new Date(t).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}); }catch(e){ return ''; } };
+  $('#pkList').innerHTML = list.length ? list.map(k=>`<li class="dev"><span class="ic">${KEY}</span>
+      <span class="d"><b>${esc(k.friendly_name||'Passkey')}</b><small>Added ${esc(day(k.created_at))}${k.last_used_at?' · used '+esc(ago(k.last_used_at)):''}</small></span>
+      <span class="acts"><button class="btn sm danger" data-pkdel="${esc(k.id)}">Remove</button></span></li>`).join('')
+    : '<li class="hint" style="padding:12px 0">No passkeys yet.</li>';
+  $$('#pkList [data-pkdel]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Remove this passkey? You can still sign in with your mobile and PIN.')) return;
+    b.disabled=true; try{ await P.remove(HUB,b.dataset.pkdel); toast('Passkey removed'); loadPasskeys(); }catch(e){ b.disabled=false; toast(P.message(e)||'Couldn’t remove it'); }
+  });
+}
+$('#pkAdd').onclick=async()=>{
+  const P=AmaHub.passkey, b=$('#pkAdd'); $('#pkMsg').hidden=true; b.disabled=true; const t=b.textContent; b.textContent='Follow the prompt on your device…';
+  try{ await P.register(HUB, deviceLabel()); toast('Passkey added. Next time tap "Sign in with a passkey".'); loadPasskeys(); }
+  catch(e){ const m=P.message(e); if(m){ $('#pkMsg').textContent=m; $('#pkMsg').hidden=false; } }
+  b.disabled=false; b.textContent=t;
+};
 $('#signOutOthers').onclick = async ()=>{
   if(!confirm('Sign out every other device? Each one signs out within a minute or two.')) return;
   $('#signOutOthers').disabled=true;
@@ -204,7 +236,7 @@ async function boot(){
   $('#signIn').hidden=true; $('#who').textContent=(session.user.user_metadata||{}).full_name||session.user.email; $('#who').hidden=$('#signOut').hidden=false;
   $('#app').hidden=false;
   await checkOwner(session);
-  loadDevices();
+  loadDevices(); loadPasskeys();
 }
 $('#siForm').onsubmit = async e=>{
   e.preventDefault(); $('#siGo').disabled=true; $('#siMsg').hidden=true;
