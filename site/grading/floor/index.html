@@ -435,6 +435,7 @@ body.stand .stand-tag{display:inline}
 .btn.pk-out{background:none;color:var(--ink-3);border:1px solid var(--line);height:36px;padding:0 12px;border-radius:10px}
 .btn.pk-out:hover{color:var(--accent);border-color:var(--accent)}
 /* Hub button: the same as in Coloured Belts and the Black Belt app */
+.hub-btn[hidden]{display:none}.pk-home{width:36px;padding:0}
 .hub-btn{flex:none;height:36px;padding:0 12px;border-radius:10px;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3);text-decoration:none;font-weight:600;font-size:14px}
 .hub-btn:hover{color:var(--accent);border-color:var(--accent)}
 .pk-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 0 20px;padding-bottom:2px}
@@ -545,7 +546,8 @@ body.stand .stand-tag{display:inline}
       <button class="btn primary block" id="siGo" type="submit">Sign in</button>
     </form>
     <div id="daypick" hidden>
-      <div class="pk-head"><div class="gate-logo">A</div><div><h2>Grading Floor</h2><p>Pick a grading to open its floor plan</p></div><span class="grow"></span><a class="hub-btn" href="https://train.australianmartialarts.com.au/admin" aria-label="Back to the hub" title="Back to the hub">Hub</a><button class="btn pk-out" id="gateOut">Sign out</button></div>
+      <div class="pk-head"><div class="gate-logo">A</div><div><h2>Grading Floor</h2><p>Pick a grading to open its floor plan</p></div><span class="grow"></span><a class="hub-btn pk-home" href="/" aria-label="Back to the AMA Toolkit" title="AMA Toolkit"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg></a><a class="hub-btn pk-hub" href="https://train.australianmartialarts.com.au/admin" aria-label="Back to the hub" title="Back to the hub" hidden>Hub</a><button class="btn pk-out" id="gateOut">Sign out</button></div>
+      <script>try{if(sessionStorage.getItem('amaFromHub')==='1'){var hb=document.querySelector('.pk-hub');if(hb)hb.hidden=false;}}catch(e){}</script>
       <div class="pk-chips" id="pkChips"></div>
       <div id="dayList"></div>
     </div>
