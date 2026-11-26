@@ -21,6 +21,9 @@
   .appbar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px}
   .appbar-inner{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:10px}
   .appbar h1{font:700 20px var(--display);margin:0}
+  .home-btn{flex:none;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:var(--muted);border:1px solid var(--line);text-decoration:none;transition:background-color .15s ease-out}
+  .home-btn:hover{background:var(--hover)}
+  .home-btn svg{width:19px;height:19px}
   .hub-btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
   .grow{flex:1}
   .who{font-size:13px;color:var(--muted);max-width:38vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -55,7 +58,7 @@
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
-<div class="appbar"><div class="appbar-inner"><h1>My Profile</h1><span class="grow"></span><a class="btn sm hub-btn" href="https://train.australianmartialarts.com.au/admin" aria-label="Back to the hub" title="Back to the hub" hidden>Hub</a><span class="who" id="who" hidden></span><button class="btn sm" id="signOut" hidden>Sign out</button></div></div>
+<div class="appbar"><div class="appbar-inner"><a class="home-btn" href="/" aria-label="Back to the AMA Toolkit" title="AMA Toolkit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg></a><h1>My Profile</h1><span class="grow"></span><a class="btn sm hub-btn" href="https://train.australianmartialarts.com.au/admin" aria-label="Back to the hub" title="Back to the hub" hidden>Hub</a><span class="who" id="who" hidden></span><button class="btn sm" id="signOut" hidden>Sign out</button></div></div>
 <script>try{if(sessionStorage.getItem('amaFromHub')==='1'){var hb=document.querySelector('.hub-btn');if(hb)hb.hidden=false;}}catch(e){}</script>
 <main>
   <section id="signIn" class="card" hidden>
