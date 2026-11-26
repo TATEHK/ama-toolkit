@@ -80,6 +80,7 @@
       if (goneOut) return;
       if (!signedIn) { hide(); return; }
       if (trusted) { hide(); return; }   // a trusted device stays signed in — no idle logout
+      if (window.AmaIdleHold) { hide(); return; }   // a page can hold it off while it's in use on a stand (the Grading Floor during a grading)
       // no signal: don't sign out a device that couldn't sign back in (or has changes waiting to send)
       if (navigator.onLine === false || (window.Off && (Off.isOffline()))) { hide(); return; }
       var idle = now() - last();
