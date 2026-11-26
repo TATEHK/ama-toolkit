@@ -22,7 +22,7 @@
 // Staff = app_permissions 'cb' admin/results, or 'bb' admin/grading/results. Cron = x-cb-cron header (cb_cron_ok).
 
 const API = 'https://services.leadconnectorhq.com';
-const PAGE = 'https://app.train-ama.com/grading/black-belt/oath/#';
+const PAGE = 'https://app.train-ama.com/o/';   // short link (site/_redirects sends /o/<code> to the signing page)
 const RANK = 'Probationary Black Belt';
 const OATH_VERSION = '2026-11';
 const LOGO = 'https://www.australianmartialarts.com.au/wp-content/uploads/2019/12/logo1.png';
@@ -35,8 +35,8 @@ const cors = {
 };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 const fail = (msg, status = 400) => json({ ok: false, error: msg }, status);
-const tokenOk = t => /^[A-Za-z0-9_-]{16,64}$/.test(String(t || ''));
-const newToken = () => { const b = crypto.getRandomValues(new Uint8Array(18)); let s = ''; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const tokenOk = t => /^[A-Za-z0-9_-]{10,64}$/.test(String(t || ''));
+const newToken = () => { const b = crypto.getRandomValues(new Uint8Array(9)); let s = ''; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 const first = n => String(n || '').trim().split(/\s+/)[0] || '';
 const sydToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
 const longDate = ymd => { const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); };
