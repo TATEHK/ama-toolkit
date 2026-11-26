@@ -81,7 +81,7 @@
       if (!signedIn) { hide(); return; }
       if (trusted) { hide(); return; }   // a trusted device stays signed in — no idle logout
       var idle = now() - last();
-      if (idle >= LIMIT) { goneOut = true; hide(); sb.auth.signOut().then(function () { location.reload(); }, function () { location.reload(); }); return; }
+      if (idle >= LIMIT) { goneOut = true; hide(); sb.auth.signOut({ scope: 'local' }).then(function () { location.reload(); }, function () { location.reload(); }); return; }
       if (idle >= LIMIT - WARN) { ui(); if (label) label.textContent = String(Math.ceil((LIMIT - idle) / 1000)); }
       else hide();
     }
@@ -103,7 +103,7 @@
     }
     function signOutRevoked() {
       goneOut = true; hide();
-      sb.auth.signOut().then(function () { location.reload(); }, function () { location.reload(); });
+      sb.auth.signOut({ scope: 'local' }).then(function () { location.reload(); }, function () { location.reload(); });
     }
     function checkDevice() {
       if (!signedIn || goneOut) return;

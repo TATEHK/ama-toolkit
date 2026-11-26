@@ -2380,7 +2380,7 @@ $('#defaultRole').addEventListener('change', async e => {
   const { error } = await sb.from('settings').update({ default_new_role: e.target.value }).eq('id', 1);
   toast(error ? 'Could not save: ' + errMsg(error) : 'Saved.');
 });
-$('#noAccessSignOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('#noAccessSignOut').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); location.reload(); };
 
 /* ---------- Sign in and start ---------- */
 $('#loginForm').addEventListener('submit', async e => {
@@ -2390,7 +2390,7 @@ $('#loginForm').addEventListener('submit', async e => {
   btn.disabled = false;
   if (error) { $('#loginError').textContent = 'Sign in failed: ' + errMsg(error); $('#loginError').hidden = false; }
 });
-$('#signOutBtn').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('#signOutBtn').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); location.reload(); };
 
 function showView(which) {
   $('#authView').hidden = which !== 'auth';

@@ -824,8 +824,8 @@ $('#loginForm').addEventListener('submit', async e => {
   btn.disabled = false;
   if(error){ $('#loginError').textContent = 'Sign in failed.'; $('#loginError').hidden = false; }
 });
-$('#signOutBtn').onclick = async () => { await sb.auth.signOut(); location.reload(); };
-$('#noAccessOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('#signOutBtn').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); location.reload(); };
+$('#noAccessOut').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); location.reload(); };
 
 async function startApp(session){
   if(started) return; started = true;
