@@ -36,6 +36,8 @@
     cb_floor_save_groups: { key: a => 'groups:' + a.p_day, drop: a => o => o.fn === 'cb_group_patch' && o.args.p_day === a.p_day,
       apply: a => editFloor(a.p_day, d => { d.groups = clone(a.p_groups || []).map(x => ({ spots: 13, rows: 2, status: 'future', slots: [], opts: {}, ...x })); }) },
     cb_floor_helpers_save: { key: a => 'helpers:' + a.p_day, apply: a => editFloor(a.p_day, d => { d.helpers = clone(a.p_helpers || {}); }) },
+    cb_entry_result: { key: a => 'res:' + a.p_entry, fake: a => ({ ok: true, result: a.p_result }),
+      apply: a => editFloor(null, d => { const s = stu(d, a.p_entry); if (s) s.result = a.p_result; }) },
     cb_runsheet_live_save: { key: a => 'rs:' + a.p_day + '|' + a.p_slot,
       apply: a => { const k = rkey('cb_runsheet_for_slot', a), d = get(k, null); if (d) { d.live = { ...(d.live || {}), step_ix: a.p_step_ix, move_ix: a.p_move_ix, ticks: clone(a.p_ticks || {}) }; set(k, d); } } },
   };

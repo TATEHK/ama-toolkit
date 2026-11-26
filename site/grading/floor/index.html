@@ -196,6 +196,17 @@ body[data-role="signin"]{overflow:hidden}
 /* a long straight line (12+ across): smaller circles, name tags off the circle and alternating below / above so they never overlap */
 .floor.crowd .spot{width:auto;gap:0}
 .floor.crowd .spot .dot{width:44px;height:44px;font-size:15px}
+/* result on the circle (black belt days): tick for pass, cross for fail */
+.rb{position:absolute;right:-4px;top:-4px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--panel);font:700 12px/1 system-ui,sans-serif;color:#fff}
+.rb.pass{background:var(--ok)}.rb.fail{background:#d0453a}
+.avatar .rb{right:-2px;top:-2px}
+.avatar,.ki-av,.sg-dot,.co-dot{position:relative}
+.resrow{display:flex;align-items:center;gap:8px;margin-top:12px}
+.resrow .rl{font-size:13px;font-weight:600;color:var(--ink-3);margin-right:4px}
+.resrow button{min-height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line-2);background:var(--raise);color:var(--ink);font-weight:600;font-size:15px}
+.resrow button.on.pass{background:var(--ok);border-color:var(--ok);color:#fff}
+.resrow button.on.fail{background:#d0453a;border-color:#d0453a;color:#fff}
+.resrow .rx{min-height:40px;padding:0 10px;border:0;background:none;color:var(--ink-3);font-weight:500;font-size:14px}
 .floor.crowd .spot .dot::after{inset:-4px;border-width:3px}
 .floor.crowd .spot .nm{position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 7px);font-size:11.5px;padding:2px 6px;max-width:104px}
 .floor.crowd .spot.alt .nm{top:auto;bottom:calc(100% + 7px)}
@@ -646,7 +657,7 @@ function mapStudents(list){
   for(const r of (list||[])){ const id=++i, belt=shortB(r.belt_from), belt_to=shortB(r.belt_to);
     id2entry[id]=r.entry_id; entry2id[r.entry_id]=id;
     const min=(CURR[belt]&&CURR[belt].min)||0, prog=min?Math.min(100,Math.round((r.classes||0)/min*100)):0;
-    STUDENTS.push({ id, entry_id:r.entry_id, member_key:r.member_key, name:r.full_name||'—', belt, belt_to, rank:(r.belt_from||''), target:(r.belt_to||''),
+    STUDENTS.push({ id, entry_id:r.entry_id, result:r.result||null, member_key:r.member_key, name:r.full_name||'—', belt, belt_to, rank:(r.belt_from||''), target:(r.belt_to||''),
       weeks:r.weeks||0, classes:r.classes||0, lastGap:r.weeks||0, prog, ready:!!r.ready, bbc:!!r.bbc, bbcInv:r.bbc_invited_at||null, bbcWritten:r.bbc_written_at||null,
       sub:r.sub!==false, loc:r.loc||'', age:r.age||0, attend:r.attend||'green', inAt:r.checked_in_at||null, fam:r.family||('f'+id), paid:r.paid!==false, booked:!!r.booked,
       programs:(r.programs==null?null:r.programs), referrals:(r.referrals==null?null:r.referrals), days:[], pack:null, fee:null });
@@ -840,7 +851,7 @@ function kioskResults(){
   if(!q) return '<div class="ki-hint">Start typing to find your name.</div>';
   const m=STUDENTS.map(s=>({s,r:nameRank(s.name,q)})).filter(o=>o.r>=0).sort((a,b)=>a.r-b.r||a.s.name.localeCompare(b.s.name)).slice(0,8).map(o=>o.s);
   if(!m.length) return '<div class="ki-none">No match — check your spelling, or see a staff member.</div>';
-  return m.map(s=>{const here=!absentIds.has(s.id); return `<button class="ki-res" data-id="${s.id}"><div class="ki-av" style="background:${beltC(s.belt)}${phS(s)}">${initials(s.name)}</div><div class="ki-rt"><b>${s.name}</b><span>${s.belt} belt · age ${s.age} · ${s.loc}</span></div><span class="ki-go">${here?'Already in ›':'Check in ›'}</span></button>`;}).join('');
+  return m.map(s=>{const here=!absentIds.has(s.id); return `<button class="ki-res" data-id="${s.id}"><div class="ki-av" style="background:${beltC(s.belt)}${phS(s)}">${initials(s.name)}${resBadge(s)}</div><div class="ki-rt"><b>${s.name}</b><span>${s.belt} belt · age ${s.age} · ${s.loc}</span></div><span class="ki-go">${here?'Already in ›':'Check in ›'}</span></button>`;}).join('');
 }
 function wireKioskResults(){ $$('#kiResults .ki-res').forEach(b=>b.onclick=()=>kioskCheckIn(+b.dataset.id)); }
 function kioskCheckIn(id, also){
@@ -1101,7 +1112,7 @@ function render(){
     floor.className='floor live'+(cw.crowd?' crowd':'');
     floor.innerHTML='<div class="instr">Front · instructors</div>'+(hereIds.length?pos.map((p,i)=>{ const s=byId(hereIds[i]); if(!s) return '';
       return `<div class="spot ${state.sel===s.id?'sel':''}${cw.alt(p)?' alt':''}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%;cursor:pointer">
-        <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}${phS(s)}">${initials(s.name)}</div>
+        <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}${phS(s)}">${initials(s.name)}${resBadge(s)}</div>
         <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`; }).join(''):'<div class="co-done" style="color:rgba(0,0,0,.5)">No one from this group has checked in yet.</div>');
     $$('#floor .spot').forEach(el=>el.onclick=()=>openProfile(+el.dataset.s));
   } else {
@@ -1111,7 +1122,7 @@ function render(){
       const s=byId(lay[i]);
       if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
       return `<div class="spot ${state.sel===s.id?'sel':''}${cw.alt(p)?' alt':''}" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%">
-        <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}${phS(s)}">${initials(s.name)}</div>
+        <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}${phS(s)}">${initials(s.name)}${resBadge(s)}</div>
         <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
     }).join('');
     wireFloor(state.active,g);
@@ -1215,8 +1226,9 @@ function openProfile(id){
   const d=$('#drawer');
   d.innerHTML=`<div class="dh">
     <div class="top">
-      <div class="who"><div class="avatar" style="background:${beltC(s.belt)}${phS(s)}">${initials(s.name)}</div>
+      <div class="who"><div class="avatar" style="background:${beltC(s.belt)}${phS(s)}">${initials(s.name)}${resBadge(s)}</div>
         <div><div class="pname">${s.name}</div><div class="pmeta">Taekwondo · age ${s.age} · trains at ${s.loc}</div>
+          ${(resultsHere() && hasScore) ? `<div class="resrow"><span class="rl">Result</span><button class="pass${s.result==='pass'?' on':''}" data-res="pass">Pass</button><button class="fail${s.result==='fail'?' on':''}" data-res="fail">Fail</button>${s.result?'<button class="rx" data-res="">Clear</button>':''}</div>` : ''}
           <div class="hdchips"><span class="belttag"><i style="background:${beltC(s.belt)}"></i>${s.belt} → ${nx}</span><span class="rdchip ${s.ready?'yes':'no'}">${s.ready?'Ready to grade':'Working toward it'}</span></div>
           ${s.bbc?'':`<button class="bbcinv${s.bbcInv?' on':''}" id="bbcInv" data-on="${s.bbcInv?'0':'1'}">${s.bbcInv?(s.bbcWritten?'Black Belt Club card written · tap to cancel':'Black Belt Club card asked for · tap to cancel'):'Invite to Black Belt Club'}</button>`}</div></div>
       <button class="closex" id="pClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
@@ -1224,6 +1236,7 @@ function openProfile(id){
     <div class="dbody">${superHtml}${hasOv?ovHtml:''}${hasScore?scHtml:''}</div>`;
   d.classList.add('open'); d.setAttribute('aria-hidden','false'); $('#scrim').classList.add('open');
   $('#pClose').onclick=closeProfile;
+  $$('#drawer [data-res]').forEach(b=>b.onclick=()=>{ persistResult(id, b.dataset.res||null); openProfile(id); });
   // Black Belt Club: ask for an invitation card (same as Coloured Belts; shows on Cards to write)
   const bi=$('#bbcInv'); if(bi) bi.onclick=async()=>{ const on=bi.dataset.on==='1'; bi.disabled=true;
     const { error } = await sb.rpc('cb_bbc_invite', { p_member: s.member_key, p_on: on });
@@ -1384,6 +1397,13 @@ function persistGroups() { if (!DAYID || loading) return; groupsSaveUntil = Date
 // (before, these were built and never sent), and a failed save says so instead of quietly vanishing on the next refresh.
 const saved = what => r => { if (r && r.error) toast(`Couldn't save ${what}: ${r.error.message}`, 4500); };
 function persistGroup(i, patch) { if (!DAYID || loading) return; const p = { ...patch }; if ('slots' in patch) p.slots = slotEntries(state.groups[i]); sb.rpc('cb_group_patch', { p_day: DAYID, p_ord: i, p_patch: p }).then(saved('that line'), () => toast("Couldn't save that line. Check your connection.", 4500)); }
+// Result (black belt days): pass/fail saved on the grading entry (cb_entry_result). Pass is what sends the Black Belt
+// Oath for Probationary Black Belts; anything else cancels an unsigned oath. Not on days run as a grading event (4th Dan),
+// which have their own Results.
+const resultsHere = () => BBMODE() && !(window.GE && GE.has());
+function resBadge(s){ return (resultsHere() && s && s.result) ? `<i class="rb ${s.result}" aria-label="${s.result==='pass'?'Passed':'Not passed'}">${s.result==='pass'?'✓':'✕'}</i>` : ''; }
+function persistResult(id, val){ const s=byId(id); if(!s||!DAYID||!id2entry[id]) return; const was=s.result; s.result=val; render();
+  sb.rpc('cb_entry_result',{ p_entry:id2entry[id], p_result:val }).then(({data,error})=>{ if(error||(data&&data.error)){ s.result=was; render(); toast('Result not saved: '+((error&&error.message)||data.error)); } }, ()=>{}); }
 function persistScore(id, patch) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_score_save', { p_entry: id2entry[id], p_patch: patch }).then(saved('that score'), () => toast("Couldn't save that score. Check your connection.", 4500)); }
 async function persistCheckin(id, on) { if (!DAYID || !id2entry[id]) return;
   const { data, error } = await sb.rpc('cb_floor_checkin', { p_entry: id2entry[id], p_on: !!on });
@@ -1764,7 +1784,7 @@ function cbPresentFloorHtml(g){ const spots=g.spots||Math.max(1,g.slots.filter(x
   const gg={...g,spots,rows}, lay=layoutFor(gg), pos=slotPos(gg,spots,rows), cw=crowding(pos);   // keep belts so multi-belt ordering matches the main floor (no mirror)
   return `<div class="floor${cw.crowd?' crowd':''}" id="cbFloor">`+'<div class="instr">Front · instructors</div>'+pos.map((p,i)=>{ const s=byId(lay[i]);
     if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
-    return `<div class="spot${cw.alt(p)?' alt':''}" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%"><div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}${phS(s)}">${initials(s.name)}</div><div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
+    return `<div class="spot${cw.alt(p)?' alt':''}" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%"><div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}${phS(s)}">${initials(s.name)}${resBadge(s)}</div><div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
   }).join('')+`</div>`; }
 function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!el||el.hidden) return;
   if(cbpGi>state.groups.length-1) cbpGi=state.groups.length-1; let g=state.groups[cbpGi]; if(!g){ cbPresentClose(); return; }
