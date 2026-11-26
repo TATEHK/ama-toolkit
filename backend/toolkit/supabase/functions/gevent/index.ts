@@ -73,6 +73,20 @@ export function isCorrect(q, a) {
 const publicQs = quiz => quiz.questions.map((q, ix) => ({ ix, section: (quiz.rounds[q.round] || {}).name || '', type: q.type, text: q.text, options: q.options }));
 const testMins = quiz => Number(quiz.minutes || 30);
 
+// Who is signed in: ask Supabase Auth with the service client, and if that doesn't answer, ask it directly with the
+// public key (the same check the browser makes). Logs why when neither works.
+async function staffEmail(db, jwt, env) {
+  try { const { data, error } = await db.auth.getUser(jwt); if (data && data.user && data.user.email) return data.user.email.toLowerCase(); if (error) console.error('gevent getUser:', error.status, error.message); }
+  catch (e) { console.error('gevent getUser threw:', String(e)); }
+  try {
+    const r = await fetch(String(env.SUPABASE_URL || '').replace(/\/$/, '') + '/auth/v1/user', { headers: { apikey: env.ANON_KEY || '', Authorization: 'Bearer ' + jwt } });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.email) return String(j.email).toLowerCase();
+    console.error('gevent /auth/v1/user:', r.status, j.msg || j.message || j.error || '');
+  } catch (e) { console.error('gevent /auth/v1/user threw:', String(e)); }
+  return null;
+}
+
 export async function handle(req, db, env = {}) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return fail('Use POST.', 405);
@@ -187,8 +201,7 @@ export async function handle(req, db, env = {}) {
 
     // ---------- staff ----------
     const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-    const { data: who } = jwt ? await db.auth.getUser(jwt) : { data: null };
-    const email = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
+    const email = jwt ? await staffEmail(db, jwt, env) : null;
     if (!email) return fail('Sign in first.', 401);
     // Black Belt Gradings logins, or Grading Floor (Coloured Belts) logins with results/days access (grading-event-6.sql)
     const { data: pr } = await db.from('app_permissions').select('app, perm').eq('email', email).in('app', ['bb', 'cb']);
@@ -261,5 +274,6 @@ export async function handle(req, db, env = {}) {
 if (typeof Deno !== 'undefined' && Deno.serve && import.meta.main) {
   const { createClient } = await import('npm:@supabase/supabase-js@2.45.4');
   const db = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
-  Deno.serve(req => handle(req, db, {}));
+  const env = { SUPABASE_URL: Deno.env.get('SUPABASE_URL'), ANON_KEY: Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '' };
+  Deno.serve(req => handle(req, db, env));
 }

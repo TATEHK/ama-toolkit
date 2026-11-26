@@ -170,6 +170,7 @@
     css(); S.last = { el, ge };
     if (S.open) return true;                   // the overlay (Results / big screen) is on top; the step draws again when it closes
     S.el = el; S.inline = true; S.view = k.view; if (k.sel) S.sel = k.sel; S.tv = false;
+    if (k.view === 'quiz' && !S.quiz) { try { const c = JSON.parse(localStorage.getItem(QKEY()) || 'null'); if (c) { c.at = Date.now(); S.quiz = c; } } catch (e) {} }
     el.classList.add('ge-inline'); draw(); if (k.view === 'quiz') pollQuiz();
     return true;
   }
@@ -214,7 +215,14 @@
   }
 
   /* ---------- Theory test (private, own pace; all right to pass, wrong ones come back to redo) ---------- */
-  async function pollQuiz() { try { S.quiz = await fn({ action: 'host_state' }); S.quiz.at = Date.now(); if (live_el() && S.view === 'quiz' && !$1('#geDlg').open) vQuiz(); } catch (e) { const s = $1('#geSync'); if (s) s.textContent = e.message; } }
+  // The test's state: shown straight away from the last copy on this device, then refreshed every 2 seconds.
+  // If the server can't be reached the panel says so (and keeps the sign-in QR up) instead of sitting on "Loading".
+  const QKEY = () => 'ge_quiz_' + (S.ev && S.ev.event_id);
+  async function pollQuiz() {
+    try { S.quiz = await fn({ action: 'host_state' }); S.quiz.at = Date.now(); S.quizErr = null; try { localStorage.setItem(QKEY(), JSON.stringify(S.quiz)); } catch (e) {} }
+    catch (e) { S.quizErr = e.message || 'Can\u2019t reach the test'; if (!S.quiz) { try { const c = JSON.parse(localStorage.getItem(QKEY()) || 'null'); if (c) { c.at = Date.now(); c.stale = true; S.quiz = c; } } catch (x) {} } }
+    if (live_el() && S.view === 'quiz' && !$1('#geDlg').open) vQuiz();
+  }
   async function qCmd(cmd, extra = {}) { try { await fn({ action: 'host', cmd, ...extra }); await pollQuiz(); } catch (e) { say(e.message, 4000); } }
   const testLeft = () => { const hs = S.quiz, z = hs && hs.quiz; if (!z || !z.q_ends_at) return 0; const skew = hs.server_now - hs.at; return Math.max(0, Math.ceil((Date.parse(z.q_ends_at) - (Date.now() + skew)) / 1000)); };
   function vQuiz() {
@@ -224,7 +232,11 @@
     const nIn = Object.keys(pl).length, nSub = Object.values(pl).filter(p => p.submitted_at).length, total = (hs && hs.total) || Q.questions.length;
     const url = location.origin + '/q/#' + S.ev.join_code;
     let body = '';
-    if (!hs) body = '<p class="ge-muted">Loading…</p>';
+    if (!hs) {   // first moment, or the server can't be reached: the sign-in QR is still useful
+      let qr = ''; try { const g = qrcode(0, 'M'); g.addData(url); g.make(); qr = g.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); } catch (e) { qr = ''; }
+      body = `<div class="lobby"><div class="qr" style="width:min(30vh,240px)">${qr}</div><div><div class="qtext" style="font-size:clamp(22px,3vw,40px)">Theory test sign-in</div><p style="font-size:18px;margin:8px 0">${h(location.host)}/q · code <b style="color:var(--accent);letter-spacing:.1em">${h(S.ev.join_code)}</b></p>
+        <p class="ge-small" style="${S.quizErr ? 'color:var(--bad)' : 'color:var(--ink-3)'}">${S.quizErr ? h(S.quizErr) + ' · trying again…' : 'Connecting…'}</p></div></div>`;
+    }
     else if (ph === 'closed') body = `<div class="ge-card" style="max-width:680px"><h2>Theory test</h2><p class="ge-muted">${total} questions. Each candidate signs in on their own phone and works through the test at their own pace for ${Q.minutes || 30} minutes. Pass is all ${total} right: anyone with a wrong answer is told only which questions to redo (not the answers) and redoes just those. Private: only staff see scores, here.</p><button class="ge-btn primary" data-q="open">Open sign-in</button></div>`;
     else if (ph === 'lobby') {
       let qr = ''; try { const g = qrcode(0, 'M'); g.addData(url); g.make(); qr = g.createSvgTag({ cellSize: 8, margin: 2, scalable: true }); } catch (e) { qr = ''; }
@@ -245,7 +257,7 @@
       ${ph === 'ended' ? `<button class="ge-btn ok" id="geRec">Record theory results</button><button class="ge-btn" data-q="extend">Reopen +5 min</button>` : ''}
       ${ph !== 'closed' ? `<button class="ge-btn" id="geTv">${S.tv ? 'Exit big screen' : 'Big screen'}</button><button class="ge-btn" id="geTab">Staff tablet</button>` : ''}
       ${ph !== 'closed' && can('grading') ? `<button class="ge-btn ge-ghost danger" id="geReset">Reset</button>` : ''}</div>`;
-    S.el.innerHTML = `<div class="qz ${S.tv ? 'tv' : ''}">${body}${ctl}</div>`;
+    S.el.innerHTML = `<div class="qz ${S.tv ? 'tv' : ''}">${hs && S.quizErr ? `<div class="ge-small noprint" style="color:var(--bad)">${h(S.quizErr)} · showing the last update, trying again…</div>` : ''}${body}${ctl}</div>`;
     inM('[data-q]').forEach(b => b.onclick = () => qCmd(b.dataset.q));
     const te = $1('#geTEnd'); if (te) te.onclick = () => { const left = nIn - nSub; if (left && !confirm(`${left} candidate${left === 1 ? ' hasn’t' : 's haven’t'} got every answer right yet. End the test now? They won’t pass the theory item unless you reopen it.`)) return; qCmd('end'); };
     const tv = $1('#geTv'); if (tv) tv.onclick = () => {
