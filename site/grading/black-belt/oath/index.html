@@ -46,18 +46,21 @@
   .done-banner b { color: var(--gold); font-family: Oswald, Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; font-size: 18px; display: block; margin-bottom: 4px; }
   .sig-img { display: block; max-width: 100%; height: 120px; object-fit: contain; object-position: left center; border-bottom: 1.5px solid var(--ink); }
   .filled { border-bottom: 1.5px solid var(--ink); padding: 4px 2px; flex: 1; }
-  .intro { background: var(--night); color: #fff; border-radius: 6px; padding: 18px 20px; margin-bottom: 14px; font-family: Arial, sans-serif; font-size: 15px; line-height: 1.5; }
-  .intro b { display: block; color: var(--gold); font-family: Oswald, Arial, sans-serif; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 20px; margin-bottom: 4px; }
-  .intro a { display: inline-block; margin-top: 12px; color: var(--night); background: var(--gold); text-decoration: none; font-weight: 700; font-size: 14px; letter-spacing: .06em; padding: 10px 16px; border-radius: 6px; }
-  .read { margin-bottom: 14px; font-size: 17px; line-height: 1.6; }
-  .read h2 { font-family: Oswald, "Arial Narrow", Arial, sans-serif; font-weight: 600; font-size: 19px; letter-spacing: .02em; margin: 26px 0 8px; }
-  .read h2:first-of-type { margin-top: 0; }
-  .read p { margin: 0 0 12px; }
-  .read ol { margin-bottom: 4px; }
-  .read ol li { margin-bottom: 8px; }
-  .read .salute { font-weight: 600; margin: 0 0 4px; }
-  .read .gm { font-style: italic; margin-top: 18px; }
-  h1.small { font-size: 24px; }
+  .intro { text-align: center; margin: 6px 0 18px; font-family: Arial, sans-serif; }
+  .intro h2 { font-family: Oswald, "Arial Narrow", Arial, sans-serif; font-weight: 600; font-size: 26px; letter-spacing: .01em; margin: 0 0 6px; }
+  .intro p { margin: 0 auto; max-width: 30em; color: var(--muted); font-size: 15px; line-height: 1.5; }
+  .intro a { display: inline-block; margin-top: 14px; color: var(--gold); background: var(--night); text-decoration: none; font-weight: 700; font-size: 14px; padding: 11px 18px; border-radius: 8px; }
+  .acc { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 14px; overflow: hidden; }
+  .acc details + details { border-top: 1px solid var(--line); }
+  .acc summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 16px 20px; font-family: Arial, sans-serif; font-weight: 700; font-size: 15px; color: var(--ink); }
+  .acc summary::-webkit-details-marker { display: none; }
+  .acc summary::after { content: ""; margin-left: auto; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .15s ease-out; }
+  .acc details[open] summary::after { transform: rotate(-135deg); }
+  .acc .body { padding: 0 20px 18px; font-size: 16px; line-height: 1.6; }
+  .acc .body p { margin: 0 0 12px; }
+  .acc .body ol { font-size: 16px; line-height: 1.6; margin-bottom: 6px; }
+  .acc .body ol li { margin-bottom: 8px; }
+  .acc .body .gm { font-style: italic; margin-top: 16px; }
   @media (min-width: 560px) { .foot { grid-template-columns: 1.7fr 1fr; align-items: end; } .sheet { padding: 36px 40px 32px; } }
   @media print { body { background: #fff; } main { padding: 0; } .sheet { border: 0; } .done-banner, .note { display: none; } }
 </style>
@@ -93,27 +96,36 @@
       .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Something went wrong. Please try again.' }; }); });
   }
   function oathList() { return '<ol>' + OATH.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>'; }
-  // The paper oath pack, pages 2 and 3: read before signing, and kept on the page afterwards
+  // The paper oath pack, pages 2 and 3 (same words), folded into sections: read before signing, kept after
   var WELCOME =
-    '<div class="sheet read"><h1 class="small">To our new black belt, congratulations!</h1>' +
-    '<h2>What is a black belt?</h2><p>A black belt is someone who:</p><ol>' +
+    '<div class="acc">' +
+    '<details open><summary>What is a black belt?</summary><div class="body">' +
+    '<p>A black belt is someone who:</p><ol>' +
     '<li>Displays humility, accepts that they are always learning and challenges themself to always improve.</li>' +
     '<li>Is loyal and honours their martial arts school, instructors, family and all who have supported their black belt journey. Pledges to continue what they have learnt with dignity and respect.</li>' +
     '<li>Has a high-level skill which is maintained to defend themself, keep their body healthy and their mind sharp.</li>' +
     '<li>Shows respect for self, maintains a disciplined lifestyle, takes care of their appearance, and keeps their body in its best shape.</li></ol>' +
-    '<h2>When do I get my first dan black belt and my name on my belt?</h2>' +
+    '</div></details>' +
+    '<details><summary>When do I get my first dan black belt and my name on my belt?</summary><div class="body">' +
+    '' +
     '<p>You have just received a provisional black belt, this means that you have the skills and ability to be a black belt. Your training over the next 6 months will determine whether you have the attitude, commitment to a black belt way of life and improvement to full black belt standard. Once completing your 6 months of full training and club requirements you will be tested at the next grading to confirm that you are eligible to receive a full status first degree black belt (in which your name will be placed on your belt and you will receive a first degree black belt).</p>' +
     '<p>At AMA every student is important to us but you are now one of our most important students. We are always here to support your goals, help you set new ones, improve motivation and challenge you to do better, let us know if we can help you along your journey.</p>' +
-    '<h2>What is Masters Club?</h2>' +
+    '</div></details>' +
+    '<details><summary>What is Masters Club?</summary><div class="body">' +
+    '' +
     '<p>You are now invited to (and it is highly recommended that you) join Masters Club, an exclusive club open only to those holding a black belt. This club will help you to learn: skills that require the mastery of a black belt, subsequent black belt curriculums and challenge even the best of us! Masters Club students are seen in the red and black Masters Club uniforms. You may take this up as another class or swap your membership from black belt club to masters club.</p>' +
-    '<h2>What are black belts expected to do during their full training?</h2><ol>' +
+    '</div></details>' +
+    '<details><summary>What are black belts expected to do during their full training?</summary><div class="body">' +
+    '<ol>' +
     '<li><b>Train</b> at least 3 sessions per week including one masters or black belt club.</li>' +
     '<li><b>Attend</b> as many gradings and events as possible to assist with pad holding and grading duties. Notice for non-attendance should be given.</li>' +
     '<li><b>Always</b> set a good example for other students.</li>' +
     '<li><b>Support</b> instructors and other students.</li>' +
     '<li><b>Continue</b> to look after their body, mind &amp; train hard to always exemplify what it means to be a black belt.</li>' +
-    '<li><b>Learn</b> the 1st Dan Black Belt Curriculum.</li></ol></div>' +
-    '<div class="sheet read"><p class="salute">Dear Black Belt,</p><p class="salute">Congratulations!</p><p></p>' +
+    '<li><b>Learn</b> the 1st Dan Black Belt Curriculum.</li></ol>' +
+    '</div></details>' +
+    '<details><summary>A letter from Grand Master Manav</summary><div class="body">' +
+    '<p>Dear Black Belt,</p><p>Congratulations!</p>' +
     '<p>I want to let you know how proud the Instructors, Head Instructors, and I are of you for achieving your new black belt rank. I do not doubt that you will carry on the tradition of excellence that our schools’ seniors have established.</p>' +
     '<p>Our black belt students are well known worldwide for their physical abilities, loyalty to their martial arts academy, and their outstanding work ethics. I think, however, they are especially known for having outstanding martial arts attitudes. I am very happy to see that you possess all of these very same qualities to a high degree.</p>' +
     '<p>Before you celebrate, I would like you to think of three things:</p>' +
@@ -121,7 +133,9 @@
     '<p>Secondly, think about your teachers. Think about how they worked so personally and tirelessly with you to accomplish this goal. Your teachers teach, exert and model proper behaviour. They want you to continue your study. They want you to continue to grow, and like the black belts that have graduated before you, they want you to be a positive, contributing and respected member of society.</p>' +
     '<p>Lastly, think about yourself for a moment and what you have done today and what you have done to achieve your black belt. You should be very proud of yourself. Continue to study the virtues of a black belt. Practicing these principles will help ensure success in school, work and life. We have a saying “those who dare to teach or lead, must never cease to learn”. Well, now you are the leaders and you set the example for those who follow. Be loyal to your school. Think about how you can uphold the tradition of the black belt, always displaying black belt maturity and dignity in all your endeavours.</p>' +
     '<p>The literal meaning of “Dan” is “to carve steps up the cliff”. You have come a long way in your training and have overcome many obstacles, both physical and mental. You are a serious student! I’m sure you will discover by continued practice that what you thought was a perfection of a technique was merely an introduction to it. A tremendous journey of self-discovery awaits you. Again, congratulations on your accomplishment and welcome to a higher level of study.</p>' +
-    '<p>Kind regards,</p><p class="gm">Grand Master Ridvan Manav</p></div>';
+    '<p>Kind regards,</p><p class="gm">Grand Master Ridvan Manav</p>' +
+    '</div></details>' +
+    '</div>';
   function showState(text) { app.innerHTML = '<div class="state">' + esc(text) + '</div>'; }
 
   function showSigned(d, fresh) {
@@ -137,7 +151,7 @@
 
   function showForm(d) {
     app.innerHTML =
-      '<div class="intro"><b>Congratulations, ' + esc(d.first || 'black belt') + '</b>Please read about your new black belt below, then sign the Black Belt Oath at the bottom of the page.<br><a href="#oath" id="jump">Go to the oath</a></div>' +
+      '<div class="intro"><h2>Congratulations, ' + esc(d.first || 'black belt') + '</h2><p>Read about your new black belt below, then sign the Black Belt Oath.</p><a href="#oath" id="jump">Go to the oath</a></div>' +
       WELCOME +
       '<div class="sheet" id="oath"><h1>Black Belt Oath</h1>' +
       '<label class="iname"><span>I,</span><input id="nm" type="text" autocomplete="name" autocapitalize="words" maxlength="80" placeholder="your full name" value="' + esc(d.full_name || '') + '"></label>' +
