@@ -23,7 +23,35 @@
 // Setup: { action: 'seed', slug } with x-ge-seed (vault ge_seed_key): load a bundled event config.
 
 import beyond4th from './beyond-4th-dan-2026-11-28.ts';
-const BUNDLED = { 'beyond-4th-dan-2026-11-28': { title: 'Beyond 4th Dan Grading', join_code: '4DAN', starts_at: '2026-11-28T08:00:00+11:00', day_id: 'fc39317a-2476-4a9e-988f-f57699714df8', config: beyond4th } };
+const BUNDLED = { 'beyond-4th-dan-2026-11-28': { title: 'Beyond 4th Dan Grading', join_code: '4DAN', starts_at: '2026-11-28T08:00:00+11:00', day_id: 'fc39317a-2476-4a9e-988f-f57699714df8', config: beyond4th,
+  floor: { slot: '08:00', runsheet_id: 'a1a1a1a1-0004-4004-8004-0000000b4d28' } } };
+
+// The Grading Floor's run sheet for an event (cb_runsheets format): one section per block, one step per event step
+// (the seminar, then each group's assessment), each step naming the floor lines (groups) it's for. Step n here is
+// step n in the event app, so the two stay in step (grading-event-5.sql syncs them).
+const t12 = t => { const [h, m] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`; };
+export function floorDoc(title, slug, c) {
+  const items = {}; for (const k in c.syllabi) for (const it of c.syllabi[k].items) items[it.code] = it;
+  const its = codes => codes.map(code => ({ h: false, t: `${code} ${items[code].section}${items[code].text ? ': ' + items[code].text : ''}` }));
+  const groupIds = c.groups.map(g => g.id);
+  const sections = c.blocks.map((b, bi) => {
+    const steps = [{ time: t12(b.time), mins: b.mins, groups: b.rollcall ? 'Roll call' : b.public ? 'Public hour: run from the MC screen' : (b.assess.length ? 'Everyone trains' : b.title), belt: '',
+      items: [...(b.assess.length ? String(b.train).split(', ') : [b.train]).map(t => ({ h: false, t: t.trim() })), ...(b.notes ? [{ h: true, t: b.notes }] : [])],
+      ...(b.assess.length ? { lines: groupIds } : {}), ge: { block: bi, step: 0 } }];
+    b.assess.forEach((a, si) => {
+      const st = { time: t12(a.time), mins: a.mins, groups: 'Group ' + a.groups.join(' + ') + (a.note ? ' · ' + a.note : ''), lines: a.groups, ge: { block: bi, step: si + 1 } };
+      const sy = ['4D', 'L1', 'L3'].filter(k => a.items[k]);
+      if (a.quiz) Object.assign(st, { belt: '', items: [{ h: false, t: 'Theory test on their phones. Run it from the event app, Theory test tab.' }] });
+      else if (sy.length === 1 && sy[0] === '4D') Object.assign(st, { belt: '4th Dan', items: its(a.items['4D']) });
+      else if (sy.join() === 'L1,L3') Object.assign(st, { belt: '4th Dan Level 1', items: its(a.items.L1), belt2: '4th Dan Level 3', items2: its(a.items.L3) });
+      else Object.assign(st, { belt: '', items: sy.flatMap(k => its(a.items[k])) });
+      steps.push(st);
+    });
+    return { name: `${t12(b.time)} · ${b.title}`, steps };
+  });
+  return { title, note: 'Synced with the event app: scoring, the theory test and the MC screen are there', window: c.hours || '', event_slug: slug,
+    groups: c.groups.map((g, i) => ({ n: i + 1, name: g.id, belt: g.note || '', count: c.candidates.filter(x => x.group === g.id).length })), sections };
+}
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -61,7 +89,31 @@ export async function handle(req, db, env = {}) {
       const { data, error } = ex ? await db.from('ge_events').update(row).eq('event_id', ex.event_id).select('event_id').single() : await db.from('ge_events').insert(row).select('event_id').single();
       if (error) throw error;
       await db.from('ge_quiz').upsert({ event_id: data.event_id }, { onConflict: 'event_id', ignoreDuplicates: true });
-      return json({ ok: true, event_id: data.event_id });
+      // Grading Floor: the run sheet, assigned to the day's grading slot; each target belt starts at that slot; lines A1/A2/M
+      let floor = null;
+      if (b.floor && b.day_id) {
+        const { error: re } = await db.from('cb_runsheets').upsert({ runsheet_id: b.floor.runsheet_id, title: b.title, programme: 'Taekwondo', doc: floorDoc(b.title, body.slug, b.config), updated_at: new Date().toISOString(), updated_by: 'gevent' }, { onConflict: 'runsheet_id' });
+        if (re) throw re;
+        const { data: day } = await db.from('cb_days').select('runsheets, belt_times').eq('day_id', b.day_id).single();
+        const targets = [...new Set(b.config.candidates.map(x => x.to))];
+        const bt = { ...(day.belt_times || {}) }; targets.forEach(t => { bt[t] = b.floor.slot; });
+        await db.from('cb_days').update({ runsheets: { ...(day.runsheets || {}), [b.floor.slot]: b.floor.runsheet_id }, belt_times: bt }).eq('day_id', b.day_id);
+        await db.from('ge_events').update({ floor_slot: b.floor.slot }).eq('event_id', data.event_id);
+        const { data: had } = await db.from('cb_groups').select('group_id').eq('day_id', b.day_id).limit(1);
+        let lines = 'kept';
+        if (!(had && had.length) || body.floor_lines) {
+          await db.from('cb_groups').delete().eq('day_id', b.day_id);
+          const rows = b.config.groups.map((g, i) => { const ids = b.config.candidates.filter(x => x.group === g.id).map(x => x.id);
+            return { day_id: b.day_id, ord: i, cone: String(i + 1), belt: null, spots: Math.max(ids.length, 1), rows: 1, status: 'future', slots: ids, opts: { title: g.id, belts: [], order: 'manual' } }; });
+          const { data: all } = await db.from('cb_entries').select('entry_id').eq('day_id', b.day_id);
+          const inEvent = new Set(b.config.candidates.map(x => x.id)), rest = (all || []).map(e => e.entry_id).filter(id => !inEvent.has(id));
+          if (rest.length) rows.push({ day_id: b.day_id, ord: rows.length, cone: String(rows.length + 1), belt: null, spots: rest.length, rows: 1, status: 'future', slots: rest, opts: { title: 'Not in this grading', belts: [], order: 'manual' } });
+          const { error: ge2 } = await db.from('cb_groups').insert(rows); if (ge2) throw ge2;
+          lines = rows.length + ' lines';
+        }
+        floor = { runsheet: b.floor.runsheet_id, slot: b.floor.slot, lines };
+      }
+      return json({ ok: true, event_id: data.event_id, floor });
     }
 
     // ---------- candidates ----------
