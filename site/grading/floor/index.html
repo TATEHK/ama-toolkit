@@ -701,7 +701,7 @@ function generateGroupsBB(){ // black belt day: split into gradings (time-slots)
       const G=Math.max(1,Math.ceil(kids.length/LINE)), base=Math.floor(kids.length/G), extra=kids.length%G; let i=0;
       for(let k2=0;k2<G;k2++){ const cnt=base+(k2<extra?1:0), sl=spotsArr(LINE);
         for(let k=0;k<cnt;k++) sl[k]=kids[i++].id;
-        groups.push({name:tgt||'Grading', belt:null, bb:true, tier:bbTierNum(tgt), target:tgt, gslot:gi, belts:[], title:'', order:'young', spots:LINE, rows:1, status:'future', slots:sl}); }
+        groups.push({name:tgt||'Grading', belt:null, bb:true, tier:bbTierNum(tgt), target:tgt, gslot:gi, belts:[], title:'', order:'young', spots:LINE, rows:cnt>8?2:1, status:'future', slots:sl}); }   // more than 8 in a line: two rows, the back row lined up behind the front
     }
   }
   state.groups=groups.length?groups:[{name:'Line 1',belt:null,bb:true,tier:1,target:'',gslot:0,belts:[],title:'',order:'young',spots:LINE,rows:1,status:'future',slots:spotsArr(LINE)}];
@@ -1262,12 +1262,15 @@ function persistGroups() { if (!DAYID || loading) return; groupsSaveUntil = Date
   saveT = setTimeout(async () => { groupsSaveUntil = Date.now() + 4000;
     try { await sb.rpc('cb_floor_save_groups', { p_day: DAYID, p_groups: groupsJson() }); } catch (e) {}
     groupsSaveUntil = Date.now() + 1500; }, 300); }
-function persistGroup(i, patch) { if (!DAYID || loading) return; const p = { ...patch }; if ('slots' in patch) p.slots = slotEntries(state.groups[i]); sb.rpc('cb_group_patch', { p_day: DAYID, p_ord: i, p_patch: p }); }
-function persistScore(id, patch) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_score_save', { p_entry: id2entry[id], p_patch: patch }); }
+// Supabase only sends a request once it is awaited or .then()'d: every save below ends in .then(saved) so it is really sent
+// (before, these were built and never sent), and a failed save says so instead of quietly vanishing on the next refresh.
+const saved = what => r => { if (r && r.error) toast(`Couldn't save ${what}: ${r.error.message}`, 4500); };
+function persistGroup(i, patch) { if (!DAYID || loading) return; const p = { ...patch }; if ('slots' in patch) p.slots = slotEntries(state.groups[i]); sb.rpc('cb_group_patch', { p_day: DAYID, p_ord: i, p_patch: p }).then(saved('that line'), () => toast("Couldn't save that line. Check your connection.", 4500)); }
+function persistScore(id, patch) { if (!DAYID || !id2entry[id]) return; sb.rpc('cb_score_save', { p_entry: id2entry[id], p_patch: patch }).then(saved('that score'), () => toast("Couldn't save that score. Check your connection.", 4500)); }
 async function persistCheckin(id, on) { if (!DAYID || !id2entry[id]) return;
   const { data, error } = await sb.rpc('cb_floor_checkin', { p_entry: id2entry[id], p_on: !!on });
   if (error || (data && data.error)) toast("Couldn't save that check-in — your login may not have permission.", 4500); }
-function resetScoresRemote() { if (!DAYID) return; sb.rpc('cb_floor_reset', { p_day: DAYID }); }
+function resetScoresRemote() { if (!DAYID) return; sb.rpc('cb_floor_reset', { p_day: DAYID }).then(saved('the reset'), () => {}); }
 // Black belt runsheet — the lines in running order, each with its students, printable
 function openRunsheet(){
   if(!document.getElementById('rsPrintCSS')){ const st=document.createElement('style'); st.id='rsPrintCSS';
@@ -1419,7 +1422,7 @@ function renderRsLive(){
   const el=document.getElementById('rsLive'); if(!el||!RS) return; RS._curIdx = state.grading;
   const grs=gradingsPresent();
   const top=`<div class="rsl-top"><div class="rsl-gt">${grs.map(g=>`<button data-gidx="${g.idx}" aria-selected="${esc(fmtSlot(gradingInfo(g.idx).time))===esc(RS.glabel)}">Grading ${g.num}${g.label?' · '+esc(g.label):''}</button>`).join('')}</div><button class="rsl-x" title="Close">✕</button></div>`;
-  const head=`<div class="rsl-head"><div class="rsl-title">${esc(RS.title)}</div><div class="rsl-sub">Grading ${RS.gnum} · ${esc(RS.glabel)}${RS.window?' · '+esc(RS.window):''}${RS.note?' · <b>'+esc(RS.note)+'</b>':''}</div></div>`;
+  const head=`<div class="rsl-head">${(window.GE&&GE.has()&&RS.event)?'<button id="rsResBtn" style="float:right;min-height:36px;padding:6px 16px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;font:inherit;font-weight:800;font-size:14px;cursor:pointer" title="Every candidate\'s marks, the overall result and approval">Results</button>':''}<div class="rsl-title">${esc(RS.title)}</div><div class="rsl-sub">Grading ${RS.gnum} · ${esc(RS.glabel)}${RS.window?' · '+esc(RS.window):''}${RS.note?' · <b>'+esc(RS.note)+'</b>':''}</div></div>`;
   // step list grouped by section
   let listHtml=''; let lastSec=null;
   RS.flat.forEach((e,fi)=>{ if(e.secName!==lastSec){ lastSec=e.secName; listHtml+=`<div class="rsl-secname">${esc(e.secName)}</div>`; }
@@ -1442,21 +1445,24 @@ function renderRsLive(){
       const here=names.filter(s=>!absentIds.has(s.id)).length;
       return `<div class="rsl-line"><div class="lh">Line ${g.cone} · ${esc(g.title?('Group '+g.title+(g.target?' · '+g.target:'')):(g.target||g.name))} <span class="n">${here}/${names.length} here</span></div><div class="rsl-names">${names.map(s=>`<span class="rsl-nm" style="${absentIds.has(s.id)?'opacity:.45':''}">${esc(s.name)}</span>`).join('')}</div></div>`; }).join('')+`</div>`;
   } else if(rsBeltHintStr(st.belt, st.groups)) { whoHtml=`<div class="rsl-noup">No line on this grading matches “${esc(st.belt||st.groups)}”. Check the belt on this step in the builder, or it may be a break/ceremony.</div>`; }
-  const detail=`<div class="rsl-detail"><div class="rsl-dh"><span class="dt">${esc(st.time||'')}</span><span class="dg">${esc(st.groups||'')}</span>${st.belt?`<span class="db">${esc(st.belt)}</span>`:''}${st.belt2?`<span class="db">${esc(st.belt2)}</span>`:''}${(window.GE&&GE.has()&&st.ge)?GE.stepTimer(st.ge, st.mins):(st.mins?`<span class="dm">${st.mins} min</span>`:'')}</div><div class="rsl-dsec">${esc(e.secName)}</div>${currHtml}${whoHtml}${t?`<div class="rsl-prog">${d} of ${t} done</div>`:''}</div>`;
-  const foot=`<div class="rsl-foot"><button class="nav sec" id="rsPrev" ${RS.ix<=0?'disabled':''}>‹ Previous</button><button class="rsl-present" id="rsPresentBtn">▶ Present</button>${(window.GE&&GE.has()&&st.ge)?`<button class="nav sec" id="rsScoreBtn" title="Pass/fail each item for this step">${GE.stepIsAssess(st.ge)?'Score this step':'Scoring'}</button>`:''}<span class="pos">${RS.ix+1} / ${RS.flat.length}</span><button class="nav" id="rsNext" ${RS.ix>=RS.flat.length-1?'disabled':''}>Next group up ›</button></div>`;
+  // a grading event's step brings its own tool (scoring for an assessment, the theory test, the MC screen) in place of "Who's up"
+  const geTool = !!(window.GE && GE.has() && st.ge && GE.hasTool(st.ge));
+  const detail=`<div class="rsl-detail"><div class="rsl-dh"><span class="dt">${esc(st.time||'')}</span><span class="dg">${esc(st.groups||'')}</span>${st.belt?`<span class="db">${esc(st.belt)}</span>`:''}${st.belt2?`<span class="db">${esc(st.belt2)}</span>`:''}${(window.GE&&GE.has()&&st.ge)?GE.stepTimer(st.ge, st.mins):(st.mins?`<span class="dm">${st.mins} min</span>`:'')}</div><div class="rsl-dsec">${esc(e.secName)}</div>${currHtml}${t?`<div class="rsl-prog">${d} of ${t} done</div>`:''}${geTool?'<div id="geStepPanel"></div>':whoHtml}</div>`;
+  const foot=`<div class="rsl-foot"><button class="nav sec" id="rsPrev" ${RS.ix<=0?'disabled':''}>‹ Previous</button><button class="rsl-present" id="rsPresentBtn">▶ Present</button><span class="pos">${RS.ix+1} / ${RS.flat.length}</span><button class="nav" id="rsNext" ${RS.ix>=RS.flat.length-1?'disabled':''}>Next group up ›</button></div>`;
   el.innerHTML=top+head+`<div class="rsl-main"><div class="rsl-steps">${listHtml}</div>${detail}</div>`+foot;
   el.querySelector('.rsl-x').onclick=rsClose;
   el.querySelectorAll('.rsl-gt button').forEach(b=>b.onclick=()=>{ const gi=+b.dataset.gidx, inf=gradingInfo(gi); rsOpenSlot(inf.time, inf.num, inf.label); });
   el.querySelectorAll('.rsl-chip').forEach(b=>b.onclick=()=>{ RS.ix=+b.dataset.ix; RS.move=0; rsSave(); renderRsLive(); });
   el.querySelectorAll('.rsl-detail [data-k]').forEach(b=>b.onclick=()=>{ if(b.classList.contains('blank')) return; const k=RS.ix+'.'+b.dataset.k; if(RS.ticks[k]) delete RS.ticks[k]; else RS.ticks[k]=true; RS.touched=Date.now(); rsSave(); renderRsLive(); });
   el.querySelector('#rsPresentBtn').onclick=()=>{ RS.move=0; rsSave(); openRsPresent(); };
-  const rsSc=el.querySelector('#rsScoreBtn'); if(rsSc) rsSc.onclick=()=>GE.scoreStep(((RS.flat[RS.ix]||{}).step||{}).ge);
+  const rsRes=el.querySelector('#rsResBtn'); if(rsRes) rsRes.onclick=()=>GE.results();
+  if(geTool) GE.mountStep(el.querySelector('#geStepPanel'), st.ge);
   const pv=el.querySelector('#rsPrev'), nx=el.querySelector('#rsNext');
   if(pv)pv.onclick=()=>{ if(RS.ix>0){ RS.ix--; RS.move=0; rsSave(); renderRsLive(); } };
   if(nx)nx.onclick=()=>{ if(RS.ix<RS.flat.length-1){ RS.ix++; RS.move=0; rsSave(); renderRsLive(); } };
 }
 let rsSaveT=null;
-function rsSave(){ if(!RS||!DAYID) return; RS.touched=Date.now(); clearTimeout(rsSaveT); rsSaveT=setTimeout(()=>{ sb.rpc('cb_runsheet_live_save',{p_day:DAYID,p_slot:RS.slot,p_step_ix:RS.ix,p_move_ix:(RS.move||0),p_ticks:RS.ticks}); },250); }
+function rsSave(){ if(!RS||!DAYID) return; RS.touched=Date.now(); clearTimeout(rsSaveT); rsSaveT=setTimeout(()=>{ sb.rpc('cb_runsheet_live_save',{p_day:DAYID,p_slot:RS.slot,p_step_ix:RS.ix,p_move_ix:(RS.move||0),p_ticks:RS.ticks}).then(saved('the run sheet'), ()=>toast("Couldn't save the run sheet. Check your connection.",4500)); },250); }
 async function rsPoll(){
   if(!RS) return; const liveEl=document.getElementById('rsLive'), prez=document.getElementById('rsPresent');
   const presenting=prez && !prez.hidden; if((!liveEl||liveEl.hidden) && !presenting) return;
@@ -1635,10 +1641,10 @@ function cbMovePanel(part, adults){ const tgt=esc(part.belt)+' → '+esc(nextOf(
 }
 // a live floor layout of the group being presented — draggable + tappable (open profile / invite to BBC), same as the main floor
 function cbPresentFloorHtml(g){ const spots=g.spots||Math.max(1,g.slots.filter(x=>x!=null).length), rows=g.rows||(spots>7?2:1);
-  const gg={...g,spots,rows}, lay=layoutFor(gg), pos=slotPos(gg,spots,rows);   // keep belts so multi-belt ordering matches the main floor (no mirror)
-  return `<div class="floor" id="cbFloor">`+'<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{ const s=byId(lay[i]);
+  const gg={...g,spots,rows}, lay=layoutFor(gg), pos=slotPos(gg,spots,rows), cw=crowding(pos);   // keep belts so multi-belt ordering matches the main floor (no mirror)
+  return `<div class="floor${cw.crowd?' crowd':''}" id="cbFloor">`+'<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{ const s=byId(lay[i]);
     if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
-    return `<div class="spot" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%"><div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div><div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
+    return `<div class="spot${cw.alt(p)?' alt':''}" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%"><div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div><div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
   }).join('')+`</div>`; }
 function renderCbPresent(){ const el=document.getElementById('cbPresent'); if(!el||el.hidden) return;
   if(cbpGi>state.groups.length-1) cbpGi=state.groups.length-1; let g=state.groups[cbpGi]; if(!g){ cbPresentClose(); return; }
@@ -1769,7 +1775,7 @@ function renderReEdit(){
   el.querySelectorAll('[data-stdn]').forEach(b=>b.onclick=()=>{ reRead(); const [si,ti]=stIx(b.dataset.stdn); const s=d.sections[si].steps; if(ti<s.length-1){ [s[ti+1],s[ti]]=[s[ti],s[ti+1]]; renderReEdit(); } });
 }
 let helpT = null;
-function persistHelpers() { if (!DAYID || loading) return; clearTimeout(helpT); helpT = setTimeout(() => { helpT = null; sb.rpc('cb_floor_helpers_save', { p_day: DAYID, p_helpers: HELPERS }); }, 300); }
+function persistHelpers() { if (!DAYID || loading) return; clearTimeout(helpT); helpT = setTimeout(() => { helpT = null; sb.rpc('cb_floor_helpers_save', { p_day: DAYID, p_helpers: HELPERS }).then(saved('the helpers'), () => {}); }, 300); }
 function loadHelpers(h) { HELPERS = (h && typeof h === 'object') ? { names: Array.isArray(h.names) ? h.names : [], assign: (h.assign && typeof h.assign === 'object') ? h.assign : {} } : { names: [], assign: {} }; }
 
 function loadGroups(gs) {
