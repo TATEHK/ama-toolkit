@@ -682,7 +682,13 @@ function memberSort(g){ const o=g.order||'young';
 // fills it left to right by belt (lowest belt on the left), so each belt stands together, then the back row
 function slotPos(g,n,rows){ const pos=positions(n,rows);
   // (the back row runs right to left, so a belt that wraps over stays on the same side)
-  if(beltsOf(g).length<2) return centreOut(pos);
+  if(beltsOf(g).length<2){ const co=centreOut(pos);
+    // the line still grows from the centre out, but the people in it read left to right in age order
+    // (manual order keeps the plain centre-out spots, so nobody staff placed jumps)
+    if(g.order==='manual') return co;
+    let m=0; (g.slots||[]).slice(0,n).forEach((x,k)=>{ if(x!=null) m=k+1; }); if(!g.slots) m=n;
+    const used=co.slice(0,m).sort((a,b)=>(a.y-b.y)||(a.x-b.x));
+    return used.concat(co.slice(m)); }
   const ys=[...new Set(pos.map(p=>p.y))].sort((a,b)=>a-b);
   return pos.slice().sort((a,b)=>(a.y-b.y)||(ys.indexOf(a.y)%2?b.x-a.x:a.x-b.x)); }
 const byId=id=>STUDENTS.find(s=>s.id===id)||null;
@@ -1108,7 +1114,7 @@ function render(){
   } else if(masterWaiting){ floor.className='floor empty'; floor.innerHTML='<div class="instr">Waiting for the next group to start…</div>'; }
   else if(!g.spots){ floor.className='floor empty'; floor.innerHTML='<div class="instr">No spots in this group</div>'; }
   else if(cleanLive){
-    const n=Math.max(hereIds.length,1), pos=slotPos(g,n,(BBMODE()?(g.rows||1):(hereIds.length>8?2:1))), cw=crowding(pos);   // black belt lines keep their own rows (a straight line by default)
+    const n=Math.max(hereIds.length,1), pos=slotPos({...g,slots:null},n,(BBMODE()?(g.rows||1):(hereIds.length>8?2:1))), cw=crowding(pos);   // black belt lines keep their own rows (a straight line by default)
     floor.className='floor live'+(cw.crowd?' crowd':'');
     floor.innerHTML='<div class="instr">Front · instructors</div>'+(hereIds.length?pos.map((p,i)=>{ const s=byId(hereIds[i]); if(!s) return '';
       return `<div class="spot ${state.sel===s.id?'sel':''}${cw.alt(p)?' alt':''}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%;cursor:pointer">
@@ -1949,7 +1955,7 @@ async function loadDay(dayId) {
   if (DAYINFO.floor_spots) state.spotsOut = DAYINFO.floor_spots;
   try { loadHelpers(data.helpers);
     mapStudents(data.students);
-    if (data.groups && data.groups.length) { loadGroups(data.groups); state.autoBalance = false; } else { generateGroups(); }
+    if (data.groups && data.groups.length) { loadGroups(data.groups); state.autoBalance = false; state.groups.forEach(g => { if (g.status === 'future') reflowFuture(g); }); }   // groups not started yet come back in age order else { generateGroups(); }
   } finally { loading = false; }   // never leave `loading` stuck true (that would freeze all saves + the poll)
   $('#dayLabel').textContent = `${schoolOf(DAYINFO.location)} · ${fmtDay(DAYINFO.date)}`;
   if (!(data.groups && data.groups.length)) persistGroups();
