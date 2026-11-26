@@ -183,6 +183,12 @@ body[data-role="signin"]{overflow:hidden}
 .spot.drop .dot{outline:3px dashed #fff;outline-offset:3px;transform:scale(1.1)}
 .spot .nm{font-size:13px;font-weight:700;color:#2a2111;background:rgba(255,255,255,.92);padding:3px 9px;border-radius:7px;max-width:112px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
 .spot .nm small{font-weight:700;color:#7a6a3e}
+/* a long straight line (12+ across): smaller circles, name tags off the circle and alternating below / above so they never overlap */
+.floor.crowd .spot{width:auto;gap:0}
+.floor.crowd .spot .dot{width:44px;height:44px;font-size:15px}
+.floor.crowd .spot .dot::after{inset:-4px;border-width:3px}
+.floor.crowd .spot .nm{position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 7px);font-size:11.5px;padding:2px 6px;max-width:104px}
+.floor.crowd .spot.alt .nm{top:auto;bottom:calc(100% + 7px)}
 .upaid{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.05em;color:#fff;background:#c2410c;padding:1px 6px;border-radius:6px;vertical-align:middle;margin-left:6px}
 .spot .nm .upaid{font-size:8.5px;margin-left:4px;padding:0 5px;color:#fff}
 .fllegend{display:flex;flex-wrap:wrap;align-items:center;gap:9px 16px;padding:12px 18px 15px;border-top:1px solid var(--line-2)}
@@ -755,14 +761,24 @@ function setSpots(g,n){ n=Math.max(1,Math.min(40,n)); const ids=g.slots.filter(x
   ids.slice(0,n).forEach((id,k)=>g.slots[k]=id); ids.slice(n).forEach(id=>{ if(!placeLate(id)) state.alert=byId(id); }); }
 function layoutFor(g){ const a=g.slots.slice(0,g.spots); while(a.length<g.spots) a.push(null); return a; }
 const pad=x=>Math.max(6,Math.min(94,x));
-// stand them in one line, or two staggered (alternating) rows — back row sits in the gaps of the front
+// stand them in one line, or two rows in line — the back row stands directly behind the front row (same columns),
+// far enough back that the front row's name tags never sit under the back row
 function positions(n,rows){
   if(n<=0) return [];
-  if(rows===1 || n<=2) return Array.from({length:n},(_,i)=>({x:pad((i+.5)/n*100),y:50}));
-  const nf=Math.ceil(n/2), nb=n-nf, y1=40, y2=66, pos=[];
+  if(rows===1 || n<=2) return Array.from({length:n},(_,i)=>({x:pad(4+(i+.5)/n*92),y:50}));   // evenly spaced inside the edge margin, so the end spots never bunch up
+  const nf=Math.ceil(n/2), nb=n-nf, y1=30, y2=70, pos=[];
   for(let c=0;c<nf;c++) pos.push({x:pad((c+.5)/nf*100),y:y1});       // front row
-  for(let c=0;c<nb;c++) pos.push({x:pad((c+1)/(nb+1)*100),y:y2});    // back row, centred and offset into the gaps
+  const off=(nf-nb)/2;                                                // a shorter back row is centred on the same columns
+  for(let c=0;c<nb;c++) pos.push({x:pad((c+off+.5)/nf*100),y:y2});   // back row, in line behind the front
   return pos;
+}
+// A crowded row (12+ across): mark it so the floor shrinks the circles, and flag every other spot in each row so its
+// name tag goes above the circle instead of below. Returns { crowd, alt(p) }.
+function crowding(pos){
+  const rows={}; pos.forEach(p=>{ (rows[p.y]=rows[p.y]||[]).push(p.x); });
+  const most=Math.max(0,...Object.values(rows).map(a=>a.length)), alt=new Set();
+  Object.entries(rows).forEach(([y,xs])=>xs.slice().sort((a,b)=>a-b).forEach((x,ci)=>{ if(ci%2) alt.add(y+'|'+x); }));
+  const crowd=most>=12; return { crowd, alt:p=>crowd&&alt.has(p.y+'|'+p.x) };
 }
 // Fill the front row first, from the centre out (the 1st student in the middle, then one either side, working outwards);
 // only once the front row is full does the back row start, also centre out. Returns, for each spot in fill order, its place.
@@ -994,20 +1010,20 @@ function render(){
   } else if(masterWaiting){ floor.className='floor empty'; floor.innerHTML='<div class="instr">Waiting for the next group to start…</div>'; }
   else if(!g.spots){ floor.className='floor empty'; floor.innerHTML='<div class="instr">No spots in this group</div>'; }
   else if(cleanLive){
-    floor.className='floor live';
-    const n=Math.max(hereIds.length,1), pos=slotPos(g,n,hereIds.length>8?2:1);
+    const n=Math.max(hereIds.length,1), pos=slotPos(g,n,(BBMODE()?(g.rows||1):(hereIds.length>8?2:1))), cw=crowding(pos);   // black belt lines keep their own rows (a straight line by default)
+    floor.className='floor live'+(cw.crowd?' crowd':'');
     floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+(hereIds.length?pos.map((p,i)=>{ const s=byId(hereIds[i]); if(!s) return '';
-      return `<div class="spot ${state.sel===s.id?'sel':''}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%;cursor:pointer">
+      return `<div class="spot ${state.sel===s.id?'sel':''}${cw.alt(p)?' alt':''}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%;cursor:pointer">
         <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div>
         <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`; }).join(''):'<div class="co-done" style="color:rgba(0,0,0,.5)">No one from this group has checked in yet.</div>');
     $$('#floor .spot').forEach(el=>el.onclick=()=>openProfile(+el.dataset.s));
   } else {
-    floor.className='floor'+(g.status==='current'?' live':g.status==='past'?' past':'');
-    const pos=slotPos(g,g.spots,g.rows);   // front row first, centre out; then the back row
+    const pos=slotPos(g,g.spots,g.rows), cw=crowding(pos);   // front row first, centre out; then the back row
+    floor.className='floor'+(g.status==='current'?' live':g.status==='past'?' past':'')+(cw.crowd?' crowd':'');
     floor.innerHTML='<div class="instr">◆ Front — Instructors ◆</div>'+pos.map((p,i)=>{
       const s=byId(lay[i]);
       if(!s) return `<div class="spot empty" data-i="${i}" style="left:${p.x}%;top:${p.y}%"><div class="dot"></div></div>`;
-      return `<div class="spot ${state.sel===s.id?'sel':''}" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%">
+      return `<div class="spot ${state.sel===s.id?'sel':''}${cw.alt(p)?' alt':''}" data-i="${i}" data-s="${s.id}" style="left:${p.x}%;top:${p.y}%">
         <div class="dot" style="--belt:${beltC(s.belt)};--att:${attHex[s.attend]};--ink-on:${inkOn(beltC(s.belt))}">${initials(s.name)}</div>
         <div class="nm">${floorName(s)}${s.age?` <small>${s.age}</small>`:''}${s.paid?'':' <span class="upaid">UNPAID</span>'}</div></div>`;
     }).join('');
