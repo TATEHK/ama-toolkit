@@ -3419,12 +3419,6 @@ function applyBbFilter() {
   const c = $('#bbShown'); if (c) c.textContent = `${shown} shown`;
   $$('#bbFilterBar [data-bbf]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.bbf || '') === bbFilt.show)));
 }
-function bbEntryRowOld(e) {
-  const tags = [e.result ? tag(e.result === 'passed' ? 'ok' : '', label(e.result)) : '', e.paid ? tag('ok', 'Paid') : '',
-    e.booked_at ? (e.efc_by_hand ? tag('warn', 'Book by hand') : tag('present', 'Booked')) : tag('', 'Not booked')].filter(Boolean).join('');
-  return `<li><div class="item" style="cursor:default"><div class="main"><div class="name">${esc(e.full_name)}</div><div class="meta">${esc(e.belt_to || '')} ${tags}</div></div>
-    <div class="row"><button class="btn sm" data-bblink="${esc(e.token)}">Link</button>${!e.paid ? `<button class="btn sm" data-bbpay="${esc(e.entry_id)}">Paid</button>` : ''}<button class="btn sm danger" data-bbremove="${esc(e.entry_id)}" data-bbname="${esc(e.full_name)}">Remove</button></div></div></li>`;
-}
 async function bbCreateDay(c) {
   const d = bbReadDetails();
   if (!d.grading_date) return toast('Pick a date first.', 6000);
