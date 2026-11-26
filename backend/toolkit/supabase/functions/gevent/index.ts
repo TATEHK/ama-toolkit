@@ -16,6 +16,7 @@
 //   { action: 'answer', code, token, q_ix, answer }        save or change an answer (index, or an array for put-in-order)
 //   { action: 'submit', code, token }                      hand the test in: all right = done; otherwise { redo: [q_ix...] } to redo
 // Staff (Authorization: Bearer <staff session>; app_permissions 'bb'):
+// Staff = Black Belt Gradings logins, or Grading Floor logins with results/days access.
 //   { action: 'host_state', event_id }                     status, who has joined, progress and (for staff) scores
 //   { action: 'host', event_id, cmd, mins? }               cmd: open | start | extend | end | close | reset
 //   { action: 'tablet', event_id, cand_id }                a token so a staff tablet can be used by someone without a phone
@@ -28,7 +29,7 @@ const BUNDLED = { 'beyond-4th-dan-2026-11-28': { title: 'Beyond 4th Dan Grading'
 
 // The Grading Floor's run sheet for an event (cb_runsheets format): one section per block, one step per event step
 // (the seminar, then each group's assessment), each step naming the floor lines (groups) it's for. Step n here is
-// step n in the event app, so the two stay in step (grading-event-5.sql syncs them).
+// step n of the event (ge_events.live), kept in step by grading-event-5.sql; the floor's event.js scores and times it.
 const t12 = t => { const [h, m] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`; };
 export function floorDoc(title, slug, c) {
   const items = {}; for (const k in c.syllabi) for (const it of c.syllabi[k].items) items[it.code] = it;
@@ -41,7 +42,7 @@ export function floorDoc(title, slug, c) {
     b.assess.forEach((a, si) => {
       const st = { time: t12(a.time), mins: a.mins, groups: 'Group ' + a.groups.join(' + ') + (a.note ? ' · ' + a.note : ''), lines: a.groups, ge: { block: bi, step: si + 1 } };
       const sy = ['4D', 'L1', 'L3'].filter(k => a.items[k]);
-      if (a.quiz) Object.assign(st, { belt: '', items: [{ h: false, t: 'Theory test on their phones. Run it from the event app, Theory test tab.' }] });
+      if (a.quiz) Object.assign(st, { belt: '', items: [{ h: false, t: 'Theory test on their phones. Run it from Theory test at the top of the floor.' }] });
       else if (sy.length === 1 && sy[0] === '4D') Object.assign(st, { belt: '4th Dan', items: its(a.items['4D']) });
       else if (sy.join() === 'L1,L3') Object.assign(st, { belt: '4th Dan Level 1', items: its(a.items.L1), belt2: '4th Dan Level 3', items2: its(a.items.L3) });
       else Object.assign(st, { belt: '', items: sy.flatMap(k => its(a.items[k])) });
@@ -49,7 +50,7 @@ export function floorDoc(title, slug, c) {
     });
     return { name: `${t12(b.time)} · ${b.title}`, steps };
   });
-  return { title, note: 'Synced with the event app: scoring, the theory test and the MC screen are there', window: c.hours || '', event_slug: slug,
+  return { title, note: 'Scoring, Theory test, MC and Results: the buttons at the top of the floor', window: c.hours || '', event_slug: slug,
     groups: c.groups.map((g, i) => ({ n: i + 1, name: g.id, belt: g.note || '', count: c.candidates.filter(x => x.group === g.id).length })), sections };
 }
 
@@ -104,7 +105,7 @@ export async function handle(req, db, env = {}) {
         if (!(had && had.length) || body.floor_lines) {
           await db.from('cb_groups').delete().eq('day_id', b.day_id);
           const rows = b.config.groups.map((g, i) => { const ids = b.config.candidates.filter(x => x.group === g.id).map(x => x.id);
-            return { day_id: b.day_id, ord: i, cone: String(i + 1), belt: null, spots: Math.max(ids.length, 1), rows: 1, status: 'future', slots: ids, opts: { title: g.id, belts: [], order: 'manual' } }; });
+            return { day_id: b.day_id, ord: i, cone: String(i + 1), belt: null, spots: Math.max(ids.length, 1), rows: ids.length > 13 ? 2 : 1, status: 'future', slots: ids, opts: { title: g.id, belts: [], order: 'manual' } }; });
           const { data: all } = await db.from('cb_entries').select('entry_id').eq('day_id', b.day_id);
           const inEvent = new Set(b.config.candidates.map(x => x.id)), rest = (all || []).map(e => e.entry_id).filter(id => !inEvent.has(id));
           if (rest.length) rows.push({ day_id: b.day_id, ord: rows.length, cone: String(rows.length + 1), belt: null, spots: rest.length, rows: 1, status: 'future', slots: rest, opts: { title: 'Not in this grading', belts: [], order: 'manual' } });
@@ -189,9 +190,11 @@ export async function handle(req, db, env = {}) {
     const { data: who } = jwt ? await db.auth.getUser(jwt) : { data: null };
     const email = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
     if (!email) return fail('Sign in first.', 401);
-    const { data: pr } = await db.from('app_permissions').select('perm').eq('email', email).eq('app', 'bb');
-    const perms = (pr || []).map(r => r.perm), can = (...w) => perms.includes('admin') || w.some(x => perms.includes(x));
-    if (!can('grading', 'scoring', 'results')) return fail('You need Black Belt Gradings grading or scoring access.', 403);
+    // Black Belt Gradings logins, or Grading Floor (Coloured Belts) logins with results/days access (grading-event-6.sql)
+    const { data: pr } = await db.from('app_permissions').select('app, perm').eq('email', email).in('app', ['bb', 'cb']);
+    const perms = (pr || []).flatMap(r => r.app === 'bb' ? [r.perm] : r.perm === 'admin' ? ['admin'] : ['results', 'days'].includes(r.perm) ? ['grading', 'scoring', 'results'] : []);
+    const can = (...w) => perms.includes('admin') || w.some(x => perms.includes(x));
+    if (!can('grading', 'scoring', 'results')) return fail('You need grading or results access for this grading.', 403);
     if (!/^[0-9a-f-]{36}$/i.test(String(body.event_id || ''))) return fail('Which event?');
     const { data: ev } = await db.from('ge_events').select('event_id, title, config, approved_at').eq('event_id', body.event_id).maybeSingle();
     if (!ev) return fail('That event wasn\'t found.', 404);
