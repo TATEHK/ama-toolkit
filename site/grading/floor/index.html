@@ -205,8 +205,8 @@ body[data-role="signin"]{overflow:hidden}
 .fllegend .lgt{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .fllegend .lg{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .fllegend .sw{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
-.ghost{position:fixed;transform:translate(-50%,-50%);z-index:10070;pointer-events:none}
-.ghost .dot{position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:15px;color:#fff;background:radial-gradient(circle at 36% 30%,#ff6f5f,#d5322a 72%);box-shadow:0 10px 22px rgba(0,0,0,.4);border:2px solid #fff}
+.drag-ghost{position:fixed;transform:translate(-50%,-50%);z-index:10070;pointer-events:none}
+.drag-ghost .dot{position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:15px;color:#fff;background:radial-gradient(circle at 36% 30%,#ff6f5f,#d5322a 72%);box-shadow:0 10px 22px rgba(0,0,0,.4);border:2px solid #fff}
 .floor.empty{min-height:200px;display:grid;place-items:center}
 .floor.empty .instr{position:static;transform:none;color:rgba(0,0,0,.4)}
 /* roster side */
@@ -1111,7 +1111,7 @@ function wireFloor(gi,g,root){ root=root||$('#floor');
     });
   });
 }
-function makeGhost(el){ const w=document.createElement('div'); w.className='ghost'; w.appendChild(el.querySelector('.dot').cloneNode(true)); return w; }
+function makeGhost(el){ const w=document.createElement('div'); w.className='drag-ghost'; w.appendChild(el.querySelector('.dot').cloneNode(true)); return w; }
 function spotUnder(e,self,root){ root=root||$('#floor'); for(const n of document.elementsFromPoint(e.clientX,e.clientY)){ const sp=n.closest&&n.closest('.spot'); if(sp&&sp!==self&&sp.parentElement===root) return sp; } return null; }
 // keep the Present overlay's floor + moves in step with state changes (drags, profile edits, live polls)
 function refreshPresent(){ const pz=document.getElementById('cbPresent'); if(pz && !pz.hidden) renderCbPresent(); }
@@ -1294,13 +1294,15 @@ function renderRoster(){
     .map(s=>({s,r:nameRank(s.name,q)})).filter(o=>o.r>=0);
   list.sort((a,b)=>a.r-b.r || (q.trim()?0:beltR(a.s.belt)-beltR(b.s.belt)) || a.s.name.localeCompare(b.s.name));
   const tm=t=>{ try{ return new Date(t).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}).replace(' ',''); }catch(e){ return ''; } };
-  $('#roster').innerHTML = list.length ? list.map(({s})=>{ const here=!absentIds.has(s.id);
+  const html = list.length ? list.map(({s})=>{ const here=!absentIds.has(s.id);
     return `<div class="rrow ${here?'':'absent'}" data-s="${s.id}">
       <span class="dot" style="background:${beltC(s.belt)}"></span>
       <div class="rn"><b>${s.name}${s.paid?'':' <span class="upaid">UNPAID</span>'}</b><small>${/dan|black/i.test(s.belt)?s.belt:`${shortBelt(s.belt)} belt`} · age ${s.age}</small></div>
       ${here&&s.inAt?`<span class="rt">${tm(s.inAt)}</span>`:''}
       <button class="chk ${here?'on':''}" data-chk="${s.id}" aria-label="${here?'Mark not here':'Check in'} ${esc(s.name)}">${here?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</button></div>`; }).join('')
     : `<div class="ci-empty">${q.trim()?'No one by that name on this grading.':ciFilter==='todo'?'Everyone is checked in.':'Nobody checked in yet.'}</div>`;
+  const ro=$('#roster'); if(ro._html===html) return;   // unchanged: leave it alone so a tap mid-refresh isn't lost
+  ro.innerHTML=html; ro._html=html;
   $$('#roster .chk').forEach(b=>b.onclick=e=>{ e.stopPropagation(); ciToggle(+b.dataset.chk); });
   $$('#roster .rrow').forEach(r=>r.onclick=()=>openProfile(+r.dataset.s));
 }
