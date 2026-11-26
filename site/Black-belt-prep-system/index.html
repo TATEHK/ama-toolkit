@@ -973,20 +973,23 @@ const PAGE_KEY = { prep_students: ['student_id'], prep_enrolments: ['cycle_id', 
   prep_overview: ['cycle_id', 'student_id'], prep_payment_summary: ['payment_id'], prep_readiness: ['readiness_id'], prep_grading: ['grading_id'], prep_payment_transactions: ['transaction_id'],
   prep_possible_duplicates: ['student_a', 'student_b'], prep_nurture_log: ['log_id'], prep_nurture_state: ['student_id'], prep_calls: ['call_id'], prep_certificates: ['certificate_id'] };
 async function allPages(table, build, size = 1000) {
-  // One request as usual; only when it comes back full is the table read again in pages, in a fixed order
+  // One request as usual; only when it comes back full is the table read in pages, in a fixed order, all at once
   const first = await build();
   if (first.error || !first.data || first.data.length < size) return first;
-  const out = [];
-  for (let from = 0; ; from += size) {
-    let x = build(); for (const k of PAGE_KEY[table] || []) x = x.order(k);
-    const { data, error } = await x.range(from, from + size - 1);
-    if (error) return { data: from ? out : null, error };
-    out.push(...(data || []));
-    if (!data || data.length < size) return { data: out, error: null };
+  const page = (from, count) => { let x = count ? build(true) : build(); for (const k of PAGE_KEY[table] || []) x = x.order(k); return x.range(from, from + size - 1); };
+  const p0 = await page(0, true);
+  if (p0.error) return { data: null, error: p0.error };
+  const out = [...(p0.data || [])], total = p0.count;
+  if (out.length < size) return { data: out, error: null };
+  if (total == null) {   // a caller that didn't ask for a count: page in turn as before
+    for (let from = size; ; from += size) { const { data, error } = await page(from); if (error) return { data: out, error }; out.push(...(data || [])); if (!data || data.length < size) return { data: out, error: null }; }
   }
+  const rest = await Promise.all(Array.from({ length: Math.max(0, Math.ceil(total / size) - 1) }, (_, i) => page((i + 1) * size)));
+  for (const r of rest) { if (r.error) return { data: out, error: r.error }; out.push(...(r.data || [])); }
+  return { data: out, error: null };
 }
 async function loadAll() {
-  const q = (t, order) => allPages(t, () => { let x = sb.from(t).select('*'); if (order) x = x.order(order[0], { ascending: order[1] !== false }); return x; });
+  const q = (t, order) => allPages(t, (count) => { let x = count ? sb.from(t).select('*', { count: 'exact' }) : sb.from(t).select('*'); if (order) x = x.order(order[0], { ascending: order[1] !== false }); return x; });
   const res = await Promise.all([
     q('prep_settings'), q('prep_students', ['full_name']), q('prep_cycles', ['created_at', false]), q('prep_sessions', ['session_number']),
     q('prep_enrolments'), q('prep_attendance'), q('prep_attendance_summary'), q('prep_overview'),
