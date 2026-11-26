@@ -375,7 +375,7 @@ function vQuiz() {
   const url = location.origin + '/q/#' + S.ev.join_code;
   let body = '';
   if (!hs) body = '<p class="muted">Loading…</p>';
-  else if (ph === 'closed') body = `<div class="card" style="max-width:680px"><h2>Theory test</h2><p class="muted">${total} questions. Each candidate signs in on their own phone, works through the test at their own pace for ${Q.minutes || 30} minutes, can change answers, then submits. It's private: nobody sees scores except staff, here. Pass mark ${Q.pass_mark}/${total}.</p><button class="btn primary" data-q="open">Open sign-in</button></div>`;
+  else if (ph === 'closed') body = `<div class="card" style="max-width:680px"><h2>Theory test</h2><p class="muted">${total} questions. Each candidate signs in on their own phone, works through the test at their own pace for ${Q.minutes || 30} minutes, can change answers, then submits. Pass is all ${total} right: anyone with a wrong answer is told only which questions to redo (not the answers) and redoes just those. It's private: nobody sees scores except staff, here.</p><button class="btn primary" data-q="open">Open sign-in</button></div>`;
   else if (ph === 'lobby') {
     let qr = ''; try { const g = qrcode(0, 'M'); g.addData(url); g.make(); qr = g.createSvgTag({ cellSize: 8, margin: 2, scalable: true }); } catch (e) { qr = ''; }
     body = `<div class="lobby"><div class="qr">${qr}</div><div><div class="qtext">Theory test: scan to sign in</div><p style="font-size:clamp(18px,2vw,30px);margin:10px 0">or go to <b>${esc(location.host)}/q</b> and enter <b style="color:var(--accent);letter-spacing:.1em">${esc(S.ev.join_code)}</b></p>
@@ -384,10 +384,10 @@ function vQuiz() {
     const left = testLeft();
     const big = `<div style="text-align:center;margin-top:${S.tv ? '14vh' : '10px'}"><div class="meta" style="justify-content:center">${ph === 'ended' ? 'Test finished' : 'Theory test in progress'}</div>
       <div class="ring" id="tLeft" style="font-size:${S.tv ? 'clamp(80px,16vw,240px)' : '80px'};text-align:center">${ph === 'ended' ? '0:00' : mmss(left)}</div>
-      <div class="qtext" style="font-size:clamp(22px,3vw,44px)">${nSub} of ${nIn} submitted</div>${ph !== 'ended' && S.tv ? '<p class="muted" style="font-size:clamp(16px,1.8vw,26px)">Work at your own pace. You can go back and change answers until you submit.</p>' : ''}</div>`;
-    const table = S.tv ? '' : `<div class="card" style="margin-top:16px;overflow:auto"><div class="row" style="margin-bottom:6px"><h3 class="grow">Candidates</h3><span class="tiny">Only staff see this</span></div><table><thead><tr><th>Candidate</th><th>Status</th><th>Answered</th>${ph === 'ended' ? '<th>Score</th><th>Theory</th>' : ''}</tr></thead><tbody>
-      ${cands().map(c => { const p = pl[c.id]; return `<tr><td>${esc(c.name)}<div class="tiny">${esc(c.group)}</div></td><td>${!p ? '<span class="tag">Not signed in</span>' : p.submitted_at ? '<span class="tag ok">Submitted</span>' : ph === 'ended' ? '<span class="tag warn">Time up</span>' : '<span class="tag now">Answering</span>'}${p && p.via === 'tablet' ? ' <span class="tiny">tablet</span>' : ''}</td>
-        <td>${p ? p.answered + ' / ' + total : '—'}</td>${ph === 'ended' ? `<td><b>${p ? p.correct : '—'}</b>${p ? ' / ' + total : ''}</td><td>${p ? (p.correct >= Q.pass_mark ? '<span class="tag ok">Pass</span>' : '<span class="tag bad">Below pass</span>') : ''}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>`;
+      <div class="qtext" style="font-size:clamp(22px,3vw,44px)">${nSub} of ${nIn} finished</div>${ph !== 'ended' && S.tv ? '<p class="muted" style="font-size:clamp(16px,1.8vw,26px)">Work at your own pace. If any answers are wrong when you submit, your phone shows which questions to redo.</p>' : ''}</div>`;
+    const table = S.tv ? '' : `<div class="card" style="margin-top:16px;overflow:auto"><div class="row" style="margin-bottom:6px"><h3 class="grow">Candidates</h3><span class="tiny">Only staff see this</span></div><table><thead><tr><th>Candidate</th><th>Status</th><th>Answered</th><th>First try</th><th>Rounds</th>${ph === 'ended' ? '<th>Right now</th><th>Theory</th>' : ''}</tr></thead><tbody>
+      ${cands().map(c => { const p = pl[c.id]; return `<tr><td>${esc(c.name)}<div class="tiny">${esc(c.group)}</div></td><td>${!p ? '<span class="tag">Not signed in</span>' : p.submitted_at ? '<span class="tag ok">All right</span>' : ph === 'ended' ? '<span class="tag warn">Time up</span>' : Array.isArray(p.redo) ? `<span class="tag warn">Redoing ${p.redo.length}</span>` : '<span class="tag now">Answering</span>'}${p && p.via === 'tablet' ? ' <span class="tiny">tablet</span>' : ''}</td>
+        <td>${p ? p.answered + ' / ' + total : '—'}</td><td>${p && p.first_score != null ? p.first_score + ' / ' + total : '—'}</td><td>${p && p.rounds ? p.rounds : '—'}</td>${ph === 'ended' ? `<td><b>${p ? p.correct : '—'}</b>${p ? ' / ' + total : ''}</td><td>${p ? (p.correct >= Q.pass_mark ? '<span class="tag ok">Pass</span>' : '<span class="tag bad">Not passed</span>') : ''}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>`;
     body = big + table;
   }
   const ctl = !hs ? '' : `<div class="ctl noprint">
@@ -399,7 +399,7 @@ function vQuiz() {
   </div>`;
   $('#main').innerHTML = `<div class="qz ${S.tv ? 'tv' : ''}">${body}${ctl}</div>`;
   $$('[data-q]').forEach(b => b.onclick = () => qCmd(b.dataset.q));
-  const te = $('#tEnd'); if (te) te.onclick = () => { const open = nIn - nSub; if (open && !confirm(`${open} candidate${open === 1 ? ' hasn’t' : 's haven’t'} submitted. End the test now? Their saved answers still count.`)) return; qCmd('end'); };
+  const te = $('#tEnd'); if (te) te.onclick = () => { const open = nIn - nSub; if (open && !confirm(`${open} candidate${open === 1 ? ' hasn’t' : 's haven’t'} got every answer right yet. End the test now? They won’t pass the theory item unless you reopen it.`)) return; qCmd('end'); };
   const tv = $('#qTv'); if (tv) tv.onclick = () => { S.tv = !S.tv; if (S.tv && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); else if (!S.tv && document.fullscreenElement) document.exitFullscreen().catch(() => {}); vQuiz(); };
   const tb = $('#qTab'); if (tb) tb.onclick = () => {
     openDlg(`<h3>Use this tablet for a candidate</h3><p class="small muted">For someone without a phone. Pick who is sitting the test; it opens in a new tab on this device.</p>

@@ -3,6 +3,8 @@
 // The theory test lives here so answers are marked on the server and never sent to phones.
 // It is a private test: each candidate works through it at their own pace on their phone within one time limit,
 // can change answers until they submit, and only staff see results (no points, no leaderboard).
+// The pass mark is every question right: a submission with any wrong sends back just those question numbers (never the
+// answers) to redo, until all are right or time runs out.
 //
 // Deploy: Actions > "Deploy Supabase function" > gevent (JWT verification off: candidates join with the event code, no login;
 // staff actions check the signed-in Black Belt Gradings login).
@@ -12,7 +14,7 @@
 //   { action: 'claim', code, cand_id, token, force? }      sit the test as this candidate on this phone
 //   { action: 'state', code, token }                       test status; while open, the questions (no answers) and my saved answers
 //   { action: 'answer', code, token, q_ix, answer }        save or change an answer (index, or an array for put-in-order)
-//   { action: 'submit', code, token }                      hand the test in (no more changes)
+//   { action: 'submit', code, token }                      hand the test in: all right = done; otherwise { redo: [q_ix...] } to redo
 // Staff (Authorization: Bearer <staff session>; app_permissions 'bb'):
 //   { action: 'host_state', event_id }                     status, who has joined, progress and (for staff) scores
 //   { action: 'host', event_id, cmd, mins? }               cmd: open | start | extend | end | close | reset
@@ -90,18 +92,29 @@ export async function handle(req, db, env = {}) {
         if (error) throw error;
         return json({ ok: true, name: c.name });
       }
-      const { data: me } = await db.from('ge_players').select('cand_id, submitted_at').eq('event_id', ev.event_id).eq('token_hash', th).maybeSingle();
+      const { data: me } = await db.from('ge_players').select('cand_id, submitted_at, rounds, first_score, redo').eq('event_id', ev.event_id).eq('token_hash', th).maybeSingle();
       if (!me) return json({ ok: false, rejoin: true, error: 'Pick your name again.' }, 401);
       const name = (cands.find(c => c.id === me.cand_id) || {}).name;
       if (body.action === 'answer' || body.action === 'submit') {
         if (me.submitted_at) return fail('You have already handed in your test.', 409);
         if (phase !== 'open') return fail(phase === 'ended' ? 'Time is up. Your saved answers count.' : 'The test hasn\'t started yet.', 409);
         if (body.action === 'submit') {
-          await db.from('ge_players').update({ submitted_at: new Date().toISOString() }).eq('event_id', ev.event_id).eq('cand_id', me.cand_id);
-          return json({ ok: true, submitted: true });
+          const { data: mine } = await db.from('ge_answers').select('q_ix, correct').eq('event_id', ev.event_id).eq('cand_id', me.cand_id);
+          const right = new Set((mine || []).filter(a => a.correct).map(a => a.q_ix));
+          const wrong = quiz.questions.map((_, i) => i).filter(i => !right.has(i));
+          const patch = { rounds: (me.rounds || 0) + 1 };
+          if (me.first_score == null) patch.first_score = quiz.questions.length - wrong.length;
+          if (!wrong.length) { patch.submitted_at = new Date().toISOString(); patch.redo = null; }
+          else {
+            patch.redo = wrong;
+            await db.from('ge_answers').delete().eq('event_id', ev.event_id).eq('cand_id', me.cand_id).in('q_ix', wrong);   // they answer these again
+          }
+          await db.from('ge_players').update(patch).eq('event_id', ev.event_id).eq('cand_id', me.cand_id);
+          return json({ ok: true, submitted: !wrong.length, redo: wrong.length ? wrong : null });
         }
         const ix = Number(body.q_ix), q = quiz.questions[ix];
         if (!q) return fail('Which question?');
+        if (Array.isArray(me.redo) && !me.redo.includes(ix)) return fail('That question is already right. Answer the ones to redo.', 409);
         const clear = body.answer === null || (Array.isArray(body.answer) && !body.answer.length);
         if (clear) { await db.from('ge_answers').delete().eq('event_id', ev.event_id).eq('cand_id', me.cand_id).eq('q_ix', ix); return json({ ok: true, saved: null }); }
         const { error } = await db.from('ge_answers').upsert({ event_id: ev.event_id, cand_id: me.cand_id, q_ix: ix, answer: body.answer, correct: isCorrect(q, body.answer), points: 0, streak: 0, answered_at: new Date().toISOString() }, { onConflict: 'event_id,cand_id,q_ix' });
@@ -109,7 +122,7 @@ export async function handle(req, db, env = {}) {
         return json({ ok: true, saved: ix });
       }
       // state
-      const out = { ok: true, title: ev.title, phase, me: { id: me.cand_id, name }, submitted: !!me.submitted_at, total: quiz.questions.length, minutes: testMins(quiz), server_now: now };
+      const out = { ok: true, title: ev.title, phase, me: { id: me.cand_id, name }, submitted: !!me.submitted_at, redo: Array.isArray(me.redo) ? me.redo : null, total: quiz.questions.length, minutes: testMins(quiz), server_now: now };
       if (phase === 'open' && !me.submitted_at) {
         out.ends_in_ms = Math.max(0, ends - now);
         if (body.with_questions) out.questions = publicQs(quiz);
@@ -134,7 +147,7 @@ export async function handle(req, db, env = {}) {
     const getQ = async () => (await db.from('ge_quiz').select('*').eq('event_id', ev.event_id).maybeSingle()).data || { phase: 'closed', q_ix: -1 };
 
     if (body.action === 'host_state') {
-      const [qz, { data: pl }, { data: ans }] = await Promise.all([getQ(), db.from('ge_players').select('cand_id, via, joined_at, submitted_at').eq('event_id', ev.event_id),
+      const [qz, { data: pl }, { data: ans }] = await Promise.all([getQ(), db.from('ge_players').select('cand_id, via, joined_at, submitted_at, rounds, first_score, redo').eq('event_id', ev.event_id),
         db.from('ge_answers').select('cand_id, correct').eq('event_id', ev.event_id)]);
       const prog = {};
       for (const a of ans || []) { const p = prog[a.cand_id] || (prog[a.cand_id] = { answered: 0, correct: 0 }); p.answered++; if (a.correct) p.correct++; }
@@ -149,14 +162,19 @@ export async function handle(req, db, env = {}) {
     if (body.action === 'quiz_record') {
       if (ev.approved_at) return fail('Results are already approved.');
       const { data: ans } = await db.from('ge_answers').select('cand_id, correct').eq('event_id', ev.event_id);
-      const { data: pl } = await db.from('ge_players').select('cand_id').eq('event_id', ev.event_id);
+      const { data: pl } = await db.from('ge_players').select('cand_id, rounds, first_score, submitted_at').eq('event_id', ev.event_id);
+      const pinfo = Object.fromEntries((pl || []).map(p => [p.cand_id, p]));
       const sat = new Set([...(pl || []).map(p => p.cand_id), ...(ans || []).map(a => a.cand_id)]);
       const rows = [];
       for (const c of cands) {
         if (!sat.has(c.id)) continue;
         const n = (ans || []).filter(a => a.cand_id === c.id && a.correct).length, item = quiz.theory_items[c.syl];
         if (!item) continue;
-        rows.push({ event_id: ev.event_id, cand_id: c.id, item_code: item, result: n >= quiz.pass_mark ? 'pass' : 'fail', comment: `Theory test: ${n}/${QN} correct (pass ${quiz.pass_mark})`, scored_by: email + ' (theory test)', updated_at: new Date().toISOString() });
+        const pi = pinfo[c.id] || {}, redos = Math.max(0, (pi.rounds || 0) - 1);
+        const how = `${pi.first_score != null ? `first try ${pi.first_score}/${QN}` : 'not submitted'}${redos ? `, ${redos} redo round${redos === 1 ? '' : 's'}` : ''}`;
+        const pass = n >= quiz.pass_mark;
+        rows.push({ event_id: ev.event_id, cand_id: c.id, item_code: item, result: pass ? 'pass' : 'fail',
+          comment: pass ? `Theory test: all ${QN} correct (${how})` : `Theory test: ${n}/${QN} correct when it ended (${how}; pass is ${quiz.pass_mark}/${QN})`, scored_by: email + ' (theory test)', updated_at: new Date().toISOString() });
       }
       if (rows.length) { const { error } = await db.from('ge_marks').upsert(rows, { onConflict: 'event_id,cand_id,item_code' }); if (error) throw error; }
       return json({ ok: true, recorded: rows.length, not_sat: cands.filter(c => !sat.has(c.id)).map(c => c.name) });
@@ -173,7 +191,7 @@ export async function handle(req, db, env = {}) {
         if (!can('grading')) return fail('Only grading staff can reset the test.', 403);
         await db.from('ge_answers').delete().eq('event_id', ev.event_id);
         if (body.players) await db.from('ge_players').delete().eq('event_id', ev.event_id);
-        else await db.from('ge_players').update({ submitted_at: null }).eq('event_id', ev.event_id);
+        else await db.from('ge_players').update({ submitted_at: null, rounds: 0, first_score: null, redo: null }).eq('event_id', ev.event_id);
         return set({ phase: 'lobby', q_ix: -1, q_started_at: null, q_ends_at: null });
       }
       return fail('Unknown command.');
