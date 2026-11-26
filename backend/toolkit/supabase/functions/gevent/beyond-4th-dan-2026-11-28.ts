@@ -10,7 +10,7 @@ export default {
   {
    "id": "97d0a7fe-7581-46eb-a798-effd0425cd3e",
    "name": "Anastasia Barr Berrocal",
-   "group": "A1",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40107,
    "to": "4th Dan",
@@ -19,7 +19,7 @@ export default {
   {
    "id": "a88faaf5-5dac-4ef1-a5ad-0551388dcf85",
    "name": "Anwen Gear",
-   "group": "A1",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40108,
    "to": "4th Dan",
@@ -28,7 +28,7 @@ export default {
   {
    "id": "3b5ff43c-4a20-47c3-89f8-d6e4f6aadd20",
    "name": "Asia Esen",
-   "group": "A1",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40109,
    "to": "4th Dan",
@@ -37,7 +37,7 @@ export default {
   {
    "id": "14daefbe-a77e-4107-8768-505644d77c4d",
    "name": "Bryan Riley",
-   "group": "A1",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40110,
    "to": "4th Dan",
@@ -46,7 +46,7 @@ export default {
   {
    "id": "46c7c0a1-687a-47b0-ab62-2ab3142d2665",
    "name": "Frieda Maher",
-   "group": "A1",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40111,
    "to": "4th Dan",
@@ -55,7 +55,7 @@ export default {
   {
    "id": "15d836a6-8330-4649-ac28-9273e3dab0a1",
    "name": "Hunena Khan",
-   "group": "A1",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40112,
    "to": "4th Dan",
@@ -64,7 +64,7 @@ export default {
   {
    "id": "e4e1f494-8175-4774-8306-201094a2b6fe",
    "name": "James Lehner",
-   "group": "A1",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40113,
    "to": "4th Dan",
@@ -73,7 +73,7 @@ export default {
   {
    "id": "20a6a60f-c1b5-4994-a198-78a91cd85cbb",
    "name": "Jarvis Riley",
-   "group": "A1",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40114,
    "to": "4th Dan",
@@ -82,7 +82,7 @@ export default {
   {
    "id": "39212ae4-bdf3-4d3f-9e8b-b3ba367f61d7",
    "name": "Jonah Basseal",
-   "group": "A1",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40115,
    "to": "4th Dan",
@@ -91,7 +91,7 @@ export default {
   {
    "id": "53a445ab-ad3e-4c6f-892e-2eb988970c16",
    "name": "Natalie Wasley",
-   "group": "A2",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40116,
    "to": "4th Dan",
@@ -100,7 +100,7 @@ export default {
   {
    "id": "3414a842-4a5e-4957-bf87-30ca3914e1f3",
    "name": "Angelus Morningstar",
-   "group": "A2",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40117,
    "to": "4th Dan",
@@ -109,7 +109,7 @@ export default {
   {
    "id": "ba576000-b7ec-4c3d-90e5-16575ee40cd3",
    "name": "Bianca Velkovski",
-   "group": "A2",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40118,
    "to": "4th Dan",
@@ -118,7 +118,7 @@ export default {
   {
    "id": "a6ecb6ff-83e0-4931-888a-58d48905daeb",
    "name": "Yan Wang",
-   "group": "A2",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40119,
    "to": "4th Dan",
@@ -127,7 +127,7 @@ export default {
   {
    "id": "b2a35021-ae40-48c6-8323-6818a42342d0",
    "name": "Jarvis HeggatonKlenner",
-   "group": "A2",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40120,
    "to": "4th Dan",
@@ -136,7 +136,7 @@ export default {
   {
    "id": "7985aa96-4934-447c-be91-80d887bd1752",
    "name": "Bella Upcroft",
-   "group": "A2",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40121,
    "to": "4th Dan",
@@ -145,7 +145,7 @@ export default {
   {
    "id": "89e8d770-ca2a-4269-bd77-c5598b8387b0",
    "name": "David Upcroft",
-   "group": "A2",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40122,
    "to": "4th Dan",
@@ -154,7 +154,7 @@ export default {
   {
    "id": "1889e57d-76ab-40c4-8db1-d163803f1c79",
    "name": "Daniel Sosa Rodriguez",
-   "group": "A2",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40123,
    "to": "4th Dan",
@@ -163,7 +163,7 @@ export default {
   {
    "id": "3c10371e-f727-485e-9eea-c74a2f3d06f0",
    "name": "Max Bohle",
-   "group": "A2",
+   "group": "A",
    "syl": "4D",
    "dan_no": 40124,
    "to": "4th Dan",
@@ -212,14 +212,9 @@ export default {
  ],
  "groups": [
   {
-   "id": "A1",
-   "name": "A1",
-   "note": "3rd Dan Level 3 → 4th Dan"
-  },
-  {
-   "id": "A2",
-   "name": "A2",
-   "note": "3rd Dan Level 3 → 4th Dan"
+   "id": "A",
+   "name": "A",
+   "note": "3rd Dan Level 3 → 4th Dan (18)"
   },
   {
    "id": "M",
@@ -470,28 +465,13 @@ export default {
    "mins": 20,
    "title": "Hand techniques and kicks",
    "train": "4th Dan hand techniques and kicks, Level 1 and Level 3 hand techniques and combination kicks",
-   "notes": "10 min per group",
+   "notes": "A then M",
    "assess": [
     {
      "time": "08:50",
-     "mins": 10,
+     "mins": 20,
      "groups": [
-      "A1"
-     ],
-     "items": {
-      "4D": [
-       "4D-01",
-       "4D-02",
-       "4D-03",
-       "4D-04"
-      ]
-     }
-    },
-    {
-     "time": "09:00",
-     "mins": 10,
-     "groups": [
-      "A2"
+      "A"
      ],
      "items": {
       "4D": [
@@ -533,22 +513,9 @@ export default {
    "assess": [
     {
      "time": "09:40",
-     "mins": 10,
+     "mins": 20,
      "groups": [
-      "A1"
-     ],
-     "items": {
-      "4D": [
-       "4D-05",
-       "4D-06"
-      ]
-     }
-    },
-    {
-     "time": "09:50",
-     "mins": 10,
-     "groups": [
-      "A2"
+      "A"
      ],
      "items": {
       "4D": [
@@ -597,21 +564,9 @@ export default {
    "assess": [
     {
      "time": "10:50",
-     "mins": 10,
+     "mins": 20,
      "groups": [
-      "A1"
-     ],
-     "items": {
-      "4D": [
-       "4D-07"
-      ]
-     }
-    },
-    {
-     "time": "11:00",
-     "mins": 10,
-     "groups": [
-      "A2"
+      "A"
      ],
      "items": {
       "4D": [
@@ -653,8 +608,7 @@ export default {
      "time": "11:30",
      "mins": 30,
      "groups": [
-      "A1",
-      "A2",
+      "A",
       "M"
      ],
      "items": {
@@ -691,22 +645,9 @@ export default {
    "assess": [
     {
      "time": "12:50",
-     "mins": 15,
+     "mins": 30,
      "groups": [
-      "A1"
-     ],
-     "items": {
-      "4D": [
-       "4D-08",
-       "4D-09"
-      ]
-     }
-    },
-    {
-     "time": "13:05",
-     "mins": 15,
-     "groups": [
-      "A2"
+      "A"
      ],
      "items": {
       "4D": [
@@ -738,8 +679,7 @@ export default {
      "time": "13:40",
      "mins": 25,
      "groups": [
-      "A1",
-      "A2"
+      "A"
      ],
      "items": {
       "4D": [
