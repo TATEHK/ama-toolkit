@@ -278,12 +278,14 @@ function rows() {
 
 // ---------- Loading ----------
 async function pageAll(table, cols, order) {
-  const out = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await sb.from(table).select(cols).order(order).range(from, from + 999);
-    if (error) throw error;
-    out.push(...data); if (data.length < 1000) return out;
-  }
+  // first page says how many rows there are; the other pages come at the same time
+  const first = await sb.from(table).select(cols, { count: 'exact' }).order(order).range(0, 999);
+  if (first.error) throw first.error;
+  const out = [...first.data], total = first.count || out.length;
+  if (out.length < 1000) return out;
+  const rest = await Promise.all(Array.from({ length: Math.ceil(total / 1000) - 1 }, (_, i) => sb.from(table).select(cols).order(order).range((i + 1) * 1000, (i + 1) * 1000 + 999)));
+  for (const r of rest) { if (r.error) throw r.error; out.push(...r.data); }
+  return out;
 }
 async function load() {
   try {

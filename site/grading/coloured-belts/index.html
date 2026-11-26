@@ -652,11 +652,12 @@ function readyTags(s) {
 /* ---------------- Loading ---------------- */
 async function loadAll() {
   const q = (t, order) => { let x = sb.from(t).select('*'); if (order) x = x.order(order[0], { ascending: order[1] !== false }); return x; };
-  const [st, be, se, da, en, me, pr, lr, bc] = await Promise.all([
+  const [st, be, se, da, en, me, pr, lr, bc, sq, sk] = await Promise.all([
     fetchAll('cb_students', ['full_name', 'member_key', 'programme']), q('cb_belts', ['sort']), q('cb_settings'), q('cb_days', ['grading_date', false]), fetchAll('cb_entries', ['full_name', 'entry_id']),
     fetchMessages(), q('cb_programmes', ['sort']),
     sb.from('cb_efc_runs').select('ran_at').order('ran_at', { ascending: false }).limit(1),
-    sb.from('cb_belt_changes').select('*').is('reviewed_at', null).order('changed_at', { ascending: false }).limit(200)]);
+    sb.from('cb_belt_changes').select('*').is('reviewed_at', null).order('changed_at', { ascending: false }).limit(200),
+    sb.from('cb_seq_steps').select('*').order('sort'), sb.from('cb_skip').select('member_key, reason, until')]);
   // When EFC last updated (the nightly update); missing before coloured-belts-6.sql
   state.efcAt = !lr.error && lr.data && lr.data[0] ? lr.data[0].ran_at : null;
   state.beltChanges = (bc && !bc.error) ? (bc.data || []) : [];   // belts the EFC update changed, newest first
@@ -665,10 +666,8 @@ async function loadAll() {
   state.programmes = pr.error || !(pr.data || []).length ? [{ programme: 'Taekwondo', label: 'Taekwondo', active: true }] : pr.data.filter(x => x.active !== false);
   state.settings = (se.data || [])[0] || {}; state.messages = me.data || [];
   // The automated booking sequence (coloured-belts-23.sql): its steps, if the update has been run
-  const sq = await sb.from('cb_seq_steps').select('*').order('sort');
   state.seqReady = !sq.error; state.seqSteps = sq.data || [];
   // Families the sequence leaves alone (cancelled or on hold in the hub): member_key -> reason
-  const sk = await sb.from('cb_skip').select('member_key, reason, until');
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
   state.skips = new Map((sk.error ? [] : sk.data || []).filter(r => !r.until || String(r.until) >= today).map(r => [r.member_key, r.reason || 'On hold']));
   if (!isAll() && !state.programmes.some(x => x.programme === state.programme)) state.programme = state.programmes[0].programme;
@@ -678,25 +677,22 @@ async function loadAll() {
 }
 // Supabase sends at most 1,000 rows at a time: fetch long lists page by page (every program together is well over 1,000 students)
 async function fetchAll(t, orders) {
-  const rows = [];
-  for (let from = 0; from < 100000; from += 1000) {
-    let x = sb.from(t).select('*'); for (const o of orders) x = x.order(o, { ascending: true });
-    const r = await x.range(from, from + 999);
-    if (r.error) return r;
-    rows.push(...(r.data || []));
-    if ((r.data || []).length < 1000) break;
-  }
+  // the first page also says how many rows there are, then every other page is fetched at the same time
+  const page = (from, count) => { let x = count ? sb.from(t).select('*', { count: 'exact' }) : sb.from(t).select('*'); for (const o of orders) x = x.order(o, { ascending: true }); return x.range(from, from + 999); };
+  const first = await page(0, true);
+  if (first.error) return first;
+  const rows = [...(first.data || [])], total = first.count || rows.length;
+  if (rows.length < 1000 || total <= 1000) return { data: rows, error: null };
+  const rest = await Promise.all(Array.from({ length: Math.ceil(total / 1000) - 1 }, (_, i) => page((i + 1) * 1000)));
+  for (const r of rest) { if (r.error) return r; rows.push(...(r.data || [])); }
   return { data: rows, error: null };
 }
-// The latest 5,000 texts and emails, newest first, in pages of 1,000 (one request only ever returns 1,000)
+// The latest 5,000 texts and emails, newest first: all five pages of 1,000 at once (one request only ever returns 1,000)
 async function fetchMessages(max = 5000) {
+  const pages = await Promise.all(Array.from({ length: Math.ceil(max / 1000) }, (_, i) => sb.from('cb_messages').select('entry_id, member_key, kind, status, sent_at')
+    .order('sent_at', { ascending: false }).order('message_id', { ascending: true }).range(i * 1000, Math.min(i * 1000 + 999, max - 1))));
   const rows = [];
-  for (let from = 0; from < max; from += 1000) {
-    const r = await sb.from('cb_messages').select('entry_id, member_key, kind, status, sent_at').order('sent_at', { ascending: false }).order('message_id', { ascending: true }).range(from, Math.min(from + 999, max - 1));
-    if (r.error) return r;
-    rows.push(...(r.data || []));
-    if ((r.data || []).length < 1000) break;
-  }
+  for (const r of pages) { if (r.error) return r; rows.push(...(r.data || [])); if ((r.data || []).length < 1000) break; }
   return { data: rows, error: null };
 }
 // After a change to grading days, entries or texts: fetch just those (not all 1,400 students again)
@@ -2224,16 +2220,20 @@ function seqWhen(s) {
 }
 // Rows for many students: 100 ids per request (a long list makes too long an address), each read in pages of 1,000
 async function inPages(table, ids, order) {
-  const rows = [];
-  for (let i = 0; i < ids.length; i += 100) {
+  // every group of 100 at the same time; within a group, pages of 1,000 in turn (rarely more than one)
+  const chunk = async part => { const out = [];
     for (let from = 0; ; from += 1000) {
-      let x = sb.from(table).select('*').in('entry_id', ids.slice(i, i + 100)); if (order) x = x.order(order); x = x.order('entry_id');
+      let x = sb.from(table).select('*').in('entry_id', part); if (order) x = x.order(order); x = x.order('entry_id');
       const r = await x.range(from, from + 999);
       if (r.error) return r;
-      rows.push(...(r.data || []));
+      out.push(...(r.data || []));
       if ((r.data || []).length < 1000) break;
     }
-  }
+    return { data: out }; };
+  const parts = []; for (let i = 0; i < ids.length; i += 100) parts.push(ids.slice(i, i + 100));
+  const res = await Promise.all(parts.map(chunk));
+  const rows = [];
+  for (const r of res) { if (r.error) return r; rows.push(...r.data); }
   if (order) rows.sort((a, b) => String(a[order]).localeCompare(String(b[order])));
   return { data: rows, error: null };
 }
