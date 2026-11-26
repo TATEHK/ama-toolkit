@@ -1876,6 +1876,7 @@ async function loadDay(dayId) {
   const { data, error } = await sb.rpc('cb_floor_load', { p_day: dayId });
   if (error || !data || !data.day) { loading = false; DAYID = null; keepDay(''); showDays(); return false; }
   keepDay(dayId);   // remember the picked day across refreshes (in the address and on this device)
+  window.AmaIdleHold = true;   // a grading open on this floor never signs itself out for being idle (it sits on a stand between groups)
   DAYINFO = data.day || {}; CODE = DAYINFO.checkin_code || null;
   if (!CODE) { const { data: c } = await sb.rpc('cb_floor_set_code', { p_day: dayId }); if (c) CODE = c; }
   showCode();
@@ -1969,7 +1970,7 @@ function keepDay(id) {
   try { const u = new URL(location.href); if (id) u.searchParams.set('day', id); else u.searchParams.delete('day'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {}
 }
 // reopen the day picker (to switch grading days)
-function openPicker() { if (pollT) clearInterval(pollT); if (window.GE) GE.attach(null); $('#gate').hidden = false; showDays(); }
+function openPicker() { window.AmaIdleHold = false; if (pollT) clearInterval(pollT); if (window.GE) GE.attach(null); $('#gate').hidden = false; showDays(); }
 $('#brand').onclick = openPicker;
 $('#siForm').addEventListener('submit', async e => {
   e.preventDefault(); const go = $('#siGo'); go.disabled = true; go.textContent = 'Signing in…'; $('#siErr').hidden = true;

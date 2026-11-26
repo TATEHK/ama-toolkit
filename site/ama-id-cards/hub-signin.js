@@ -29,50 +29,98 @@
     sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') store.set(null); });
   }
 
+  // One look for every AMA sign-in: big, clear fields that follow the page's colours (theme variables), the mobile
+  // remembered on this device, PIN show/hide, and the page's own email form restyled to match.
+  var CSS = '' +
+    '.ama-si,form.ama-si-email{display:flex;flex-direction:column;gap:14px;text-align:left;width:100%;margin:0}' +
+    '.ama-si label,form.ama-si-email label{display:block;font-size:13px;font-weight:600;letter-spacing:.01em;color:var(--ink-2,#55655b);margin:0 0 6px;text-transform:none}' +
+    '.ama-si input,form.ama-si-email input{display:block;width:100%;box-sizing:border-box;height:54px;padding:0 16px;font:inherit;font-size:18px;font-weight:600;' +
+      'color:var(--ink,#14201a);background:var(--bg,#fff);border:1.5px solid var(--line-2,var(--line,#cfd8d2));border-radius:14px;outline:0;box-shadow:none;transition:border-color .15s,box-shadow .15s}' +
+    '.ama-si input:focus,form.ama-si-email input:focus{border-color:var(--accent,#f5c518);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent,#f5c518) 25%,transparent);outline:0}' +
+    '.ama-si input::placeholder{color:var(--ink-3,#8a978f);font-weight:500}' +
+    '.ama-si .ama-si-pin{position:relative}.ama-si .ama-si-pin input{padding-right:64px;letter-spacing:.3em}' +
+    '.ama-si .ama-si-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);height:38px;padding:0 10px;border:0;border-radius:10px;background:transparent;color:var(--ink-3,#7a887f);font:inherit;font-size:13px;font-weight:700;cursor:pointer}' +
+    '.ama-si-go,form.ama-si-email button[type=submit]{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:54px;margin-top:4px;border:0;border-radius:14px;' +
+      'background:var(--accent,#f5c518);color:var(--accent-ink,#14130a);font:inherit;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px color-mix(in srgb,var(--accent,#f5c518) 28%,transparent);transition:transform .08s,filter .15s}' +
+    '.ama-si-go:hover,form.ama-si-email button[type=submit]:hover{filter:brightness(1.05)}.ama-si-go:active,form.ama-si-email button[type=submit]:active{transform:scale(.985)}' +
+    '.ama-si-go[disabled],form.ama-si-email button[type=submit][disabled]{opacity:.7;cursor:default}' +
+    '.ama-si-spin{width:18px;height:18px;border-radius:50%;border:2.5px solid currentColor;border-right-color:transparent;animation:amaSiSpin .7s linear infinite}' +
+    '@keyframes amaSiSpin{to{transform:rotate(360deg)}}' +
+    '.ama-si-err{margin:0;padding:11px 14px;border-radius:12px;font-size:14px;font-weight:600;line-height:1.4;color:var(--danger,#c0392b);background:color-mix(in srgb,var(--danger,#c0392b) 12%,transparent)}' +
+    '.ama-si-err.shake{animation:amaSiShake .35s}@keyframes amaSiShake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}' +
+    '.ama-si-alt{align-self:center;background:none;border:0;padding:8px 6px;margin:0;font:inherit;font-size:14px;font-weight:600;color:var(--ink-3,#6f7d74);text-decoration:underline;text-underline-offset:3px;cursor:pointer}' +
+    '.ama-si-alt:hover{color:var(--ink,#14201a)}' +
+    '.ama-si-hint{margin:-4px 0 0;font-size:12.5px;color:var(--ink-3,#7a887f);text-align:center;line-height:1.4}' +
+    '.hub-signin{width:100%}';
+  function css() { if (document.getElementById('amaSiCss')) return; var st = document.createElement('style'); st.id = 'amaSiCss'; st.textContent = CSS; document.head.appendChild(st); }
+  // 0412345678 -> 0412 345 678 as it's typed (+61 numbers left alone apart from spacing)
+  function fmtMobile(v) { var d = String(v || '').replace(/[^\d+]/g, ''); if (/^04\d*/.test(d)) return [d.slice(0, 4), d.slice(4, 7), d.slice(7, 10)].filter(Boolean).join(' '); return d; }
+
   function mount(o) {
     var form = typeof o.form === 'string' ? document.querySelector(o.form) : o.form;
     if (!form || form.getAttribute('data-hub')) return;
     form.setAttribute('data-hub', '1');
-    watchSignOut(o.sb);
-    var link = 'background:none;border:0;padding:10px 0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer;opacity:.8';
+    watchSignOut(o.sb); css();
+    form.classList.add('ama-si-email');
     var wrap = document.createElement('div');
     wrap.className = 'hub-signin';
     wrap.innerHTML =
-      '<button type="button" id="hubShow" style="' + link + '">Sign in with hub mobile and PIN</button>' +
-      '<form id="hubForm" style="display:none;flex-direction:column;gap:12px">' +
-        '<div class="field"><label for="hubMobile">Mobile</label><input type="tel" id="hubMobile" inputmode="tel" autocomplete="tel" required></div>' +
-        '<div class="field"><label for="hubPin">Hub PIN</label><input type="password" id="hubPin" inputmode="numeric" autocomplete="current-password" required></div>' +
-        '<p id="hubError" role="alert" style="display:none;margin:0;color:var(--danger,#c0392b)"></p>' +
-        '<button type="submit" class="btn primary" id="hubGo">Sign in</button>' +
-        '<button type="button" id="hubBack" style="' + link + '">Use email and password instead</button>' +
+      '<button type="button" id="hubShow" class="ama-si-alt">Use hub mobile and PIN instead</button>' +
+      '<form id="hubForm" class="ama-si" style="display:none" novalidate>' +
+        '<div><label for="hubMobile">Mobile</label><input type="tel" id="hubMobile" inputmode="tel" autocomplete="tel" placeholder="0400 000 000" enterkeyhint="next" required></div>' +
+        '<div><label for="hubPin">Hub PIN</label><div class="ama-si-pin"><input type="password" id="hubPin" inputmode="numeric" autocomplete="current-password" placeholder="••••" enterkeyhint="go" required>' +
+          '<button type="button" class="ama-si-eye" id="hubEye" aria-label="Show PIN">Show</button></div></div>' +
+        '<p id="hubError" class="ama-si-err" role="alert" style="display:none"></p>' +
+        '<button type="submit" class="ama-si-go" id="hubGo">Sign in</button>' +
+        '<p class="ama-si-hint">The same mobile and PIN as the AMA Admin Hub.</p>' +
+        '<button type="button" id="hubBack" class="ama-si-alt">Use email and password instead</button>' +
       '</form>';
     form.parentNode.insertBefore(wrap, form.nextSibling);
     var hubForm = wrap.querySelector('#hubForm'), show = wrap.querySelector('#hubShow'), err = wrap.querySelector('#hubError'), go = wrap.querySelector('#hubGo');
+    var mob = wrap.querySelector('#hubMobile'), pin = wrap.querySelector('#hubPin'), eye = wrap.querySelector('#hubEye');
     var formDisplay = form.style.display;
+    var saved = ls('ama_hub_mobile'); if (saved) mob.value = fmtMobile(saved);
+    mob.addEventListener('input', function () { var end = mob.selectionStart === mob.value.length; var f = fmtMobile(mob.value); if (f !== mob.value) { mob.value = f; if (end) mob.setSelectionRange(f.length, f.length); } });
+    mob.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); pin.focus(); } });
+    eye.onclick = function () { var on = pin.type === 'password'; pin.type = on ? 'text' : 'password'; eye.textContent = on ? 'Hide' : 'Show'; eye.setAttribute('aria-label', on ? 'Hide PIN' : 'Show PIN'); pin.focus(); };
+    function say(m) { err.textContent = m; err.style.display = ''; err.classList.remove('shake'); void err.offsetWidth; err.classList.add('shake'); }
     function mode(hub) {
       form.style.display = hub ? 'none' : formDisplay;
       hubForm.style.display = hub ? 'flex' : 'none';
       show.style.display = hub ? 'none' : '';
       err.style.display = 'none';
-      (hub ? wrap.querySelector('#hubMobile') : form.querySelector('input')).focus();
+      (hub ? (mob.value ? pin : mob) : form.querySelector('input')).focus();
     }
     show.onclick = function () { mode(true); };
     wrap.querySelector('#hubBack').onclick = function () { mode(false); };
     hubForm.onsubmit = function (e) {
       e.preventDefault();
-      go.disabled = true; go.textContent = 'Signing in…'; err.style.display = 'none';
-      call(o, { mobile: wrap.querySelector('#hubMobile').value, pin: wrap.querySelector('#hubPin').value }).then(function (r) {
-        if (!r || !r.ok) throw new Error((r && r.error) || 'Mobile or PIN not right.');
+      var m = mob.value.replace(/\s+/g, ''), p = pin.value.trim();
+      if (m.replace(/\D/g, '').length < 9) { say('Enter your mobile number.'); mob.focus(); return; }
+      if (p.length < 4) { say('Enter your hub PIN.'); pin.focus(); return; }
+      go.disabled = true; go.innerHTML = '<span class="ama-si-spin"></span>Signing in…'; err.style.display = 'none';
+      call(o, { mobile: m, pin: p }).then(function (r) {
+        if (!r || !r.ok) throw new Error((r && r.error) || 'That mobile and PIN didn’t match. Check them and try again.');
         return o.sb.auth.setSession(r.session).then(function (s) {
           if (s && s.error) throw s.error;
-          store.set(r.hub_token);
+          store.set(r.hub_token); ls('ama_hub_mobile', m);
+          go.innerHTML = 'Signed in';
           if (o.onSignedIn) o.onSignedIn(r); else location.reload();
         });
       }).catch(function (e2) {
-        err.textContent = (e2 && e2.message) || 'Could not sign in. Try again.';
-        err.style.display = ''; go.disabled = false; go.textContent = 'Sign in';
+        var msg = (e2 && e2.message) || '';
+        if (/failed to fetch|network|load failed/i.test(msg)) msg = 'No connection. Check the Wi-Fi or signal and try again.';
+        say(msg || 'Couldn’t sign in. Try again.'); pin.value = ''; pin.focus();
+        go.disabled = false; go.textContent = 'Sign in';
       });
     };
+    // Hub mobile + PIN is the default way in; email and password is the fallback (pass emailDefault:true to flip back).
+    // No auto-focus, so phones don't pop the keyboard on load.
+    if (o.emailDefault !== true) {
+      form.style.display = 'none';
+      hubForm.style.display = 'flex';
+      show.style.display = 'none';
+    }
   }
 
   function recheck(o) {
