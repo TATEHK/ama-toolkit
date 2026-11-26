@@ -766,7 +766,7 @@ const pad=x=>Math.max(6,Math.min(94,x));
 function positions(n,rows){
   if(n<=0) return [];
   if(rows===1 || n<=2) return Array.from({length:n},(_,i)=>({x:pad(4+(i+.5)/n*92),y:50}));   // evenly spaced inside the edge margin, so the end spots never bunch up
-  const nf=Math.ceil(n/2), nb=n-nf, y1=35, y2=72, pos=[];
+  const nf=Math.ceil(n/2), nb=n-nf, y1=32, y2=72, pos=[];
   for(let c=0;c<nf;c++) pos.push({x:pad((c+.5)/nf*100),y:y1});       // front row
   const off=(nf-nb)/2;                                                // a shorter back row is centred on the same columns
   for(let c=0;c<nb;c++) pos.push({x:pad((c+off+.5)/nf*100),y:y2});   // back row, in line behind the front
@@ -984,7 +984,7 @@ function render(){
     if(go)go.onclick=()=>{ const gi=state.callout; state.callout=null; setStatus(gi,'current'); }; }             // start the called-out group
   $('#flDim').innerHTML=`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V5a2 2 0 0 1 2-2h4M21 9V5a2 2 0 0 0-2-2h-4M3 15v4a2 2 0 0 0 2 2h4M21 15v4a2 2 0 0 1-2 2h-4"/></svg> ${state.fw}m × ${state.fh}m`;
   $('#flDim').style.display = (sMode==='next'||sMode==='callout') ? 'none' : '';
-  const floor=$('#floor'); floor.style.aspectRatio = (sMode==='next'||sMode==='callout') ? '' : (BBMODE() ? 16/5 : state.fw/state.fh);   // bb lines up to 13 across → a wide, shallow floor
+  const floor=$('#floor'); floor.style.aspectRatio = (sMode==='next'||sMode==='callout') ? '' : (BBMODE() ? ((g&&g.rows>1)?16/8:16/5) : state.fw/state.fh);   // bb: one line → wide and shallow; two rows → deeper, so the back row clears the front row's name tags
   if(sMode==='next'){
     floor.className='floor callout';
     const futs=groups.map((gg,i)=>({gg,i})).filter(o=>o.gg.status==='future');
