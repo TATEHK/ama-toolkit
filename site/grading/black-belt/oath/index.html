@@ -6,8 +6,8 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <title>Black Belt Oath · Australian Martial Arts Academy</title>
-<link rel="icon" href="../../../icons/ama-id-cards.png">
-<script src="../../../config.js"></script>
+<link rel="icon" href="/icons/ama-id-cards.png">
+<script src="/config.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
@@ -83,7 +83,8 @@
     'My art has thousands of years of history; I further pledge to continue the tradition with humility and gratitude by continuing my physical and spiritual growth to the highest possible level, to lead by example and to share what I have learnt with others.'
   ];
   var app = document.getElementById('app');
-  var token = (location.hash || '').replace(/^#/, '').trim() || new URLSearchParams(location.search).get('t') || '';
+  // the code: /o/<code> (the short link), #<code> (older links) or ?t=<code>
+  var token = ((location.pathname.match(/^\/o\/([A-Za-z0-9_-]+)/) || [])[1]) || (location.hash || '').replace(/^#/, '').trim() || new URLSearchParams(location.search).get('t') || '';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function longDate(ymd) {
@@ -217,7 +218,7 @@
     };
   }
 
-  if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) { showState('This link isn’t valid. Please use the link from your email, or ask the front desk for a new one.'); return; }
+  if (!/^[A-Za-z0-9_-]{10,64}$/.test(token)) { showState('This link isn’t valid. Please use the link from your email, or ask the front desk for a new one.'); return; }
   call({ action: 'info', token: token }).then(function (d) {
     if (!d || !d.ok) { showState((d && d.error) || 'This link isn’t valid.'); return; }
     if (d.signed) showSigned(d, false); else showForm(d);
