@@ -1,20 +1,23 @@
 // @ts-nocheck
-// AMA Toolkit: grading events (grading-event-1.sql), first used for the Beyond 4th Dan grading on Sat 28 Nov 2026.
-// The live quiz lives here so timing and points are worked out on the server, and players never see answers early.
+// AMA Toolkit: grading events (grading-event-1/3.sql), first used for the Beyond 4th Dan grading on Sat 28 Nov 2026.
+// The theory test lives here so answers are marked on the server and never sent to phones.
+// It is a private test: each candidate works through it at their own pace on their phone within one time limit,
+// can change answers until they submit, and only staff see results (no points, no leaderboard).
 //
-// Deploy: Actions > "Deploy Supabase function" > gevent (JWT verification off: players join with the event code, no login;
+// Deploy: Actions > "Deploy Supabase function" > gevent (JWT verification off: candidates join with the event code, no login;
 // staff actions check the signed-in Black Belt Gradings login).
 //
-// Players (no sign-in; code = the event's join code, token = a random id the phone keeps):
+// Candidates (no sign-in; code = the event's join code, token = a random id the phone keeps):
 //   { action: 'join', code }                               event title + the candidates to pick from
-//   { action: 'claim', code, cand_id, token, force? }      play as this candidate on this phone
-//   { action: 'state', code, token }                       what to show now (question without the answer, reveal, leaderboard)
-//   { action: 'answer', code, token, q_ix, answer }        answer the open question (index, or an array for put-in-order)
+//   { action: 'claim', code, cand_id, token, force? }      sit the test as this candidate on this phone
+//   { action: 'state', code, token }                       test status; while open, the questions (no answers) and my saved answers
+//   { action: 'answer', code, token, q_ix, answer }        save or change an answer (index, or an array for put-in-order)
+//   { action: 'submit', code, token }                      hand the test in (no more changes)
 // Staff (Authorization: Bearer <staff session>; app_permissions 'bb'):
-//   { action: 'host_state', event_id }                     quiz phase, who has joined, answers so far, leaderboard
-//   { action: 'host', event_id, cmd }                      cmd: open | start | reveal | leaderboard | next | podium | close | reset
-//   { action: 'tablet', event_id, cand_id }                a token so a staff tablet can play for someone without a phone
-//   { action: 'quiz_record', event_id }                    write each candidate's theory item from their quiz score (pass 24/30)
+//   { action: 'host_state', event_id }                     status, who has joined, progress and (for staff) scores
+//   { action: 'host', event_id, cmd, mins? }               cmd: open | start | extend | end | close | reset
+//   { action: 'tablet', event_id, cand_id }                a token so a staff tablet can be used by someone without a phone
+//   { action: 'quiz_record', event_id }                    write each candidate's theory item from their score (pass mark in the config)
 // Setup: { action: 'seed', slug } with x-ge-seed (vault ge_seed_key): load a bundled event config.
 
 import beyond4th from './beyond-4th-dan-2026-11-28.ts';
@@ -32,28 +35,12 @@ const sha = async s => hex(await crypto.subtle.digest('SHA-256', new TextEncoder
 const tokenOk = t => /^[A-Za-z0-9_-]{20,64}$/.test(String(t || ''));
 const newToken = () => { const b = crypto.getRandomValues(new Uint8Array(24)); let s = ''; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 
-// Quiz rules (also in the config: speed bonus up to 50%, +100 for each answer on a run of 3+ correct)
-export function roundOf(quiz, ix) { const q = quiz.questions[ix]; return q ? quiz.rounds[q.round] : null; }
 export function isCorrect(q, a) {
   if (q.type === 'order') return Array.isArray(a) && a.length === q.answer.length && a.every((x, i) => Number(x) === q.answer[i]);
-  return Number.isInteger(Number(a)) && Number(a) === q.answer;
+  return a !== null && a !== '' && Number.isInteger(Number(a)) && Number(a) === q.answer;
 }
-export function pointsFor(quiz, ix, correct, ms, prevStreak) {
-  const r = roundOf(quiz, ix), limit = r.secs * 1000;
-  const streak = correct ? prevStreak + 1 : 0;
-  if (!correct) return { points: 0, streak };
-  const speed = Math.round(r.points * (quiz.speed_bonus ?? 0.5) * Math.max(0, 1 - ms / limit));
-  const bonus = streak >= (quiz.streak_at || 3) ? (quiz.streak_bonus ?? 100) : 0;
-  return { points: r.points + speed + bonus, streak, speed, bonus };
-}
-// Leaderboard: total points, then most correct, then who reached it first
-export function leaderboard(answers, cands) {
-  const by = {};
-  for (const a of answers) { const p = by[a.cand_id] || (by[a.cand_id] = { cand_id: a.cand_id, points: 0, correct: 0, last: '' }); p.points += a.points || 0; if (a.correct) p.correct++; if (a.answered_at > p.last) p.last = a.answered_at; }
-  const name = Object.fromEntries((cands || []).map(c => [c.id, c.name]));
-  return Object.values(by).map(p => ({ ...p, name: name[p.cand_id] || '?' })).sort((a, b) => b.points - a.points || b.correct - a.correct || a.last.localeCompare(b.last));
-}
-const publicQ = (q, r, ix, total) => ({ ix, total, round: q.round, round_name: r.name, level: r.level, secs: r.secs, points: r.points, type: q.type, text: q.text, options: q.options });
+const publicQs = quiz => quiz.questions.map((q, ix) => ({ ix, section: (quiz.rounds[q.round] || {}).name || '', type: q.type, text: q.text, options: q.options }));
+const testMins = quiz => Number(quiz.minutes || 30);
 
 export async function handle(req, db, env = {}) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -75,15 +62,17 @@ export async function handle(req, db, env = {}) {
       return json({ ok: true, event_id: data.event_id });
     }
 
-    // ---------- players ----------
-    if (['join', 'claim', 'state', 'answer'].includes(body.action)) {
+    // ---------- candidates ----------
+    if (['join', 'claim', 'state', 'answer', 'submit'].includes(body.action)) {
       const code = String(body.code || '').trim().toUpperCase();
       if (!/^[A-Z0-9]{3,12}$/.test(code)) return fail('Check the code and try again.', 404);
       const { data: ev } = await db.from('ge_events').select('event_id, title, config').eq('join_code', code).maybeSingle();
       if (!ev) return fail('Check the code and try again.', 404);
       const quiz = ev.config.quiz, cands = ev.config.candidates || [];
       const { data: qz } = await db.from('ge_quiz').select('*').eq('event_id', ev.event_id).maybeSingle();
-      const phase = (qz && qz.phase) || 'closed';
+      let phase = (qz && qz.phase) || 'closed';
+      const ends = qz && qz.q_ends_at ? Date.parse(qz.q_ends_at) : 0;
+      if (phase === 'open' && ends && now > ends + 5000) phase = 'ended';   // time is up even if staff haven't pressed End
       if (body.action === 'join') {
         const { data: pl } = await db.from('ge_players').select('cand_id').eq('event_id', ev.event_id);
         const taken = new Set((pl || []).map(p => p.cand_id));
@@ -93,42 +82,39 @@ export async function handle(req, db, env = {}) {
       const th = await sha(body.token);
       if (body.action === 'claim') {
         const c = cands.find(x => x.id === body.cand_id); if (!c) return fail('Pick your name from the list.');
-        const { data: cur } = await db.from('ge_players').select('token_hash').eq('event_id', ev.event_id).eq('cand_id', c.id).maybeSingle();
-        if (cur && cur.token_hash !== th && !body.force) return json({ ok: false, taken: true, error: `${c.name} is already playing on another device.` }, 409);
-        await db.from('ge_players').delete().eq('event_id', ev.event_id).eq('token_hash', th).neq('cand_id', c.id);   // a phone plays as one person
-        const { error } = await db.from('ge_players').upsert({ event_id: ev.event_id, cand_id: c.id, token_hash: th, via: body.via === 'tablet' ? 'tablet' : 'phone', joined_at: new Date().toISOString() }, { onConflict: 'event_id,cand_id' });
+        const { data: cur } = await db.from('ge_players').select('token_hash, submitted_at').eq('event_id', ev.event_id).eq('cand_id', c.id).maybeSingle();
+        if (cur && cur.token_hash !== th && !body.force) return json({ ok: false, taken: true, error: `${c.name} is already signed in on another device.` }, 409);
+        await db.from('ge_players').delete().eq('event_id', ev.event_id).eq('token_hash', th).neq('cand_id', c.id);   // a phone is one person
+        const { error } = cur ? await db.from('ge_players').update({ token_hash: th, via: body.via === 'tablet' ? 'tablet' : 'phone' }).eq('event_id', ev.event_id).eq('cand_id', c.id)
+          : await db.from('ge_players').insert({ event_id: ev.event_id, cand_id: c.id, token_hash: th, via: body.via === 'tablet' ? 'tablet' : 'phone' });
         if (error) throw error;
         return json({ ok: true, name: c.name });
       }
-      const { data: me } = await db.from('ge_players').select('cand_id').eq('event_id', ev.event_id).eq('token_hash', th).maybeSingle();
+      const { data: me } = await db.from('ge_players').select('cand_id, submitted_at').eq('event_id', ev.event_id).eq('token_hash', th).maybeSingle();
       if (!me) return json({ ok: false, rejoin: true, error: 'Pick your name again.' }, 401);
-      const ix = qz ? qz.q_ix : -1, q = quiz.questions[ix], r = q ? quiz.rounds[q.round] : null;
-      if (body.action === 'answer') {
-        if (phase !== 'question' || Number(body.q_ix) !== ix || !q) return fail('Too late for that one.', 409);
-        const started = Date.parse(qz.q_started_at), ends = Date.parse(qz.q_ends_at);
-        if (now > ends + 1500) return fail('Time is up.', 409);
-        const ms = Math.max(0, Math.min(now - started, r.secs * 1000));
-        const ok = isCorrect(q, body.answer);
-        const { data: prev } = await db.from('ge_answers').select('q_ix, correct, streak').eq('event_id', ev.event_id).eq('cand_id', me.cand_id).eq('q_ix', ix - 1).maybeSingle();
-        const p = pointsFor(quiz, ix, ok, ms, prev && prev.correct ? prev.streak : 0);
-        const { error } = await db.from('ge_answers').insert({ event_id: ev.event_id, cand_id: me.cand_id, q_ix: ix, answer: body.answer, ms, correct: ok, points: p.points, streak: p.streak });
-        if (error) { if (error.code === '23505') return fail('You already answered.', 409); throw error; }
-        return json({ ok: true, locked: true });
+      const name = (cands.find(c => c.id === me.cand_id) || {}).name;
+      if (body.action === 'answer' || body.action === 'submit') {
+        if (me.submitted_at) return fail('You have already handed in your test.', 409);
+        if (phase !== 'open') return fail(phase === 'ended' ? 'Time is up. Your saved answers count.' : 'The test hasn\'t started yet.', 409);
+        if (body.action === 'submit') {
+          await db.from('ge_players').update({ submitted_at: new Date().toISOString() }).eq('event_id', ev.event_id).eq('cand_id', me.cand_id);
+          return json({ ok: true, submitted: true });
+        }
+        const ix = Number(body.q_ix), q = quiz.questions[ix];
+        if (!q) return fail('Which question?');
+        const clear = body.answer === null || (Array.isArray(body.answer) && !body.answer.length);
+        if (clear) { await db.from('ge_answers').delete().eq('event_id', ev.event_id).eq('cand_id', me.cand_id).eq('q_ix', ix); return json({ ok: true, saved: null }); }
+        const { error } = await db.from('ge_answers').upsert({ event_id: ev.event_id, cand_id: me.cand_id, q_ix: ix, answer: body.answer, correct: isCorrect(q, body.answer), points: 0, streak: 0, answered_at: new Date().toISOString() }, { onConflict: 'event_id,cand_id,q_ix' });
+        if (error) throw error;
+        return json({ ok: true, saved: ix });
       }
       // state
-      const out = { ok: true, title: ev.title, phase, me: { id: me.cand_id, name: (cands.find(c => c.id === me.cand_id) || {}).name }, server_now: now };
-      if (q && ['question', 'reveal'].includes(phase)) {
-        out.question = publicQ(q, r, ix, quiz.questions.length);
-        out.ends_in_ms = Math.max(0, Date.parse(qz.q_ends_at) - now);
-        const { data: mine } = await db.from('ge_answers').select('answer, correct, points, streak').eq('event_id', ev.event_id).eq('cand_id', me.cand_id).eq('q_ix', ix).maybeSingle();
-        out.my_answer = mine ? (phase === 'reveal' ? mine : { answer: mine.answer }) : null;
-        if (phase === 'reveal') { out.correct_answer = q.answer; out.fact = q.fact || ''; }
-      }
-      if (['reveal', 'leaderboard', 'podium'].includes(phase)) {
-        const { data: all } = await db.from('ge_answers').select('cand_id, points, correct, answered_at').eq('event_id', ev.event_id);
-        const lb = leaderboard(all || [], cands), pos = lb.findIndex(p => p.cand_id === me.cand_id);
-        out.my_total = pos >= 0 ? { rank: pos + 1, points: lb[pos].points, correct: lb[pos].correct, of: lb.length } : { rank: null, points: 0, correct: 0, of: lb.length };
-        if (phase !== 'reveal') out.top = lb.slice(0, phase === 'podium' ? 3 : 5).map(p => ({ name: p.name, points: p.points }));
+      const out = { ok: true, title: ev.title, phase, me: { id: me.cand_id, name }, submitted: !!me.submitted_at, total: quiz.questions.length, minutes: testMins(quiz), server_now: now };
+      if (phase === 'open' && !me.submitted_at) {
+        out.ends_in_ms = Math.max(0, ends - now);
+        if (body.with_questions) out.questions = publicQs(quiz);
+        const { data: mine } = await db.from('ge_answers').select('q_ix, answer').eq('event_id', ev.event_id).eq('cand_id', me.cand_id);
+        out.answers = Object.fromEntries((mine || []).map(a => [a.q_ix, a.answer]));
       }
       return json(out);
     }
@@ -148,13 +134,11 @@ export async function handle(req, db, env = {}) {
     const getQ = async () => (await db.from('ge_quiz').select('*').eq('event_id', ev.event_id).maybeSingle()).data || { phase: 'closed', q_ix: -1 };
 
     if (body.action === 'host_state') {
-      const [qz, { data: pl }, { data: ans }] = await Promise.all([getQ(), db.from('ge_players').select('cand_id, via, joined_at').eq('event_id', ev.event_id),
-        db.from('ge_answers').select('cand_id, q_ix, answer, correct, points, answered_at').eq('event_id', ev.event_id)]);
-      const cur = (ans || []).filter(a => a.q_ix === qz.q_ix);
-      const q = quiz.questions[qz.q_ix];
-      const dist = q && q.type !== 'order' ? q.options.map((_, i) => cur.filter(a => Number(a.answer) === i).length) : null;
-      return json({ ok: true, server_now: now, quiz: qz, players: pl || [], answered: cur.length, correct_now: cur.filter(a => a.correct).length, dist,
-        answered_ids: cur.map(a => a.cand_id), leaderboard: leaderboard(ans || [], cands) });
+      const [qz, { data: pl }, { data: ans }] = await Promise.all([getQ(), db.from('ge_players').select('cand_id, via, joined_at, submitted_at').eq('event_id', ev.event_id),
+        db.from('ge_answers').select('cand_id, correct').eq('event_id', ev.event_id)]);
+      const prog = {};
+      for (const a of ans || []) { const p = prog[a.cand_id] || (prog[a.cand_id] = { answered: 0, correct: 0 }); p.answered++; if (a.correct) p.correct++; }
+      return json({ ok: true, server_now: now, quiz: qz, total: QN, pass_mark: quiz.pass_mark, players: (pl || []).map(p => ({ ...p, ...(prog[p.cand_id] || { answered: 0, correct: 0 }) })) });
     }
     if (body.action === 'tablet') {
       const c = cands.find(x => x.id === body.cand_id); if (!c) return fail('Who is playing?');
@@ -166,40 +150,30 @@ export async function handle(req, db, env = {}) {
       if (ev.approved_at) return fail('Results are already approved.');
       const { data: ans } = await db.from('ge_answers').select('cand_id, correct').eq('event_id', ev.event_id);
       const { data: pl } = await db.from('ge_players').select('cand_id').eq('event_id', ev.event_id);
-      const played = new Set([...(pl || []).map(p => p.cand_id), ...(ans || []).map(a => a.cand_id)]);
+      const sat = new Set([...(pl || []).map(p => p.cand_id), ...(ans || []).map(a => a.cand_id)]);
       const rows = [];
       for (const c of cands) {
-        if (!played.has(c.id)) continue;
+        if (!sat.has(c.id)) continue;
         const n = (ans || []).filter(a => a.cand_id === c.id && a.correct).length, item = quiz.theory_items[c.syl];
         if (!item) continue;
-        rows.push({ event_id: ev.event_id, cand_id: c.id, item_code: item, result: n >= quiz.pass_mark ? 'pass' : 'fail', comment: `Quiz: ${n}/${QN} correct (pass ${quiz.pass_mark})`, scored_by: email + ' (quiz)', updated_at: new Date().toISOString() });
+        rows.push({ event_id: ev.event_id, cand_id: c.id, item_code: item, result: n >= quiz.pass_mark ? 'pass' : 'fail', comment: `Theory test: ${n}/${QN} correct (pass ${quiz.pass_mark})`, scored_by: email + ' (theory test)', updated_at: new Date().toISOString() });
       }
       if (rows.length) { const { error } = await db.from('ge_marks').upsert(rows, { onConflict: 'event_id,cand_id,item_code' }); if (error) throw error; }
-      return json({ ok: true, recorded: rows.length, not_played: cands.filter(c => !played.has(c.id)).map(c => c.name) });
+      return json({ ok: true, recorded: rows.length, not_sat: cands.filter(c => !sat.has(c.id)).map(c => c.name) });
     }
     if (body.action === 'host') {
       const qz = await getQ(), cmd = String(body.cmd || '');
       const set = async patch => { const { data, error } = await db.from('ge_quiz').upsert({ event_id: ev.event_id, ...patch, updated_at: new Date().toISOString() }, { onConflict: 'event_id' }).select('*').single(); if (error) throw error; return json({ ok: true, quiz: data }); };
-      const startQ = ix => { const r = roundOf(quiz, ix); return set({ phase: 'question', q_ix: ix, q_started_at: new Date(now + 1200).toISOString(), q_ends_at: new Date(now + 1200 + r.secs * 1000).toISOString() }); };
-      if (cmd === 'open') return set({ phase: 'lobby', q_ix: qz.q_ix ?? -1 });
+      if (cmd === 'open') return set({ phase: 'lobby' });
       if (cmd === 'close') return set({ phase: 'closed' });
-      if (cmd === 'start') return startQ(Math.max(0, qz.q_ix < 0 ? 0 : qz.q_ix));
-      if (cmd === 'reveal') { if (qz.phase !== 'question') return fail('No question is open.'); return set({ phase: 'reveal', q_ends_at: new Date(Math.min(now, Date.parse(qz.q_ends_at))).toISOString() }); }
-      if (cmd === 'leaderboard') return set({ phase: 'leaderboard' });
-      if (cmd === 'podium') return set({ phase: 'podium' });
-      if (cmd === 'next') {
-        const ix = qz.q_ix, cur = quiz.questions[ix], nxt = quiz.questions[ix + 1];
-        if (qz.phase === 'question') return fail('Reveal the answer first.');
-        if (ix < 0 || qz.phase === 'lobby') return startQ(0);
-        if (!nxt) return set({ phase: qz.phase === 'podium' ? 'podium' : (qz.phase === 'leaderboard' ? 'podium' : 'leaderboard') });
-        if (qz.phase === 'reveal' && nxt.round !== cur.round) return set({ phase: 'leaderboard' });   // leaderboard after every round
-        return startQ(ix + 1);
-      }
-      if (cmd === 'back') { if (qz.q_ix <= 0) return set({ phase: 'lobby', q_ix: -1 }); await db.from('ge_answers').delete().eq('event_id', ev.event_id).eq('q_ix', qz.q_ix); return startQ(qz.q_ix); }
+      if (cmd === 'start') { const mins = Number(body.mins) > 0 ? Number(body.mins) : Number(quiz.minutes || 30); return set({ phase: 'open', q_ix: 0, q_started_at: new Date(now).toISOString(), q_ends_at: new Date(now + mins * 60000).toISOString() }); }
+      if (cmd === 'extend') { if (!['open', 'ended'].includes(qz.phase)) return fail('The test isn\'t running.'); const base = Math.max(now, Date.parse(qz.q_ends_at) || now); return set({ phase: 'open', q_ends_at: new Date(base + (Number(body.mins) || 5) * 60000).toISOString() }); }
+      if (cmd === 'end') return set({ phase: 'ended', q_ends_at: new Date(Math.min(now, Date.parse(qz.q_ends_at) || now)).toISOString() });
       if (cmd === 'reset') {
-        if (!can('grading')) return fail('Only grading staff can reset the quiz.', 403);
+        if (!can('grading')) return fail('Only grading staff can reset the test.', 403);
         await db.from('ge_answers').delete().eq('event_id', ev.event_id);
         if (body.players) await db.from('ge_players').delete().eq('event_id', ev.event_id);
+        else await db.from('ge_players').update({ submitted_at: null }).eq('event_id', ev.event_id);
         return set({ phase: 'lobby', q_ix: -1, q_started_at: null, q_ends_at: null });
       }
       return fail('Unknown command.');
