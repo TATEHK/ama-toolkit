@@ -90,7 +90,9 @@
     }
 
     // --- device registry (best-effort; errors never sign anyone out) ---
+    var registered = false, started = false;   // started: the page has restored any saved sign-in (INITIAL_SESSION)
     function registerDevice(fresh) {
+      if (registered && !fresh) return; registered = true;   // once per page load (a sign-in counts again)
       sb.auth.getSession().then(function (r) {
         var s = r && r.data && r.data.session; if (!s || !s.user) return;
         var row = {
@@ -123,8 +125,9 @@
       if (signedIn) { if (!ls(ACT)) touch(); registerDevice(false); }
     });
     sb.auth.onAuthStateChange(function (ev, session) {
-      signedIn = !!session;
-      if (ev === 'SIGNED_IN') { goneOut = false; touch(); registerDevice(true); }
+      var was = signedIn; signedIn = !!session;
+      if (ev === 'INITIAL_SESSION') { started = true; return; }
+      if (ev === 'SIGNED_IN' && started && !was) { goneOut = false; touch(); registerDevice(true); }   // a real sign-in, not the page restoring one
       if (!signedIn) { trusted = false; ls(TRUST, '0'); hide(); }
     });
     setInterval(tick, 1000);
