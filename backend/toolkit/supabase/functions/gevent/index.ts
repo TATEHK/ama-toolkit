@@ -105,7 +105,7 @@ export async function handle(req, db, env = {}) {
         if (!(had && had.length) || body.floor_lines) {
           await db.from('cb_groups').delete().eq('day_id', b.day_id);
           const rows = b.config.groups.map((g, i) => { const ids = b.config.candidates.filter(x => x.group === g.id).map(x => x.id);
-            return { day_id: b.day_id, ord: i, cone: String(i + 1), belt: null, spots: Math.max(ids.length, 1), rows: ids.length > 13 ? 2 : 1, status: 'future', slots: ids, opts: { title: g.id, belts: [], order: 'manual' } }; });
+            return { day_id: b.day_id, ord: i, cone: String(i + 1), belt: null, spots: Math.max(ids.length, 1), rows: 1, status: 'future', slots: ids, opts: { title: g.id, belts: [], order: 'manual' } }; });
           const { data: all } = await db.from('cb_entries').select('entry_id').eq('day_id', b.day_id);
           const inEvent = new Set(b.config.candidates.map(x => x.id)), rest = (all || []).map(e => e.entry_id).filter(id => !inEvent.has(id));
           if (rest.length) rows.push({ day_id: b.day_id, ord: rows.length, cone: String(rows.length + 1), belt: null, spots: rest.length, rows: 1, status: 'future', slots: rest, opts: { title: 'Not in this grading', belts: [], order: 'manual' } });
