@@ -98,6 +98,12 @@ h1{font-family:"Barlow Semi Condensed";font-weight:600;font-size:30px;margin:18p
 #doneBtn{margin-top:26px;background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:14px;padding:15px 34px;font-size:17px;font-weight:700}
 #done.err #doneBtn{background:rgba(255,255,255,.22)}
 .countdot{margin-top:14px;font-size:13px;opacity:.8}
+#doneFam{margin-top:18px;display:flex;flex-direction:column;gap:8px;width:min(380px,92vw)}
+#doneFam .fh{font-size:14px;font-weight:600;opacity:.9}
+#doneFam button{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.18);color:#fff;border:2px solid rgba(255,255,255,.4);border-radius:14px;padding:11px 16px;font:inherit;font-size:17px;font-weight:700;text-align:left}
+#doneFam button span{margin-left:auto;font-size:14px}
+#doneFam button.on{opacity:.7;border-style:dashed}
+#doneUndo{margin-top:12px;background:transparent;border:0;color:#fff;opacity:.85;font:inherit;font-size:15px;text-decoration:underline}
 </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -135,7 +141,9 @@ h1{font-family:"Barlow Semi Condensed";font-weight:600;font-size:30px;margin:18p
   <p id="doneMsg"></p>
   <div class="cone"><div class="cl">Your group</div><div class="cv" id="doneCone">—</div></div>
   <div class="belts" id="doneBelts"></div>
+  <div id="doneFam"></div>
   <button id="doneBtn">Done</button>
+  <button id="doneUndo" hidden>Not you? Undo</button>
   <div class="countdot" id="doneCount"></div>
 </div>
 
@@ -158,7 +166,7 @@ const fmtDay=d=>{ if(!d) return ''; const [y,m,dd]=String(d).slice(0,10).split('
   return new Date(Date.UTC(y,m-1,dd)).toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',timeZone:'UTC'}); };
 
 // ---------- state ----------
-let CODE='', STUDENTS=[], q='', feedT=null, doneT=null, codeChars='';
+let CODE='', STUDENTS=[], DAY={}, q='', feedT=null, doneT=null, codeChars='', DONE=null;
 const CODE_LEN=4;   // display cells (code is 4–8; cells grow as typed, min 4)
 
 // ---------- code screen ----------
@@ -198,8 +206,9 @@ async function submitCode(){
 
 // ---------- kiosk ----------
 function applyFeed(data){
-  const d=data.day||{}; STUDENTS=data.students||[];
-  $('#kSub').textContent=`${schoolOf(d.location)} · ${fmtDay(d.date)}`;
+  const d=data.day||{}; STUDENTS=data.students||[]; DAY=d;
+  const n=STUDENTS.filter(x=>x.checked_in).length;
+  $('#kSub').textContent=`${schoolOf(d.location)} · ${fmtDay(d.date)} · ${n} of ${STUDENTS.length} here`;
 }
 function startKiosk(){
   $('#codeScreen').classList.remove('on'); $('#kioskScreen').classList.add('on');
@@ -216,9 +225,12 @@ function renderQ(){
   if(!q){ box.innerHTML='<span class="ph">Start typing your first name…</span>'; $('#searchBox').classList.remove('active'); return; }
   box.innerHTML=q+'<span class="caret"></span>'; $('#searchBox').classList.add('active');
 }
+const fold=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+// names that start with what's typed (first or last name) come first, then anything else that matches
+function rank(x,s){ const n=fold(x.search||x.name); if(n.startsWith(s)) return 0; if(n.split(/[\s'.-]+/).some(p=>p&&p.startsWith(s))) return 1; return n.includes(s)?2:-1; }
 function matches(){
-  const s=q.trim().toLowerCase(); if(!s) return [];
-  return STUDENTS.filter(x=>x.name.toLowerCase().includes(s)).slice(0,20);
+  const s=fold(q).trim(); if(!s) return [];
+  return STUDENTS.map(x=>({x,r:rank(x,s)})).filter(o=>o.r>=0).sort((a,b)=>a.r-b.r||a.x.name.localeCompare(b.x.name)).slice(0,20).map(o=>o.x);
 }
 function renderResults(){
   const box=$('#results'); const s=q.trim();
@@ -253,15 +265,26 @@ function typeKey(k){
 // one-time delegation: the keyboard fires on pointerdown (instant); result taps use click so the list can still scroll
 $('#kbd').addEventListener('pointerdown',e=>{ const b=e.target.closest('.key'); if(b){ e.preventDefault(); typeKey(b.dataset.k); } });
 $('#results').addEventListener('click',e=>{ const b=e.target.closest('.res'); if(b) checkIn(b.dataset.id); });
-async function checkIn(entryId){
-  const st=STUDENTS.find(x=>x.entry_id===entryId);
+async function checkIn(entryId, also){
+  const st=STUDENTS.find(x=>x.entry_id===entryId); const was=st?!st.checked_in:true;
   const {data,error}=await sb.rpc('cb_checkin_mark',{p_code:CODE,p_entry:entryId});
-  if(error || !data || data.error){ showDone(null,st,true); return; }
+  if(error || !data || data.error){ if(also){ return; } showDone(null,st,true); return; }
   if(st) st.checked_in=true;
-  showDone(data,st,false);
+  if(also){ DONE.also.push(entryId); DONE.until=Date.now()+12000; renderFam(); return; }
+  showDone(data,st,false,was);
 }
-function showDone(data,st,isErr){
+const where=(cone,title,bb)=>!cone?null:(bb||DAY.bb)?{label:title?`Group ${title}`:'Your line', big:'Line '+cone}:{label:'Your group', big:'Cone '+cone};
+function renderFam(){
+  const box=$('#doneFam'); box.innerHTML='';
+  const me=DONE&&STUDENTS.find(x=>x.entry_id===DONE.id); if(!me||!me.fam) return;
+  const sib=STUDENTS.filter(x=>x.fam===me.fam&&x.entry_id!==me.entry_id); if(!sib.length) return;
+  box.innerHTML='<div class="fh">Checking in your family too?</div>'+sib.map(x=>`<button data-e="${x.entry_id}" class="${x.checked_in?'on':''}" ${x.checked_in?'disabled':''}>${x.first||x.name}<span>${x.checked_in?(DONE.also.includes(x.entry_id)?'✓ Checked in · '+(where(x.cone,x.gtitle)||{big:''}).big:'Already in ✓'):'Check in ›'}</span></button>`).join('');
+  box.querySelectorAll('button[data-e]').forEach(b=>b.onclick=()=>checkIn(b.dataset.e,true));
+}
+function showDone(data,st,isErr,was){
   const d=$('#done'); d.classList.toggle('err',isErr);
+  DONE=isErr?null:{id:st?st.entry_id:null, was:!!was, also:[], until:Date.now()+12000};
+  $('#doneUndo').hidden=true; $('#doneFam').innerHTML='';
   if(isErr){
     $('.tick').style.display='none';
     $('#doneName').textContent='Hmm, that didn’t work';
@@ -269,20 +292,27 @@ function showDone(data,st,isErr){
     $('#doneCone').parentElement.style.display='none'; $('#doneBelts').textContent='';
   } else {
     $('.tick').style.display='';
-    $('#doneCone').parentElement.style.display='';
-    const name=(data&&data.name)||(st&&st.name)||'You';
-    const cone=(data&&data.cone)||(st&&st.cone)||null;
+    const name=(data&&data.name)||(st&&(st.first||st.name))||'You';
+    const w=where((data&&data.cone)||(st&&st.cone), (data&&data.gtitle)||(st&&st.gtitle), data&&data.bb);
     const bf=shortB(data&&data.belt_from), bt=shortB(data&&data.belt_to);
-    $('#doneName').textContent=`You’re in, ${name}!`;
-    $('#doneMsg').textContent=cone?'Go stand at your group cone:':'Take a seat — a staff member will place you.';
-    $('#doneCone').textContent=cone?('Cone '+cone):'—';
+    $('#doneName').textContent=was?`You’re in, ${name}!`:`You’re already checked in, ${name}`;
+    $('#doneMsg').textContent=w?((DAY.bb||(data&&data.bb))?'Head to your line and line up there:':'Go stand at your group cone:'):'Take a seat — a staff member will place you.';
+    $('#doneCone').parentElement.style.display=w?'':'none';
+    if(w){ $('#doneCone').previousElementSibling.textContent=w.label; $('#doneCone').textContent=w.big; }
     $('#doneBelts').textContent=(bf&&bt)?`Grading: ${bf} → ${bt}`:'';
+    $('#doneUndo').hidden=!was;
+    renderFam();
   }
   d.classList.add('on');
-  let n=8; $('#doneCount').textContent=`Back to the list in ${n}s`;
-  clearInterval(doneT); doneT=setInterval(()=>{ n--; if(n<=0){ closeDone(); } else $('#doneCount').textContent=`Back to the list in ${n}s`; },1000);
+  const cnt=()=>{ const n=Math.ceil((((DONE&&DONE.until)||Date.now()+8000)-Date.now())/1000); if(n<=0){ closeDone(); return; } $('#doneCount').textContent=`Back to the list in ${n}s`; };
+  if(!DONE) DONE={until:Date.now()+8000,also:[]};
+  cnt(); clearInterval(doneT); doneT=setInterval(cnt,1000);
 }
-function closeDone(){ clearInterval(doneT); $('#done').classList.remove('on'); q=''; renderQ(); renderResults(); }
+function closeDone(){ clearInterval(doneT); DONE=null; $('#done').classList.remove('on'); q=''; renderQ(); renderResults(); }
+// "Not you?" takes back this check-in (and any family ones just made): the server only allows it for 10 minutes
+$('#doneUndo').onclick=async()=>{ if(!DONE||!DONE.id) return closeDone(); const ids=[DONE.id,...DONE.also]; let ok=true;
+  for(const id of ids){ const {data,error}=await sb.rpc('cb_checkin_mark',{p_code:CODE,p_entry:id,p_on:false}); if(error||!data||data.error) ok=false; else { const x=STUDENTS.find(y=>y.entry_id===id); if(x) x.checked_in=false; } }
+  closeDone(); if(!ok){ $('#results').innerHTML='<div class="none">Couldn’t undo that here — please tell a staff member.</div>'; } };
 $('#doneBtn').onclick=closeDone;
 $('#kReset').onclick=()=>{ clearInterval(feedT); keepCode(''); CODE=''; codeChars=''; renderCodeBox(); $('#codeErr').textContent=''; $('#kioskScreen').classList.remove('on'); $('#codeScreen').classList.add('on'); };
 

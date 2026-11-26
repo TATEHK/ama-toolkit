@@ -98,6 +98,12 @@ body[data-role="signin"]{overflow:hidden}
 .ki-av{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;font-family:"Barlow Semi Condensed";font-weight:700;font-size:18px;color:#fff;flex:none}
 .ki-rt{flex:1;min-width:0}.ki-rt b{font-size:18px;display:block}.ki-rt span{font-size:13px;color:var(--ink-3)}
 .ki-go{font-weight:700;color:var(--accent);font-size:15px;white-space:nowrap}
+.ki-fam{margin:16px 0 4px;text-align:left}.ki-fh{font-size:14px;color:var(--ink-3);font-weight:600;margin-bottom:8px}
+.ki-fb{display:flex;align-items:center;gap:12px;width:100%;background:var(--raise);border:1px solid var(--line-2);border-radius:12px;padding:10px 14px;margin-bottom:8px;color:var(--ink);font-size:16px;text-align:left}
+.ki-fb .ki-av{width:38px;height:38px;font-size:15px}.ki-fb b{flex:1}.ki-fb span:last-child{color:var(--accent);font-weight:700;font-size:14px}
+.ki-fb.on{opacity:.65}.ki-fb.on span:last-child{color:var(--ok-text)}
+.ki-undo{margin-top:10px;background:transparent;border:0;color:var(--ink-3);font-size:14px;text-decoration:underline}
+.ki-count{margin-top:8px;font-size:12px;color:var(--ink-3)}
 .ki-hint,.ki-none{color:var(--ink-3);text-align:center;padding:28px 10px;font-size:15px}
 .ki-wrap.done{justify-content:center;overflow-y:auto}
 .ki-card{background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:38px 26px;text-align:center;flex:none}
@@ -215,9 +221,23 @@ body[data-role="signin"]{overflow:hidden}
 .rrow .rn{flex:1;min-width:0;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rrow .rn small{display:block;font-weight:500;color:var(--ink-3);font-size:11.5px}
 .rrow.absent .rn{color:var(--ink-3)}
-.rrow.absent .rn b{text-decoration:line-through}
+.rrow.absent .rn b{font-weight:600}
 .chk{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);flex:none;display:grid;place-items:center;color:var(--ink-3)}
 .chk.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* check-in card: progress, search, Not here / Here / All */
+.ci-tools{padding:2px 12px 4px;display:flex;flex-direction:column;gap:8px}
+.ci-bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden}.ci-bar i{display:block;height:100%;width:0;background:var(--ok);transition:width .3s}
+.ci-q{width:100%;font:inherit;font-size:15px;padding:9px 12px;border-radius:10px;border:1px solid var(--line-2);background:var(--bg);color:var(--ink)}
+.ci-q:focus{outline:0;border-color:var(--accent)}
+.ci-seg{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px}
+.ci-seg button{flex:1;border:0;background:transparent;border-radius:7px;padding:6px 4px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.ci-seg button b{font-weight:700;margin-left:2px}
+.ci-seg button.on{background:var(--raise);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.rrow .rt{font-size:11.5px;color:var(--ok-text);font-weight:600;white-space:nowrap}
+.rrow .chk{width:40px;height:40px;border-radius:10px}
+.ci-empty{padding:16px 8px;color:var(--ink-3);font-size:13.5px;text-align:center}
+.ci-undo{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:14px;background:var(--raise);color:var(--ink);border:1px solid var(--line-2);border-radius:12px;padding:10px 12px 10px 16px;box-shadow:var(--shadow);font-weight:600}
+.ci-undo button{border:0;background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:7px 14px;font-weight:700}
 .chk svg{width:16px;height:16px}
 .statline{display:flex;gap:0;border-top:1px solid var(--line-2)}
 .statline div{flex:1;padding:12px 10px;text-align:center;border-right:1px solid var(--line-2)}
@@ -543,6 +563,9 @@ body[data-role="signin"]{overflow:hidden}
     </div>
     <div class="side">
       <div class="card" id="checkinCard"><h3>Check-in</h3><div class="ch-sub" id="ciSub">Tap to mark who's arrived</div>
+        <div class="ci-tools"><div class="ci-bar"><i id="ciBar"></i></div>
+          <input id="ciQ" class="ci-q" type="search" placeholder="Find a name…" autocomplete="off" enterkeyhint="done">
+          <div class="ci-seg" id="ciSeg"><button data-f="todo">Not here <b id="ciNTodo">0</b></button><button data-f="here">Here <b id="ciNHere">0</b></button><button data-f="all">All</button></div></div>
         <div class="roster" id="roster"></div></div>
       <div class="card" id="currCard" hidden><h3 id="currTitle">Curriculum</h3><div class="ch-sub" id="currSub"></div>
         <div class="currpanel" id="currPanel"></div></div>
@@ -604,7 +627,7 @@ function mapStudents(list){
     const min=(CURR[belt]&&CURR[belt].min)||0, prog=min?Math.min(100,Math.round((r.classes||0)/min*100)):0;
     STUDENTS.push({ id, entry_id:r.entry_id, member_key:r.member_key, name:r.full_name||'—', belt, belt_to, rank:(r.belt_from||''), target:(r.belt_to||''),
       weeks:r.weeks||0, classes:r.classes||0, lastGap:r.weeks||0, prog, ready:!!r.ready, bbc:!!r.bbc, bbcInv:r.bbc_invited_at||null, bbcWritten:r.bbc_written_at||null,
-      sub:r.sub!==false, loc:r.loc||'', age:r.age||0, attend:r.attend||'green', fam:r.family||('f'+id), paid:r.paid!==false, booked:!!r.booked,
+      sub:r.sub!==false, loc:r.loc||'', age:r.age||0, attend:r.attend||'green', inAt:r.checked_in_at||null, fam:r.family||('f'+id), paid:r.paid!==false, booked:!!r.booked,
       programs:(r.programs==null?null:r.programs), referrals:(r.referrals==null?null:r.referrals), days:[], pack:null, fee:null });
     if(r.score){ if(r.score.scores && Object.keys(r.score.scores).length) scores[id]={...r.score.scores};
       if(r.score.pattern) patt[id]=r.score.pattern; if(Array.isArray(r.score.ticks)&&r.score.ticks.length) ticks[id]=new Set(r.score.ticks); }
@@ -794,16 +817,20 @@ function centreOut(pos){
 function kioskResults(){
   const q=kioskState.q.trim().toLowerCase();
   if(!q) return '<div class="ki-hint">Start typing to find your name.</div>';
-  const m=STUDENTS.filter(s=>s.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name)).slice(0,8);
+  const m=STUDENTS.map(s=>({s,r:nameRank(s.name,q)})).filter(o=>o.r>=0).sort((a,b)=>a.r-b.r||a.s.name.localeCompare(b.s.name)).slice(0,8).map(o=>o.s);
   if(!m.length) return '<div class="ki-none">No match — check your spelling, or see a staff member.</div>';
   return m.map(s=>{const here=!absentIds.has(s.id); return `<button class="ki-res" data-id="${s.id}"><div class="ki-av" style="background:${beltC(s.belt)}">${initials(s.name)}</div><div class="ki-rt"><b>${s.name}</b><span>${s.belt} belt · age ${s.age} · ${s.loc}</span></div><span class="ki-go">${here?'Already in ›':'Check in ›'}</span></button>`;}).join('');
 }
 function wireKioskResults(){ $$('#kiResults .ki-res').forEach(b=>b.onclick=()=>kioskCheckIn(+b.dataset.id)); }
-function kioskCheckIn(id){
-  if(absentIds.has(id)){ absentIds.delete(id); persistCheckin(id,true); }   // mark arrival; group (cone) is already fixed
+function kioskCheckIn(id, also){
+  const was=absentIds.has(id);
+  if(was){ absentIds.delete(id); const s=byId(id); if(s) s.inAt=new Date().toISOString(); persistCheckin(id,true); }   // mark arrival; their line is already set
   if(groupOf(id)<0) placeLate(id);                                          // safety: a student with no slot gets one
-  kioskState.done={id}; render();
+  if(also){ kioskState.done.also=[...(kioskState.done.also||[]),id]; kioskState.done.until=Date.now()+12000; render(); return; }
+  kioskState.done={id, was, also:[], until:Date.now()+12000}; render();
 }
+let kiT=null;
+function kioskReset(){ clearInterval(kiT); kioskState={q:'',done:null}; render(); }
 function renderKiosk(){
   const k=$('#kiosk');
   if(kioskState.done){
@@ -814,8 +841,18 @@ function renderKiosk(){
       <div class="ki-name">${s.name}</div><div class="ki-msg">You're checked in</div>
       ${g?`<div class="ki-group" style="--bc:${g.belt?beltC(g.belt):'var(--accent)'}"><div class="ki-cone">${g.cone}</div><div class="ki-gi"><b>${kgr?`Grading ${kgr.num} · `:''}${gword()} ${g.cone}</b><span>${kgr&&kgr.label?esc(kgr.label)+' · ':''}${g.name}</span></div></div>
         <div class="ki-find">${kgr?`You're in <b>Grading ${kgr.num}</b>${kgr.label?` (${esc(kgr.label)})`:''} — head to <b>Line ${g.cone}</b> and line up there`:BBMODE()?`Head to <b>Line ${g.cone}</b> and line up there`:`Head to the <b>Group ${g.cone}</b> cones and wait there`}</div>`:`<div class="ki-find">Please see a staff member for your group.</div>`}
-      <button class="ki-next" id="kiNext">Done — next person</button></div></div>`;
-    $('#kiNext').onclick=()=>{ kioskState={q:'',done:null}; render(); };
+      ${(()=>{ const sib=siblingsOf(s); if(!sib.length) return '';
+        return `<div class="ki-fam"><div class="ki-fh">Checking in family too?</div>${sib.map(x=>{ const here=!absentIds.has(x.id);
+          return `<button class="ki-fb${here?' on':''}" data-also="${x.id}" ${here?'disabled':''}><span class="ki-av" style="background:${beltC(x.belt)}">${initials(x.name)}</span><b>${esc(x.name.split(' ')[0])}</b><span>${here?'Checked in ✓':'Check in ›'}</span></button>`; }).join('')}</div>`; })()}
+      <button class="ki-next" id="kiNext">Done — next person</button>
+      ${kioskState.done.was?'<button class="ki-undo" id="kiUndo">Not you? Undo</button>':''}
+      <div class="ki-count" id="kiCount"></div></div></div>`;
+    $('#kiNext').onclick=kioskReset;
+    $$('#kiosk [data-also]').forEach(b=>b.onclick=()=>{ kioskCheckIn(+b.dataset.also,true); });
+    const ku=$('#kiUndo'); if(ku) ku.onclick=()=>{ const d=kioskState.done; [d.id,...(d.also||[])].forEach(i=>{ absentIds.add(i); const x=byId(i); if(x) x.inAt=null; persistCheckin(i,false); }); kioskReset(); };
+    // back to the start on its own, so the next person isn't looking at someone else's screen
+    const cnt=()=>{ if(!kioskState.done) return; const n=Math.ceil((kioskState.done.until-Date.now())/1000); if(n<=0) return kioskReset(); const c=$('#kiCount'); if(c) c.textContent=`Back to the start in ${n}s`; }; cnt();
+    clearInterval(kiT); kiT=setInterval(cnt,1000);
     return;
   }
   const rows=[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['Z','X','C','V','B','N','M']];
@@ -1034,21 +1071,7 @@ function render(){
     wireFloor(state.active,g);
   }
   // roster
-  const p=present(); const all=[...STUDENTS].sort((a,b)=>beltR(a.belt)-beltR(b.belt)||a.name.localeCompare(b.name));
-  $('#ciSub').textContent=`${p.length} of ${STUDENTS.length} checked in`;
-  $('#roster').innerHTML=all.map(s=>{
-    const here=!absentIds.has(s.id);
-    return `<div class="rrow ${here?'':'absent'}" data-s="${s.id}">
-      <span class="dot" style="background:${beltC(s.belt)}"></span>
-      <div class="rn"><b>${s.name}${s.paid?'':' <span class="upaid">UNPAID</span>'}</b><small>${/dan|black/i.test(s.belt)?s.belt:`${shortBelt(s.belt)} belt`} · age ${s.age}</small></div>
-      <button class="chk ${here?'on':''}" data-chk="${s.id}" aria-label="toggle">${here?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</button></div>`;
-  }).join('');
-  $$('#roster .chk').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const id=+b.dataset.chk; const wasAbsent=absentIds.has(id);
-    if(wasAbsent){ absentIds.delete(id); if(groupOf(id)<0 && !placeLate(id)) state.alert=byId(id); }  // mark arrived; cone already fixed
-    else { absentIds.add(id); }                                                                       // mark not-here (no un-coning)
-    persistCheckin(id,wasAbsent);
-    render(); });
-  $$('#roster .rrow').forEach(r=>r.onclick=()=>openProfile(+r.dataset.s));
+  renderRoster();
   // role gating
   $('#gearBtn').hidden = !(role==='admin'||role==='super');     // admin + super set up the floor
   const bbStaff = BBMODE() && (role==='admin'||role==='super'||role==='master'||role==='sarah');
@@ -1253,6 +1276,48 @@ const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY, { auth: { l
 if (window.Off) Off.wrap(sb);   // keeps working with no signal (offline.js)
 const SUPER_EMAIL = 'theggatonklenner@gmail.com';   // only this login gets the Super role
 let ME = '', PERMS = [], canSuper = false, loading = false, pollT = null;
+// ---- Check-in card: progress, find a name, Not here / Here / All, big tick, check-in time, Undo ----
+let ciFilter=null, ciUndoT=null;
+const fold=t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+// names that start with what's typed (first or last name) come first, then any other match
+function nameRank(name,q){ const n=fold(name), w=fold(q).trim(); if(!w) return 1; if(n.startsWith(w)) return 0; if(n.split(/[\s'-]+/).some(p=>p.startsWith(w))) return 1; return n.includes(w)?2:-1; }
+function renderRoster(){
+  const p=present(), todo=STUDENTS.length-p.length;
+  if(ciFilter==null) ciFilter = p.length && todo ? 'todo' : 'all';
+  if(ciFilter==='todo' && !todo) ciFilter='all';
+  $('#ciSub').textContent = !STUDENTS.length ? 'Nobody on this grading yet' : todo ? `${p.length} of ${STUDENTS.length} checked in` : `Everyone's here (${STUDENTS.length})`;
+  $('#ciBar').style.width = STUDENTS.length ? (p.length/STUDENTS.length*100)+'%' : '0';
+  $('#ciNTodo').textContent=todo; $('#ciNHere').textContent=p.length;
+  $$('#ciSeg button').forEach(b=>b.classList.toggle('on', b.dataset.f===ciFilter));
+  const q=$('#ciQ').value||'';
+  let list=STUDENTS.filter(s=>{ const here=!absentIds.has(s.id); return q.trim() ? true : ciFilter==='all' || (ciFilter==='here')===here; })
+    .map(s=>({s,r:nameRank(s.name,q)})).filter(o=>o.r>=0);
+  list.sort((a,b)=>a.r-b.r || (q.trim()?0:beltR(a.s.belt)-beltR(b.s.belt)) || a.s.name.localeCompare(b.s.name));
+  const tm=t=>{ try{ return new Date(t).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}).replace(' ',''); }catch(e){ return ''; } };
+  $('#roster').innerHTML = list.length ? list.map(({s})=>{ const here=!absentIds.has(s.id);
+    return `<div class="rrow ${here?'':'absent'}" data-s="${s.id}">
+      <span class="dot" style="background:${beltC(s.belt)}"></span>
+      <div class="rn"><b>${s.name}${s.paid?'':' <span class="upaid">UNPAID</span>'}</b><small>${/dan|black/i.test(s.belt)?s.belt:`${shortBelt(s.belt)} belt`} · age ${s.age}</small></div>
+      ${here&&s.inAt?`<span class="rt">${tm(s.inAt)}</span>`:''}
+      <button class="chk ${here?'on':''}" data-chk="${s.id}" aria-label="${here?'Mark not here':'Check in'} ${esc(s.name)}">${here?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':''}</button></div>`; }).join('')
+    : `<div class="ci-empty">${q.trim()?'No one by that name on this grading.':ciFilter==='todo'?'Everyone is checked in.':'Nobody checked in yet.'}</div>`;
+  $$('#roster .chk').forEach(b=>b.onclick=e=>{ e.stopPropagation(); ciToggle(+b.dataset.chk); });
+  $$('#roster .rrow').forEach(r=>r.onclick=()=>openProfile(+r.dataset.s));
+}
+function ciToggle(id, quiet){ const s=byId(id); if(!s) return; const wasAbsent=absentIds.has(id);
+  if(wasAbsent){ absentIds.delete(id); s.inAt=new Date().toISOString(); if(groupOf(id)<0 && !placeLate(id)) state.alert=s; }   // arrived; their line is already set
+  else { absentIds.add(id); s.inAt=null; }                                                                                    // not here (stays on their line)
+  persistCheckin(id,wasAbsent);
+  if($('#ciQ').value){ $('#ciQ').value=''; }   // found them: clear the search for the next person
+  render();
+  if(!quiet) ciUndo(`${s.name.split(' ')[0]} ${wasAbsent?'checked in':'marked not here'}`, ()=>ciToggle(id,true));
+}
+function ciUndo(msg, fn){ let u=$('#ciUndo'); if(!u){ u=document.createElement('div'); u.id='ciUndo'; u.className='ci-undo'; document.body.appendChild(u); }
+  u.innerHTML=`<span>${esc(msg)}</span><button>Undo</button>`; u.hidden=false; u.querySelector('button').onclick=()=>{ u.hidden=true; clearTimeout(ciUndoT); fn(); };
+  clearTimeout(ciUndoT); ciUndoT=setTimeout(()=>{ u.hidden=true; },5000); }
+$('#ciQ').addEventListener('input',()=>renderRoster());
+$('#ciQ').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const first=$('#roster .chk:not(.on)'); if(first) first.click(); } });
+$$('#ciSeg button').forEach(b=>b.onclick=()=>{ ciFilter=b.dataset.f; renderRoster(); });
 function toast(msg, ms) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); } t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms || 3000); }
 const SCHOOL_LABEL = { West: 'Auburn' };
 const schoolOf = s => SCHOOL_LABEL[s] || s || '';
