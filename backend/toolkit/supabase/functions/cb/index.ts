@@ -2511,7 +2511,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
-    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
+    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || body.action === 'deputy_timesheet' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
     if (!me && !cronSync) return fail('Sign in first.', 401);
     // AMA ID Cards: text and email people a link to upload a photo for their card. Needs ID Cards "Edit people" (or Admin).
     // { person_ids: [...], preview: true } returns the messages for the first person without sending.
@@ -2936,7 +2936,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     //       cb_roster_settings only (Tate and Mark). Deputy: DEPUTY_HOST (built in) and the DEPUTY_TOKEN secret. =====
     const rosterApprover = async () => { const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();
       return !!(me && rs && (rs.approvers || []).some((e: string) => String(e).toLowerCase() === me)); };
-    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs', 'deputy_connect_url', 'deputy_connect', 'deputy_status', 'roster_deputy_remove', 'pay_rates', 'deputy_shift', 'deputy_day'].includes(body.action);
+    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs', 'deputy_connect_url', 'deputy_connect', 'deputy_status', 'roster_deputy_remove', 'pay_rates', 'deputy_shift', 'deputy_day', 'deputy_timesheet'].includes(body.action);
     // reading usual shifts from Deputy can also run from the database (x-cb-cron), e.g. a nightly refresh
     const cronOk = cronSync;   // deputy_usual and pay_rates (read-only) can run from the database
     if (isRosterAction && !cronOk && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
@@ -3098,6 +3098,27 @@ export async function handle(req, db, env = {}, http = fetch) {
       const made = res.filter(x => /^shift made|^moved|updated in Deputy/.test(x.status)).length;
       await db.from('cb_day_rosters').update({ slots, ...(made ? { deputy_at: new Date().toISOString() } : {}) }).eq('roster_id', r.roster_id);
       return json({ ok: true, area: unit.name, made, results: res });
+    }
+
+    // ---- a staff member's timesheet on a day: read it, or change its times and team member comment.
+    //      { name, date, start?, end?, comment?, timesheet_id? } — without start/end/comment it only reads ----
+    if (body.action === 'deputy_timesheet') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date || '')) return fail('Need a date.');
+      try {
+        const emp = empFor(await depEmps(), String(body.name || '')); if (!emp) return fail('Not found in Deputy: ' + body.name);
+        const from = Math.round(sydMs(body.date, '00:00') / 1000);
+        const ts: any[] = await dep('resource/Timesheet/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Employee', type: 'eq', data: +emp.Id }, s2: { field: 'StartTime', type: 'ge', data: from }, s3: { field: 'StartTime', type: 'lt', data: from + 86400 } }, max: 20 }) });
+        const view = (t: any) => ({ id: t.Id, start: sydParts(+t.StartTime).hm, end: sydParts(+t.EndTime).hm, hours: t.TotalTime, approved: !!t.TimeApproved, paid: !!t.PayRuleApproved, locked: !!t.IsLocked || !!t.Exported, comment: t.EmployeeComment || null, supervisor_comment: t.SupervisorComment || null, roster: t.Roster || null });
+        if (!body.start && !body.end && body.comment == null) return json({ ok: true, employee: emp.DisplayName, timesheets: ts.map(view) });
+        const t = body.timesheet_id ? ts.find(x => +x.Id === +body.timesheet_id) : (ts.length === 1 ? ts[0] : null);
+        if (!t) return fail(ts.length ? 'More than one timesheet that day: say which (timesheet_id).' : 'No timesheet that day.');
+        const st = body.start ? Math.round(sydMs(body.date, body.start) / 1000) : +t.StartTime, en = body.end ? Math.round(sydMs(body.date, body.end) / 1000) : +t.EndTime;
+        const brk = +(t.Mealbreak ? 0 : 0), total = Math.round(((en - st) / 3600 - (+t.TotalTimeInv || 0) * 0) * 100) / 100;
+        const patch: any = { StartTime: st, EndTime: en, TotalTime: total };
+        if (body.comment != null) patch.EmployeeComment = String(body.comment).slice(0, 1000);
+        const up = await dep('resource/Timesheet/' + (+t.Id), { method: 'POST', body: JSON.stringify(patch) });
+        return json({ ok: true, employee: emp.DisplayName, before: view(t), after: view(up || {}) });
+      } catch (er) { return fail(String(er.message || er)); }
     }
 
     // ---- read-only: every Deputy shift on a day, by school. { date, location? } ----
