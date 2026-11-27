@@ -47,6 +47,19 @@
   .opts2 button[aria-pressed="true"].yes { background: var(--ok); border-color: var(--ok); color: #fff; }
   .opts2 button[aria-pressed="true"].no { background: var(--no); border-color: var(--no); color: #fff; }
   @media (max-width: 380px) { .gr { flex-direction: column; align-items: stretch; } .opts2 button { flex: 1; } }
+  .glist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .gl { display: flex; gap: 10px; font-size: 15px; color: var(--ink-2); }
+  .gl b { font: 500 16px var(--disp); color: var(--ink); min-width: 58px; }
+  .gl .age { color: var(--ink); font-weight: 600; }
+  .opts2.day2 button { flex: 1; min-height: 50px; }
+  .grp { margin-bottom: 10px; }
+  .grp .gh { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+  .opts3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; margin-top: 12px; }
+  .opts3 button { min-height: 52px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 10px; font: 600 15px "Source Sans 3", Arial, sans-serif; cursor: pointer; padding: 6px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .opts3 button small { font-weight: 400; font-size: 12px; color: var(--ink-2); }
+  .opts3 button[aria-pressed="true"].yes { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .opts3 button[aria-pressed="true"].no { background: var(--no); border-color: var(--no); color: #fff; }
+  .opts3 button[aria-pressed="true"] small { color: inherit; opacity: .85; }
   .save { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%); padding: 20px 0 calc(12px + env(safe-area-inset-bottom)); }
   .save button { width: 100%; min-height: 54px; border: 0; border-radius: 12px; background: var(--night); color: #F4F1EA; font: 600 17px "Source Sans 3", Arial, sans-serif; cursor: pointer; }
   .save button:disabled { opacity: .5; }
@@ -86,23 +99,46 @@
     if (g.min_age) return 'Teens and adults (' + g.min_age + '+)';
     return 'All ages';
   }
+  // availability is by group for the day: kids' gradings, teens and adults' gradings, or both (or not free).
+  // The gradings in each group are listed with their times, age group and belts.
+  function groupOf(g) { if (/little dragon/i.test(g.programme || '')) return 'ld'; if (g.max_age) return 'kids'; if (g.min_age) return 'adults'; return 'all'; }
+  var GNAME = { kids: 'Kids', adults: 'Teens and adults', ld: 'Little Dragons', all: 'All ages' };
+  function groups(d) { var out = []; (d.gradings || []).forEach(function (g) { var k = groupOf(g), x = out.find(function (o) { return o.k === k; }); if (!x) out.push(x = { k: k, gs: [] }); x.gs.push(g); }); return out; }
+  function span(gs) { return gs.map(function (g) { return t12(g.start); }).join(', '); }
+  function choice(d) {   // which button is on, from what's saved
+    var s = ST[d.date] || {}, G = groups(d), on = G.filter(function (o) { return o.gs.every(function (g) { return s[g.day_id] === 'yes'; }); });
+    if (G.length && on.length === G.length) return 'both';
+    if (on.length === 1) return on[0].k;
+    if ((d.gradings || []).length && (d.gradings || []).every(function (g) { return s[g.day_id] === 'no'; })) return 'no';
+    return '';
+  }
   function draw() {
     if (!DAYS.length) { $('#m').innerHTML = '<div class="empty">There are no Marrickville gradings coming up right now. Thanks for checking.</div>'; return; }
     $('#m').innerHTML = '<div class="note"><b>These are not guaranteed shifts.</b>Telling us when you\'re free just helps us with rostering. If you\'re rostered on, we\'ll contact you and you\'ll get a notification with your shift.</div>' +
       DAYS.map(function (d, i) {
-        var dt = new Date(d.date + 'T00:00:00'), s = ST[d.date] || {};
-        return '<div class="day"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b>' +
-          '<span class="all"><button type="button" data-all="' + i + '" data-s="yes">All free</button><button type="button" data-all="' + i + '" data-s="no">None</button></span></div>' +
-          (d.gradings || []).map(function (g) {
-            var v = s[g.day_id] || '';
-            return '<div class="gr"><div class="gi"><b>' + t12(g.start) + '</b><span class="age">' + esc(ageText(g)) + '</span><span class="belts">' + esc(beltsText(g)) + '</span></div>' +
-              '<div class="opts2" role="group" aria-label="Free for the ' + t12(g.start) + ' grading?">' +
-              '<button type="button" class="yes" data-d="' + i + '" data-g="' + g.day_id + '" data-s="yes" aria-pressed="' + (v === 'yes') + '">Free</button>' +
-              '<button type="button" class="no" data-d="' + i + '" data-g="' + g.day_id + '" data-s="no" aria-pressed="' + (v === 'no') + '">Not free</button></div></div>';
-          }).join('') + '</div>';
+        var dt = new Date(d.date + 'T00:00:00'), G = groups(d), c = choice(d);
+        var opts = G.length > 1
+          ? G.map(function (o) { return ['' + o.k, GNAME[o.k], span(o.gs)]; }).concat([['both', G.length > 2 ? 'All' : 'Both', 'all day'], ['no', 'Not free', '']])
+          : [['both', 'Free', span((d.gradings || []))], ['no', 'Not free', '']];
+        return '<div class="day"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b></div>' +
+          G.map(function (o) { return '<div class="grp"><div class="gh">' + GNAME[o.k] + '</div>' + o.gs.map(function (g) {
+            return '<div class="gl"><b>' + t12(g.start) + '</b><span>' + esc(beltsText(g)) + '</span></div>'; }).join('') + '</div>'; }).join('') +
+          '<div class="opts3" role="group" aria-label="When are you free on this day?">' + opts.map(function (o) {
+            var st = ST[d.date] || {}, grp = G.find(function (x) { return x.k === o[0]; });
+            var on = grp ? grp.gs.every(function (g) { return st[g.day_id] === 'yes'; }) && c !== 'both' : c === o[0];   // groups can be picked together
+            return '<button type="button" class="' + (o[0] === 'no' ? 'no' : 'yes') + '" data-d="' + i + '" data-c="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (o[2] ? '<small>' + esc(o[2]) + '</small>' : '') + '</button>'; }).join('') + '</div></div>';
       }).join('') + '<div class="save"><button id="save" type="button">Save my availability</button><div class="msg" id="msg"></div></div>';
-    [].forEach.call(document.querySelectorAll('[data-g]'), function (b) { b.onclick = function () { var d = DAYS[+b.dataset.d].date, s = ST[d] = ST[d] || {}; s[b.dataset.g] = s[b.dataset.g] === b.dataset.s ? '' : b.dataset.s; draw(); }; });
-    [].forEach.call(document.querySelectorAll('[data-all]'), function (b) { b.onclick = function () { var d = DAYS[+b.dataset.all], s = ST[d.date] = {}; (d.gradings || []).forEach(function (g) { s[g.day_id] = b.dataset.s; }); draw(); }; });
+    [].forEach.call(document.querySelectorAll('[data-c]'), function (b) { b.onclick = function () {
+      var d = DAYS[+b.dataset.d], c = b.dataset.c, cur = choice(d), s = ST[d.date] = ST[d.date] || {}, all = d.gradings || [];
+      if (c === 'both' || c === 'no') { var off = cur === c; all.forEach(function (g) { s[g.day_id] = off ? '' : (c === 'no' ? 'no' : 'yes'); }); }
+      else {   // toggle this group; the rest stay as they are (unanswered ones count as not free)
+        var mine = all.filter(function (g) { return groupOf(g) === c; }), isOn = mine.every(function (g) { return s[g.day_id] === 'yes'; }) && cur !== 'both';
+        if (cur === 'both' || cur === 'no') all.forEach(function (g) { s[g.day_id] = 'no'; });
+        mine.forEach(function (g) { s[g.day_id] = isOn ? 'no' : 'yes'; });
+        all.forEach(function (g) { if (s[g.day_id] !== 'yes') s[g.day_id] = 'no'; });
+        if (all.every(function (g) { return s[g.day_id] === 'no'; }) && isOn) all.forEach(function (g) { s[g.day_id] = ''; });
+      }
+      draw(); }; });
     $('#save').onclick = save;
   }
   function save() {
