@@ -2944,6 +2944,60 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, sent: res.filter(x => x.status === 'sent').length, results: res });
     }
 
+    // ---- Put an approved roster into Deputy as published shifts (Mark). { day_id, opunit_id? }
+    //      Needs the DEPUTY_HOST (e.g. ama.au.deputy.com) and DEPUTY_TOKEN (a permanent token) secrets.
+    //      People are matched to Deputy employees by name; each shift made is remembered on its slot so it's never made twice. ----
+    if (body.action === 'roster_deputy') {
+      if (!can('admin')) return fail('Only Mark (admin) can add shifts to Deputy.', 403);
+      const host = String(env.DEPUTY_HOST || '').replace(/^https?:\/\//, '').replace(/\/.*$/, ''), dtok = env.DEPUTY_TOKEN;
+      if (!host || !dtok) return fail('Deputy is not connected yet (add the DEPUTY_HOST and DEPUTY_TOKEN secrets in Supabase).', 409);
+      const dep = async (path: string, init: any = {}) => {
+        const r = await fetch('https://' + host + '/api/v1/' + path, { ...init, headers: { Authorization: 'Bearer ' + dtok, 'Content-Type': 'application/json', Accept: 'application/json', ...(init.headers || {}) } });
+        const t = await r.text(); let j: any = null; try { j = JSON.parse(t); } catch (_) { j = t; }
+        if (!r.ok) throw new Error('Deputy ' + r.status + ': ' + (typeof j === 'string' ? j : (j && (j.error && (j.error.message || j.error)) || JSON.stringify(j))).toString().slice(0, 200));
+        return j;
+      };
+      const { data: r } = await db.from('cb_rosters').select('day_id, slots, status').eq('day_id', String(body.day_id || '')).maybeSingle();
+      if (!r) return fail('No roster for that grading.', 404);
+      if (r.status !== 'approved') return fail('Approve the roster first.', 409);
+      const { data: d } = await db.from('cb_days').select('grading_date, location, start_time').eq('day_id', r.day_id).maybeSingle();
+      if (!d) return fail('That grading was not found.', 404);
+      // the area (operational unit) the shifts go in: the one picked, else one at this school with "grading" in its name, else the school's only area
+      let units: any[] = [];
+      try { units = await dep('resource/OperationalUnit/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Active', type: 'eq', data: true } }, join: ['CompanyObject'], max: 500 }) }); } catch (er) { return fail(String(er.message || er)); }
+      const uname = (u: any) => String(u.OperationalUnitName || ''), cname = (u: any) => String((u.CompanyObject && (u.CompanyObject.CompanyName || u.CompanyObject.TradingName)) || u.CompanyName || '');
+      const loc = String(d.location || '').toLowerCase().replace('west', 'auburn');
+      const atLoc = units.filter(u => (cname(u) + ' ' + uname(u)).toLowerCase().includes(loc));
+      let unit = body.opunit_id ? units.find(u => +u.Id === +body.opunit_id) : (atLoc.find(u => /grading/i.test(uname(u))) || (atLoc.length === 1 ? atLoc[0] : null));
+      if (!unit) return json({ ok: false, pick_area: true, error: 'Which Deputy area should these shifts go in?', areas: (atLoc.length ? atLoc : units).map(u => ({ id: u.Id, name: uname(u), location: cname(u) })) });
+      let emps: any[] = [];
+      try { emps = await dep('resource/Employee/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Active', type: 'eq', data: true } }, max: 500 }) }); } catch (er) { return fail(String(er.message || er)); }
+      const norm = (x: string) => String(x || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+      const findEmp = (name: string) => { const n = norm(name);
+        return emps.find(e => norm(e.DisplayName) === n) || emps.find(e => norm((e.FirstName || '') + ' ' + (e.LastName || '')) === n)
+          || (() => { const f = n.split(' ')[0], l = n.split(' ').slice(-1)[0]; const c = emps.filter(e => norm(e.FirstName) === f && norm(e.LastName).startsWith(l)); return c.length === 1 ? c[0] : null; })(); };
+      const slots = (r.slots || []).map((x: any) => ({ ...x }));
+      const res = [];
+      for (const sl of slots) {
+        if (!sl.name) continue;
+        if (sl.deputy_id) { res.push({ name: sl.name, status: 'already in Deputy' }); continue; }
+        const st = sl.start || (d.start_time ? String(d.start_time).slice(0, 5) : ''), en = sl.end;
+        if (!st || !en) { res.push({ name: sl.name, status: 'needs a start and finish time' }); continue; }
+        const emp = findEmp(sl.name);
+        if (!emp) { res.push({ name: sl.name, status: 'not found in Deputy (check the name matches)' }); continue; }
+        try {
+          const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({
+            intStartTimestamp: Math.round(sydMs(d.grading_date, st) / 1000), intEndTimestamp: Math.round(sydMs(d.grading_date, en) / 1000),
+            intOpunitId: +unit.Id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
+            strComment: `${sl.role === 'admin' ? 'Admin' : 'Floor staff'}, ${d.location} grading` }) });
+          sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id;
+          res.push({ name: sl.name, status: 'shift made' });
+        } catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
+      }
+      await db.from('cb_rosters').update({ slots, deputy_at: res.some(x => x.status === 'shift made') ? new Date().toISOString() : undefined }).eq('day_id', r.day_id);
+      return json({ ok: true, area: uname(unit), made: res.filter(x => x.status === 'shift made').length, results: res });
+    }
+
     if (body.action === 'helper_send') {
       if (!can('helpers', 'days', 'settings')) return fail('Not allowed.', 403);
       const { data: p } = await db.from('prep_students').select('full_name, efc_ref').eq('student_id', String(body.student_id || '')).maybeSingle();
