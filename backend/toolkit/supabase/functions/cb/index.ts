@@ -3037,7 +3037,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       let units: any[] = [], emps: any[] = [];
       try { units = await depUnits(); emps = await depEmps(); } catch (er) { return fail(String(er.message || er)); }
       const atLoc = units.filter(u => u.school === r.location);
-      const unit = body.opunit_id ? units.find(u => u.id === +body.opunit_id) : (atLoc.find(u => /grading/i.test(u.name)) || (atLoc.length === 1 ? atLoc[0] : null));
+      const unit = body.opunit_id ? units.find(u => u.id === +body.opunit_id) : (atLoc.find(u => /grading/i.test(u.name)) || atLoc.find(u => /^staff$/i.test(String(u.name).trim())) || atLoc.find(u => /staff/i.test(u.name)) || (atLoc.length === 1 ? atLoc[0] : null));   // the school's Staff area
       if (!unit) return json({ ok: false, pick_area: true, error: 'Which Deputy area should these shifts go in?', areas: (atLoc.length ? atLoc : units).map(u => ({ id: u.id, name: u.name, location: u.company })) });
       const dayFrom = Math.round(sydMs(r.date, '00:00') / 1000), dayTo = dayFrom + 86400;
       const slots = (r.slots || []).map((x: any) => ({ ...x }));
@@ -3094,7 +3094,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date || '') || !/^\d{1,2}:\d{2}$/.test(body.start || '') || !/^\d{1,2}:\d{2}$/.test(body.end || '')) return fail('Need a date, start and end.');
       try {
         const units = await depUnits(), emps = await depEmps();
-        const loc = body.location || 'Marrickville', unit = units.find(u => u.school === loc);
+        const loc = body.location || 'Marrickville', atLoc = units.filter(u => u.school === loc), unit = atLoc.find(u => /^staff$/i.test(String(u.name).trim())) || atLoc.find(u => /staff/i.test(u.name)) || atLoc[0];
         if (!unit) return fail('No Deputy area for ' + loc);
         const emp = empFor(emps, String(body.name || ''));
         if (!emp) return fail('Not found in Deputy: ' + body.name);
