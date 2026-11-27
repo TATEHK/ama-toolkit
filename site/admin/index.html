@@ -1112,7 +1112,7 @@ async function openRoster(date, location){
   const dt = defTimes();
   if(r && (r.slots || []).length) RO.slots = JSON.parse(JSON.stringify(r.slots));
   else {   // a new roster starts with everyone who usually works here that weekday (their usual times), then empty slots up to the number needed
-    const usual = RO.people.filter(p => (p.usual || []).some(u => u.location === location) && !(p.avail && p.avail.status === 'no'));
+    const usual = RO.people.filter(p => (p.usual || []).some(u => u.location === location));   // usually here = working, even if they said not free
     RO.slots = usual.map(p => { const u = p.usual.find(u => u.location === location);
       return { role: 'floor', usual: true, start: u.start, end: u.end, name: p.name, mobile: p.mobile || '', email: p.email || null, staff_id: p.staff_id, deputy_emp: p.deputy_emp || null }; });
     while(RO.slots.length < RO.lim.floor.need) RO.slots.push({ role: 'floor', ...dt, name: '', mobile: '' });
