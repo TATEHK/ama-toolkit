@@ -938,21 +938,31 @@ $('#reqForm').addEventListener('submit', async e => {
   closeReq(); await load();
 });
 const canApprove = () => !!(RSET && RSET.me_approves);   // Tate and Mark approve rosters
+// One roster per day at each school: every grading that day shares the roster, kept on the day's first grading
+function dayGroup(dayId){
+  const all = (DATA && DATA.gradings) || [], g = all.find(x => x.day_id === dayId);
+  if(!g) return { anchor: dayId, ids: [dayId], starts: [startOf(dayId)].filter(Boolean) };
+  const same = all.filter(x => x.grading_date === g.grading_date && (x.location || '') === (g.location || ''))
+    .sort((a, b) => String(startOf(a.day_id) || '99').localeCompare(String(startOf(b.day_id) || '99')));
+  const own = same.find(x => rosterOf(x.day_id));   // a roster already made on any of them stays the one
+  return { anchor: (own || same[0]).day_id, ids: same.map(x => x.day_id), starts: same.map(x => startOf(x.day_id)).filter(Boolean).sort() };
+}
 /* ---- grading-day rosters: build here, Mark approves, then each person is texted their shift ---- */
 const RO_LABEL = { draft: 'Draft', submitted: 'Waiting for approval', approved: 'Approved', declined: 'Declined' };
 const rosterOf = id => ROSTERS.find(r => r.day_id === id) || null;
 const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r.status}${r.status === 'approved' && r.deputy_at ? ' · in Deputy' : ''}${r.status === 'approved' && r.notified_at ? ' · texted' : ''}</span>` : '';
-function rosterBtn(g){ const r = rosterOf(g.day_id), L = limitsOf(g.day_id), n = r ? (r.slots||[]).filter(x => x.name).length : 0, need = L.floor.need + L.admin.need;
+function rosterBtn(g){ const A = dayGroup(g.day_id).anchor, r = rosterOf(A), L = limitsOf(A), n = r ? (r.slots||[]).filter(x => x.name).length : 0, need = L.floor.need + L.admin.need;
   const has = r && (r.slots||[]).length;
-  return `<button class="btn mini" data-roster="${g.day_id}">${has ? `Roster ${n}/${need}` : 'Build roster'}</button>${has ? roTag(r) : ''}`; }
+  const grp = dayGroup(g.day_id).ids.length;
+  return `<button class="btn mini" data-roster="${A}">${has ? `Day roster ${n}/${need}` : 'Build day roster'}</button>${has ? roTag(r) : ''}${grp > 1 && !has ? `<span class="rtag">covers ${grp} gradings</span>` : ''}`; }
 // a grading's own needed/max numbers, else the defaults
 function limitsOf(dayId){ const r = rosterOf(dayId), d = RSET || {};
   const def = { floor: { need: d.floor_need ?? 2, max: d.floor_max ?? 4 }, admin: { need: d.admin_need ?? 1, max: d.admin_max ?? 2 } };
   const l = (r && r.limits) || {}; return { floor: { ...def.floor, ...(l.floor || {}) }, admin: { ...def.admin, ...(l.admin || {}) } }; }
 // a shift's usual times: N minutes before the grading starts, for H hours
-function defTimes(role, dayId){ const st = startOf(dayId); if(!st) return { start: '', end: '' };
-  const [h, m] = String(st).split(':').map(Number), d = RSET || {}, before = +(d[role + '_before'] ?? 30), hrs = +(d[role + '_hours'] ?? 3);
-  const a = h * 60 + m - before, b = a + Math.round(hrs * 60), f = x => { x = ((x % 1440) + 1440) % 1440; return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); };
+function defTimes(role, dayId){ const G = dayGroup(dayId), first = G.starts[0], last = G.starts[G.starts.length - 1]; if(!first) return { start: '', end: '' };
+  const mins = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; }, d = RSET || {}, before = +(d[role + '_before'] ?? 30), hrs = +(d[role + '_hours'] ?? 3);
+  const a = mins(first) - before, b = mins(last) - before + Math.round(hrs * 60), f = x => { x = ((x % 1440) + 1440) % 1440; return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); };
   return { start: f(a), end: f(b) }; }
 const newSlot = (role, dayId) => ({ role, ...defTimes(role, dayId), name: '', mobile: '' });
 function rosterWaiting(){
@@ -972,7 +982,8 @@ async function openRoster(dayId){
   const fresh = () => [...Array(L.floor.need)].map(() => newSlot('floor', dayId)).concat([...Array(L.admin.need)].map(() => newSlot('admin', dayId)));
   RO = { day_id: dayId, g, r, lim: JSON.parse(JSON.stringify(L)), limDirty: false, warned: false, slots: r && (r.slots || []).length ? JSON.parse(JSON.stringify(r.slots)) : fresh(), people: [] };
   $('#roTitle').textContent = r && (r.slots||[]).length ? 'Roster' : 'Build roster';
-  $('#roSub').textContent = `${fmtDate(g.grading_date)} · ${g.location || ''}${st ? ' · starts ' + fmtTime(st) : ''}`;
+  const G = dayGroup(dayId);
+  $('#roSub').textContent = `${fmtDate(g.grading_date)} · ${g.location || ''} · ${G.ids.length > 1 ? `${G.ids.length} gradings, ${G.starts.map(fmtTime).join(', ')}` : (st ? 'starts ' + fmtTime(st) : '')}`;
   $('#roStatus').innerHTML = roTag(r);
   $('#roNote').value = (r && r.note) || '';
   $('#roDec').hidden = !(r && r.decision_note); $('#roDec').textContent = r && r.decision_note ? `Approver's note: ${r.decision_note}` : '';
