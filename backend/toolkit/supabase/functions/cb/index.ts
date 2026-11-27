@@ -1417,7 +1417,8 @@ export async function handle(req, db, env = {}, http = fetch) {
       const byEmail = body.channel === 'email', subj = String(body.subject || 'A message from AMA').slice(0, 150);
       if (!dayId || tmpl.length < 10) return fail('Which day, and what message?');
       const { data: es } = await db.from('cb_entries').select('entry_id, member_key, full_name, paid, booked_at, cant_make_at').eq('day_id', dayId);
-      const list = (es || []).filter(e => (e.paid || e.booked_at) && !e.cant_make_at && !skip.has(e.entry_id) && (!only || only.has(e.entry_id)));
+      // named entries (only) go whether or not they've booked yet, e.g. an invitation
+      const list = (es || []).filter(e => (only ? only.has(e.entry_id) : (e.paid || e.booked_at)) && !e.cant_make_at && !skip.has(e.entry_id));
       const keys = list.map(e => e.member_key).filter(Boolean);
       const { data: ms } = keys.length ? await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').in('member_key', keys) : { data: [] };
       const byKey = Object.fromEntries((ms || []).map(m => [m.member_key, m]));
@@ -1434,7 +1435,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
       const res = [];
       for (const x of plan) {
-        const { data: done } = await db.from('cb_messages').select('message_id').eq('entry_id', x.e.entry_id).eq('kind', 'day_text').eq('status', 'sent').eq('body', x.text).limit(1);
+        const { data: done } = await db.from('cb_messages').select('message_id').eq('entry_id', x.e.entry_id).eq('kind', 'day_text').eq('status', 'sent').eq('body', x.text).not(byEmail ? 'email' : 'phone', 'is', null).limit(1);
         if (done && done.length) { res.push({ name: x.e.full_name, status: 'already sent' }); continue; }
         if (byEmail ? !x.email : !x.phone) { res.push({ name: x.e.full_name, status: byEmail ? 'no email' : 'no mobile' }); continue; }
         const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: x.e.entry_id, member_key: x.e.member_key, kind: 'day_text', phone: byEmail ? null : x.phone, email: byEmail ? x.email : null, body: x.text, status, sent_by: String(body.sent_by || 'staff').slice(0, 80), ...extra }).then(() => {}, () => {});
