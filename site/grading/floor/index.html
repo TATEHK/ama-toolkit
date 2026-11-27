@@ -1432,7 +1432,7 @@ const SCHOOL_LABEL = { West: 'Auburn' };
 const schoolOf = s => SCHOOL_LABEL[s] || s || '';
 const fmtDay = d => { if (!d) return ''; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }); };
 const HUB = { sb, url: CFG.SUPABASE_URL, key: CFG.SUPABASE_KEY, form: '#siForm' };
-try { if (window.AmaIdle) AmaIdle.watch({ sb }); } catch (e) {}
+try { if (window.AmaIdle) AmaIdle.watch({ sb, minutes: 720 }); } catch (e) {}   // the floor is used all day on grading days: 12 hours before an idle sign-out
 
 const slotEntries = g => g.slots.map(id => id == null ? null : (id2entry[id] || null));
 function groupsJson() { return state.groups.map((g, i) => ({ ord: i, cone: g.cone, belt: beltsOf(g)[0] || null, spots: g.spots, rows: g.rows, status: g.status, slots: slotEntries(g), opts: { title: g.title || '', belts: beltsOf(g), order: g.order || 'young' } })); }
