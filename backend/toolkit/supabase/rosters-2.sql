@@ -1,0 +1,2 @@
+-- Roster defaults and per-grading numbers (applied 2026-11-27): table cb_roster_settings (needed/max per role, shift start N min
+-- before the grading, length H hours), cb_rosters.limits, RPCs cb_ops_roster_settings, cb_ops_roster_settings_set (admin), cb_ops_roster_limits.
