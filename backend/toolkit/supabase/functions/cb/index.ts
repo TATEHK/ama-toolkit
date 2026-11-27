@@ -1413,10 +1413,11 @@ export async function handle(req, db, env = {}, http = fetch) {
     if (body.action === 'day_text') {
       const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
       if (okCron !== true) return fail('Not allowed.', 403);
-      const dayId = String(body.day_id || ''), tmpl = String(body.message || '').trim(), skip = new Set((body.exclude || []).map(String));
+      const dayId = String(body.day_id || ''), tmpl = String(body.message || '').trim(), skip = new Set((body.exclude || []).map(String)), only = body.only ? new Set(body.only.map(String)) : null;
+      const byEmail = body.channel === 'email', subj = String(body.subject || 'A message from AMA').slice(0, 150);
       if (!dayId || tmpl.length < 10) return fail('Which day, and what message?');
       const { data: es } = await db.from('cb_entries').select('entry_id, member_key, full_name, paid, booked_at, cant_make_at').eq('day_id', dayId);
-      const list = (es || []).filter(e => (e.paid || e.booked_at) && !e.cant_make_at && !skip.has(e.entry_id));
+      const list = (es || []).filter(e => (e.paid || e.booked_at) && !e.cant_make_at && !skip.has(e.entry_id) && (!only || only.has(e.entry_id)));
       const keys = list.map(e => e.member_key).filter(Boolean);
       const { data: ms } = keys.length ? await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').in('member_key', keys) : { data: [] };
       const byKey = Object.fromEntries((ms || []).map(m => [m.member_key, m]));
@@ -1429,18 +1430,23 @@ export async function handle(req, db, env = {}, http = fetch) {
         const email = kid ? (okE(m.guardian_email) || okE(m.email)) : (okE(m.email) || okE(m.guardian_email));
         return { e, m, kid, phone, email, text: tmpl.replace(/\{first\}/g, first(e.full_name) || 'there') };
       });
-      if (body.preview) return json({ ok: true, preview: true, count: plan.length, people: plan.map(x => ({ name: x.e.full_name, phone: x.phone, to_parent: x.kid })), sample: plan[0] && plan[0].text });
+      if (body.preview) return json({ ok: true, preview: true, count: plan.length, people: plan.map(x => ({ name: x.e.full_name, phone: x.phone, email: x.email, to_parent: x.kid })), sample: plan[0] && plan[0].text });
       if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
       const res = [];
       for (const x of plan) {
         const { data: done } = await db.from('cb_messages').select('message_id').eq('entry_id', x.e.entry_id).eq('kind', 'day_text').eq('status', 'sent').eq('body', x.text).limit(1);
         if (done && done.length) { res.push({ name: x.e.full_name, status: 'already sent' }); continue; }
-        if (!x.phone) { res.push({ name: x.e.full_name, status: 'no mobile' }); continue; }
-        const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: x.e.entry_id, member_key: x.e.member_key, kind: 'day_text', phone: x.phone, body: x.text, status, sent_by: String(body.sent_by || 'staff').slice(0, 80), ...extra }).then(() => {}, () => {});
+        if (byEmail ? !x.email : !x.phone) { res.push({ name: x.e.full_name, status: byEmail ? 'no email' : 'no mobile' }); continue; }
+        const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: x.e.entry_id, member_key: x.e.member_key, kind: 'day_text', phone: byEmail ? null : x.phone, email: byEmail ? x.email : null, body: x.text, status, sent_by: String(body.sent_by || 'staff').slice(0, 80), ...extra }).then(() => {}, () => {});
         try {
           const cid = await contactFor({ guardian_name: x.kid ? x.m.guardian_name : (x.m.full_name || x.e.full_name), full_name: x.m.full_name || x.e.full_name, email: x.email }, x.phone);
           if (!cid) throw new Error('could not find or add them in GoHighLevel');
-          const gid = await sendSms(cid, x.text); await log('sent', { ghl_id: gid }); res.push({ name: x.e.full_name, status: 'sent' });
+          if (byEmail) {   // the same words as a plain AMA email, links clickable
+            const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const html = '<div style="font:16px/1.55 Arial,sans-serif;color:#1c1c1c;max-width:560px">' + esc(x.text).split(/\n\n+/).map(p => '<p style="margin:0 0 14px">' + p.replace(/\n/g, '<br>').replace(/(https:\/\/[^\s<]+)/g, '<a href="$1" style="color:#1c1c1c;font-weight:700">$1</a>') + '</p>').join('') + '</div>';
+            await sendEmailTo(cid, { subject: subj, html, text: x.text }); await log('sent', { phone: null });
+          } else { const gid = await sendSms(cid, x.text); await log('sent', { ghl_id: gid }); }
+          res.push({ name: x.e.full_name, status: 'sent', to: byEmail ? x.email : x.phone });
         } catch (er) { const err = String(er.message || er).slice(0, 300); await log('failed', { error: err }); res.push({ name: x.e.full_name, status: 'failed', error: err }); }
       }
       return json({ ok: true, sent: res.filter(r => r.status === 'sent').length, results: res });
