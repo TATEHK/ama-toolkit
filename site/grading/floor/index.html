@@ -1336,7 +1336,7 @@ async function loadRoster(){ const f=$('#rosterField'); if(!f||!DAYID) return;
   try{ const { data } = await sb.rpc('cb_floor_roster',{ p_day_id: DAYID }); const sl=(data&&data.slots)||[];
     if(!sl.length){ f.hidden=true; return; }
     const t=v=>{ const m=/^(\d{1,2}):(\d{2})/.exec(v||''); if(!m) return ''; const h=+m[1]; return ((h+11)%12+1)+(m[2]==='00'?'':':'+m[2])+(h<12?'am':'pm'); };
-    const part=(r,l)=>{ const x=sl.filter(s=>s.role===r); return x.length?`<div style="margin-bottom:8px"><b>${l}</b>${x.map(s=>`<div>${esc(s.name)}${s.start?` <span style="opacity:.7">· ${t(s.start)}${s.end?'–'+t(s.end):''}</span>`:''}</div>`).join('')}</div>`:''; };
+    const part=(r,l)=>{ const x=sl.filter(s=>s.role===r); return x.length?`<div style="margin-bottom:8px"><b>${l}</b>${x.map(s=>`<div>${esc(s.name)}${s.job?` <span style="opacity:.7">· ${esc(s.job)}</span>`:''}${s.start?` <span style="opacity:.7">· ${t(s.start)}${s.end?'–'+t(s.end):''}</span>`:''}</div>`).join('')}</div>`:''; };
     $('#rosterList').innerHTML=part('floor','Floor staff'); f.hidden=false;
   }catch(e){ f.hidden=true; } }
 $('#rsBtn').onclick=openRunsheet;

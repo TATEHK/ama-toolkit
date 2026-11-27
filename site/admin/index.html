@@ -141,6 +141,7 @@
   .roh{font-size:12px;font-weight:700;color:var(--ink-2);margin:14px 0 6px}
   .slot{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
   .slot input{margin:0!important;padding:8px 10px!important}
+  .slot .job{grid-column:1/3}
   .slot .tm{display:flex;gap:4px;align-items:center;grid-column:1/3}.slot .tm input{width:auto;flex:1}.slot .tm span{color:var(--ink-3);font-size:12px}
   .slot .rm{grid-row:1/3;grid-column:3;background:none;border:1px solid var(--line);color:var(--ink-2);border-radius:8px;width:34px;height:34px;cursor:pointer}
   .gcov{display:flex;flex-direction:column;gap:4px;margin:8px 0 4px}
@@ -408,6 +409,7 @@
     <div class="reqerr" id="roErr" hidden></div>
     <div class="reqact" id="roActs"></div>
     <datalist id="roPeople"></datalist>
+    <datalist id="roJobs"><option value="Floor staff"><option value="Senior instructor"><option value="Little Dragons teacher"><option value="Kids teacher"><option value="Teens and adults teacher"><option value="Check-in desk"><option value="Front desk"><option value="Grading assistant"></datalist>
   </div>
 </div>
 
@@ -1121,6 +1123,7 @@ function drawSlots(){
     return `<div class="slot" data-i="${i}"><input data-f="name" list="roPeople" placeholder="Name" value="${esc(x.name || '')}" aria-label="Name"><input data-f="mobile" inputmode="tel" placeholder="Mobile" value="${esc(x.mobile || '')}" aria-label="Mobile">
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
+      <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
       ${(av || el) ? `<div class="sb">${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el ? `<span class="pa move">Moves from ${esc(SCHOOL(el.location))} ${fmtTime(el.start)}–${fmtTime(el.end)}</span>` : ''}</div>` : ''}</div>`; };
   const L = RO.lim.floor, filled = RO.slots.filter(x => (x.name || '').trim()).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
@@ -1196,7 +1199,7 @@ document.addEventListener('click', e => { const a = e.target.closest && e.target
   RO.slots.push({ role: 'floor', ...defTimes(), name: '', mobile: '' }); drawSlots(); const ins = $('#roSlots').querySelectorAll('.slot [data-f="name"]'); if(ins.length) ins[ins.length - 1].focus(); });
 document.addEventListener('input', e => { if(e.target && e.target.id === 'roFind' && RO) drawPeople(); });
 function closeRoster(){ $('#rosterModal').hidden = true; RO = null; }
-const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
+const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
   email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null }));
 const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g });
 async function afterSave(){ await loadRosterUpcoming(); RMD = null; render(); }
