@@ -89,7 +89,7 @@
     return fetch(CFG.SUPABASE_URL + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, Authorization: 'Bearer ' + CFG.SUPABASE_KEY }, body: JSON.stringify(args) })
       .then(function (r) { return r.json(); });
   }
-  var DAYS = [], ST = {}, SYD = {}, SYDSET = {}, SHIFT = null, USUAL = [];   // USUAL: their usual shifts by weekday (they're already working those days)   // SYDSET[date]: they ticked or unticked Sydenham themselves   // SYD[date]: happy to go to Sydenham; SHIFT: usual shift start   // ST[date][day_id] = 'yes' | 'no'
+  var DAYS = [], ST = {}, SYD = {}, SYDSET = {}, SHIFT = null, USUAL = [], OTH = {};   // OTH[date][school]: happy to go to that other open school   // USUAL: their usual shifts by weekday (they're already working those days)   // SYDSET[date]: they ticked or unticked Sydenham themselves   // SYD[date]: happy to go to Sydenham; SHIFT: usual shift start   // ST[date][day_id] = 'yes' | 'no'
   var ORDER = ['White Belt', 'Yellow Belt', 'Orange Belt', 'Green Belt', 'Blue Belt', 'Purple Belt', 'Brown Belt', 'Red Belt', 'Red Two Belt', 'Red Three Belt', 'Cho Dan Bo'];
   var short = function (b) { return String(b).replace(' Belt', ''); };
   function beltsText(g) {
@@ -142,7 +142,8 @@
             var st = ST[d.date] || {}, grp = G.find(function (x) { return x.k === o[0]; });
             var on = grp ? grp.gs.every(function (g) { return st[g.day_id] === 'yes'; }) && c !== 'both' : c === o[0];   // groups can be picked together
             return '<button type="button" class="' + (o[0] === 'no' ? 'no' : 'yes') + '" data-d="' + i + '" data-c="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (o[2] ? '<small>' + esc(o[2]) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
-          '<label class="syd"><input type="checkbox" data-syd="' + i + '"' + (SYD[d.date] ? ' checked' : '') + '> I\'m available to go to Sydenham this day</label></div>';
+          '<label class="syd"><input type="checkbox" data-syd="' + i + '"' + (SYD[d.date] ? ' checked' : '') + '> I\'m available to go to Sydenham this day</label>' +
+          (d.others || []).map(function (l) { return '<label class="syd"><input type="checkbox" data-oth="' + i + '|' + esc(l) + '"' + ((OTH[d.date] || {})[l] ? ' checked' : '') + '> I\'m available to go to ' + esc(l === 'West' ? 'Auburn' : l) + ' this day</label>'; }).join('') + '</div>';
       }).join('') + '<div class="save"><button id="save" type="button">Save my availability</button><div class="msg" id="msg"></div></div>';
     [].forEach.call(document.querySelectorAll('[data-c]'), function (b) { b.onclick = function () {
       var d = DAYS[+b.dataset.d], c = b.dataset.c, cur = choice(d), s = ST[d.date] = ST[d.date] || {}, all = d.gradings || [];
@@ -159,11 +160,12 @@
       if (!SYDSET[d.date]) SYD[d.date] = free;
       draw(); }; });
     [].forEach.call(document.querySelectorAll('[data-syd]'), function (c) { c.onchange = function () { var dd = DAYS[+c.dataset.syd].date; SYD[dd] = c.checked; SYDSET[dd] = true; }; });
+    [].forEach.call(document.querySelectorAll('[data-oth]'), function (c) { c.onchange = function () { var p = c.dataset.oth.split('|'), dd = DAYS[+p[0]].date; (OTH[dd] = OTH[dd] || {})[p[1]] = c.checked; }; });
     $('#save').onclick = save;
   }
   function save() {
     var b = $('#save'), msg = $('#msg'); b.disabled = true; b.textContent = 'Saving…'; msg.textContent = ''; msg.className = 'msg';
-    var entries = DAYS.filter(function (d) { var wd = new Date(d.date + 'T00:00:00').getDay(); return !USUAL.some(function (u) { return u.weekday === wd; }); }).map(function (d) { return { date: d.date, gradings: ST[d.date] || {}, sydenham: !!SYD[d.date] }; });
+    var entries = DAYS.filter(function (d) { var wd = new Date(d.date + 'T00:00:00').getDay(); return !USUAL.some(function (u) { return u.weekday === wd; }); }).map(function (d) { return { date: d.date, gradings: ST[d.date] || {}, sydenham: !!SYD[d.date], others: Object.keys(OTH[d.date] || {}).filter(function (l) { return OTH[d.date][l]; }) }; });
     rpc('cb_avail_set', { p_token: tok, p_entries: entries }).then(function (j) {
       b.disabled = false; b.textContent = 'Save my availability';
       if (!j || j.error || j.message) { msg.textContent = 'Not saved. Please try again.'; msg.className = 'msg bad'; return; }
@@ -177,7 +179,7 @@
     DAYS = j.days || [];
     SHIFT = j.shift_start || null; USUAL = j.usual || [];
     DAYS.forEach(function (d) { if (d.mine) SYDSET[d.date] = true; });
-    DAYS.forEach(function (d) { if (d.mine) { ST[d.date] = JSON.parse(JSON.stringify(d.mine.g || {})); SYD[d.date] = !!d.mine.syd; } });
+    DAYS.forEach(function (d) { if (d.mine) { ST[d.date] = JSON.parse(JSON.stringify(d.mine.g || {})); SYD[d.date] = !!d.mine.syd; OTH[d.date] = {}; (d.mine.others || []).forEach(function (l) { OTH[d.date][l] = true; }); } });
     draw();
   }, function () { $('#m').innerHTML = '<div class="empty">No connection. Please try again.</div>'; });
 })();

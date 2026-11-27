@@ -917,6 +917,7 @@ $('#loginForm').addEventListener('submit', async e => {
 // Sign out: always ends up signed out even if the sign-out call fails, and doesn't pop the passkey straight back up
 async function signOutNow(btn){
   if(btn){ btn.disabled = true; btn.textContent = 'Signing out…'; }
+  try{ sessionStorage.setItem('ama_pk_asked', '1'); }catch(e){}   // before signing out: the page reloads as soon as it's signed out
   try{ await Promise.race([sb.auth.signOut({ scope: 'local' }), new Promise(r => setTimeout(r, 3000))]); }catch(e){}
   try{ Object.keys(localStorage).filter(k => /^sb-.*-auth-token/.test(k)).forEach(k => localStorage.removeItem(k)); }catch(e){}
   try{ sessionStorage.setItem('ama_pk_asked', '1'); }catch(e){}
@@ -1157,7 +1158,7 @@ function drawSlots(){
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
       <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
       ${(av || el || x.usual) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el ? `<span class="pa move">Moves from ${esc(SCHOOL(el.location))} ${fmtTime(el.start)}–${fmtTime(el.end)}</span>` : ''}</div>` : ''}</div>`; };
-  const L = RO.lim.floor, filled = RO.slots.filter(x => counts(x, RO.location)).length;
+  const L = RO.lim.floor, filled = RO.slots.filter(countsHere).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="max" value="${L.max}"></span></div>
     ${gradingCover()}
@@ -1168,7 +1169,9 @@ function drawSlots(){
          ${RO.slots.map((x, i) => x.extra ? row(x, i) : '').join('') || '<div class="muted" style="font-size:13px">No extras yet.</div>'}`
       : (RO.slots.map(row).join('') || '<div class="muted" style="font-size:13px">No one yet.</div>')}`;
   const exm = $('#roSlots').querySelector('[data-exmax]'); if(exm) exm.onchange = () => { RO.lim.extras = { max: Math.max(0, Math.min(20, +exm.value || 0)) }; RO.limDirty = true; drawSlots(); };
-  $('#roSlots').querySelectorAll('[data-gt]').forEach(inp => inp.onchange = () => { const [id, k] = inp.dataset.gt.split('|'); RO.lim.g[id] = { ...(RO.lim.g[id] || {}), [k]: inp.value }; RO.limDirty = true; drawSlots(); });
+  // time boxes: keep the value as it's typed, redraw only once they leave the box (redrawing mid-typing kicked them out after one digit)
+  $('#roSlots').querySelectorAll('[data-gt]').forEach(inp => { inp.onchange = () => { const [id, k] = inp.dataset.gt.split('|'); RO.lim.g[id] = { ...(RO.lim.g[id] || {}), [k]: inp.value }; RO.limDirty = true; inp.dataset.dirty = '1'; };
+    inp.onblur = () => { if(inp.dataset.dirty) setTimeout(drawSlots, 0); }; });
   $('#roSlots').querySelectorAll('[data-gadd]').forEach(b => b.onclick = () => { const g = RO.gradings.find(x => x.day_id === b.dataset.gadd); if(!g) return;
     if(RO.slots.length >= RO.lim.floor.max) return roErr(`That's the most for this day (${RO.lim.floor.max}). Raise Max to add more.`);
     RO.slots.push({ role: 'floor', ...defTimes(gSpan(g)), name: '', mobile: '' }); drawSlots(); const ins = $('#roSlots').querySelectorAll('.slot [data-f="name"]'); if(ins.length) ins[ins.length - 1].focus(); });
@@ -1177,9 +1180,10 @@ function drawSlots(){
   $('#roSlots').querySelectorAll('.slot input').forEach(inp => inp.onchange = inp.oninput = e => {
     const i = +inp.closest('.slot').dataset.i, f = inp.dataset.f; RO.slots[i][f] = inp.value;
     if(f === 'name' && e.type === 'change'){ RO.slots[i].usual = false; const p = personOf(inp.value); if(p){ fillFrom(RO.slots[i], p); RO.slots[i].usual = (p.usual || []).some(u => u.location === RO.location); } drawSlots(); drawPeople(); }
-    if((f === 'start' || f === 'end') && e.type === 'change') drawSlots();
+    if((f === 'start' || f === 'end') && e.type === 'change'){ inp.dataset.dirty = '1'; scheduleSave(); }
     if(e.type === 'input') scheduleSave();
   });
+  $('#roSlots').querySelectorAll('.slot input[type="time"]').forEach(inp => inp.onblur = () => { if(inp.dataset.dirty) setTimeout(drawSlots, 0); });
   $('#roSlots').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeSlot(+b.dataset.rm, b));
   $('#roSlots').querySelectorAll('[data-lim]').forEach(inp => inp.onchange = () => { RO.lim.floor[inp.dataset.lim] = Math.max(0, Math.min(50, +inp.value || 0));
     if(RO.lim.floor.max < RO.lim.floor.need) RO.lim.floor.max = RO.lim.floor.need; RO.limDirty = true; RO.warned = false; drawSlots(); });
@@ -1188,6 +1192,9 @@ function drawSlots(){
 }
 // each grading that day: how many rostered staff are on during it, against its own need and max (changeable per grading)
 const gLim = id => ({ need: RO.lim.floor.need, max: RO.lim.floor.max, ...(RO.lim.g[id] || {}) });
+// Marrickville: someone only counts towards the day if their shift is on during at least one grading
+const countsHere = x => counts(x, RO.location) && (RO.location !== 'Marrickville' || !x.start || !x.end || !(RO.gradings || []).length
+  || (RO.gradings || []).some(g => { const sp = gSpan(g); return sp.start && sp.end && mins(x.start) < mins(sp.end) && mins(x.end) > mins(sp.start); }));
 const onFor = sp => RO.slots.filter(x => counts(x, RO.location) && x.start && x.end && mins(x.start) <= mins(sp.start) && mins(x.end) >= mins(sp.end)).length;   // on for the whole grading
 function gradingCover(){
   if(!(RO.gradings || []).length) return '';
@@ -1226,13 +1233,13 @@ function fillFrom(sl, p){
 // everyone to pick from, best first: free, usually here, part free, helpers, not free last
 function drawPeople(){
   const used = new Set(RO.slots.map(x => (x.name || '').trim().toLowerCase()).filter(Boolean));
-  const sydOk = p => RO.location === 'Sydenham' && p.avail && p.avail.syd;   // said they're happy to go to Sydenham that day
+  const sydOk = p => p.avail && ((RO.location === 'Sydenham' && p.avail.syd) || (p.avail.others || []).includes(RO.location));   // said they're happy to go to this school that day
   const score = p => (p.avail && p.avail.status ? { yes: 0, part: 2, no: 9 }[p.avail.status] : 4) + ((p.usual || []).some(u => u.location === RO.location) ? -1 : 0) + (sydOk(p) ? -3 : 0);
   const list = RO.people.filter(p => !used.has(p.name.toLowerCase())).sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
   const q = ($('#roFind') && $('#roFind').value || '').trim().toLowerCase();
   const shown = list.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, q ? 40 : 12);
   $('#roPeopleList').innerHTML = shown.map(p => { const av = availText(p), us = (p.usual || []).map(u => `${SHORT(u.location)} ${fmtTime(u.start)}–${fmtTime(u.end)}`).join(', ');
-    return `<button type="button" class="pp" data-pick="${esc(p.name)}"><span class="pn">${esc(p.name)}</span>${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${sydOk(p) ? '<span class="pa yes">Can go to Sydenham</span>' : ''}${us ? `<span class="pu">Usually ${esc(us)}</span>` : ''}</button>`; }).join('')
+    return `<button type="button" class="pp" data-pick="${esc(p.name)}"><span class="pn">${esc(p.name)}</span>${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${sydOk(p) ? `<span class="pa yes">Can go to ${esc(SCHOOL(RO.location))}</span>` : ''}${us ? `<span class="pu">Usually ${esc(us)}</span>` : ''}</button>`; }).join('')
     || '<div class="muted" style="font-size:13px">No one else to add.</div>';
   $('#roPeopleList').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     const p = personOf(b.dataset.pick); if(!p) return;
@@ -1247,7 +1254,7 @@ function drawPeople(){
 function drawRoActs(){
   const r = RO.r, st = r ? r.status : 'draft', A = canApprove(), b = ['<button type="button" class="btn" id="roClose">Close</button>'];
   if(A && st === 'submitted') b.push('<button type="button" class="btn" id="roDecline">Decline</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
-  else if(A && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots || []).some(x => x.name && (!x.deputy_id || (x.deputy_note && x.deputy_note.split(',')[0] !== (x.job || 'Floor staff')) || (x.deputy_span && x.deputy_span !== `${x.start}-${x.end}`))) ? ['<button type="button" class="btn" id="roDeputy">Update Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
+  else if(A && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots || []).some(x => x.name && (!x.deputy_id || (x.deputy_note && x.deputy_note !== 'Role: ' + (x.job || 'Floor staff')) || (x.deputy_span && x.deputy_span !== `${x.start}-${x.end}`))) ? ['<button type="button" class="btn" id="roDeputy">Update Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
   else if(A) b.push('<button type="button" class="btn" id="roSubmit">Send for approval</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');   // Tate and Mark can also send it for the other to check
   else b.push(`<button type="button" class="btn primary" id="roSubmit">${st === 'approved' || st === 'declined' ? 'Send changes for approval' : 'Send for approval'}</button>`);
   $('#roActs').innerHTML = b.join('');
@@ -1283,7 +1290,7 @@ async function afterSave(){ await loadRosterUpcoming(); RMD = null; render(); }
 async function saveRoster(submit, btn){
   const slots = cleanSlots();
   if(submit && !slots.length) return roErr('Add at least one person.');
-  const short = RO.lim.floor.need - slots.filter(x => counts(x, RO.location)).length, gs = gradingShort();
+  const short = RO.lim.floor.need - slots.filter(countsHere).length, gs = gradingShort();
   if(submit && (short > 0 || gs.length) && !RO.warned){ RO.warned = true; return roErr(`Check: ${[short > 0 ? `${short} floor staff short for the day` : '', ...gs].filter(Boolean).join('; ')}. Tap Send again to send it anyway.`); }
   btn.disabled = true; roErr('');
   const { error } = await sb.rpc('cb_ops_day_roster_save', { p_date: RO.date, p_location: RO.location, p_slots: slots, p_note: $('#roNote').value.trim() || null, p_submit: !!submit, p_limits: limitsArg() });

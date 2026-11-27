@@ -5329,7 +5329,7 @@ async function renderMore() {
       <p class="hint">Who can do what in Black Belt Gradings is set on Staff logins, one tick per feature (attendance, readiness, scoring, payments and so on), alongside Coloured Belts and the other apps.</p></div>
     <div class="card"><h3>Recent changes</h3><div id="auditList" class="small muted">Loading...</div></div>` : ''}
     <p class="hint">Black Belt Gradings · Stage 9 build</p>`;
-  $('#signOutBtn').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); location.reload(); };
+  $('#signOutBtn').onclick = async () => { await (window.AmaHub && AmaHub.signOut ? AmaHub.signOut(sb) : sb.auth.signOut({ scope: 'local' })); location.reload(); };
   $$('#view-more [data-goto]').forEach(b => b.onclick = () => showView(b.dataset.goto));
   if (!admin) return;
   $('#setForm').onsubmit = async e => {
@@ -5434,7 +5434,7 @@ $('#loginForm').onsubmit = async e => {
   if (error) { $('#loginError').textContent = /invalid/i.test(error.message) ? 'Wrong email or password.' : error.message; $('#loginError').hidden = false; return; }
   start();
 };
-$('#noAccessSignOut').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); location.reload(); };
+$('#noAccessSignOut').onclick = async () => { await (window.AmaHub && AmaHub.signOut ? AmaHub.signOut(sb) : sb.auth.signOut({ scope: 'local' })); location.reload(); };
 
 let started = false;
 async function start() {

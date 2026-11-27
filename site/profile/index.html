@@ -118,13 +118,14 @@ function deviceLabel(){
 }
 const ICON = lbl => /iPhone|iPad|Android/.test(lbl) ? '📱' : '💻';
 const THIS = thisDeviceId();
-// "Stay signed in" (trusted) is owner-only (i.e. Tate). The database enforces it too; this just hides the toggle.
+// "Stay signed in" (trusted) is for owners (Tate) and toolkit_stay_signed_in (Mark). The database enforces it too; this just hides the toggle.
 let IS_OWNER = false;
 async function checkOwner(session){
   try{ const em=((session&&session.user&&session.user.email)||'').toLowerCase();
     if(!em){ IS_OWNER=false; return; }
     const { data } = await sb.from('toolkit_owners').select('email').eq('email',em);
     IS_OWNER = Array.isArray(data) && data.length>0;
+    if(!IS_OWNER){ const r = await sb.from('toolkit_stay_signed_in').select('email').eq('email',em); IS_OWNER = Array.isArray(r.data) && r.data.length>0; }   // Mark
   }catch(e){ IS_OWNER=false; }
 }
 
@@ -248,7 +249,7 @@ $('#siForm').onsubmit = async e=>{
   if(error){ $('#siMsg').textContent=/invalid/i.test(error.message)?'Wrong email or password.':error.message; $('#siMsg').hidden=false; return; }
   boot();
 };
-$('#signOut').onclick = async()=>{ await sb.auth.signOut({ scope: 'local' }); boot(); };
+$('#signOut').onclick = async()=>{ await (window.AmaHub && AmaHub.signOut ? AmaHub.signOut(sb) : sb.auth.signOut({ scope: 'local' })); boot(); };
 sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'||ev==='SIGNED_OUT') boot(); });
 boot();
 </script>

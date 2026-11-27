@@ -27,7 +27,12 @@
   }
   function watchSignOut(sb) {
     if (sb.__amaHubWatch) return; sb.__amaHubWatch = true;
-    sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') { store.set(null); ls(PKS, null); } });
+    sb.auth.onAuthStateChange(function (ev) {
+      if (ev !== 'SIGNED_OUT') return;
+      store.set(null); ls(PKS, null);
+      // a sign-out (button or idle) must not be undone by the passkey asking again straight after the page reloads
+      try { sessionStorage.setItem('ama_pk_asked', '1'); } catch (e) {}
+    });
   }
 
   // ---- Passkeys (Supabase Auth, relying party train-ama.com: one passkey works on app.train-ama.com and ama-os.train-ama.com).
@@ -118,6 +123,7 @@
   function fmtMobile(v) { var d = String(v || '').replace(/[^\d+]/g, ''); if (/^04\d*/.test(d)) return [d.slice(0, 4), d.slice(4, 7), d.slice(7, 10)].filter(Boolean).join(' '); return d; }
 
   function mount(o) {
+    watchSignOut(o.sb);
     var form = typeof o.form === 'string' ? document.querySelector(o.form) : o.form;
     if (!form || form.getAttribute('data-hub')) return;
     form.setAttribute('data-hub', '1');
@@ -251,5 +257,14 @@
     }).catch(function () { return true; });
   }
 
-  window.AmaHub = { mount: mount, recheck: recheck, passkey: passkey };
+  // Sign-out buttons: always ends signed out, even if the sign-out call stalls, and the passkey doesn't sign straight back in
+  function signOut(sb) {
+    try { sessionStorage.setItem('ama_pk_asked', '1'); } catch (e) {}
+    store.set(null); ls(PKS, null);
+    return Promise.race([Promise.resolve(sb.auth.signOut({ scope: 'local' })).catch(function () {}), new Promise(function (r) { setTimeout(r, 3000); })]).then(function () {
+      try { Object.keys(localStorage).filter(function (k) { return /^sb-.*-auth-token/.test(k); }).forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
+    });
+  }
+
+  window.AmaHub = { mount: mount, recheck: recheck, passkey: passkey, signOut: signOut };
 })();
