@@ -1059,12 +1059,12 @@ function rostersSection(){
     const others = locs.filter(l => !gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l); return `${esc(SHORT(l))} ${filledOf(r)}/${needOf(r, l)}`; });
     const chips = locs.filter(l => gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l);
       const n = filledOf(r), need = needOf(r, l), st = r ? r.status : (g ? 'none' : '');
-      return `<span class="rc ${st}${r && n < need ? ' short' : ''}" title="${esc(SCHOOL(l))}${g ? ' · grading' : ''}">${g ? '<i></i>' : ''}${esc(SHORT(l))}} ${n}/${need}</span>`; }).join('');
+      return `<span class="rc ${st}${r && n < need ? ' short' : ''}" title="${esc(SCHOOL(l))}${g ? ' · grading' : ''}">${g ? '<i></i>' : ''}${esc(SHORT(l))} ${n}/${need}</span>`; }).join('');
     const av = x.a ? `<span class="ra">${x.a.yes + x.a.part} free</span>` : '';
     const gday = x.g.length > 0;   // rostering is only for days with gradings on
-    const usual = gday && us.length ? `<span class="ru" title="Usually working">${us.map(([l, n]) => RSCH ? `${n} usually on` : `${esc(SHORT(l))} ${n}`).join(' · ')}</span>` : '';
+    const usual = gday && us.length ? `<span class="ru" title="Usually working that weekday">Usual: ${us.map(([l, n]) => RSCH ? `${n} usually on` : `${esc(SHORT(l))} ${n}`).join(' · ')}</span>` : '';
     const tot = x.r.filter(r => inSch(r.location)).reduce((a, r) => a + (r.slots || []).filter(z => (z.name || '').trim()).length, 0);
-    const totl = (others.length ? `<span class="ru">${others.join(' · ')}</span>` : '') + (gday || x.r.length ? `<span class="rtot">${tot} rostered</span>` : '');
+    const totl = (others.length ? `<span class="ru" title="Rostered / needed">Rostered: ${others.join(' · ')}</span>` : '') + (gday || x.r.length ? `<span class="rtot">${tot} rostered</span>` : '');
     return `<button class="rcell${out ? ' out' : ''}${k === today ? ' now' : ''}${k === RSELD ? ' sel' : ''}${gday || x.r.length ? ' gd' : ' nog'}" ${gday || x.r.length ? `data-rday="${k}"` : 'disabled'}><span class="rd">${d.getDate()}</span>${chips}${av}${usual}${totl}</button>`; };
   const waiting = (RMD.rosters || []).filter(r => r.status === 'submitted').length;
   let panel = '';
