@@ -146,7 +146,7 @@
   .gcov{display:flex;flex-direction:column;gap:4px;margin:8px 0 4px}
   .gc{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px}
   .gc .gt{flex:1;color:var(--ink-2);font-weight:600}.gc.short b{color:var(--accent)}.gc.over b{color:var(--danger)}.gc.ok b{color:var(--ok)}
-  .gc .lim input{width:48px!important;display:inline-block!important;margin:0!important;padding:3px 6px!important}
+  .gc .lim input{width:48px!important;display:inline-block!important;margin:0!important;padding:3px 6px!important}.gc .gt input{width:auto!important;display:inline-block!important;margin:0 2px!important;padding:3px 6px!important}
   .roadd{display:flex;gap:8px;margin:12px 0 14px}.roadd .btn:disabled{opacity:.4}
   .roh{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
   .roh .lim{display:flex;align-items:center;gap:4px;font-weight:600}.roh .lim input{width:52px!important;display:inline-block!important;margin:0!important;padding:4px 6px!important}
@@ -1061,10 +1061,17 @@ let RO = null;   // { date, location, r, slots, lim, people, gradings }
 const roErr = (t, ok) => { const e = $('#roErr'); e.textContent = t || ''; e.hidden = !t; e.style.color = ok ? 'var(--ok)' : ''; };
 const mins = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
 const hm = x => { x = ((x % 1440) + 1440) % 1440; return pad(Math.floor(x / 60)) + ':' + pad(x % 60); };
-function defTimes(){   // before the first grading, to the usual length after the last one starts
-  const st = (RO.gradings || []).map(g => g.start).filter(Boolean).sort(); if(!st.length) return { start: '', end: '' };
-  const d = RSET || {}, before = +(d.floor_before ?? 30), hrs = +(d.floor_hours ?? 3);
-  return { start: hm(mins(st[0]) - before), end: hm(mins(st[st.length - 1]) - before + Math.round(hrs * 60)) };
+// each grading's own start and finish: saved on the roster if changed, else its start time and a finish at the next grading (or 90 min)
+function gSpan(g){
+  const L = (RO.lim && RO.lim.g && RO.lim.g[g.day_id]) || {}, all = (RO.gradings || []).filter(x => x.start).sort((a, b) => mins(a.start) - mins(b.start));
+  const start = L.start || g.start || '', nx = all.find(x => mins(x.start) > mins(g.start || '00:00'));
+  return { start, end: L.end || (start ? (nx ? nx.start : hm(mins(start) + 90)) : '') };
+}
+function defTimes(span){   // from N minutes before the first grading (or the one picked) to when the last one finishes
+  const gs = span ? [span] : (RO.gradings || []).map(gSpan).filter(x => x.start);
+  if(!gs.length) return { start: '', end: '' };
+  const before = +((RSET || {}).floor_before ?? 30);
+  return { start: hm(Math.min(...gs.map(x => mins(x.start))) - before), end: hm(Math.max(...gs.map(x => mins(x.end)))) };
 }
 const personOf = name => RO && RO.people.find(p => p.name.toLowerCase() === String(name || '').trim().toLowerCase());
 function availText(p){ const a = p && p.avail; if(!a) return ''; return a.status === 'yes' ? 'Free' : a.status === 'part' ? `Free ${a.from ? fmtTime(a.from) : ''}${a.to ? '–' + fmtTime(a.to) : ''}`.trim() : 'Not free'; }
@@ -1103,6 +1110,10 @@ function drawSlots(){
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="max" value="${L.max}"></span></div>
     ${gradingCover()}
     ${RO.slots.map(row).join('') || '<div class="muted" style="font-size:13px">No one yet.</div>'}`;
+  $('#roSlots').querySelectorAll('[data-gt]').forEach(inp => inp.onchange = () => { const [id, k] = inp.dataset.gt.split('|'); RO.lim.g[id] = { ...(RO.lim.g[id] || {}), [k]: inp.value }; RO.limDirty = true; drawSlots(); });
+  $('#roSlots').querySelectorAll('[data-gadd]').forEach(b => b.onclick = () => { const g = RO.gradings.find(x => x.day_id === b.dataset.gadd); if(!g) return;
+    if(RO.slots.length >= RO.lim.floor.max) return roErr(`That's the most for this day (${RO.lim.floor.max}). Raise Max to add more.`);
+    RO.slots.push({ role: 'floor', ...defTimes(gSpan(g)), name: '', mobile: '' }); drawSlots(); const ins = $('#roSlots').querySelectorAll('.slot [data-f="name"]'); if(ins.length) ins[ins.length - 1].focus(); });
   $('#roSlots').querySelectorAll('[data-glim]').forEach(inp => inp.onchange = () => { const [id, k] = inp.dataset.glim.split('|'), G = gLim(id);
     G[k] = Math.max(0, Math.min(50, +inp.value || 0)); if(G.max < G.need) G.max = G.need; RO.lim.g[id] = G; RO.limDirty = true; RO.warned = false; drawSlots(); });
   $('#roSlots').querySelectorAll('.slot input').forEach(inp => inp.onchange = inp.oninput = e => {
@@ -1117,13 +1128,15 @@ function drawSlots(){
 }
 // each grading that day: how many rostered staff are on during it, against its own need and max (changeable per grading)
 const gLim = id => ({ need: RO.lim.floor.need, max: RO.lim.floor.max, ...(RO.lim.g[id] || {}) });
-const onAt = t => RO.slots.filter(x => (x.name || '').trim() && x.start && x.end && mins(x.start) <= mins(t) && mins(x.end) > mins(t)).length;
+const onFor = sp => RO.slots.filter(x => (x.name || '').trim() && x.start && x.end && mins(x.start) <= mins(sp.start) && mins(x.end) >= mins(sp.end)).length;   // on for the whole grading
 function gradingCover(){
   if(!(RO.gradings || []).length) return '';
-  return `<div class="gcov">${RO.gradings.map(g => { const L = gLim(g.day_id), n = onAt(g.start), cls = n > L.max ? 'over' : n < L.need ? 'short' : 'ok';
-    return `<div class="gc ${cls}"><span class="gt">${fmtTime(g.start)} grading</span><b>${n} on</b><span class="lim">Need <input type="number" min="0" max="50" data-glim="${g.day_id}|need" value="${L.need}"> Max <input type="number" min="0" max="50" data-glim="${g.day_id}|max" value="${L.max}"></span></div>`; }).join('')}</div>`;
+  return `<div class="gcov">${RO.gradings.map(g => { const L = gLim(g.day_id), sp = gSpan(g), n = onFor(sp), cls = n > L.max ? 'over' : n < L.need ? 'short' : 'ok';
+    return `<div class="gc ${cls}"><span class="gt">Grading <input type="time" data-gt="${g.day_id}|start" value="${esc(sp.start)}"> to <input type="time" data-gt="${g.day_id}|end" value="${esc(sp.end)}"></span><b>${n} on</b>
+      <span class="lim">Need <input type="number" min="0" max="50" data-glim="${g.day_id}|need" value="${L.need}"> Max <input type="number" min="0" max="50" data-glim="${g.day_id}|max" value="${L.max}"></span>
+      <button type="button" class="btn mini" data-gadd="${g.day_id}" title="Add a shift for just this grading">+ For this grading</button></div>`; }).join('')}</div>`;
 }
-const gradingShort = () => (RO.gradings || []).map(g => { const L = gLim(g.day_id), n = onAt(g.start); return n < L.need ? `${L.need - n} at the ${fmtTime(g.start)} grading` : n > L.max ? `${n - L.max} over the max at the ${fmtTime(g.start)} grading` : ''; }).filter(Boolean);
+const gradingShort = () => (RO.gradings || []).map(g => { const L = gLim(g.day_id), n = onFor(gSpan(g)); return n < L.need ? `${L.need - n} at the ${fmtTime(g.start)} grading` : n > L.max ? `${n - L.max} over the max at the ${fmtTime(g.start)} grading` : ''; }).filter(Boolean);
 function fillFrom(sl, p){
   sl.name = p.name; sl.mobile = p.mobile || ''; sl.email = p.email || null; sl.staff_id = p.staff_id || null; sl.helper_id = p.helper_id || null; sl.deputy_emp = p.deputy_emp || null;
   const here = (p.usual || []).find(u => u.location === RO.location);   // their usual hours here, if no grading times
@@ -1227,14 +1240,14 @@ function openRset(){
   const box = $('#rsetModal');
   box.querySelector('.reqbox').innerHTML = `<h3>Roster defaults</h3>
     <p class="muted" style="margin:-6px 0 14px;font-size:13px">Used for every day unless that day's roster sets its own numbers.</p>
-    <div class="rsgrid"><label>Floor staff needed${n('floor_need', d.floor_need)}</label><label>Most${n('floor_max', d.floor_max)}</label><label>Start (min before first grading)${n('floor_before', d.floor_before, 5, -600)}</label><label>Length (hours)${n('floor_hours', d.floor_hours, 0.25, 0.25)}</label></div>
-    <p class="muted" style="font-size:12px;margin:8px 0 12px">Shifts run from before the first grading to the length after the last one starts. Gradings at 9:00 and 12:00 with 30 min and 3 hours give 8:30am to 2:30pm.</p>
+    <div class="rsgrid"><label>Floor staff needed${n('floor_need', d.floor_need)}</label><label>Most${n('floor_max', d.floor_max)}</label><label>Start (min before the grading)${n('floor_before', d.floor_before, 5, -600)}</label></div>
+    <p class="muted" style="font-size:12px;margin:8px 0 12px">Shifts start this long before the first grading and finish when the last grading finishes. Each grading's start and finish can be changed on the roster.</p>
     <div class="reqerr" id="rsErr" hidden></div>
     <div class="reqact"><button type="button" class="btn" id="rsCancel">Cancel</button><button type="button" class="btn primary" id="rsSave">Save defaults</button></div>`;
   box.hidden = false;
   $('#rsCancel').onclick = () => { box.hidden = true; };
   $('#rsSave').onclick = async () => {
-    const p = {}; ['floor_need', 'floor_max', 'floor_before', 'floor_hours'].forEach(k => p[k] = $('#rs_' + k).value);
+    const p = {}; ['floor_need', 'floor_max', 'floor_before'].forEach(k => p[k] = $('#rs_' + k).value);
     if(+p.floor_max < +p.floor_need){ const e = $('#rsErr'); e.textContent = 'Most has to be at least the number needed.'; e.hidden = false; return; }
     const { data, error } = await sb.rpc('cb_ops_roster_settings_set', { p });
     if(error){ const e = $('#rsErr'); e.textContent = 'Not saved: ' + error.message; e.hidden = false; return; }
