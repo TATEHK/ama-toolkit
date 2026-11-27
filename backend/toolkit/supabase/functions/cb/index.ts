@@ -1408,6 +1408,44 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, removed, cleared });
     }
 
+    // ---- One-off text to everyone booked on a grading day: { day_id, message ('{first}' = their first name), exclude?: [entry_id], preview? }
+    //      Run with the x-cb-cron secret (from the database, on staff request). Each person gets it once: a repeat call skips anyone already sent the same words. ----
+    if (body.action === 'day_text') {
+      const { data: okCron } = await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' });
+      if (okCron !== true) return fail('Not allowed.', 403);
+      const dayId = String(body.day_id || ''), tmpl = String(body.message || '').trim(), skip = new Set((body.exclude || []).map(String));
+      if (!dayId || tmpl.length < 10) return fail('Which day, and what message?');
+      const { data: es } = await db.from('cb_entries').select('entry_id, member_key, full_name, paid, booked_at, cant_make_at').eq('day_id', dayId);
+      const list = (es || []).filter(e => (e.paid || e.booked_at) && !e.cant_make_at && !skip.has(e.entry_id));
+      const keys = list.map(e => e.member_key).filter(Boolean);
+      const { data: ms } = keys.length ? await db.from('efc_members').select('member_key, full_name, guardian_name, phone, guardian_phone, email, guardian_email, date_of_birth').in('member_key', keys) : { data: [] };
+      const byKey = Object.fromEntries((ms || []).map(m => [m.member_key, m]));
+      const okE = v => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) ? v : null;
+      const plan = list.map(e => {
+        const m = byKey[e.member_key] || {};
+        const dob = String(m.date_of_birth || ''), age = /^\d{4}-\d{2}-\d{2}/.test(dob) ? Math.floor((Date.now() - Date.parse(dob.slice(0, 10))) / 31557600000) : null;
+        const kid = age != null && age < 18 && !!(m.guardian_name || m.guardian_phone);
+        const phone = kid ? phoneE164(m.guardian_phone || m.phone) : phoneE164(m.phone || m.guardian_phone);
+        const email = kid ? (okE(m.guardian_email) || okE(m.email)) : (okE(m.email) || okE(m.guardian_email));
+        return { e, m, kid, phone, email, text: tmpl.replace(/\{first\}/g, first(e.full_name) || 'there') };
+      });
+      if (body.preview) return json({ ok: true, preview: true, count: plan.length, people: plan.map(x => ({ name: x.e.full_name, phone: x.phone, to_parent: x.kid })), sample: plan[0] && plan[0].text });
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
+      const res = [];
+      for (const x of plan) {
+        const { data: done } = await db.from('cb_messages').select('message_id').eq('entry_id', x.e.entry_id).eq('kind', 'day_text').eq('status', 'sent').eq('body', x.text).limit(1);
+        if (done && done.length) { res.push({ name: x.e.full_name, status: 'already sent' }); continue; }
+        if (!x.phone) { res.push({ name: x.e.full_name, status: 'no mobile' }); continue; }
+        const log = (status, extra = {}) => db.from('cb_messages').insert({ entry_id: x.e.entry_id, member_key: x.e.member_key, kind: 'day_text', phone: x.phone, body: x.text, status, sent_by: String(body.sent_by || 'staff').slice(0, 80), ...extra }).then(() => {}, () => {});
+        try {
+          const cid = await contactFor({ guardian_name: x.kid ? x.m.guardian_name : (x.m.full_name || x.e.full_name), full_name: x.m.full_name || x.e.full_name, email: x.email }, x.phone);
+          if (!cid) throw new Error('could not find or add them in GoHighLevel');
+          const gid = await sendSms(cid, x.text); await log('sent', { ghl_id: gid }); res.push({ name: x.e.full_name, status: 'sent' });
+        } catch (er) { const err = String(er.message || er).slice(0, 300); await log('failed', { error: err }); res.push({ name: x.e.full_name, status: 'failed', error: err }); }
+      }
+      return json({ ok: true, sent: res.filter(r => r.status === 'sent').length, results: res });
+    }
+
     // ---- Every 5 minutes: text the grading-alert number when a coloured-belt grading reaches its start time
     //      (pg_cron, coloured-belts-43.sql). They reply FINISHED (handled in the 'reply' action) to close the day. ----
     if (body.action === 'grading_started') {
