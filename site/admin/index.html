@@ -1014,7 +1014,10 @@ $('#reqForm').addEventListener('submit', async e => {
 });
 /* ===== Rosters: one roster per day per school, built in a month calendar. Tate and Mark approve. =====
    Each person shows their availability (from their link) and their usual shifts (from Deputy) while you roster. */
-const canApprove = () => !!(RSET && RSET.me_approves);
+// "View as Bianca": Tate and Mark can see the rosters as a non-approver would
+let VIEW_AS = false; try{ VIEW_AS = sessionStorage.getItem('ops_view_as') === '1'; }catch(e){}
+const realApprover = () => !!(RSET && RSET.me_approves);
+const canApprove = () => realApprover() && !VIEW_AS;
 const RO_LABEL = { draft: 'Draft', submitted: 'Waiting for approval', approved: 'Approved', declined: 'Declined' };
 const SCHOOL = l => l === 'West' ? 'Auburn' : (l || '');
 const SHORT = l => ({ Marrickville: 'Marr', Sydenham: 'Syd', Concord: 'Con', Sylvania: 'Syl', West: 'Aub' }[l] || l);
@@ -1113,6 +1116,7 @@ function rostersSection(){
   }
   return `<div class="rmtop"><button class="btn mini" id="rmPrev" aria-label="Previous month">‹</button><b class="rmname">${MON[b.getMonth()]} ${b.getFullYear()}</b><button class="btn mini" id="rmNext" aria-label="Next month">›</button>
       <button class="btn mini" id="rmToday">Today</button><span class="grow"></span>${waiting ? `<span class="rtag submitted">${waiting} waiting for approval</span>` : ''}
+      ${realApprover() ? `<button class="btn mini${VIEW_AS ? ' primary' : ''}" id="viewAsBtn">${VIEW_AS ? 'Back to my view' : "View as Bianca"}</button>` : ''}
       <button class="btn mini" id="staffBtn">Staff & availability</button>${canApprove() ? '<button class="btn mini" id="availSmsBtn">Text availability links</button><button class="btn mini" id="rsetBtn">Roster defaults</button><button class="btn mini" id="wagesBtn">Wages</button>' : ''}</div>
     <div class="rsch">${['', 'Marrickville', 'Sydenham', 'Concord', 'Sylvania', 'West'].map(l => `<button class="lchip ${RSCH === l ? 'on' : ''}" data-rsch="${l}">${l ? esc(SCHOOL(l)) : 'All schools'}</button>`).join('')}</div>
     <div class="rkey"><span class="rc none"><i></i>Grading</span><span class="rc draft">Draft</span><span class="rc submitted">Waiting</span><span class="rc approved">Approved</span><span class="rc short">Short</span><span class="ra">free = staff available</span><span class="ru">usual staff that weekday</span></div>
@@ -1125,6 +1129,7 @@ function wireRosters(){
   on('rmNext', () => { RMON++; RMD = null; RSELD = null; render(); });
   on('rmToday', () => { RMON = 0; RMD = null; RSELD = ymd(new Date()); render(); });
   on('rsetBtn', openRset); on('staffBtn', openStaff);
+  on('viewAsBtn', () => { VIEW_AS = !VIEW_AS; try{ sessionStorage.setItem('ops_view_as', VIEW_AS ? '1' : ''); }catch(e){} render(); });
   on('availSmsBtn', async () => {   // texts every active staff member their availability link (two taps)
     const el = $('#availSmsBtn');
     if(el.dataset.sure !== '1'){ el.dataset.sure = '1'; el.textContent = 'Text all staff now?'; return; }
