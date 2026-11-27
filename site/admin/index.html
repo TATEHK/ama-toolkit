@@ -1174,7 +1174,7 @@ async function removeSlot(i, btn){
   if(btn.dataset.sure !== '1'){ btn.dataset.sure = '1'; btn.textContent = '?'; return roErr(`Remove ${sl.name}? Their shift in Deputy will be deleted. Tap × again to confirm.`); }
   btn.disabled = true; roErr('Removing their Deputy shift…', true);
   try{
-    const j = await cbCall({ action: 'roster_deputy_remove', date: RO.date, location: RO.location, deputy_id: +sl.deputy_id });
+    const j = await rosterCall({ action: 'roster_deputy_remove', date: RO.date, location: RO.location, deputy_id: +sl.deputy_id });
     RO.slots.splice(i, 1); await reloadRo(); drawPeople(); afterSave();
     roErr(`${j.removed} taken off and their Deputy shift deleted.`, true);
   }catch(e){ btn.disabled = false; roErr(String(e.message || e)); }
@@ -1246,10 +1246,12 @@ async function decideRoster(status, btn){
   RO.r = data; $('#roStatus').innerHTML = roTag(RO.r); afterSave();
   if(status === 'approved'){ drawRoActs(); deputyRoster(null); } else closeRoster();
 }
-async function cbCall(body){
-  const { data: { session } } = await sb.auth.getSession();
-  const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/cb', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, Authorization: 'Bearer ' + session.access_token }, body: JSON.stringify(body) });
-  const j = await r.json().catch(() => ({})); if(!r.ok && !j.pick_area) throw new Error(j.error || 'Something went wrong'); return j;
+// roster server calls (rosterCall({ action, ... })): through supabase-js so the sign-in is refreshed; errors come back as their message
+async function rosterCall(body){
+  const { data, error } = await sb.functions.invoke('cb', { body });
+  if(error){ let j = null; try{ j = await error.context.json(); }catch(e){}
+    if(j && j.pick_area) return j; throw new Error((j && j.error) || error.message || 'Something went wrong'); }
+  return data;
 }
 async function reloadRo(){ const { data } = await sb.rpc('cb_ops_day_roster', { p_date: RO.date, p_location: RO.location }); if(data && data.roster){ RO.r = data.roster; RO.slots = JSON.parse(JSON.stringify(RO.r.slots || [])); } $('#roStatus').innerHTML = roTag(RO.r); drawSlots(); drawRoActs(); }
 // approved: make each person's shift in Deputy (published); a usual shift at another school that day is moved, not doubled
@@ -1257,7 +1259,7 @@ async function deputyRoster(btn, opunit){
   if(btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
   roErr('Adding the shifts to Deputy…', true);
   try{
-    const j = await cbCall({ action: 'roster_deputy', date: RO.date, location: RO.location, opunit_id: opunit || undefined });
+    const j = await rosterCall({ action: 'roster_deputy', date: RO.date, location: RO.location, opunit_id: opunit || undefined });
     if(j.pick_area){ roErr('');
       $('#roDec').hidden = false;
       $('#roDec').innerHTML = `Which Deputy area should these shifts go in?<select id="roArea" style="display:block;width:100%;margin:8px 0">${(j.areas || []).map(a => `<option value="${a.id}">${esc(a.name)}${a.location ? ' · ' + esc(a.location) : ''}</option>`).join('')}</select><button type="button" class="btn primary mini" id="roAreaGo">Add to Deputy</button>`;
@@ -1271,7 +1273,7 @@ async function deputyRoster(btn, opunit){
 async function textRoster(btn){
   btn.disabled = true; btn.textContent = 'Sending…'; roErr('');
   try{
-    const j = await cbCall({ action: 'roster_notify', date: RO.date, location: RO.location });
+    const j = await rosterCall({ action: 'roster_notify', date: RO.date, location: RO.location });
     const bad = (j.results || []).filter(x => x.status !== 'sent');
     await reloadRo(); afterSave();
     roErr(`Texted ${j.sent}${bad.length ? `. Not sent: ${bad.map(x => x.name + ' (' + (x.error || x.status) + ')').join(', ')}` : ''}`, !bad.length);
@@ -1329,13 +1331,13 @@ function drawStaff(msg, ok){
     const n = act.filter(s => s.mobile).length;
     if(el.dataset.sure !== '1'){ el.dataset.sure = '1'; el.textContent = `Text ${n} staff now?`; return; }
     el.disabled = true; el.textContent = 'Sending…';
-    try{ const j = await cbCall({ action: 'avail_send' }); const bad = (j.results || []).filter(x => x.status !== 'sent');
+    try{ const j = await rosterCall({ action: 'avail_send' }); const bad = (j.results || []).filter(x => x.status !== 'sent');
       await openStaff(); drawStaff(`Texted ${j.sent}${bad.length ? `. Not sent: ${bad.map(x => x.name + ' (' + (x.error || x.status) + ')').join(', ')}` : ''}`, !bad.length);
     }catch(e){ el.disabled = false; el.textContent = 'Text everyone their link'; drawStaff(String(e.message || e)); }
   });
   on('stSync', async el => {
     el.disabled = true; el.textContent = 'Reading Deputy…';
-    try{ const j = await cbCall({ action: 'deputy_usual' });
+    try{ const j = await rosterCall({ action: 'deputy_usual' });
       await openStaff(); drawStaff(`Read ${j.shifts} shifts for ${j.employees} people in Deputy and found ${j.usual} usual shifts.${(j.unmatched_areas || []).length ? ` Areas not matched to a school: ${j.unmatched_areas.join(', ')}` : ''}`, true);
     }catch(e){ el.disabled = false; el.textContent = 'Get usual shifts from Deputy'; drawStaff(String(e.message || e)); }
   });
@@ -1399,7 +1401,7 @@ async function openWages(){
     $('#wClose').onclick = () => { box.hidden = true; };
     $('#wGo').onclick = () => go($('#wFrom').value, $('#wTo').value);
   };
-  const go = async (f, t) => { draw(f, t, null); try{ draw(f, t, await cbCall({ action: 'roster_costs', from: f, to: t })); }catch(e){ draw(f, t, null, String(e.message || e)); } };
+  const go = async (f, t) => { draw(f, t, null); try{ draw(f, t, await rosterCall({ action: 'roster_costs', from: f, to: t })); }catch(e){ draw(f, t, null, String(e.message || e)); } };
   go(from, to);
 }
 
