@@ -1015,7 +1015,9 @@ const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())
 const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r.status}${r.status === 'approved' && r.deputy_at ? ' · in Deputy' : ''}${r.status === 'approved' && r.notified_at ? ' · texted' : ''}</span>` : '';
 let RMON = 0, RMD = null, RSELD = null, RUP = [], RSCH = (()=>{ try{ return localStorage.getItem('ops_rsch') || ''; }catch(e){ return ''; } })();   // RSCH: school filter ('' = all)   // month offset, month data, picked day, upcoming rosters (for approvals)
 // who counts towards the number needed: not Little Dragons teachers, and at Concord / Auburn only the extras (the usual staff are on anyway)
-const counts = (x, loc) => !!(x.name || '').trim() && !/little dragons/i.test(x.job || '') && !(['Concord', 'West'].includes(loc) && !x.extra);
+// people who never count towards the numbers (Roster settings not_counted: Hakan, Laurie, Mark, Sarah, Busra)
+const notCounted = x => ((RSET && RSET.not_counted) || []).includes(String(x.name || '').trim().toLowerCase());
+const counts = (x, loc) => !!(x.name || '').trim() && !notCounted(x) && !/little dragons/i.test(x.job || '') && !(['Concord', 'West'].includes(loc) && !x.extra);
 // Marrickville: only people on during a grading count (grading times from the month calendar; each runs to the next start, or 90 min)
 const mm = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
 const filledOf = r => { if(!r) return 0;
@@ -1064,7 +1066,7 @@ function rostersSection(){
     const av = x.a ? `<span class="ra">${x.a.yes + x.a.part} free</span>` : '';
     const gday = x.g.length > 0;   // rostering is only for days with gradings on
     const usual = gday && us.length ? `<span class="ru" title="Usually working that weekday">Usual: ${us.map(([l, n]) => RSCH ? `${n} usually on` : `${esc(SHORT(l))} ${n}`).join(' · ')}</span>` : '';
-    const tot = x.r.filter(r => inSch(r.location)).reduce((a, r) => a + (r.slots || []).filter(z => (z.name || '').trim()).length, 0);
+    const tot = x.r.filter(r => inSch(r.location)).reduce((a, r) => a + (r.slots || []).filter(z => (z.name || '').trim() && !notCounted(z)).length, 0);
     const totl = (others.length ? `<span class="ru" title="Rostered / needed">Rostered: ${others.join(' · ')}</span>` : '') + (gday || x.r.length ? `<span class="rtot">${tot} rostered</span>` : '');
     return `<button class="rcell${out ? ' out' : ''}${k === today ? ' now' : ''}${k === RSELD ? ' sel' : ''}${gday || x.r.length ? ' gd' : ' nog'}" ${gday || x.r.length ? `data-rday="${k}"` : 'disabled'}><span class="rd">${d.getDate()}</span>${chips}${av}${usual}${totl}</button>`; };
   const waiting = (RMD.rosters || []).filter(r => r.status === 'submitted').length;
@@ -1188,7 +1190,7 @@ function drawSlots(){
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
       <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
-      ${(av || el || x.usual) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el && !x.usual ? `<span class="pa move">Moved from ${esc(SCHOOL(el.location))} (usually ${fmtTime(el.start)}–${fmtTime(el.end)})</span>` : ''}</div>` : ''}</div>`; };
+      ${(av || el || x.usual || notCounted(x)) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${notCounted(x) ? '<span class="pa">Not counted</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el && !x.usual ? `<span class="pa move">Moved from ${esc(SCHOOL(el.location))} (usually ${fmtTime(el.start)}–${fmtTime(el.end)})</span>` : ''}</div>` : ''}</div>`; };
   const L = RO.lim.floor, filled = RO.slots.filter(countsHere).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="max" value="${L.max}"></span></div>
