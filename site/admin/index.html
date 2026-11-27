@@ -1445,7 +1445,7 @@ async function openWages(){
       ${body}<div id="wRates"></div><div class="reqact"><button class="btn" id="wRatesBtn">Show pay rates</button><button class="btn" id="wClose">Close</button></div>`;
     $('#wRatesBtn').onclick = async () => { const el = $('#wRates'); el.innerHTML = '<div class="muted">Loading pay rates…</div>';
       try{ const r = await rosterCall({ action: 'pay_rates' });
-        el.innerHTML = `<div class="roh">Pay rates <span class="muted small">per hour, from each person's Deputy shift costs over the last 8 weeks</span></div><table class="wt"><thead><tr><th>Person</th><th>Rate</th><th>Based on</th></tr></thead><tbody>${(r.rates || []).filter(x => x.active).map(x => `<tr><td>${esc(x.name)}</td><td>${x.rate ? money(x.rate) : '—'}</td><td class="muted">${x.shifts ? `${x.shifts} shifts, ${x.hours} h` : 'no costed shifts'}</td></tr>`).join('')}</tbody></table>`;
+        el.innerHTML = `<div class="roh">Pay rates <span class="muted small">per hour, from each person's Deputy shift costs over the last 8 weeks</span></div><table class="wt"><thead><tr><th>Person</th><th>Rate</th><th>Based on</th></tr></thead><tbody>${(r.rates || []).map(x => `<tr><td>${esc(x.name)}${x.active ? '' : ' <span class="muted">(not active)</span>'}</td><td>${x.rate ? money(x.rate) : '—'}</td><td class="muted">${x.shifts ? `${x.shifts} shifts, ${x.hours} h` : 'no costed shifts'}</td></tr>`).join('')}</tbody></table>`;
       }catch(e){ el.innerHTML = `<div class="reqerr">${esc(String(e.message || e))}</div>`; } };
     $('#wClose').onclick = () => { box.hidden = true; };
     $('#wGo').onclick = () => go($('#wFrom').value, $('#wTo').value);
