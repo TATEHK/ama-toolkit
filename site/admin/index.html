@@ -156,6 +156,7 @@
   .rsgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}.rsgrid label{margin:0!important}
   .rup.rx{border-color:var(--ok);}.rup.rmv{border-color:#d9a400;}.rup.roff{opacity:.6;text-decoration:line-through;}
   .rtot{display:block;font-size:12px;font-weight:600;margin-top:2px;}
+  .pp.gone{opacity:.55;cursor:not-allowed;}
   .rmtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.rmtop .grow{flex:1}.rmname{font-family:var(--font-display);font-size:18px;min-width:120px;text-align:center}
   .rkey{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:11px}
   .rcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
@@ -1077,12 +1078,13 @@ function rostersSection(){
     const changesList = (r, l) => { if(!r) return '';
       const nm = v => String(v || '').trim().toLowerCase(), us = usualOn(d, l), sl = (r.slots || []).filter(x => (x.name || '').trim());
       const extra = sl.filter(x => !us.some(p => nm(p.name) === nm(x.name)));
+      const elsewhereOf = p => (x.r || []).find(o => o.location !== l && (o.slots || []).some(z => nm(z.name) === nm(p.name)));
       const off = us.filter(p => !sl.some(x => nm(x.name) === nm(p.name)));
       const moved = sl.filter(x => { const p = us.find(p => nm(p.name) === nm(x.name)); return p && x.start && x.end && (x.start !== String(p.start).slice(0, 5) || x.end !== String(p.end).slice(0, 5)); });
       const chip = (cls, t) => `<span class="rup ${cls}">${t}</span>`;
       const out = [...extra.map(x => chip('rx', `+ ${esc(x.name)} <i>${x.start && x.end ? fmtTime(x.start) + '–' + fmtTime(x.end) : ''}${x.job ? ' · ' + esc(x.job) : ''}</i>`)),
         ...moved.map(x => chip('rmv', `${esc(x.name)} <i>now ${fmtTime(x.start)}–${fmtTime(x.end)}${x.job ? ' · ' + esc(x.job) : ''}</i>`)),
-        ...off.map(p => chip('roff', `− ${esc(p.name)} <i>off</i>`))];
+        ...off.map(p => { const o = elsewhereOf(p); return o ? chip('rmv', `${esc(p.name)} <i>moved to ${esc(SCHOOL(o.location))}</i>`) : chip('roff', `− ${esc(p.name)} <i>off</i>`); })];
       return out.length ? `<div class="rus"><span class="rul">Changes</span>${out.join('')}</div>` : `<div class="rus"><span class="rul">Changes</span><span class="muted small">none</span></div>`; };
     panel = `<div class="rpanel"><div class="rph"><b>${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}</b>${x.a ? `<span class="muted">${x.a.yes} free, ${x.a.part} part free, ${x.a.no} not free</span>` : ''}</div>
       ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = filledOf(r), need = needOf(r, l);
@@ -1146,6 +1148,9 @@ function defTimes(span){   // from N minutes before the first grading (or the on
 }
 const personOf = name => RO && RO.people.find(p => p.name.toLowerCase() === String(name || '').trim().toLowerCase());
 function availText(p){ const a = p && p.avail; if(!a || !a.status) return ''; return a.status === 'yes' ? 'Free' : a.status === 'part' ? `Free ${a.from ? fmtTime(a.from) : ''}${a.to ? '–' + fmtTime(a.to) : ''}`.trim() : 'Not free'; }
+// on another school's roster this day (moved there): { location, ... } or null
+function onElsewhere(p){ if(!p || !RO || !RO.elsewhere) return null; const n = p.name.trim().toLowerCase();
+  return RO.elsewhere.find(e => (e.staff_id && e.staff_id === p.staff_id) || String(e.name || '').trim().toLowerCase() === n) || null; }
 function usualElsewhere(p, sl){   // their usual shift at another school overlapping this one (it will move here)
   if(!p || !p.usual) return null; const a = mins(sl.start), b = mins(sl.end);
   return p.usual.find(u => u.location !== RO.location && (a == null || b == null || (mins(u.start) < b && mins(u.end) > a))) || null;
@@ -1158,12 +1163,12 @@ async function openRoster(date, location){
   const { data, error } = await sb.rpc('cb_ops_day_roster', { p_date: date, p_location: location });
   if(error){ roErr('Could not load: ' + error.message); return; }
   if(RSET) RSET.me_approves = data.me_approves;
-  const r = data.roster; RO.r = r; RO.people = (data.people || []).filter(p => p.staff); RO.gradings = data.gradings || [];   // staff only, no grading helpers
+  const r = data.roster; RO.r = r; RO.people = (data.people || []).filter(p => p.staff); RO.gradings = data.gradings || []; RO.elsewhere = data.elsewhere || [];   // elsewhere: who's on another school's roster this day. staff only, no grading helpers
   RO.lim = { floor: { need: needOf(r, location), max: maxOf(r, location) }, g: JSON.parse(JSON.stringify((r && r.limits && r.limits.g) || {})), extras: (r && r.limits && r.limits.extras) || null };   // g: each grading's own need / max, by day_id
   const dt = defTimes();
   if(r && (r.slots || []).length) RO.slots = JSON.parse(JSON.stringify(r.slots));
   else {   // a new roster starts with everyone who usually works here that weekday (their usual times), then empty slots up to the number needed
-    const usual = RO.people.filter(p => (p.usual || []).some(u => u.location === location));   // usually here = working, even if they said not free
+    const usual = RO.people.filter(p => (p.usual || []).some(u => u.location === location) && !onElsewhere(p));   // usually here = working, even if they said not free (unless moved to another school that day)
     RO.slots = usual.map(p => { const u = p.usual.find(u => u.location === location);
       return { role: 'floor', usual: true, start: u.start, end: u.end, name: p.name, mobile: p.mobile || '', email: p.email || null, staff_id: p.staff_id, deputy_emp: p.deputy_emp || null }; });
     if(!EXTRA_SCHOOLS.includes(location)) while(RO.slots.length < RO.lim.floor.need) RO.slots.push({ role: 'floor', ...dt, name: '', mobile: '' });   // Concord / Auburn: usual people, then extras as needed
@@ -1183,7 +1188,7 @@ function drawSlots(){
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
       <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
-      ${(av || el || x.usual) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el ? `<span class="pa move">Moves from ${esc(SCHOOL(el.location))} ${fmtTime(el.start)}–${fmtTime(el.end)}</span>` : ''}</div>` : ''}</div>`; };
+      ${(av || el || x.usual) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el && !x.usual ? `<span class="pa move">Moved from ${esc(SCHOOL(el.location))} (usually ${fmtTime(el.start)}–${fmtTime(el.end)})</span>` : ''}</div>` : ''}</div>`; };
   const L = RO.lim.floor, filled = RO.slots.filter(countsHere).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="max" value="${L.max}"></span></div>
@@ -1260,11 +1265,13 @@ function fillFrom(sl, p){
 function drawPeople(){
   const used = new Set(RO.slots.map(x => (x.name || '').trim().toLowerCase()).filter(Boolean));
   const sydOk = p => p.avail && ((RO.location === 'Sydenham' && p.avail.syd) || (p.avail.others || []).includes(RO.location));   // said they're happy to go to this school that day
-  const score = p => (p.avail && p.avail.status ? { yes: 0, part: 2, no: 9 }[p.avail.status] : 4) + ((p.usual || []).some(u => u.location === RO.location) ? -1 : 0) + (sydOk(p) ? -3 : 0);
+  const score = p => (onElsewhere(p) ? 50 : 0) + (p.avail && p.avail.status ? { yes: 0, part: 2, no: 9 }[p.avail.status] : 4) + ((p.usual || []).some(u => u.location === RO.location) ? -1 : 0) + (sydOk(p) ? -3 : 0);
   const list = RO.people.filter(p => !used.has(p.name.toLowerCase())).sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
   const q = ($('#roFind') && $('#roFind').value || '').trim().toLowerCase();
   const shown = list.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, q ? 40 : 12);
   $('#roPeopleList').innerHTML = shown.map(p => { const av = availText(p), us = (p.usual || []).map(u => `${SHORT(u.location)} ${fmtTime(u.start)}–${fmtTime(u.end)}`).join(', ');
+    const oe = onElsewhere(p);
+    if(oe) return `<button type="button" class="pp gone" disabled title="Already rostered at ${esc(SCHOOL(oe.location))} this day"><span class="pn">${esc(p.name)}</span><span class="pa no">On at ${esc(SCHOOL(oe.location))}</span></button>`;
     return `<button type="button" class="pp" data-pick="${esc(p.name)}"><span class="pn">${esc(p.name)}</span>${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${sydOk(p) ? `<span class="pa yes">Can go to ${esc(SCHOOL(RO.location))}</span>` : ''}${us ? `<span class="pu">Usually ${esc(us)}</span>` : ''}</button>`; }).join('')
     || '<div class="muted" style="font-size:13px">No one else to add.</div>';
   $('#roPeopleList').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
@@ -1309,7 +1316,7 @@ function scheduleSave(){
   }, 900);
 }
 function closeRoster(){ const was = RO; clearTimeout(saveT); $('#rosterModal').hidden = true; RO = null; if(was && was.saved){ afterSave(); } }
-const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
+const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, moved_from: (!x.usual && (usualElsewhere(personOf(x.name), x) || {}).location) || null, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
   email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null, deputy_note: x.deputy_note || null, deputy_span: x.deputy_span || null, deputy_unit: x.deputy_unit || null }));
 const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g, extras: RO.lim.extras });
 async function afterSave(){ await loadRosterUpcoming(); RMD = null; render(); }
