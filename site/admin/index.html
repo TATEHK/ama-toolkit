@@ -1015,9 +1015,11 @@ $('#reqForm').addEventListener('submit', async e => {
 /* ===== Rosters: one roster per day per school, built in a month calendar. Tate and Mark approve. =====
    Each person shows their availability (from their link) and their usual shifts (from Deputy) while you roster. */
 // "View as Bianca": Tate and Mark can see the rosters as a non-approver would
-let VIEW_AS = false; try{ VIEW_AS = sessionStorage.getItem('ops_view_as') === '1'; }catch(e){}
+const VIEW_AS_UNTIL = Date.parse('2026-11-30T01:00:00+11:00');   // the button goes away at 1am Monday 30 Nov (Sydney)
+const viewAsOn = () => Date.now() < VIEW_AS_UNTIL;
+let VIEW_AS = false; try{ VIEW_AS = viewAsOn() && sessionStorage.getItem('ops_view_as') === '1'; }catch(e){}
 const realApprover = () => !!(RSET && RSET.me_approves);
-const canApprove = () => realApprover() && !VIEW_AS;
+const canApprove = () => realApprover() && !(VIEW_AS && viewAsOn());
 const RO_LABEL = { draft: 'Draft', submitted: 'Waiting for approval', approved: 'Approved', declined: 'Declined' };
 const SCHOOL = l => l === 'West' ? 'Auburn' : (l || '');
 const SHORT = l => ({ Marrickville: 'Marr', Sydenham: 'Syd', Concord: 'Con', Sylvania: 'Syl', West: 'Aub' }[l] || l);
@@ -1116,7 +1118,7 @@ function rostersSection(){
   }
   return `<div class="rmtop"><button class="btn mini" id="rmPrev" aria-label="Previous month">‹</button><b class="rmname">${MON[b.getMonth()]} ${b.getFullYear()}</b><button class="btn mini" id="rmNext" aria-label="Next month">›</button>
       <button class="btn mini" id="rmToday">Today</button><span class="grow"></span>${waiting ? `<span class="rtag submitted">${waiting} waiting for approval</span>` : ''}
-      ${realApprover() ? `<button class="btn mini${VIEW_AS ? ' primary' : ''}" id="viewAsBtn">${VIEW_AS ? 'Back to my view' : "View as Bianca"}</button>` : ''}
+      ${realApprover() && viewAsOn() ? `<button class="btn mini${VIEW_AS ? ' primary' : ''}" id="viewAsBtn">${VIEW_AS ? 'Back to my view' : "View as Bianca"}</button>` : ''}
       <button class="btn mini" id="staffBtn">Staff & availability</button>${canApprove() ? '<button class="btn mini" id="availSmsBtn">Text availability links</button><button class="btn mini" id="rsetBtn">Roster defaults</button><button class="btn mini" id="wagesBtn">Wages</button>' : ''}</div>
     <div class="rsch">${['', 'Marrickville', 'Sydenham', 'Concord', 'Sylvania', 'West'].map(l => `<button class="lchip ${RSCH === l ? 'on' : ''}" data-rsch="${l}">${l ? esc(SCHOOL(l)) : 'All schools'}</button>`).join('')}</div>
     <div class="rkey"><span class="rc none"><i></i>Grading</span><span class="rc draft">Draft</span><span class="rc submitted">Waiting</span><span class="rc approved">Approved</span><span class="rc short">Short</span><span class="ra">free = staff available</span><span class="ru">usual staff that weekday</span></div>
