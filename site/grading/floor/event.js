@@ -249,7 +249,8 @@
         <select id="geStep">${list.map(x => `<option value="${x.b}:${x.s}" ${x === cur ? 'selected' : ''}>${hhmm(x.st.time)} · ${h(x.block.title)} · Group ${h(x.st.groups.join(' + '))}</option>`).join('')}</select></div>`}
       ${S.ev.approved_at ? '<div class="ge-card" style="border-color:var(--ok);margin-bottom:10px">Results are approved and locked.</div>' : ''}
       ${st.quiz ? `<div class="ge-card" style="margin-bottom:10px">The theory item is marked from the test: open <b>Theory test</b> and press <b>Record theory results</b> once it has finished, or mark someone by hand below.</div>` : ''}
-      <div style="display:flex;flex-direction:column;gap:4px;margin:8px 0 12px">${legend}</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin:8px 0 8px">${legend}</div>
+      <div class="ge-row" style="gap:6px;flex-wrap:wrap;margin:0 0 12px"><span class="ge-small ge-muted">Pass whole group:</span>${[...new Set(Object.values(st.items).flat())].map(code => `<button class="ge-btn sm ge-ghost" data-gp="${code}" title="Pass ${code} for everyone not scored yet">${code}</button>`).join('')}</div>
       <div class="ge-row ge-small ge-muted" style="margin-bottom:8px"><span class="ge-grow">Tap an item: pass, then fail, then clear. <b>Note</b> adds a comment. Candidates not checked in on the floor are greyed.</span>
         <span style="${un ? 'color:var(--warn)' : ''}" class="${un ? '' : 'ge-tag ok'}">${un ? un + ' to score here' : 'All scored'}</span>
         ${blockUn.length && cur.block.assess.length > 1 ? `<button class="ge-btn sm" id="geBlockUn">${blockUn.length} unscored in this block</button>` : ''}</div>
@@ -260,6 +261,7 @@
     const gs = $1('#geStep'); if (gs) gs.onchange = e => { const [b, s] = e.target.value.split(':').map(Number); S.sel = { b, s }; keepUi(); draw(); };
     inM('[data-m]').forEach(x => x.onclick = () => { const [cid, code] = x.dataset.m.split('|'), m = mk(cid, code) || {}; setMark(cid, code, m.result === 'pass' ? 'fail' : m.result === 'fail' ? null : 'pass'); });
     inM('[data-all]').forEach(x => x.onclick = () => { const c = cand(x.dataset.all); stepCodes(st, c).forEach(code => { if (!(mk(c.id, code) || {}).result) setMark(c.id, code, 'pass'); }); });
+    inM('[data-gp]').forEach(x => x.onclick = () => groupPass(st, x.dataset.gp));
     inM('[data-note]').forEach(x => x.onclick = () => noteDlg(cand(x.dataset.note), stepCodes(st, cand(x.dataset.note))));
     const bu = $1('#geBlockUn'); if (bu) bu.onclick = () => openDlg(`<h3>Not scored yet: ${h(cur.block.title)}</h3><div style="max-height:50vh;overflow:auto;margin:10px 0">${blockUn.map(u => `<div class="ge-small">${h(u.c.name)} · <b>${u.code}</b> ${h(itemOf(u.code).section)}</div>`).join('')}</div><button class="ge-btn" data-x>Close</button>`);
   }
@@ -275,6 +277,12 @@
     if (fromRs.length) return fromRs;
     const t = String(itemOf(code).text || ''); return t ? t.split(/;\s*/).map(x => x.trim()).filter(Boolean) : [];
   }
+  // Pass one item for everyone in this step's group(s) who hasn't been scored on it yet (fails and scores already in are left alone)
+  async function groupPass(st, code) {
+    const who = inGroups(st.groups).filter(x => stepCodes(st, x).includes(code) && !(mk(x.id, code) || {}).result);
+    for (const x of who) await setMark(x.id, code, 'pass');
+    say(who.length ? `${code} passed for ${who.length} in Group ${st.groups.join(' + ')}` : `Everyone already has a score for ${code}`, 2500);
+  }
   function candSheet(cid) {
     if (!S.ev) return false; css();
     const c = cand(cid); if (!c) return false;
@@ -288,7 +296,7 @@
           return `<details class="cs-item" ${fails.length || m.result === 'fail' ? 'open' : ''} style="border:1px solid var(--line-2);border-radius:12px;padding:8px 10px;margin:0 0 8px">
             <summary style="display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none"><b>${code}</b><span class="ge-grow">${h(itemOf(code).section)}</span>
               <span class="ge-tag ${m.result === 'pass' ? 'ok' : ''}" style="${m.result === 'fail' ? 'color:#ef8a73;border-color:#ef8a73' : ''}">${m.result === 'pass' ? 'Pass' : m.result === 'fail' ? 'Fail' : 'Not scored'}</span></summary>
-            <div class="ge-row" style="gap:6px;margin:8px 0"><button class="ge-btn sm" data-ir="${code}|pass">Pass</button><button class="ge-btn sm danger" data-ir="${code}|fail">Fail</button><button class="ge-btn sm" data-ir="${code}|">Clear</button></div>
+            <div class="ge-row" style="gap:6px;margin:8px 0"><button class="ge-btn sm" data-ir="${code}|pass">Pass</button><button class="ge-btn sm danger" data-ir="${code}|fail">Fail</button><button class="ge-btn sm" data-ir="${code}|">Clear</button><span class="ge-grow"></span><button class="ge-btn sm ge-ghost" data-gp="${code}">Pass whole group</button></div>
             ${mv.map((t, i) => { const bad = fails.includes(t); return `<div class="ge-row" style="gap:8px;padding:5px 0;border-top:1px solid var(--line)"><span class="ge-grow ge-small" style="${bad ? 'color:#ef8a73;font-weight:700' : ''}">${bad ? '✗ ' : ''}${h(t)}</span><button class="ge-btn sm ${bad ? 'danger' : ''}" data-mv="${code}|${i}">${bad ? 'Failed · undo' : 'Fail this move'}</button></div>`; }).join('')}
             <textarea rows="2" placeholder="Note for ${code} (optional)" data-nt="${code}" style="margin-top:6px">${h(otherNote(m.comment))}</textarea></details>`; }).join('')}</div>
         <div class="ge-row"><button class="ge-btn" data-prof>Open profile</button><span class="ge-grow"></span><button class="ge-btn primary" data-x>Done</button></div>`);
@@ -299,6 +307,7 @@
       d.querySelectorAll('[data-mv]').forEach(b => b.onclick = async () => { const [code, i] = b.dataset.mv.split('|'), t = movesFor(code)[+i], m = mk(c.id, code) || {};
         let fails = failedMoves(m.comment); fails = fails.includes(t) ? fails.filter(x => x !== t) : [...fails, t];
         await setMark(c.id, code, fails.length ? 'fail' : (m.result === 'fail' ? null : m.result || null), joinNote(fails, otherNote(m.comment))); paint(); });
+      d.querySelectorAll('[data-gp]').forEach(b => b.onclick = async () => { await groupPass(st, b.dataset.gp); paint(); });
       d.querySelectorAll('[data-nt]').forEach(ta => ta.onchange = () => { const code = ta.dataset.nt, m = mk(c.id, code) || {}; setMark(c.id, code, undefined, joinNote(failedMoves(m.comment), ta.value.trim())); });
       const pr = d.querySelector('[data-prof]'); if (pr) pr.onclick = () => { closeDlg(); if (window.openProfileByEntry) window.openProfileByEntry(c.id); };
     };
