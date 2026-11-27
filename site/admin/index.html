@@ -163,6 +163,7 @@
   .rc.draft{border-color:var(--ink-3)}.rc.submitted{color:var(--accent);border-color:var(--accent)}.rc.approved{color:var(--ok);border-color:var(--ok)}.rc.declined{color:var(--danger);border-color:var(--danger)}
   .rc.short{background:rgba(255,200,0,.12)}
   .ra{font-size:10.5px;color:var(--ok);font-weight:600}
+  .rcell.nog{cursor:default;opacity:.55}.rcell.nog .rd{font-weight:600}
   .ru{font-size:10.5px;color:var(--ink-3);margin-top:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .rsch{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
   .rus{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center}
@@ -1028,13 +1029,14 @@ function rostersSection(){
       const n = filledOf(r), need = needOf(r), st = r ? r.status : (g ? 'none' : '');
       return `<span class="rc ${st}${r && n < need ? ' short' : ''}" title="${esc(SCHOOL(l))}${g ? ' · grading' : ''}">${g ? '<i></i>' : ''}${esc(SHORT(l))}${r || g ? ` ${n}/${need}` : ''}</span>`; }).join('');
     const av = x.a ? `<span class="ra">${x.a.yes + x.a.part} free</span>` : '';
-    const usual = us.length ? `<span class="ru" title="Usually working">${us.map(([l, n]) => RSCH ? `${n} usually on` : `${esc(SHORT(l))} ${n}`).join(' · ')}</span>` : '';
-    return `<button class="rcell${out ? ' out' : ''}${k === today ? ' now' : ''}${k === RSELD ? ' sel' : ''}" data-rday="${k}"><span class="rd">${d.getDate()}</span>${chips}${av}${usual}</button>`; };
+    const gday = x.g.length > 0;   // rostering is only for days with gradings on
+    const usual = gday && us.length ? `<span class="ru" title="Usually working">${us.map(([l, n]) => RSCH ? `${n} usually on` : `${esc(SHORT(l))} ${n}`).join(' · ')}</span>` : '';
+    return `<button class="rcell${out ? ' out' : ''}${k === today ? ' now' : ''}${k === RSELD ? ' sel' : ''}${gday || x.r.length ? ' gd' : ' nog'}" ${gday || x.r.length ? `data-rday="${k}"` : 'disabled'}><span class="rd">${d.getDate()}</span>${chips}${av}${usual}</button>`; };
   const waiting = (RMD.rosters || []).filter(r => r.status === 'submitted').length;
   let panel = '';
   if(RSELD){
     const x = byDay[RSELD] || { r: [], g: [] }, d = new Date(RSELD + 'T00:00:00');
-    const locs = [...new Set([...x.g.map(g => g.location), ...x.r.map(r => r.location), ...ROSTER_SCHOOLS, ...usualSchools(d)])].filter(inSch);
+    const gl = x.g.map(g => g.location), locs = [...new Set([...gl, ...(gl.includes('Marrickville') ? ['Sydenham'] : []), ...x.r.map(r => r.location)])].filter(inSch);
     const usualList = l => { const ps = usualOn(d, l); return ps.length ? `<div class="rus"><span class="rul">Usually on</span>${ps.map(p => `<span class="rup">${esc(p.name)} <i>${fmtTime(p.start)}–${fmtTime(p.end)}</i></span>`).join('')}</div>` : ''; };
     panel = `<div class="rpanel"><div class="rph"><b>${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}</b>${x.a ? `<span class="muted">${x.a.yes} free, ${x.a.part} part free, ${x.a.no} not free</span>` : ''}</div>
       ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = filledOf(r), need = needOf(r);
