@@ -453,6 +453,13 @@
 <script>
 const CFG = window.TOOLKIT_CONFIG || {};
 let sb, DATA = null, started = false, openKey = null, loc = null, prog = null;
+let restored = false;
+// Reload keeps your place: open card, roster month and day, scroll position and an open roster (this tab only)
+const KEEP = (()=>{ try{ return JSON.parse(sessionStorage.getItem('ops_keep') || '{}'); }catch(e){ return {}; } })();
+function keepPlace(){ try{ sessionStorage.setItem('ops_keep', JSON.stringify({ openKey, RMON, RSELD, y: window.scrollY, ro: RO ? RO.date + '|' + RO.location : null, tab: OTAB })); }catch(e){} }
+window.addEventListener('pagehide', keepPlace); window.addEventListener('beforeunload', keepPlace);
+document.addEventListener('visibilitychange', () => { if(document.hidden) keepPlace(); });
+
 let me = '', myPerms = [], isAdmin = false, busy = false, BBSESS = [], DATA2 = null, NOTES = [], RSET = null;
 const OTABS = [['today','Today'],['action','Needs action'],['gradings','Gradings'],['rosters','Rosters'],['helpers','Helpers'],['reports','Reports']];
 let OTAB = (()=>{ try{ const h = location.hash.replace('#',''); return OTABS.some(t=>t[0]===h) ? h : (localStorage.getItem('ops_tab')||'today'); }catch(e){ return 'today'; } })();
@@ -483,7 +490,13 @@ async function load(){
     DATA2 = (d2 && d2.data) || null;
     NOTES = (nt && nt.data) || [];
     RSET = { ...(RSET || {}), ...((rs && rs.data) || {}) }; if(!RSET.floor_need && RSET.floor_need !== 0) RSET = { ...RSET,  floor_need: 2, floor_max: 4, admin_need: 1, admin_max: 2, floor_before: 30, floor_hours: 3, admin_before: 30, admin_hours: 3 };
-    DATA = data; render();
+    DATA = data;
+    if(!restored && KEEP.tab === OTAB && KEEP.openKey) openKey = KEEP.openKey;   // first load after a reload: back to where you were
+    render();
+    if(!restored){ restored = true; } if(KEEP.tab === OTAB){ const y = KEEP.y || 0, ro = KEEP.ro;
+      const back = (n) => { if(document.body.scrollHeight >= y + innerHeight - 50 || n > 20) window.scrollTo(0, y); else setTimeout(() => back(n + 1), 150); };   // wait for the calendar to load
+      if(y) back(0);
+      if(ro){ const [d, l] = ro.split('|'); setTimeout(() => openRoster(d, l), 300); } KEEP.tab = null; }
     $('#updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }catch(e){ $('#board').innerHTML = `<div class="loading" style="color:var(--danger)">Couldn't load: ${esc(e.message||e)}</div>`; }
 }
@@ -1028,7 +1041,7 @@ const ROSTER_SCHOOLS = ['Marrickville', 'Sydenham'];   // always rosterable; plu
 const pad = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r.status}${r.status === 'approved' && r.deputy_at ? ' · in Deputy' : ''}${r.status === 'approved' && r.notified_at ? ' · texted' : ''}</span>` : '';
-let RMON = 0, RMD = null, RSELD = null, RUP = [], RSCH = (()=>{ try{ return localStorage.getItem('ops_rsch') || ''; }catch(e){ return ''; } })();   // RSCH: school filter ('' = all)   // month offset, month data, picked day, upcoming rosters (for approvals)
+let RMON = KEEP.tab === OTAB && KEEP.RMON != null ? KEEP.RMON : 0, RMD = null, RSELD = KEEP.tab === OTAB ? (KEEP.RSELD || null) : null, RUP = [], RSCH = (()=>{ try{ return localStorage.getItem('ops_rsch') || ''; }catch(e){ return ''; } })();   // RSCH: school filter ('' = all)   // month offset, month data, picked day, upcoming rosters (for approvals)
 // who counts towards the number needed: not Little Dragons teachers, and at Concord / Auburn only the extras (the usual staff are on anyway)
 // people who never count towards the numbers (Roster settings not_counted: Hakan, Laurie, Mark, Sarah, Busra)
 const notCounted = x => !!x.no_count || ((RSET && RSET.not_counted) || []).includes(String(x.name || '').trim().toLowerCase());   // no_count: excluded on this roster only
