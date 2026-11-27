@@ -2511,7 +2511,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
-    const cronSync = body.action === 'deputy_usual' && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
+    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates') && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
     if (!me && !cronSync) return fail('Sign in first.', 401);
     // AMA ID Cards: text and email people a link to upload a photo for their card. Needs ID Cards "Edit people" (or Admin).
     // { person_ids: [...], preview: true } returns the messages for the first person without sending.
@@ -2921,9 +2921,9 @@ export async function handle(req, db, env = {}, http = fetch) {
     //       cb_roster_settings only (Tate and Mark). Deputy: DEPUTY_HOST (built in) and the DEPUTY_TOKEN secret. =====
     const rosterApprover = async () => { const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();
       return !!(me && rs && (rs.approvers || []).some((e: string) => String(e).toLowerCase() === me)); };
-    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs', 'deputy_connect_url', 'deputy_connect', 'deputy_status', 'roster_deputy_remove'].includes(body.action);
+    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs', 'deputy_connect_url', 'deputy_connect', 'deputy_status', 'roster_deputy_remove', 'pay_rates'].includes(body.action);
     // reading usual shifts from Deputy can also run from the database (x-cb-cron), e.g. a nightly refresh
-    const cronOk = cronSync;
+    const cronOk = cronSync;   // deputy_usual and pay_rates (read-only) can run from the database
     if (isRosterAction && !cronOk && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
     const SCHOOL = (l: string) => l === 'West' ? 'Auburn' : l;
     const t12 = (t: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + (m[2] === '00' ? '' : ':' + m[2]) + (h < 12 ? 'am' : 'pm'); };
@@ -3128,27 +3128,65 @@ export async function handle(req, db, env = {}, http = fetch) {
       return json({ ok: true, employees: emps.length, shifts: shifts.length, usual: rows.length, unmatched_areas: units.filter(u => !u.school).map(u => u.name + (u.company ? ' (' + u.company + ')' : '')) });
     }
 
+    // ---- each person's base hourly rate from their Deputy employment agreement (Tate and Mark) ----
+    const payRates = async () => {
+      const ags: any[] = await dep('resource/EmployeeAgreement/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Active', type: 'eq', data: true } }, max: 500 }) });
+      const out: Record<number, any> = {};
+      for (const a of ags) {
+        const rate = +(a.BaseRate ?? a.PayRate ?? a.HourlyRate ?? 0) || null;
+        const cur = out[+a.Employee];
+        if (!cur || (rate && !cur.rate)) out[+a.Employee] = { rate, agreement: a.ContractName || a.Name || null, basis: a.EmploymentBasis ?? null };
+      }
+      return { byEmp: out, sample_keys: ags[0] ? Object.keys(ags[0]).slice(0, 60) : [] };
+    };
+    if (body.action === 'pay_rates') {
+      let pr: any;
+      try { pr = await payRates(); } catch (er) { return fail(String(er.message || er)); }
+      const { data: staff } = await db.from('cb_staff').select('name, deputy_emp, active').not('deputy_emp', 'is', null);
+      const rows = (staff || []).map(s => ({ name: s.name, active: s.active, ...(pr.byEmp[+s.deputy_emp] || { rate: null }) })).sort((a, b) => a.name.localeCompare(b.name));
+      return json({ ok: true, rates: rows, keys: body.debug ? pr.sample_keys : undefined });
+    }
+
     // ---- wages for rostered shifts, from Deputy's own cost for each shift we put there (Tate and Mark). { from, to } ----
     if (body.action === 'roster_costs') {
       const from = String(body.from || ''), to = String(body.to || '');
       const { data: rs } = await db.from('cb_day_rosters').select('date, location, slots, status').gte('date', from).lte('date', to);
+      const { data: gd } = await db.from('cb_days').select('day_id, grading_date, location, start_time, belts, min_age, max_age, programme, makeup, bb, closed').gte('grading_date', from).lte('grading_date', to);
       const ids = (rs || []).flatMap(r => (r.slots || []).map((x: any) => +x.deputy_id).filter((n: number) => n > 0));
       const cost: Record<number, any> = {};
+      let rates: Record<number, any> = {}, rateErr = null;
       try {
         for (let i = 0; i < ids.length; i += 100) {
-          const chunk = ids.slice(i, i + 100);
-          const got: any[] = await dep('resource/Roster/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Id', type: 'in', data: chunk } }, max: 100 }) });
+          const got: any[] = await dep('resource/Roster/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Id', type: 'in', data: ids.slice(i, i + 100) } }, max: 100 }) });
           for (const x of got) cost[+x.Id] = { cost: +x.Cost || 0, hours: +x.TotalTime || 0 };
         }
-      } catch (er) { if (ids.length) return fail(String(er.message || er)); }
+        rates = (await payRates()).byEmp;
+      } catch (er) { rateErr = String(er.message || er); }
+      const { data: staff } = await db.from('cb_staff').select('staff_id, deputy_emp');
+      const empOf = (x: any) => x.deputy_emp || ((staff || []).find(s => s.staff_id === x.staff_id) || {} as any).deputy_emp;
+      const mins = (t: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
       const lines = [];
       for (const r of (rs || [])) for (const x of (r.slots || [])) {
         if (!x.name) continue;
-        const c = cost[+x.deputy_id];
-        const hrs = c ? c.hours : (x.start && x.end ? ((+x.end.slice(0, 2) * 60 + +x.end.slice(3)) - (+x.start.slice(0, 2) * 60 + +x.start.slice(3))) / 60 : 0);
-        lines.push({ date: r.date, location: r.location, status: r.status, name: x.name, job: x.job || null, start: x.start, end: x.end, hours: Math.round(hrs * 100) / 100, cost: c ? Math.round(c.cost * 100) / 100 : null });
+        const c = cost[+x.deputy_id], rate = (rates[+empOf(x)] || {}).rate || null;
+        const a = mins(x.start), b = mins(x.end), hrs = c && c.hours ? c.hours : (a != null && b != null ? (b - a) / 60 : 0);
+        const est = c && c.cost ? c.cost : (rate ? rate * hrs : null);
+        lines.push({ date: r.date, location: r.location, status: r.status, name: x.name, job: x.job || null, start: x.start, end: x.end, hours: Math.round(hrs * 100) / 100,
+          rate, cost: est == null ? null : Math.round(est * 100) / 100, from_deputy: !!(c && c.cost) });
       }
-      return json({ ok: true, lines, total: Math.round(lines.reduce((a, l) => a + (l.cost || 0), 0) * 100) / 100, hours: Math.round(lines.reduce((a, l) => a + l.hours, 0) * 100) / 100, unpriced: lines.filter(l => l.cost == null).length });
+      // each grading: the cost of the staff on for it (their rate x the grading's length), so a grading's staff cost can be compared
+      const gradings = (gd || []).filter(g => !g.makeup && !g.bb && !g.closed).map(g => {
+        const same = (gd || []).filter(o => o.grading_date === g.grading_date && o.location === g.location && !o.makeup && !o.bb && o.start_time).sort((p, q) => String(p.start_time).localeCompare(String(q.start_time)));
+        const st = mins(String(g.start_time || '')), nx = same.find(o => mins(String(o.start_time)) > (st ?? -1)), en = nx ? mins(String(nx.start_time)) : (st != null ? st + 90 : null);
+        const r = (rs || []).find(r => r.date === g.grading_date && r.location === g.location);
+        const on = r ? (r.slots || []).filter((x: any) => x.name && st != null && mins(x.start) != null && mins(x.start)! <= st && mins(x.end)! >= (en ?? st)) : [];
+        const hrs = st != null && en != null ? (en - st) / 60 : 0;
+        const c = on.reduce((t: number, x: any) => { const rt = (rates[+empOf(x)] || {}).rate; return t + (rt ? rt * hrs : 0); }, 0);
+        return { date: g.grading_date, location: g.location, start: String(g.start_time || '').slice(0, 5), belts: g.belts, min_age: g.min_age, max_age: g.max_age, programme: g.programme,
+          staff: on.length, hours: Math.round(hrs * 100) / 100, cost: Math.round(c * 100) / 100, unpriced: on.filter((x: any) => !(rates[+empOf(x)] || {}).rate).length };
+      });
+      return json({ ok: true, lines, gradings, rate_error: rateErr,
+        total: Math.round(lines.reduce((t, l) => t + (l.cost || 0), 0) * 100) / 100, hours: Math.round(lines.reduce((t, l) => t + l.hours, 0) * 100) / 100, unpriced: lines.filter(l => l.cost == null).length });
     }
 
     // ---- text staff their own availability link. { staff_ids?: [] } (default: every active staff member with a mobile) ----
