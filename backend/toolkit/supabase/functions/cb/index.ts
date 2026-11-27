@@ -3127,7 +3127,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         const emp = empFor(emps, String(body.name || ''));
         if (!emp) return fail('Not found in Deputy: ' + body.name);
         const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({ intStartTimestamp: Math.round(sydMs(body.date, body.start) / 1000), intEndTimestamp: Math.round(sydMs(body.date, body.end) / 1000),
-          intOpunitId: unit.id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0, strComment: String(body.note || '').slice(0, 500) }) });
+          intOpunitId: unit.id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0, strComment: String(body.note || '').slice(0, 500), ...(body.update_id ? { intRosterId: +body.update_id } : {}) }) });   // update_id: change that shift instead of making a new one
         return json({ ok: true, id: shift && (shift.Id || shift.id), employee: emp.DisplayName, area: unit.name });
       } catch (er) { return fail(String(er.message || er)); }
     }
