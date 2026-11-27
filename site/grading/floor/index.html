@@ -60,8 +60,14 @@ body[data-role="master"] .main{grid-template-columns:1fr}
 body[data-role="master"] .floor{min-height:60vh}
 .rsl-floor{margin-top:14px}
 .rsl-floor .floor{margin:6px 0 0;min-height:0;height:min(46vh,340px)}
+/* smaller circles and names in the runsheet's floor so every name shows; alternate name tags sit above/below so neighbours don't overlap */
+.rsl-floor .spot{width:auto;gap:3px}
+.rsl-floor .spot .dot{width:38px;height:38px;font-size:13px}
+.rsl-floor .spot .dot::after{inset:-3px;border-width:2.5px}
+.rsl-floor .spot .nm{font-size:11px;padding:1px 5px;white-space:nowrap;max-width:96px}
+.rsl-floor .spot:nth-child(even) .nm{order:-1}
 @media (min-width:900px){
-  .rsl-detail.with-floor{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,44%);column-gap:18px;align-items:start}
+  .rsl-detail.with-floor{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,52%);column-gap:18px;align-items:start}
   .rsl-detail.with-floor > *{grid-column:1}
   .rsl-detail.with-floor > .rsl-floors{grid-column:2;grid-row:1 / span 99;position:sticky;top:0;align-self:start}
   .rsl-detail.with-floor .rsl-floor:first-child{margin-top:0}
