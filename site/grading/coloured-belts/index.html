@@ -511,6 +511,9 @@ const beltOf = (name, prog) => (prog && state.belts.find(b => b.belt === name &&
 // "All programs": everything at once (students, grading days, dashboard); adding a day or editing belts needs one program
 const ALL = '*';
 const isAll = () => state.programme === ALL;
+// Programs shown together: BJJ Kids sits under BJJ (one choice, both lists)
+const PROG_GROUP = { 'BJJ Kids': 'BJJ' };
+const progKey = p => PROG_GROUP[p || 'Taekwondo'] || p || 'Taekwondo';
 const progOfDay = id => ((state.all.days.find(d => d.day_id === id) || {}).programme) || 'Taekwondo';
 // Programs: Taekwondo, Little Dragons, Kung Fu, Kickboxing, BJJ, BJJ Kids, Tricking (from cb_programmes)
 const progLabel = p => p === ALL ? 'All programs' : ((state.programmes || []).find(x => x.programme === p) || {}).label || p || '';
@@ -663,7 +666,8 @@ async function loadAll() {
   state.beltChanges = (bc && !bc.error) ? (bc.data || []) : [];   // belts the EFC update changed, newest first
   for (const r of [st, be, se, da, en]) if (r.error) throw r.error;
   state.all = { students: st.data || [], belts: be.data || [], days: da.data || [], entries: en.data || [] };
-  state.programmes = pr.error || !(pr.data || []).length ? [{ programme: 'Taekwondo', label: 'Taekwondo', active: true }] : pr.data.filter(x => x.active !== false);
+  state.programmes = pr.error || !(pr.data || []).length ? [{ programme: 'Taekwondo', label: 'Taekwondo', active: true }] : pr.data.filter(x => x.active !== false && !PROG_GROUP[x.programme]);
+  if (PROG_GROUP[state.programme]) state.programme = PROG_GROUP[state.programme];   // a saved choice of BJJ Kids now opens BJJ
   state.settings = (se.data || [])[0] || {}; state.messages = me.data || [];
   // The automated booking sequence (coloured-belts-23.sql): its steps, if the update has been run
   state.seqReady = !sq.error; state.seqSteps = sq.data || [];
@@ -710,7 +714,7 @@ async function refreshEntries() {
 }
 // Everything on screen is for one program at a time
 function applyProgramme() {
-  const P = state.programme, of = x => P === ALL || (x.programme || 'Taekwondo') === P;
+  const P = state.programme, of = x => P === ALL || progKey(x.programme) === P;
   state.students = state.all.students.filter(of); state.belts = state.all.belts.filter(of); state.days = state.all.days.filter(d => of(d) && !d.bb);   // black belt gradings live in the prep app, not here
   const ids = new Set(state.days.map(d => d.day_id));
   state.entries = state.all.entries.filter(e => ids.has(e.day_id));
@@ -1127,7 +1131,7 @@ function openDayForm(d = null) {
 const dayFilt = { belt: '', stage: null, sort: pref('day_sort', 'age') };
 function renderDay() {
   // A day from another program (e.g. an address someone was sent): switch to that program
-  if (isAll() || !dayOf(state.day)) { const other = state.all.days.find(x => x.day_id === state.day); if (other) { state.programme = other.programme || 'Taekwondo'; savePref('programme', state.programme); applyProgramme(); $('#view-ready').dataset.built = ''; return render(); } }
+  if (isAll() || !dayOf(state.day)) { const other = state.all.days.find(x => x.day_id === state.day); if (other) { state.programme = progKey(other.programme); savePref('programme', state.programme); applyProgramme(); $('#view-ready').dataset.built = ''; return render(); } }
   const d = dayOf(state.day), v = $('#view-day');
   if (!d) return go('days');
   if (dayFilt.day !== d.day_id) { dayFilt.day = d.day_id; dayFilt.belt = ''; dayFilt.stage = null; }
