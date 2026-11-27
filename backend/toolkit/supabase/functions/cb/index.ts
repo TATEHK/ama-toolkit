@@ -2511,7 +2511,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
-    if (!me) return fail('Sign in first.', 401);
+    if (!me && !(body.action === 'deputy_usual' && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true)) return fail('Sign in first.', 401);
     // AMA ID Cards: text and email people a link to upload a photo for their card. Needs ID Cards "Edit people" (or Admin).
     // { person_ids: [...], preview: true } returns the messages for the first person without sending.
     if (body.action === 'idphoto_send') {
@@ -2921,7 +2921,9 @@ export async function handle(req, db, env = {}, http = fetch) {
     const rosterApprover = async () => { const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();
       return !!(me && rs && (rs.approvers || []).some((e: string) => String(e).toLowerCase() === me)); };
     const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs'].includes(body.action);
-    if (isRosterAction && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
+    // reading usual shifts from Deputy can also run from the database (x-cb-cron), e.g. a nightly refresh
+    const cronOk = body.action === 'deputy_usual' && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;
+    if (isRosterAction && !cronOk && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
     const SCHOOL = (l: string) => l === 'West' ? 'Auburn' : l;
     const t12 = (t: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + (m[2] === '00' ? '' : ':' + m[2]) + (h < 12 ? 'am' : 'pm'); };
     const sydParts = (sec: number) => { const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short' }).formatToParts(new Date(sec * 1000));
