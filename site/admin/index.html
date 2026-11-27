@@ -176,6 +176,7 @@
   .rtop2{display:flex;gap:8px;align-items:center}
   .sb{grid-column:1/3;display:flex;gap:6px;flex-wrap:wrap}
   .pa{font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;border:1px solid var(--line);color:var(--ink-2)}
+  .pa.usual{color:var(--ink);border-color:var(--ink-3);background:rgba(255,255,255,.04)}
   .pa.yes{color:var(--ok);border-color:var(--ok)}.pa.part{color:var(--accent);border-color:var(--accent)}.pa.no{color:var(--danger);border-color:var(--danger)}.pa.move{color:var(--accent);border-style:dashed;border-color:var(--accent)}
   .rofind{display:block;width:100%;margin:0 0 8px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit}
   .pplist{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;margin-bottom:12px}
@@ -1087,7 +1088,7 @@ function gSpan(g){
 function defTimes(span){   // from N minutes before the first grading (or the one picked) to when the last one finishes
   const gs = span ? [span] : (RO.gradings || []).map(gSpan).filter(x => x.start);
   if(!gs.length) return RO.location === 'Sydenham' ? { start: SYD_START, end: '' } : { start: '', end: '' };   // Sydenham cover on grading days: 3:45pm (seniors: their usual later start)
-  const before = +((RSET || {}).floor_before ?? 30), first = Math.min(...gs.map(x => mins(x.start))), fixed = mins((RSET || {}).floor_start);
+  const before = +((RSET || {}).floor_before ?? 30), first = Math.min(...gs.map(x => mins(x.start))), fixed = mins(SCHOOL_START[RO.location] || (RSET || {}).floor_start);
   // the whole day's shift starts at the set time (3:30pm) when the first grading is after it; a single grading's shift starts N minutes before it
   const start = !span && fixed != null && fixed < first ? fixed : first - before;
   return { start: hm(start), end: hm(Math.max(...gs.map(x => mins(x.end)))) };
@@ -1109,7 +1110,13 @@ async function openRoster(date, location){
   const r = data.roster; RO.r = r; RO.people = (data.people || []).filter(p => p.staff); RO.gradings = data.gradings || [];   // staff only, no grading helpers
   RO.lim = { floor: { need: needOf(r), max: maxOf(r) }, g: JSON.parse(JSON.stringify((r && r.limits && r.limits.g) || {})) };   // g: each grading's own need / max, by day_id
   const dt = defTimes();
-  RO.slots = r && (r.slots || []).length ? JSON.parse(JSON.stringify(r.slots)) : [...Array(RO.lim.floor.need)].map(() => ({ role: 'floor', ...dt, name: '', mobile: '' }));
+  if(r && (r.slots || []).length) RO.slots = JSON.parse(JSON.stringify(r.slots));
+  else {   // a new roster starts with everyone who usually works here that weekday (their usual times), then empty slots up to the number needed
+    const usual = RO.people.filter(p => (p.usual || []).some(u => u.location === location) && !(p.avail && p.avail.status === 'no'));
+    RO.slots = usual.map(p => { const u = p.usual.find(u => u.location === location);
+      return { role: 'floor', usual: true, start: u.start, end: u.end, name: p.name, mobile: p.mobile || '', email: p.email || null, staff_id: p.staff_id, deputy_emp: p.deputy_emp || null }; });
+    while(RO.slots.length < RO.lim.floor.need) RO.slots.push({ role: 'floor', ...dt, name: '', mobile: '' });
+  }
   $('#roTitle').textContent = r && (r.slots || []).length ? 'Roster' : 'Build roster';
   $('#roSub').textContent = `${fmtDate(date)} · ${SCHOOL(location)} · ${RO.gradings.length ? `gradings ${RO.gradings.map(g => fmtTime(g.start)).join(', ')}` : 'no grading here this day'}`;
   $('#roStatus').innerHTML = roTag(r);
@@ -1124,7 +1131,7 @@ function drawSlots(){
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
       <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
-      ${(av || el) ? `<div class="sb">${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el ? `<span class="pa move">Moves from ${esc(SCHOOL(el.location))} ${fmtTime(el.start)}–${fmtTime(el.end)}</span>` : ''}</div>` : ''}</div>`; };
+      ${(av || el || x.usual) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el ? `<span class="pa move">Moves from ${esc(SCHOOL(el.location))} ${fmtTime(el.start)}–${fmtTime(el.end)}</span>` : ''}</div>` : ''}</div>`; };
   const L = RO.lim.floor, filled = RO.slots.filter(x => (x.name || '').trim()).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="max" value="${L.max}"></span></div>
@@ -1138,7 +1145,7 @@ function drawSlots(){
     G[k] = Math.max(0, Math.min(50, +inp.value || 0)); if(G.max < G.need) G.max = G.need; RO.lim.g[id] = G; RO.limDirty = true; RO.warned = false; drawSlots(); });
   $('#roSlots').querySelectorAll('.slot input').forEach(inp => inp.onchange = inp.oninput = e => {
     const i = +inp.closest('.slot').dataset.i, f = inp.dataset.f; RO.slots[i][f] = inp.value;
-    if(f === 'name' && e.type === 'change'){ const p = personOf(inp.value); if(p) fillFrom(RO.slots[i], p); drawSlots(); drawPeople(); }
+    if(f === 'name' && e.type === 'change'){ RO.slots[i].usual = false; const p = personOf(inp.value); if(p){ fillFrom(RO.slots[i], p); RO.slots[i].usual = (p.usual || []).some(u => u.location === RO.location); } drawSlots(); drawPeople(); }
     if((f === 'start' || f === 'end') && e.type === 'change') drawSlots();
   });
   $('#roSlots').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeSlot(+b.dataset.rm, b));
@@ -1158,6 +1165,7 @@ function gradingCover(){
 }
 const gradingShort = () => (RO.gradings || []).map(g => { const L = gLim(g.day_id), n = onFor(gSpan(g)); return n < L.need ? `${L.need - n} at the ${fmtTime(g.start)} grading` : n > L.max ? `${n - L.max} over the max at the ${fmtTime(g.start)} grading` : ''; }).filter(Boolean);
 const SYD_START = '15:45';
+const SCHOOL_START = { Sydenham: '15:45', Concord: '15:15' };   // grading-day shift starts by school (Marrickville: the Roster defaults time)
 // taking someone off: if their shift is already in Deputy, it's deleted there too (Tate and Mark), after a second tap to confirm
 async function removeSlot(i, btn){
   const sl = RO.slots[i]; if(!sl) return;
@@ -1212,7 +1220,7 @@ document.addEventListener('click', e => { const a = e.target.closest && e.target
   RO.slots.push({ role: 'floor', ...defTimes(), name: '', mobile: '' }); drawSlots(); const ins = $('#roSlots').querySelectorAll('.slot [data-f="name"]'); if(ins.length) ins[ins.length - 1].focus(); });
 document.addEventListener('input', e => { if(e.target && e.target.id === 'roFind' && RO) drawPeople(); });
 function closeRoster(){ $('#rosterModal').hidden = true; RO = null; }
-const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
+const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
   email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null, deputy_note: x.deputy_note || null }));
 const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g });
 async function afterSave(){ await loadRosterUpcoming(); RMD = null; render(); }
