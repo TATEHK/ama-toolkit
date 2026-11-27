@@ -3129,22 +3129,21 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
 
     // ---- each person's base hourly rate from their Deputy employment agreement (Tate and Mark) ----
+    // Deputy pays AMA staff by award rules (no flat rate on the agreement), so a person's hourly rate is worked out
+    // from what Deputy costed their own shifts over the last 8 weeks (cost ÷ hours, penalty rates included)
     const payRates = async () => {
-      const ags: any[] = await dep('resource/EmployeeAgreement/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Active', type: 'eq', data: true } }, max: 500 }) });
-      const out: Record<number, any> = {};
-      for (const a of ags) {
-        const rate = +(a.BaseRate ?? 0) || null, emp = +(a.EmployeeId ?? a.Employee);
-        const cur = out[emp];
-        if (!cur || (rate && !cur.rate)) out[emp] = { rate, salary: +a.AnnualSalary || null, emp_type: a.EmpType ?? null, pay_point: a.PayPoint ?? null, level: a.LevelId ?? null };
-      }
-      return { byEmp: out, sample_keys: ags[0] ? Object.keys(ags[0]).slice(0, 60) : [] };
+      const now = Math.round(Date.now() / 1000), out: Record<number, any> = {}, sums: Record<number, any> = {};
+      const shifts: any[] = await dep('resource/Roster/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'StartTime', type: 'ge', data: now - 56 * 86400 }, s2: { field: 'StartTime', type: 'lt', data: now } }, max: 3000 }) });
+      for (const x of shifts) { const e = +x.Employee, c = +x.Cost || 0, h = +x.TotalTime || 0; if (!e || !c || !h) continue; const t = sums[e] = sums[e] || { c: 0, h: 0, n: 0 }; t.c += c; t.h += h; t.n++; }
+      for (const e in sums) out[+e] = { rate: Math.round(sums[e].c / sums[e].h * 100) / 100, shifts: sums[e].n, hours: Math.round(sums[e].h * 10) / 10 };
+      return { byEmp: out, sample_keys: shifts[0] ? Object.keys(shifts[0]).slice(0, 60) : [], costed: Object.keys(sums).length, total: shifts.length };
     };
     if (body.action === 'pay_rates') {
       let pr: any;
       try { pr = await payRates(); } catch (er) { return fail(String(er.message || er)); }
       const { data: staff } = await db.from('cb_staff').select('name, deputy_emp, active').not('deputy_emp', 'is', null);
       const rows = (staff || []).map(s => ({ name: s.name, active: s.active, ...(pr.byEmp[+s.deputy_emp] || { rate: null }) })).sort((a, b) => a.name.localeCompare(b.name));
-      return json({ ok: true, rates: rows, keys: body.debug ? pr.sample_keys : undefined });
+      return json({ ok: true, rates: rows, keys: body.debug ? pr.sample_keys : undefined, costed: pr.costed, shifts: pr.total });
     }
 
     // ---- wages for rostered shifts, from Deputy's own cost for each shift we put there (Tate and Mark). { from, to } ----
