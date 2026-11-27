@@ -3044,7 +3044,14 @@ export async function handle(req, db, env = {}, http = fetch) {
       const res = [];
       for (const sl of slots) {
         if (!sl.name) continue;
-        if (sl.deputy_id) { res.push({ name: sl.name, status: 'already in Deputy' }); continue; }
+        if (sl.deputy_id) {   // already in Deputy: if its job changed, update the shift's note there so they see it
+          const note = `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings`;
+          if (+sl.deputy_id > 0 && sl.deputy_note !== note) {
+            try { await dep('resource/Roster/' + sl.deputy_id, { method: 'POST', body: JSON.stringify({ Comment: note }) }); sl.deputy_note = note; res.push({ name: sl.name, status: 'job updated in Deputy' }); }
+            catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
+          } else res.push({ name: sl.name, status: 'already in Deputy' });
+          continue;
+        }
         if (!sl.start || !sl.end) { res.push({ name: sl.name, status: 'needs a start and finish time' }); continue; }
         const emp = empFor(emps, sl.name, sl.deputy_emp);
         if (!emp) { res.push({ name: sl.name, status: 'not found in Deputy (check the name matches)' }); continue; }
@@ -3061,7 +3068,7 @@ export async function handle(req, db, env = {}, http = fetch) {
           }
           const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({ intStartTimestamp: st, intEndTimestamp: en, intOpunitId: unit.id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
             strComment: `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings` }) });
-          sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id;
+          sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id; sl.deputy_note = `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings`;
           res.push({ name: sl.name, status: moved.length ? `moved here from ${moved.join(', ')}` : 'shift made' });
         } catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
       }

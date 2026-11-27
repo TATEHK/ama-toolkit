@@ -1186,7 +1186,7 @@ function drawPeople(){
 function drawRoActs(){
   const r = RO.r, st = r ? r.status : 'draft', A = canApprove(), b = ['<button type="button" class="btn" id="roClose">Close</button>'];
   if(A && st === 'submitted') b.push('<button type="button" class="btn" id="roDecline">Decline</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
-  else if(A && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots || []).some(x => x.name && !x.deputy_id) ? ['<button type="button" class="btn" id="roDeputy">Add to Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
+  else if(A && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots || []).some(x => x.name && (!x.deputy_id || (x.deputy_note && x.deputy_note.split(',')[0] !== (x.job || 'Floor staff')))) ? ['<button type="button" class="btn" id="roDeputy">Update Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
   else if(A) b.push('<button type="button" class="btn" id="roSave">Save draft</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
   else b.push('<button type="button" class="btn" id="roSave">Save draft</button>', `<button type="button" class="btn primary" id="roSubmit">${st === 'approved' || st === 'declined' ? 'Send changes for approval' : 'Send for approval'}</button>`);
   $('#roActs').innerHTML = b.join('');
@@ -1200,7 +1200,7 @@ document.addEventListener('click', e => { const a = e.target.closest && e.target
 document.addEventListener('input', e => { if(e.target && e.target.id === 'roFind' && RO) drawPeople(); });
 function closeRoster(){ $('#rosterModal').hidden = true; RO = null; }
 const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
-  email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null }));
+  email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null, deputy_note: x.deputy_note || null }));
 const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g });
 async function afterSave(){ await loadRosterUpcoming(); RMD = null; render(); }
 async function saveRoster(submit, btn){
