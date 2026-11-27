@@ -175,7 +175,7 @@
     let el = $1('#geOv'); if (!el) { el = document.createElement('div'); el.id = 'geOv'; document.body.appendChild(el); }
     el.hidden = false;
     el.innerHTML = `<div class="ge-top noprint"><b>${h(S.ev.title)}</b><div class="ge-tabs">${TABS.map(([k, t]) => `<button data-gv="${k}">${t}</button>`).join('')}</div>
-      <span class="ge-tiny" id="geSync"></span><button class="ge-x" title="Back to the floor">✕</button></div><div class="ge-main" id="geMain"></div>`;
+      <span class="ge-late" hidden></span><span class="ge-tiny" id="geSync"></span><button class="ge-x" title="Back to the floor">✕</button></div><div class="ge-main" id="geMain"></div>`;
     S.el = $1('#geMain');
     el.querySelector('.ge-x').onclick = close;
     $all('#geOv .ge-tabs [data-gv]').forEach(b => b.onclick = () => { S.view = b.dataset.gv; if (S.view !== 'quiz') S.tv = false; keepUi(); draw(); if (S.view === 'quiz') pollQuiz(); });
@@ -423,7 +423,24 @@
   }
 
   /* ---------- timers (MC count-up, test countdown, and the run sheet step timer) ---------- */
+  // Running late: where the day is against the planned block times. Behind = still on a block after the next one was
+  // due to start (or this block started late); ahead = moved to a block before its planned time. Today only.
+  function lateness() {
+    if (!S.ev) return null; const cf = C(), L = live(), bl = (cf && cf.blocks) || [], b = L.block;
+    if (b == null || !bl[b] || !bl[b].time || !cf.date) return null;
+    const today = new Date(), ymd = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    if (cf.date !== ymd || !L.started || new Date(L.started).toDateString() !== today.toDateString()) return null;   // not running today
+    const at = t => new Date(cf.date + 'T' + t + ':00').getTime(), now = Date.now(), T = at(bl[b].time);
+    const nx = bl.slice(b + 1).find(x => x.time), Tn = nx ? at(nx.time) : T + (bl[b].mins || 0) * 60000;
+    let d = (now - Tn) / 60000;   // minutes past when the next block should have started
+    if (!(L.step > 0)) d = Math.max(d, (Date.parse(L.started) - T) / 60000);   // this block started late
+    if (now < T) d = -(T - now) / 60000;   // moved on early
+    return Math.round(d);
+  }
   function tick() {
+    { const d = lateness(); $all('.ge-late').forEach(el => { if (d == null) { el.hidden = true; return; } el.hidden = false;
+        el.textContent = d >= 3 ? d + ' min behind' : d <= -3 ? (-d) + ' min ahead' : 'On time';
+        el.style.cssText = 'font-weight:700;padding:3px 10px;border-radius:999px;font-size:13px;' + (d >= 10 ? 'background:#b42318;color:#fff' : d >= 3 ? 'background:#f2b705;color:#111' : 'background:#1f7a4d;color:#fff'); }); }
     $all('[data-getimer-up]').forEach(el => { const st = Date.parse(el.dataset.getimerUp), g = Number(el.dataset.guide || 0); if (!st) { el.textContent = '0:00'; return; } const gone = (Date.now() - st) / 1000; el.textContent = mmss(gone); el.classList.toggle('soon', g && gone > g * .85 && gone <= g); el.classList.toggle('over', g && gone > g); });
     const tl = $1('#geLeft'); if (tl && S.quiz && S.quiz.quiz && S.quiz.quiz.phase === 'open') { const L = testLeft(); tl.textContent = mmss(L); tl.style.color = L < 120 ? 'var(--bad)' : ''; }
     // the floor's live run sheet: a countdown for the step that's live in the event (started when it was moved to)
@@ -437,6 +454,7 @@
     $all('.ge-pill').forEach(b => b.remove());
     if (!on) return;
     const gear = document.getElementById('gearBtn'); if (!gear) return;
+    { const late = document.createElement('span'); late.className = 'pill ge-pill ge-late'; late.hidden = true; gear.parentNode.insertBefore(late, gear); }
     TABS.forEach(([k, t]) => { const b = document.createElement('button'); b.className = 'pill ge-pill'; b.textContent = t; b.title = S.ev.title + ': ' + t; b.onclick = () => open(k); gear.parentNode.insertBefore(b, gear); });
   }
   async function attach(dayId) {
