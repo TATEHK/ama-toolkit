@@ -909,8 +909,16 @@ $('#loginForm').addEventListener('submit', async e => {
   btn.disabled = false;
   if(error){ $('#loginError').textContent = 'Sign in failed.'; $('#loginError').hidden = false; }
 });
-$('#signOutBtn').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); location.reload(); };
-$('#noAccessOut').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); location.reload(); };
+// Sign out: always ends up signed out even if the sign-out call fails, and doesn't pop the passkey straight back up
+async function signOutNow(btn){
+  if(btn){ btn.disabled = true; btn.textContent = 'Signing out…'; }
+  try{ await Promise.race([sb.auth.signOut({ scope: 'local' }), new Promise(r => setTimeout(r, 3000))]); }catch(e){}
+  try{ Object.keys(localStorage).filter(k => /^sb-.*-auth-token/.test(k)).forEach(k => localStorage.removeItem(k)); }catch(e){}
+  try{ sessionStorage.setItem('ama_pk_asked', '1'); }catch(e){}
+  location.replace(location.pathname);
+}
+$('#signOutBtn').onclick = () => signOutNow($('#signOutBtn'));
+$('#noAccessOut').onclick = () => signOutNow($('#noAccessOut'));
 
 async function startApp(session){
   if(started) return; started = true;
