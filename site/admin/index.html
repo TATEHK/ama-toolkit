@@ -163,6 +163,11 @@
   .rc.draft{border-color:var(--ink-3)}.rc.submitted{color:var(--accent);border-color:var(--accent)}.rc.approved{color:var(--ok);border-color:var(--ok)}.rc.declined{color:var(--danger);border-color:var(--danger)}
   .rc.short{background:rgba(255,200,0,.12)}
   .ra{font-size:10.5px;color:var(--ok);font-weight:600}
+  .ru{font-size:10.5px;color:var(--ink-3);margin-top:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .rsch{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .rus{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center}
+  .rul{font-size:11px;color:var(--ink-3);margin-right:2px}
+  .rup{font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}.rup i{font-style:normal;color:var(--ink-3);font-size:11px}
   .rpanel{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
   .rph{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}
   .rprow{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}.rprow .grow{flex:1}
@@ -986,7 +991,7 @@ const ROSTER_SCHOOLS = ['Marrickville', 'Sydenham'];   // always rosterable; plu
 const pad = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r.status}${r.status === 'approved' && r.deputy_at ? ' · in Deputy' : ''}${r.status === 'approved' && r.notified_at ? ' · texted' : ''}</span>` : '';
-let RMON = 0, RMD = null, RSELD = null, RUP = [];   // month offset, month data, picked day, upcoming rosters (for approvals)
+let RMON = 0, RMD = null, RSELD = null, RUP = [], RSCH = (()=>{ try{ return localStorage.getItem('ops_rsch') || ''; }catch(e){ return ''; } })();   // RSCH: school filter ('' = all)   // month offset, month data, picked day, upcoming rosters (for approvals)
 const filledOf = r => (r && r.slots || []).filter(x => (x.name || '').trim()).length;
 const needOf = r => ((r && r.limits && r.limits.floor && r.limits.floor.need) ?? (RSET && RSET.floor_need) ?? 2);
 const maxOf = r => ((r && r.limits && r.limits.floor && r.limits.floor.max) ?? (RSET && RSET.floor_max) ?? 4);
@@ -1013,28 +1018,35 @@ function rostersSection(){
   (RMD.gradings || []).forEach(g => (byDay[g.date] = byDay[g.date] || { r: [], g: [], a: null }).g.push(g));
   (RMD.avail || []).forEach(a => (byDay[a.date] = byDay[a.date] || { r: [], g: [], a: null }).a = a);
   const cells = []; for(let d = new Date(RMD.from); d <= RMD.to; d.setDate(d.getDate() + 1)) cells.push(new Date(d));
+  const usualOn = (d, l) => { const u = (RMD.usual || []).find(x => x.weekday === d.getDay() && x.location === l); return u ? u.people : []; };
+  const usualSchools = d => [...new Set((RMD.usual || []).filter(x => x.weekday === d.getDay()).map(x => x.location))];
+  const inSch = l => !RSCH || l === RSCH;
   const cell = d => { const k = ymd(d), x = byDay[k] || { r: [], g: [] }, out = d.getMonth() !== b.getMonth();
-    const locs = [...new Set([...x.g.map(g => g.location), ...x.r.map(r => r.location)])];
+    const locs = [...new Set([...x.g.map(g => g.location), ...x.r.map(r => r.location)])].filter(inSch);
+    const us = usualSchools(d).filter(inSch).sort((a, b) => { const o = l => { const i = ROSTER_SCHOOLS.indexOf(l); return i < 0 ? 9 : i; }; return o(a) - o(b) || a.localeCompare(b); }).map(l => [l, usualOn(d, l).length]).filter(([, n]) => n);
     const chips = locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l);
       const n = filledOf(r), need = needOf(r), st = r ? r.status : (g ? 'none' : '');
       return `<span class="rc ${st}${r && n < need ? ' short' : ''}" title="${esc(SCHOOL(l))}${g ? ' · grading' : ''}">${g ? '<i></i>' : ''}${esc(SHORT(l))}${r || g ? ` ${n}/${need}` : ''}</span>`; }).join('');
     const av = x.a ? `<span class="ra">${x.a.yes + x.a.part} free</span>` : '';
-    return `<button class="rcell${out ? ' out' : ''}${k === today ? ' now' : ''}${k === RSELD ? ' sel' : ''}" data-rday="${k}"><span class="rd">${d.getDate()}</span>${chips}${av}</button>`; };
+    const usual = us.length ? `<span class="ru" title="Usually working">${us.map(([l, n]) => RSCH ? `${n} usually on` : `${esc(SHORT(l))} ${n}`).join(' · ')}</span>` : '';
+    return `<button class="rcell${out ? ' out' : ''}${k === today ? ' now' : ''}${k === RSELD ? ' sel' : ''}" data-rday="${k}"><span class="rd">${d.getDate()}</span>${chips}${av}${usual}</button>`; };
   const waiting = (RMD.rosters || []).filter(r => r.status === 'submitted').length;
   let panel = '';
   if(RSELD){
     const x = byDay[RSELD] || { r: [], g: [] }, d = new Date(RSELD + 'T00:00:00');
-    const locs = [...new Set([...x.g.map(g => g.location), ...x.r.map(r => r.location), ...ROSTER_SCHOOLS])];
+    const locs = [...new Set([...x.g.map(g => g.location), ...x.r.map(r => r.location), ...ROSTER_SCHOOLS, ...usualSchools(d)])].filter(inSch);
+    const usualList = l => { const ps = usualOn(d, l); return ps.length ? `<div class="rus"><span class="rul">Usually on</span>${ps.map(p => `<span class="rup">${esc(p.name)} <i>${fmtTime(p.start)}–${fmtTime(p.end)}</i></span>`).join('')}</div>` : ''; };
     panel = `<div class="rpanel"><div class="rph"><b>${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}</b>${x.a ? `<span class="muted">${x.a.yes} free, ${x.a.part} part free, ${x.a.no} not free</span>` : ''}</div>
       ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = filledOf(r), need = needOf(r);
         return `<div class="rprow"><div class="grow"><b>${esc(SCHOOL(l))}</b> <span class="muted">${g ? `gradings ${(g.starts || []).map(fmtTime).join(', ') || ''}` : 'no grading'}</span>
-          <div class="small">${r ? `${n} of ${need} floor staff ${roTag(r)}` : `<span class="muted">No roster yet · ${need} needed</span>`}</div></div>
+          <div class="small">${r ? `${n} of ${need} floor staff ${roTag(r)}` : `<span class="muted">No roster yet · ${need} needed</span>`}</div>${usualList(l)}</div>
           <button class="btn mini${r && r.status === 'submitted' && canApprove() ? ' primary' : ''}" data-ropen="${RSELD}|${esc(l)}">${r ? (r.status === 'submitted' && canApprove() ? 'Review' : 'Open') : 'Build roster'}</button></div>`; }).join('')}</div>`;
   }
   return `<div class="rmtop"><button class="btn mini" id="rmPrev" aria-label="Previous month">‹</button><b class="rmname">${MON[b.getMonth()]} ${b.getFullYear()}</b><button class="btn mini" id="rmNext" aria-label="Next month">›</button>
       <button class="btn mini" id="rmToday">Today</button><span class="grow"></span>${waiting ? `<span class="rtag submitted">${waiting} waiting for approval</span>` : ''}
       <button class="btn mini" id="staffBtn">Staff & availability</button>${canApprove() ? '<button class="btn mini" id="rsetBtn">Roster defaults</button><button class="btn mini" id="wagesBtn">Wages</button>' : ''}</div>
-    <div class="rkey"><span class="rc none"><i></i>Grading</span><span class="rc draft">Draft</span><span class="rc submitted">Waiting</span><span class="rc approved">Approved</span><span class="rc short">Short</span><span class="ra">free = staff available</span></div>
+    <div class="rsch">${['', 'Marrickville', 'Sydenham', 'Concord', 'Sylvania', 'West'].map(l => `<button class="lchip ${RSCH === l ? 'on' : ''}" data-rsch="${l}">${l ? esc(SCHOOL(l)) : 'All schools'}</button>`).join('')}</div>
+    <div class="rkey"><span class="rc none"><i></i>Grading</span><span class="rc draft">Draft</span><span class="rc submitted">Waiting</span><span class="rc approved">Approved</span><span class="rc short">Short</span><span class="ra">free = staff available</span><span class="ru">usual staff that weekday</span></div>
     <div class="rcal"><div class="rdow">Mon</div><div class="rdow">Tue</div><div class="rdow">Wed</div><div class="rdow">Thu</div><div class="rdow">Fri</div><div class="rdow">Sat</div><div class="rdow">Sun</div>${cells.map(cell).join('')}</div>
     ${panel}`;
 }
@@ -1044,6 +1056,7 @@ function wireRosters(){
   on('rmNext', () => { RMON++; RMD = null; RSELD = null; render(); });
   on('rmToday', () => { RMON = 0; RMD = null; RSELD = ymd(new Date()); render(); });
   on('rsetBtn', openRset); on('staffBtn', openStaff);
+  $('#board').querySelectorAll('[data-rsch]').forEach(b => b.onclick = () => { RSCH = b.dataset.rsch; try{ localStorage.setItem('ops_rsch', RSCH); }catch(e){} render(); });
   $('#board').querySelectorAll('[data-rday]').forEach(b => b.onclick = () => { RSELD = RSELD === b.dataset.rday ? null : b.dataset.rday; render(); });
   $('#board').querySelectorAll('[data-ropen]').forEach(b => b.onclick = () => { const [d, l] = b.dataset.ropen.split('|'); openRoster(d, l); });
 }
