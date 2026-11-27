@@ -2921,7 +2921,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     //       cb_roster_settings only (Tate and Mark). Deputy: DEPUTY_HOST (built in) and the DEPUTY_TOKEN secret. =====
     const rosterApprover = async () => { const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();
       return !!(me && rs && (rs.approvers || []).some((e: string) => String(e).toLowerCase() === me)); };
-    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs'].includes(body.action);
+    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs', 'deputy_connect_url', 'deputy_connect', 'deputy_status'].includes(body.action);
     // reading usual shifts from Deputy can also run from the database (x-cb-cron), e.g. a nightly refresh
     const cronOk = cronSync;
     if (isRosterAction && !cronOk && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
@@ -2930,15 +2930,36 @@ export async function handle(req, db, env = {}, http = fetch) {
     const sydParts = (sec: number) => { const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short' }).formatToParts(new Date(sec * 1000));
       const g = (t: string) => (p.find(x => x.type === t) || {} as any).value; const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(g('weekday'));
       return { date: `${g('year')}-${g('month')}-${g('day')}`, hm: `${g('hour') === '24' ? '00' : g('hour')}:${g('minute')}`, wd }; };
-    const depHost = String(Deno.env.get('DEPUTY_HOST') || '748e6a11114707.au.deputy.com').replace(/^https?:\/\//, '').replace(/\/.*$/, ''), depTok = (Deno.env.get('DEPUTY_TOKEN') || '').trim();   // read straight from the secrets (not in the env object)
+    // Deputy access: a permanent token in the DEPUTY_TOKEN secret, or (preferred) the sign-in made with the client ID and secret
+    //   (DEPUTY_CLIENT_ID and DEPUTY_CLIENT_SECRET secrets; Connect Deputy on the Operations page). Those tokens refresh themselves.
+    const DEP_REDIRECT = 'https://app.train-ama.com/deputy/';
+    const depCid = (Deno.env.get('DEPUTY_CLIENT_ID') || '').trim(), depSecret = (Deno.env.get('DEPUTY_CLIENT_SECRET') || '').trim();
+    let depHost = String(Deno.env.get('DEPUTY_HOST') || '748e6a11114707.au.deputy.com').replace(/^https?:\/\//, '').replace(/\/.*$/, ''), depTok = (Deno.env.get('DEPUTY_TOKEN') || '').trim();
+    let depAuthLoaded = false;
+    const depAuth = async () => {
+      if (depAuthLoaded) return; depAuthLoaded = true;
+      const { data: a } = await db.from('cb_deputy_auth').select('*').eq('id', 1).maybeSingle();
+      if (!a || !a.access_token) return;
+      depTok = a.access_token; if (a.endpoint) depHost = String(a.endpoint).replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      if (a.refresh_token && depCid && depSecret && (!a.expires_at || Date.parse(a.expires_at) < Date.now() + 5 * 60000)) {
+        const f = new URLSearchParams({ client_id: depCid, client_secret: depSecret, redirect_uri: DEP_REDIRECT, grant_type: 'refresh_token', refresh_token: a.refresh_token, scope: 'longlife_refresh_token' });
+        const r = await fetch('https://' + depHost + '/oauth/access_token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j.access_token) {
+          depTok = j.access_token;
+          await db.from('cb_deputy_auth').update({ access_token: j.access_token, refresh_token: j.refresh_token || a.refresh_token, expires_at: new Date(Date.now() + (+j.expires_in || 86400) * 1000).toISOString(), updated_at: new Date().toISOString() }).eq('id', 1);
+        }
+      }
+    };
     const dep = async (path: string, init: any = {}) => {
-      if (!depTok) throw new Error('Deputy is not connected yet (add the DEPUTY_TOKEN secret in Supabase).');
+      await depAuth();
+      if (!depTok) throw new Error('Deputy is not connected yet. Tap Connect Deputy in Staff & availability.');
       // Deputy takes permanent tokens as "Bearer" on newer installs and "OAuth" on older ones: try one, then the other
       const go = (scheme: string) => fetch('https://' + depHost + '/api/v1/' + path, { ...init, headers: { Authorization: scheme + ' ' + depTok.replace(/^(Bearer|OAuth)\s+/i, ''), 'Content-Type': 'application/json', Accept: 'application/json', ...(init.headers || {}) } });
       let r = await go('Bearer');
       if (r.status === 401 || r.status === 403) r = await go('OAuth');
       const t = await r.text(); let j: any = null; try { j = JSON.parse(t); } catch (_) { j = t; }
-      if (r.status === 401) throw new Error('Deputy did not accept the token (401). Check DEPUTY_TOKEN is a permanent token made on ' + depHost + '.');
+      if (r.status === 401) throw new Error('Deputy did not accept the sign-in (401). Tap Connect Deputy in Staff & availability to sign in again.');
       if (!r.ok) throw new Error('Deputy ' + r.status + ': ' + String(typeof j === 'string' ? j : (j && (j.error && (j.error.message || j.error)) || JSON.stringify(j))).slice(0, 200));
       return j;
     };
@@ -2960,6 +2981,28 @@ export async function handle(req, db, env = {}, http = fetch) {
       const { data: r } = await db.from('cb_day_rosters').select('*').eq('date', date).eq('location', location).maybeSingle();
       return r;
     };
+
+    // ---- Connect Deputy (sign in with the client ID and secret). The page at /deputy/ sends back the code Deputy gives it. ----
+    if (body.action === 'deputy_status') {
+      const { data: a } = await db.from('cb_deputy_auth').select('endpoint, connected_by, updated_at, access_token').eq('id', 1).maybeSingle();
+      return json({ ok: true, has_client: !!(depCid && depSecret), connected: !!(a && a.access_token) || !!(Deno.env.get('DEPUTY_TOKEN') || '').trim(), endpoint: a && a.endpoint, connected_by: a && a.connected_by, updated_at: a && a.updated_at });
+    }
+    if (body.action === 'deputy_connect_url') {
+      if (!depCid || !depSecret) return fail('Add the DEPUTY_CLIENT_ID and DEPUTY_CLIENT_SECRET secrets in Supabase first.', 409);
+      return json({ ok: true, url: 'https://once.deputy.com/my/oauth/login?' + new URLSearchParams({ client_id: depCid, redirect_uri: DEP_REDIRECT, response_type: 'code', scope: 'longlife_refresh_token' }) });
+    }
+    if (body.action === 'deputy_connect') {
+      if (!depCid || !depSecret) return fail('Add the DEPUTY_CLIENT_ID and DEPUTY_CLIENT_SECRET secrets in Supabase first.', 409);
+      const code = String(body.code || '');
+      if (!code) return fail('No code from Deputy.');
+      const f = new URLSearchParams({ client_id: depCid, client_secret: depSecret, redirect_uri: DEP_REDIRECT, grant_type: 'authorization_code', code, scope: 'longlife_refresh_token' });
+      const r = await fetch('https://once.deputy.com/my/oauth/access_token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: f });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.access_token) return fail('Deputy did not connect: ' + String(j.error_description || j.error || r.status).slice(0, 200));
+      await db.from('cb_deputy_auth').upsert({ id: 1, access_token: j.access_token, refresh_token: j.refresh_token || null, endpoint: j.endpoint || null,
+        expires_at: new Date(Date.now() + (+j.expires_in || 86400) * 1000).toISOString(), connected_by: me, updated_at: new Date().toISOString() });
+      return json({ ok: true, endpoint: j.endpoint || null });
+    }
 
     // ---- text everyone on an approved day roster their shift. { date, location } ----
     if (body.action === 'roster_notify') {
