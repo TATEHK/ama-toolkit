@@ -154,6 +154,7 @@
   .roh{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
   .roh .lim{display:flex;align-items:center;gap:4px;font-weight:600}.roh .lim input{width:52px!important;display:inline-block!important;margin:0!important;padding:4px 6px!important}
   .rsgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}.rsgrid label{margin:0!important}
+  .rup.rx{border-color:var(--ok);}.rup.rmv{border-color:#d9a400;}.rup.roff{opacity:.6;text-decoration:line-through;}
   .rmtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.rmtop .grow{flex:1}.rmname{font-family:var(--font-display);font-size:18px;min-width:120px;text-align:center}
   .rkey{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:11px}
   .rcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
@@ -1013,7 +1014,12 @@ const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r
 let RMON = 0, RMD = null, RSELD = null, RUP = [], RSCH = (()=>{ try{ return localStorage.getItem('ops_rsch') || ''; }catch(e){ return ''; } })();   // RSCH: school filter ('' = all)   // month offset, month data, picked day, upcoming rosters (for approvals)
 // who counts towards the number needed: not Little Dragons teachers, and at Concord / Auburn only the extras (the usual staff are on anyway)
 const counts = (x, loc) => !!(x.name || '').trim() && !/little dragons/i.test(x.job || '') && !(['Concord', 'West'].includes(loc) && !x.extra);
-const filledOf = r => (r && r.slots || []).filter(x => counts(x, r.location)).length;
+// Marrickville: only people on during a grading count (grading times from the month calendar; each runs to the next start, or 90 min)
+const mm = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+const filledOf = r => { if(!r) return 0;
+  const g = r.location === 'Marrickville' && typeof RMD !== 'undefined' && RMD && (RMD.gradings || []).find(x => x.date === r.date && x.location === r.location);
+  const st = g ? (g.starts || []).map(mm).filter(v => v != null).sort((a, b) => a - b) : [], spans = st.map((v, i) => [v, st[i + 1] || v + 90]);
+  return (r.slots || []).filter(x => counts(x, r.location) && (!spans.length || !x.start || !x.end || spans.some(([a, b]) => mm(x.start) < b && mm(x.end) > a))).length; };
 const needOf = r => ((r && r.limits && r.limits.floor && r.limits.floor.need) ?? (RSET && RSET.floor_need) ?? 2);
 const maxOf = r => ((r && r.limits && r.limits.floor && r.limits.floor.max) ?? (RSET && RSET.floor_max) ?? 4);
 async function loadRosterMonth(){
@@ -1058,10 +1064,21 @@ function rostersSection(){
     const x = byDay[RSELD] || { r: [], g: [] }, d = new Date(RSELD + 'T00:00:00');
     const gl = x.g.map(g => g.location), locs = [...new Set([...gl, ...(gl.includes('Marrickville') ? ['Sydenham'] : []), ...x.r.map(r => r.location)])].filter(inSch);
     const usualList = l => { const ps = usualOn(d, l); return ps.length ? `<div class="rus"><span class="rul">Usually on</span>${ps.map(p => `<span class="rup">${esc(p.name)} <i>${fmtTime(p.start)}–${fmtTime(p.end)}</i></span>`).join('')}</div>` : ''; };
+    // what the roster changes from the usual staff: extras, usual people taken off, and different times
+    const changesList = (r, l) => { if(!r) return '';
+      const nm = v => String(v || '').trim().toLowerCase(), us = usualOn(d, l), sl = (r.slots || []).filter(x => (x.name || '').trim());
+      const extra = sl.filter(x => !us.some(p => nm(p.name) === nm(x.name)));
+      const off = us.filter(p => !sl.some(x => nm(x.name) === nm(p.name)));
+      const moved = sl.filter(x => { const p = us.find(p => nm(p.name) === nm(x.name)); return p && x.start && x.end && (x.start !== String(p.start).slice(0, 5) || x.end !== String(p.end).slice(0, 5)); });
+      const chip = (cls, t) => `<span class="rup ${cls}">${t}</span>`;
+      const out = [...extra.map(x => chip('rx', `+ ${esc(x.name)} <i>${x.start && x.end ? fmtTime(x.start) + '–' + fmtTime(x.end) : ''}${x.job ? ' · ' + esc(x.job) : ''}</i>`)),
+        ...moved.map(x => chip('rmv', `${esc(x.name)} <i>now ${fmtTime(x.start)}–${fmtTime(x.end)}${x.job ? ' · ' + esc(x.job) : ''}</i>`)),
+        ...off.map(p => chip('roff', `− ${esc(p.name)} <i>off</i>`))];
+      return out.length ? `<div class="rus"><span class="rul">Changes</span>${out.join('')}</div>` : `<div class="rus"><span class="rul">Changes</span><span class="muted small">none</span></div>`; };
     panel = `<div class="rpanel"><div class="rph"><b>${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}</b>${x.a ? `<span class="muted">${x.a.yes} free, ${x.a.part} part free, ${x.a.no} not free</span>` : ''}</div>
       ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = filledOf(r), need = needOf(r);
         return `<div class="rprow"><div class="grow"><b>${esc(SCHOOL(l))}</b> <span class="muted">${g ? `gradings ${(g.starts || []).map(fmtTime).join(', ') || ''}` : 'no grading'}</span>
-          <div class="small">${r ? `${n} of ${need} floor staff ${roTag(r)}` : `<span class="muted">No roster yet · ${need} needed</span>`}</div>${usualList(l)}</div>
+          <div class="small">${r ? `${n} of ${need} floor staff ${roTag(r)}` : `<span class="muted">No roster yet · ${need} needed</span>`}</div>${usualList(l)}${changesList(r, l)}</div>
           <button class="btn mini${r && r.status === 'submitted' && canApprove() ? ' primary' : ''}" data-ropen="${RSELD}|${esc(l)}">${r ? (r.status === 'submitted' && canApprove() ? 'Review' : 'Open') : 'Build roster'}</button></div>`; }).join('')}</div>`;
   }
   return `<div class="rmtop"><button class="btn mini" id="rmPrev" aria-label="Previous month">‹</button><b class="rmname">${MON[b.getMonth()]} ${b.getFullYear()}</b><button class="btn mini" id="rmNext" aria-label="Next month">›</button>
