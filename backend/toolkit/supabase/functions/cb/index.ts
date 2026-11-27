@@ -2949,8 +2949,9 @@ export async function handle(req, db, env = {}, http = fetch) {
     //      People are matched to Deputy employees by name; each shift made is remembered on its slot so it's never made twice. ----
     if (body.action === 'roster_deputy') {
       if (!can('admin')) return fail('Only Mark (admin) can add shifts to Deputy.', 403);
-      const host = String(env.DEPUTY_HOST || '').replace(/^https?:\/\//, '').replace(/\/.*$/, ''), dtok = env.DEPUTY_TOKEN;
-      if (!host || !dtok) return fail('Deputy is not connected yet (add the DEPUTY_HOST and DEPUTY_TOKEN secrets in Supabase).', 409);
+      const host = String(env.DEPUTY_HOST || '748e6a11114707.au.deputy.com')   // AMA's Deputy (not secret; the token is)
+        .replace(/^https?:\/\//, '').replace(/\/.*$/, ''), dtok = env.DEPUTY_TOKEN;
+      if (!host || !dtok) return fail('Deputy is not connected yet (add the DEPUTY_TOKEN secret in Supabase).', 409);
       const dep = async (path: string, init: any = {}) => {
         const r = await fetch('https://' + host + '/api/v1/' + path, { ...init, headers: { Authorization: 'Bearer ' + dtok, 'Content-Type': 'application/json', Accept: 'application/json', ...(init.headers || {}) } });
         const t = await r.text(); let j: any = null; try { j = JSON.parse(t); } catch (_) { j = t; }
