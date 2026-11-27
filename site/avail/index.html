@@ -132,7 +132,7 @@
             var st = ST[d.date] || {}, grp = G.find(function (x) { return x.k === o[0]; });
             var on = grp ? grp.gs.every(function (g) { return st[g.day_id] === 'yes'; }) && c !== 'both' : c === o[0];   // groups can be picked together
             return '<button type="button" class="' + (o[0] === 'no' ? 'no' : 'yes') + '" data-d="' + i + '" data-c="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (o[2] ? '<small>' + esc(o[2]) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
-          '<label class="syd"><input type="checkbox" data-syd="' + i + '"' + (SYD[d.date] ? ' checked' : '') + '> I\'m available to go to Sydenham this day <small>(shifts there start 3:45pm, seniors later)</small></label></div>';
+          '<label class="syd"><input type="checkbox" data-syd="' + i + '"' + (SYD[d.date] ? ' checked' : '') + '> I\'m available to go to Sydenham this day <small>(shifts start 3:45pm)</small></label></div>';
       }).join('') + '<div class="save"><button id="save" type="button">Save my availability</button><div class="msg" id="msg"></div></div>';
     [].forEach.call(document.querySelectorAll('[data-c]'), function (b) { b.onclick = function () {
       var d = DAYS[+b.dataset.d], c = b.dataset.c, cur = choice(d), s = ST[d.date] = ST[d.date] || {}, all = d.gradings || [];
