@@ -1198,7 +1198,7 @@ function makeGhost(el){ const w=document.createElement('div'); w.className='drag
 function spotUnder(e,self,root){ root=root||$('#floor'); for(const n of document.elementsFromPoint(e.clientX,e.clientY)){ const sp=n.closest&&n.closest('.spot'); if(sp&&sp!==self&&sp.parentElement===root) return sp; } return null; }
 // keep the Present overlay's floor + moves in step with state changes (drags, profile edits, live polls)
 function refreshPresent(){ const pz=document.getElementById('cbPresent'); if(pz && !pz.hidden) renderCbPresent(); }
-function dropMove(gi,g,from,to){ const s=state.groups[gi].slots, t=s[from]; s[from]=s[to]; s[to]=t; state.groups[gi].order='manual'; persistGroups(); render(); refreshPresent(); } // swap the two dots — lock the arrangement so it's never reflowed
+function dropMove(gi,g,from,to){ const s=state.groups[gi].slots, t=s[from]; s[from]=s[to]; s[to]=t; state.groups[gi].order='manual'; persistGroups(); render(); refreshPresent(); const rl=document.getElementById('rsLive'); if(rl && !rl.hidden) renderRsLive(); } // swap the two dots — lock the arrangement so it's never reflowed
 
 function openProfile(id){
   const s=STUDENTS.find(x=>x.id===id); if(!s) return; state.sel=id;
@@ -1652,7 +1652,9 @@ function renderRsLive(){
   // the line(s) for this step on their floor spots, with photos, so the panel can see who's where while scoring
   { const det=el.querySelector('.rsl-detail');
     // side by side: the checklist/scoring on the left, the floor on the right (stacked on narrow screens)
-    if(det && upLines.length){ det.classList.add('with-floor'); det.insertAdjacentHTML('beforeend', `<div class="rsl-floors">${upLines.map(g=>`<div class="rsl-floor"><div class="rsl-h">On their spots · Line ${esc(g.cone||'?')}${g.title?' · Group '+esc(g.title):''}</div>${cbPresentFloorHtml(g).replace(' id="cbFloor"','')}</div>`).join('')}</div>`); } }
+    if(det && upLines.length){ det.classList.add('with-floor'); det.insertAdjacentHTML('beforeend', `<div class="rsl-floors">${upLines.map(g=>`<div class="rsl-floor" data-gi="${state.groups.indexOf(g)}"><div class="rsl-h">On their spots · Line ${esc(g.cone||'?')}${g.title?' · Group '+esc(g.title):''}</div>${cbPresentFloorHtml(g).replace(' id="cbFloor"','')}</div>`).join('')}</div>`);
+      // the photos work like the main floor: tap for their profile, drag to swap spots
+      det.querySelectorAll('.rsl-floor').forEach(w=>{ const gi=+w.dataset.gi, fl=w.querySelector('.floor'); if(fl && state.groups[gi]) wireFloor(gi, state.groups[gi], fl); }); } }
   const pv=el.querySelector('#rsPrev'), nx=el.querySelector('#rsNext');
   if(pv)pv.onclick=()=>{ if(RS.ix>0){ RS.ix--; RS.move=0; rsSave(); renderRsLive(); } };
   if(nx)nx.onclick=()=>{ if(RS.ix<RS.flat.length-1){ RS.ix++; RS.move=0; rsSave(); renderRsLive(); } };
