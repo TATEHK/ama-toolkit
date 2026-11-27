@@ -68,7 +68,7 @@ body[data-role="master"] .floor{min-height:60vh}
 @media (min-width:900px){
   .rsl-detail.with-floor{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,52%);column-gap:18px;align-items:start}
   .rsl-detail.with-floor > *{grid-column:1}
-  .rsl-detail.with-floor > .rsl-floors{grid-column:2;grid-row:1 / span 99;position:sticky;top:0;align-self:start}
+  .rsl-detail.with-floor > .rsl-floors{grid-column:2;grid-row:1 / span 99;align-self:start}
   .rsl-detail.with-floor .rsl-floor:first-child{margin-top:0}
   .rsl-detail.with-floor .rsl-floor .floor{height:min(40vh,320px)}
 }
@@ -1606,6 +1606,12 @@ function rsCurrHtml(items, table, ix, ip, tp){ let h='';
   return h; }
 function renderRsLive(){
   const el=document.getElementById('rsLive'); if(!el||!RS) return; RS._curIdx = state.grading;
+  // every redraw (a tick, a poll, the scoring panel) used to throw the step list and the checklist back to the top:
+  // remember where they were scrolled (same step only) and put them back after drawing, and again once the scoring panel has filled in
+  const keepIx=RS._drawnIx, oldDet=el.querySelector('.rsl-detail'), oldSteps=el.querySelector('.rsl-steps');
+  const sDet=oldDet?oldDet.scrollTop:0, sSteps=oldSteps?oldSteps.scrollTop:0;
+  const putBack=()=>{ const d=el.querySelector('.rsl-detail'), st=el.querySelector('.rsl-steps'); if(st) st.scrollTop=sSteps; if(d && keepIx===RS.ix) d.scrollTop=sDet; };
+  setTimeout(()=>{ putBack(); RS._drawnIx=RS.ix; },0); setTimeout(putBack,250); setTimeout(putBack,800);
   const grs=gradingsPresent();
   const top=`<div class="rsl-top"><div class="rsl-gt">${grs.map(g=>`<button data-gidx="${g.idx}" aria-selected="${esc(fmtSlot(gradingInfo(g.idx).time))===esc(RS.glabel)}">Grading ${g.num}${g.label?' · '+esc(g.label):''}</button>`).join('')}</div><button class="rsl-x" title="Close">✕</button></div>`;
   const head=`<div class="rsl-head">${(window.GE&&GE.has()&&RS.event)?'<button id="rsResBtn" style="float:right;min-height:36px;padding:6px 16px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;font:inherit;font-weight:800;font-size:14px;cursor:pointer" title="Every candidate\'s marks, the overall result and approval">Results</button>':''}<div class="rsl-title">${esc(RS.title)}</div><div class="rsl-sub">Grading ${RS.gnum} · ${esc(RS.glabel)}${RS.window?' · '+esc(RS.window):''}${RS.note?' · <b>'+esc(RS.note)+'</b>':''}</div></div>`;

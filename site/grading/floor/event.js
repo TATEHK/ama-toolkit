@@ -229,10 +229,12 @@
     if (!S.ev || !live_el()) return;
     if (S.open) $all('#geOv .ge-tabs [data-gv]').forEach(b => b.classList.toggle('on', b.dataset.gv === S.view));
     const root = S.el, keep = scrollKeys(root), ov = $1('#geOv'), ovTop = ov ? ov.scrollTop : 0, winY = window.scrollY;
+    const box = root && root.closest && root.closest('.rsl-detail'), boxTop = box ? box.scrollTop : 0;   // inside the runsheet: its scrolling panel too
     ({ score: vScore, quiz: vQuiz, mc: vMc, results: vResults })[S.view]();
     keep.forEach(x => { const n = Number(x.k.split('@').pop()), el = root && root.querySelectorAll(x.sel)[n]; if (el) { el.scrollTop = x.t; el.scrollLeft = x.l; } });
     if (ov && ov.scrollTop !== ovTop) ov.scrollTop = ovTop;
     if (window.scrollY !== winY) window.scrollTo(0, winY);
+    if (box && box.scrollTop !== boxTop) box.scrollTop = boxTop;
   }
 
   /* ---------- Scoring ---------- */
