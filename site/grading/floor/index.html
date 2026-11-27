@@ -1176,7 +1176,7 @@ function render(){
 }
 const shortBelt=b=>b;
 // drag a student from one red dot to another (works with touch + mouse); a short press with no move opens their profile
-function wireFloor(gi,g,root){ root=root||$('#floor');
+function wireFloor(gi,g,root,onTap){ root=root||$('#floor');
   root.querySelectorAll('.spot').forEach(el=>{
     el.addEventListener('pointerdown',ev=>{
       if(ev.button&&ev.button!==0) return;
@@ -1189,7 +1189,7 @@ function wireFloor(gi,g,root){ root=root||$('#floor');
       };
       const up=()=>{ document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); setTimeout(()=>dragging=false,50);
         if(ghost){ ghost.remove(); if(tgt){ tgt.classList.remove('drop'); dropMove(gi,g,from,+tgt.dataset.i); } else { render(); refreshPresent(); } }
-        else if(!moved && startId!=null){ openProfile(startId); } };
+        else if(!moved && startId!=null){ if(!(onTap && onTap(startId))) openProfile(startId); } };
       document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
     });
   });
@@ -1604,6 +1604,10 @@ function rsCurrHtml(items, table, ix, ip, tp){ let h='';
     H.map((hd,ci)=>`<div class="rsl-col"><h4>${esc(hd)}</h4>`+(table.rows||[]).map((row,r)=>{ const c=row[ci]||''; const blank=!String(c).trim(); const on=!!RS.ticks[ix+'.'+tp+r+'c'+ci];
       return `<button class="rsl-cell${on?' on':''}${blank?' blank':''}" data-k="${tp}${r}c${ci}"${blank?' tabindex="-1"':''}><span class="bx">${on?'✓':''}</span><span>${esc(c)}</span></button>`; }).join('')+`</div>`).join('')+`</div>`; }
   return h; }
+// the moves listed on the run sheet step on screen for one item code (e.g. every "4D-04 Kick: ..." line), without the code
+window.rsMovesFor = code => { if(!RS||!RS.flat) return []; const st=(RS.flat[RS.ix]||{}).step||{}; const out=[];
+  [...(st.items||[]),...(st.items2||[])].forEach(it=>{ if(it && !it.h && typeof it.t==='string' && it.t.startsWith(code+' ')) out.push(it.t.slice(code.length).replace(/^\s*[^:]*:\s*/,'').trim()); }); return out; };
+window.openProfileByEntry = eid => { const id=entry2id[eid]; if(id) openProfile(id); };
 function renderRsLive(){
   const el=document.getElementById('rsLive'); if(!el||!RS) return; RS._curIdx = state.grading;
   // every redraw (a tick, a poll, the scoring panel) used to throw the step list and the checklist back to the top:
@@ -1654,7 +1658,7 @@ function renderRsLive(){
     // side by side: the checklist/scoring on the left, the floor on the right (stacked on narrow screens)
     if(det && upLines.length){ det.classList.add('with-floor'); det.insertAdjacentHTML('beforeend', `<div class="rsl-floors">${upLines.map(g=>`<div class="rsl-floor" data-gi="${state.groups.indexOf(g)}"><div class="rsl-h">On their spots · Line ${esc(g.cone||'?')}${g.title?' · Group '+esc(g.title):''}</div>${cbPresentFloorHtml(g).replace(' id="cbFloor"','')}</div>`).join('')}</div>`);
       // the photos work like the main floor: tap for their profile, drag to swap spots
-      det.querySelectorAll('.rsl-floor').forEach(w=>{ const gi=+w.dataset.gi, fl=w.querySelector('.floor'); if(fl && state.groups[gi]) wireFloor(gi, state.groups[gi], fl); }); } }
+      det.querySelectorAll('.rsl-floor').forEach(w=>{ const gi=+w.dataset.gi, fl=w.querySelector('.floor'); if(fl && state.groups[gi]) wireFloor(gi, state.groups[gi], fl, id=>geTool && window.GE && GE.candSheet ? GE.candSheet(id2entry[id]) : false); }); } }
   const pv=el.querySelector('#rsPrev'), nx=el.querySelector('#rsNext');
   if(pv)pv.onclick=()=>{ if(RS.ix>0){ RS.ix--; RS.move=0; rsSave(); renderRsLive(); } };
   if(nx)nx.onclick=()=>{ if(RS.ix<RS.flat.length-1){ RS.ix++; RS.move=0; rsSave(); renderRsLive(); } };
