@@ -1236,7 +1236,7 @@ function drawRoActs(){
   const r = RO.r, st = r ? r.status : 'draft', A = canApprove(), b = ['<button type="button" class="btn" id="roClose">Close</button>'];
   if(A && st === 'submitted') b.push('<button type="button" class="btn" id="roDecline">Decline</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
   else if(A && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots || []).some(x => x.name && (!x.deputy_id || (x.deputy_note && x.deputy_note.split(',')[0] !== (x.job || 'Floor staff')))) ? ['<button type="button" class="btn" id="roDeputy">Update Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
-  else if(A) b.push('<button type="button" class="btn primary" id="roApprove">Approve</button>');
+  else if(A) b.push('<button type="button" class="btn" id="roSubmit">Send for approval</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');   // Tate and Mark can also send it for the other to check
   else b.push(`<button type="button" class="btn primary" id="roSubmit">${st === 'approved' || st === 'declined' ? 'Send changes for approval' : 'Send for approval'}</button>`);
   $('#roActs').innerHTML = b.join('');
   const on = (id, f) => { const el = $('#' + id); if(el) el.onclick = () => f(el); };
