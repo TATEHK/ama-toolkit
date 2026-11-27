@@ -205,10 +205,18 @@
     return true;
   }
   const keepUi = () => { try { localStorage.setItem('ge_floor_ui', JSON.stringify({ day: S.ev && S.ev.day_id, open: S.open, view: S.view, tv: S.tv, sel: S.sel })); } catch (e) {} };
+  // the screen redraws every few seconds: keep every scrolled box (running order, lists) and the page where they were
+  function scrollKeys(root) { const out = []; if (!root) return out;
+    root.querySelectorAll('*').forEach((e, i) => { if (e.scrollTop > 0 || e.scrollLeft > 0) out.push({ k: (e.id ? '#' + e.id : '') + '.' + String(e.className || '').split(' ')[0] + '@' + [...root.querySelectorAll(e.tagName + (e.className ? '.' + String(e.className).trim().split(/\s+/)[0] : ''))].indexOf(e), sel: e.tagName + (e.className ? '.' + String(e.className).trim().split(/\s+/)[0] : ''), e, t: e.scrollTop, l: e.scrollLeft }); });
+    return out; }
   function draw() {
     if (!S.ev || !live_el()) return;
     if (S.open) $all('#geOv .ge-tabs [data-gv]').forEach(b => b.classList.toggle('on', b.dataset.gv === S.view));
+    const root = S.el, keep = scrollKeys(root), ov = $1('#geOv'), ovTop = ov ? ov.scrollTop : 0, winY = window.scrollY;
     ({ score: vScore, quiz: vQuiz, mc: vMc, results: vResults })[S.view]();
+    keep.forEach(x => { const n = Number(x.k.split('@').pop()), el = root && root.querySelectorAll(x.sel)[n]; if (el) { el.scrollTop = x.t; el.scrollLeft = x.l; } });
+    if (ov && ov.scrollTop !== ovTop) ov.scrollTop = ovTop;
+    if (window.scrollY !== winY) window.scrollTo(0, winY);
   }
 
   /* ---------- Scoring ---------- */
