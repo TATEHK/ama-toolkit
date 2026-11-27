@@ -63,7 +63,19 @@
     ge_live: op => db().rpc('ge_live_set', { p_event: op.event_id, p_patch: op.patch }),
   };
   if (window.Off) Object.keys(OQ).forEach(t => Off.register(t, OQ[t]));
-  const save = op => window.Off ? Off.run(op) : OQ[op.t](op);
+  const run1 = op => window.Off ? Off.run(op) : OQ[op.t](op);
+  // A save refused because the sign-in has lapsed (expired or signed out): renew it and try once more;
+  // if it still can't be saved, the red "Your sign-in has ended" bar comes up so it's one tap to fix
+  const authErr = e => !!e && (/permission denied|jwt|not authenticated|401/i.test(String(e.message || e)) || e.code === '42501' || e.code === 'PGRST301');
+  const save = async op => {
+    let r = await run1(op);
+    if (r && authErr(r.error)) {
+      try { await db().auth.refreshSession(); } catch (e) {}
+      r = await run1(op);
+      if (r && authErr(r.error) && window.amaAuthLost) { window.amaAuthLost({ status: 401 }); r = { error: { message: 'Your sign-in has ended. Tap Sign in again at the top, then redo this one.' } }; }
+    }
+    return r;
+  };
   async function setLive(patch) {
     S.ev.live = { ...live(), ...patch }; draw();
     const { error } = await save({ t: 'ge_live', event_id: S.ev.event_id, patch });
