@@ -1,0 +1,2 @@
+-- Grading-day rosters (applied 2026-11-27 as migration cb_rosters): table cb_rosters, RPCs cb_ops_rosters, cb_ops_roster_people,
+-- cb_ops_roster_save, cb_ops_roster_decide (admin), cb_floor_roster. Texting the shifts is the cb action roster_notify (admin).

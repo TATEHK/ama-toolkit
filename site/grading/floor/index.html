@@ -616,6 +616,7 @@ body.stand .stand-tag{display:inline}
 <div class="modal" id="modal"><div class="box">
   <div class="mh"><h2>Floor settings</h2><button class="closex" id="mClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="mbody">
+    <div class="field" id="rosterField" hidden><label>Staff on today</label><div id="rosterList" class="note" style="margin:0"></div></div>
     <div class="field stand-field"><label>Stand mode</label>
       <div class="note" style="margin:0 0 10px">For the iPad on its stand: just the floor, check-in and run sheet, with bigger buttons and the screen kept awake. No settings, day switching, views or print. To leave, press and hold the green A for 3 seconds.</div>
       <button class="btn primary" id="standOn" type="button">Turn on stand mode on this device</button></div>
@@ -1329,7 +1330,15 @@ $('#rebal').onclick=()=>{state.autoBalance=true;generateGroups();renderSettings(
 $('#fw').oninput=e=>{state.fw=Math.max(4,+e.target.value||12);render();};
 $('#fh').oninput=e=>{state.fh=Math.max(4,+e.target.value||10);render();};
 $('#addGrp').onclick=()=>{manual();addGroup();renderSettings();render();persistGroups();};
-$('#gearBtn').onclick=()=>{renderSettings();$('#modal').classList.add('open');};
+$('#gearBtn').onclick=()=>{renderSettings();$('#modal').classList.add('open');loadRoster();};
+// the approved roster from the Operations dashboard (floor staff and admin, with their times)
+async function loadRoster(){ const f=$('#rosterField'); if(!f||!DAYID) return;
+  try{ const { data } = await sb.rpc('cb_floor_roster',{ p_day_id: DAYID }); const sl=(data&&data.slots)||[];
+    if(!sl.length){ f.hidden=true; return; }
+    const t=v=>{ const m=/^(\d{1,2}):(\d{2})/.exec(v||''); if(!m) return ''; const h=+m[1]; return ((h+11)%12+1)+(m[2]==='00'?'':':'+m[2])+(h<12?'am':'pm'); };
+    const part=(r,l)=>{ const x=sl.filter(s=>s.role===r); return x.length?`<div style="margin-bottom:8px"><b>${l}</b>${x.map(s=>`<div>${esc(s.name)}${s.start?` <span style="opacity:.7">· ${t(s.start)}${s.end?'–'+t(s.end):''}</span>`:''}</div>`).join('')}</div>`:''; };
+    $('#rosterList').innerHTML=part('floor','Floor staff')+part('admin','Admin'); f.hidden=false;
+  }catch(e){ f.hidden=true; } }
 $('#rsBtn').onclick=openRunsheet;
 $('#rsLiveBtn').onclick=openRsLive;
 $('#cbPresentBtn').onclick=()=>openCbPresent();

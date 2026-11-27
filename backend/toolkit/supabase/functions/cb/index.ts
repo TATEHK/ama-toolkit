@@ -2916,6 +2916,34 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
 
     // Text and email an invited helper their sign-up link. { student_id, preview: true } returns the exact messages without sending.
+    // ---- Text everyone on an approved grading-day roster their shift (Mark, from the Operations dashboard). { day_id, only_new? } ----
+    if (body.action === 'roster_notify') {
+      if (!can('admin')) return fail('Only Mark (admin) can send the roster.', 403);
+      const { data: r } = await db.from('cb_rosters').select('day_id, slots, status').eq('day_id', String(body.day_id || '')).maybeSingle();
+      if (!r) return fail('No roster for that grading.', 404);
+      if (r.status !== 'approved') return fail('Approve the roster first.', 409);
+      const { data: d } = await db.from('cb_days').select('grading_date, location').eq('day_id', r.day_id).maybeSingle();
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
+      const when = d ? new Date(d.grading_date + 'T12:00:00Z').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) : '';
+      const t12 = (t: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + (m[2] === '00' ? '' : ':' + m[2]) + (h < 12 ? 'am' : 'pm'); };
+      const ROLE = { floor: 'floor staff', admin: 'admin' };
+      const res = [];
+      for (const sl of (r.slots || [])) {
+        const name = String(sl.name || '').trim(), phone = phoneE164(sl.mobile);
+        if (!name) continue;
+        if (!phone) { res.push({ name, status: 'no mobile' }); continue; }
+        const span = sl.start ? (t12(sl.start) + (sl.end ? ' to ' + t12(sl.end) : '')) : 'all day';
+        const text = `Hi ${first(name) || 'there'}, you're rostered on as ${(ROLE as any)[sl.role] || 'staff'} for the ${d ? d.location : ''} grading on ${when}, ${span}. Thanks - AMA`;
+        try {
+          const cid = await contactFor({ guardian_name: name, full_name: name, email: sl.email || null }, phone);
+          if (!cid) throw new Error('could not find or add them in GoHighLevel');
+          await sendSms(cid, text); res.push({ name, status: 'sent' });
+        } catch (er) { res.push({ name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
+      }
+      if (res.some(x => x.status === 'sent')) await db.from('cb_rosters').update({ notified_at: new Date().toISOString() }).eq('day_id', r.day_id);
+      return json({ ok: true, sent: res.filter(x => x.status === 'sent').length, results: res });
+    }
+
     if (body.action === 'helper_send') {
       if (!can('helpers', 'days', 'settings')) return fail('Not allowed.', 403);
       const { data: p } = await db.from('prep_students').select('full_name, efc_ref').eq('student_id', String(body.student_id || '')).maybeSingle();
