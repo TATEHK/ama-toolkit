@@ -306,11 +306,31 @@
     fetch(BASE + '/rest/v1/rpc/tv_checkin', {
       method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_KEY },
       body: JSON.stringify({ p_code: code, p_screen: screenId, p_loc: LOC, p_showing: showingNow(), p_started: STARTED,
-        p_details: { battery: battery.level != null ? { level: battery.level, charging: battery.charging } : null, w: window.innerWidth, h: window.innerHeight, slides: playlist.length, offline: /offline/.test(document.body.className), browser: navigator.userAgent.slice(0, 160), slide: playlist[index] && feed && !feed.only && !feed.quiet && !feed.off && !feed.blackout ? String(playlist[index].id).split(':')[0] : null } })
+        p_details: { device: deviceName || null, battery: battery.level != null ? { level: battery.level, charging: battery.charging } : null, w: window.innerWidth, h: window.innerHeight, slides: playlist.length, offline: /offline/.test(document.body.className), browser: navigator.userAgent.slice(0, 160), slide: playlist[index] && feed && !feed.only && !feed.quiet && !feed.off && !feed.blackout ? String(playlist[index].id).split(':')[0] : null } })
     }).then(function (r) { return r.ok ? r.json() : null; }).then(function (r) {
       if (r && r.reload) freshReload();
       if (r && 'home' in r) homeSet(r.home || null);
+      identShow(r && r.identify);
     }).catch(function () { /* not set up yet, or no connection */ });
+  }
+  // "Show its name" from the editor: this device's name (e.g. Tablet C) big on screen for a little while, so you can tell which is which
+  function identShow(name) {
+    var el = $('identBox');
+    if (!name) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'identBox';
+      el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.88);color:#fff;font-family:system-ui,sans-serif;text-align:center;padding:20px';
+      document.body.appendChild(el); }
+    el.innerHTML = '<div style="font-size:min(30vw,30vh);font-weight:800;line-height:1">' + esc(String(name).replace(/^Tablet\s+/i, '')) + '</div><div style="font-size:min(6vw,6vh);margin-top:2vh">' + esc(name) + '</div>';
+    clearTimeout(identShow.t); identShow.t = setTimeout(function () { identShow(null); }, 45000);
+    setTimeout(checkIn, 8000);   // check again soon, so it goes away when the time is up
+  }
+  // The device's own name from FreeKiosk, if it says (sent with the check-in so the editor can show it)
+  var deviceName = null;
+  function askDeviceName(st) {
+    if (deviceName !== null || !st || st.signin_open !== 'kiosk' || PREVIEW) return; deviceName = '';
+    ['/api/info', '/api/device', '/api/status'].reduce(function (p, path) { return p.then(function (got) { if (got) return got;
+      return kioskGet(st, path).then(function (t) { try { var j = JSON.parse(t), d = j.data || j; return d.deviceName || d.device_name || d.name || d.hostname || (d.manufacturer && d.model ? d.manufacturer + ' ' + d.model : d.model) || ''; } catch (e) { return ''; } })['catch'](function () { return ''; }); }); }, Promise.resolve(''))
+      .then(function (n) { if (n) { deviceName = String(n).slice(0, 60); setTimeout(checkIn, 500); } });
   }
 
   // ---------- Screen code ----------
@@ -384,7 +404,7 @@
       store.set('tvFeed', JSON.stringify(f)); lastHash = f.hash || null; tidyMedia(f);
       setTimeout(checkIn, 1500);
       apply(f, first);
-      remoteFromFeed(f); kioskSync(f);
+      remoteFromFeed(f); kioskSync(f); askDeviceName(f && f.settings);
     }).catch(function () {
       document.body.className += ' offline';
       if (first || !feed) { var c = store.get('tvFeed'); if (c) { try { c = JSON.parse(c); lastHash = c.hash || null; apply(c, true); } catch (e) { /* ignore */ } } else showMessage('Connecting...', 'Check the TV is on the internet.'); }
