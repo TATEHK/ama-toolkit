@@ -263,6 +263,47 @@
     inM('[data-note]').forEach(x => x.onclick = () => noteDlg(cand(x.dataset.note), stepCodes(st, cand(x.dataset.note))));
     const bu = $1('#geBlockUn'); if (bu) bu.onclick = () => openDlg(`<h3>Not scored yet: ${h(cur.block.title)}</h3><div style="max-height:50vh;overflow:auto;margin:10px 0">${blockUn.map(u => `<div class="ge-small">${h(u.c.name)} · <b>${u.code}</b> ${h(itemOf(u.code).section)}</div>`).join('')}</div><button class="ge-btn" data-x>Close</button>`);
   }
+  // ---- One person's scoring sheet (tap their photo on the run sheet's floor) ----
+  // Each item for this step, opened up into its moves. A move marked Fail is written into the item's comment
+  // ("Failed: <move>") and fails the item; Pass on the item passes it; the note box keeps any other comment.
+  const FAILED = 'Failed: ';
+  const failedMoves = cm => String(cm || '').split('\n').filter(l => l.startsWith(FAILED)).map(l => l.slice(FAILED.length));
+  const otherNote = cm => String(cm || '').split('\n').filter(l => l && !l.startsWith(FAILED)).join('\n');
+  const joinNote = (fails, note) => [...fails.map(f => FAILED + f), ...(note ? [note] : [])].join('\n') || null;
+  function movesFor(code) {
+    const fromRs = window.rsMovesFor ? window.rsMovesFor(code) : [];
+    if (fromRs.length) return fromRs;
+    const t = String(itemOf(code).text || ''); return t ? t.split(/;\s*/).map(x => x.trim()).filter(Boolean) : [];
+  }
+  function candSheet(cid) {
+    if (!S.ev) return false; css();
+    const c = cand(cid); if (!c) return false;
+    const list = allSteps(), cur = S.sel && list.find(x => x.b === S.sel.b && x.s === S.sel.s);
+    if (!cur) return false;
+    const st = cur.st, codes = stepCodes(st, c); if (!codes.length) return false;
+    const paint = () => {
+      openDlg(`<div class="ge-row" style="align-items:flex-start"><div class="ge-grow"><h3 style="margin:0">${h(c.name)}</h3><div class="ge-tiny">Group ${h(c.group)} · ${h(c.to)}${partnerTag(c.id)}${isHere(c.id) ? '' : ' · not checked in'}</div></div>
+          <button class="ge-btn primary" data-allp>All pass</button></div>
+        <div style="max-height:62vh;overflow:auto;margin:12px 0">${codes.map(code => { const m = mk(c.id, code) || {}, fails = failedMoves(m.comment), mv = movesFor(code);
+          return `<details class="cs-item" ${fails.length || m.result === 'fail' ? 'open' : ''} style="border:1px solid var(--line-2);border-radius:12px;padding:8px 10px;margin:0 0 8px">
+            <summary style="display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none"><b>${code}</b><span class="ge-grow">${h(itemOf(code).section)}</span>
+              <span class="ge-tag ${m.result === 'pass' ? 'ok' : ''}" style="${m.result === 'fail' ? 'color:#ef8a73;border-color:#ef8a73' : ''}">${m.result === 'pass' ? 'Pass' : m.result === 'fail' ? 'Fail' : 'Not scored'}</span></summary>
+            <div class="ge-row" style="gap:6px;margin:8px 0"><button class="ge-btn sm" data-ir="${code}|pass">Pass</button><button class="ge-btn sm danger" data-ir="${code}|fail">Fail</button><button class="ge-btn sm" data-ir="${code}|">Clear</button></div>
+            ${mv.map((t, i) => { const bad = fails.includes(t); return `<div class="ge-row" style="gap:8px;padding:5px 0;border-top:1px solid var(--line)"><span class="ge-grow ge-small" style="${bad ? 'color:#ef8a73;font-weight:700' : ''}">${bad ? '✗ ' : ''}${h(t)}</span><button class="ge-btn sm ${bad ? 'danger' : ''}" data-mv="${code}|${i}">${bad ? 'Failed · undo' : 'Fail this move'}</button></div>`; }).join('')}
+            <textarea rows="2" placeholder="Note for ${code} (optional)" data-nt="${code}" style="margin-top:6px">${h(otherNote(m.comment))}</textarea></details>`; }).join('')}</div>
+        <div class="ge-row"><button class="ge-btn" data-prof>Open profile</button><span class="ge-grow"></span><button class="ge-btn primary" data-x>Done</button></div>`);
+      const d = $1('#geDlg');
+      d.querySelector('[data-allp]').onclick = async () => { for (const code of codes) { const m = mk(c.id, code) || {}; if (!failedMoves(m.comment).length) await setMark(c.id, code, 'pass'); } paint(); };
+      d.querySelectorAll('[data-ir]').forEach(b => b.onclick = async () => { const [code, r] = b.dataset.ir.split('|'); const m = mk(c.id, code) || {};
+        await setMark(c.id, code, r || null, r === 'pass' ? joinNote([], otherNote(m.comment)) : undefined); paint(); });
+      d.querySelectorAll('[data-mv]').forEach(b => b.onclick = async () => { const [code, i] = b.dataset.mv.split('|'), t = movesFor(code)[+i], m = mk(c.id, code) || {};
+        let fails = failedMoves(m.comment); fails = fails.includes(t) ? fails.filter(x => x !== t) : [...fails, t];
+        await setMark(c.id, code, fails.length ? 'fail' : (m.result === 'fail' ? null : m.result || null), joinNote(fails, otherNote(m.comment))); paint(); });
+      d.querySelectorAll('[data-nt]').forEach(ta => ta.onchange = () => { const code = ta.dataset.nt, m = mk(c.id, code) || {}; setMark(c.id, code, undefined, joinNote(failedMoves(m.comment), ta.value.trim())); });
+      const pr = d.querySelector('[data-prof]'); if (pr) pr.onclick = () => { closeDlg(); if (window.openProfileByEntry) window.openProfileByEntry(c.id); };
+    };
+    paint(); return true;
+  }
   function noteDlg(c, codes) {
     openDlg(`<h3>${h(c.name)}</h3><p class="ge-tiny">Comments are for the panel and Mark. Nothing goes to families until results are approved.</p>
       ${codes.map(code => { const m = mk(c.id, code) || {}; return `<div style="margin:8px 0"><div class="ge-tiny" style="font-weight:700">${code} · ${h(itemOf(code).section)} ${m.result ? `(${m.result})` : ''}</div><textarea rows="2" data-n="${code}">${h(m.comment || '')}</textarea></div>`; }).join('')}
@@ -498,6 +539,7 @@
   window.GE = {
     attach, open, mountStep,
     has: () => !!S.ev,
+    candSheet,   // one person's scoring for the step on screen; false if they have nothing to score here
     hasTool: ge => !!kindFor(ge),
     results: () => open('results'),
     // the floor's run sheet: "Score this step" for an assessment step, and a timer for any event step
