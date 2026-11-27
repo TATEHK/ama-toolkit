@@ -215,10 +215,17 @@ function startKiosk(){
   q=''; renderQ(); renderResults(); buildKbd();
   clearInterval(feedT); feedT=setInterval(refreshFeed,20000);
 }
+// background refreshes: put every scrolled box (and the page) back where it was after redrawing
+function keepScroll(fn){
+  const kept=[]; document.querySelectorAll('*').forEach(e=>{ if(e.scrollTop>0||e.scrollLeft>0){ const cls=typeof e.className==='string'?e.className.trim().split(/\s+/)[0]:''; const sel=e.id?'#'+CSS.escape(e.id):e.tagName+(cls?'.'+CSS.escape(cls):''); kept.push({sel,i:[...document.querySelectorAll(sel)].indexOf(e),t:e.scrollTop,l:e.scrollLeft}); } });
+  const y=window.scrollY; try{ return fn(); } finally {
+    kept.forEach(k=>{ const el=document.querySelectorAll(k.sel)[k.i]; if(el){ el.scrollTop=k.t; el.scrollLeft=k.l; } });
+    if(window.scrollY!==y) window.scrollTo(0,y); }
+}
 async function refreshFeed(){
   if($('#done').classList.contains('on')) return;
   const {data}=await sb.rpc('cb_checkin_feed',{p_code:CODE});
-  if(data && !data.error){ applyFeed(data); renderResults(); }
+  if(data && !data.error){ applyFeed(data); keepScroll(renderResults); }
 }
 function renderQ(){
   const box=$('#q');
