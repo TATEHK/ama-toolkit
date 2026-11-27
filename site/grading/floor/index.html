@@ -671,7 +671,7 @@ function mapStudents(list){
   let i=0;
   for(const r of (list||[])){ const id=++i, belt=shortB(r.belt_from), belt_to=shortB(r.belt_to);
     id2entry[id]=r.entry_id; entry2id[r.entry_id]=id;
-    const min=(CURR[belt]&&CURR[belt].min)||0, prog=min?Math.min(100,Math.round((r.classes||0)/min*100)):0;
+    const min=(CURR[belt]&&CURR[belt].min)||0, prog=min?Math.min(100,Math.round((r.classes||0)/min*100)):null;   // null: no class minimum for this belt (black belts), so no % to show
     STUDENTS.push({ id, entry_id:r.entry_id, result:r.result||null, member_key:r.member_key, name:r.full_name||'—', belt, belt_to, rank:(r.belt_from||''), target:(r.belt_to||''),
       weeks:r.weeks||0, classes:r.classes||0, lastGap:r.weeks||0, prog, ready:!!r.ready, bbc:!!r.bbc, bbcInv:r.bbc_invited_at||null, bbcWritten:r.bbc_written_at||null,
       sub:r.sub!==false, loc:r.loc||'', age:r.age||0, attend:r.attend||'green', inAt:r.checked_in_at||null, fam:r.family||('f'+id), paid:r.paid!==false, booked:!!r.booked,
@@ -1219,7 +1219,7 @@ function openProfile(id){
         <div class="grid3">
           <div class="stat"><div class="k">Weeks on belt</div><div class="v">${s.weeks}</div></div>
           <div class="stat"><div class="k">Classes since</div><div class="v">${s.classes}</div></div>
-          <div class="stat"><div class="k">Progress</div><div class="v">${s.prog}<small>%</small></div><div class="prog mini"><i style="width:${s.prog}%"></i></div></div>
+          ${s.prog==null?'':`<div class="stat"><div class="k">Progress</div><div class="v">${s.prog}<small>%</small></div><div class="prog mini"><i style="width:${s.prog}%"></i></div></div>`}
         </div>
         <div class="capline">${s.classes} classes since grading${currOf(s).min?` · min ${currOf(s).min} needed`:''} · last graded ${s.lastGap} wks ago</div>
         ${s.days.length?`<div class="ovsec"><div class="ovlabel">Training${packVal?` <span class="muted">${packVal}</span>`:''}</div>
