@@ -1062,7 +1062,8 @@ function rostersSection(){
   let panel = '';
   if(RSELD){
     const x = byDay[RSELD] || { r: [], g: [] }, d = new Date(RSELD + 'T00:00:00');
-    const gl = x.g.map(g => g.location), locs = [...new Set([...gl, ...(gl.includes('Marrickville') ? ['Sydenham'] : []), ...x.r.map(r => r.location)])].filter(inSch);
+    const gl = x.g.map(g => g.location), extraOpen = (RSELD >= '2026-12-07' && RSELD <= '2026-12-10') ? usualSchools(d) : [];   // 7–10 Dec: every school open that day gets a roster (Bianca builds the others)
+    const locs = [...new Set([...gl, ...(gl.includes('Marrickville') ? ['Sydenham'] : []), ...extraOpen, ...x.r.map(r => r.location)])].filter(inSch);
     const usualList = l => { const ps = usualOn(d, l); return ps.length ? `<div class="rus"><span class="rul">Usually on</span>${ps.map(p => `<span class="rup">${esc(p.name)} <i>${fmtTime(p.start)}–${fmtTime(p.end)}</i></span>`).join('')}</div>` : ''; };
     // what the roster changes from the usual staff: extras, usual people taken off, and different times
     const changesList = (r, l) => { if(!r) return '';
