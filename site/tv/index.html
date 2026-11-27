@@ -309,6 +309,7 @@
         p_details: { battery: battery.level != null ? { level: battery.level, charging: battery.charging } : null, w: window.innerWidth, h: window.innerHeight, slides: playlist.length, offline: /offline/.test(document.body.className), browser: navigator.userAgent.slice(0, 160), slide: playlist[index] && feed && !feed.only && !feed.quiet && !feed.off && !feed.blackout ? String(playlist[index].id).split(':')[0] : null } })
     }).then(function (r) { return r.ok ? r.json() : null; }).then(function (r) {
       if (r && r.reload) freshReload();
+      if (r && 'home' in r) homeSet(r.home || null);
     }).catch(function () { /* not set up yet, or no connection */ });
   }
 
@@ -319,7 +320,23 @@
   if (params.code) store.set('tvCode', params.code.toUpperCase());
   if (params.loc) store.set('tvLoc', params.loc.toLowerCase());   // a location link, e.g. &loc=sydenham
   var LOC = store.get('tvLoc') || null;
-  var KIOSK_MAIN = params.kiosk === 'main';   // FreeKiosk's main screen showing a party (see kioskSync)
+  var KIOSK_MAIN = params.kiosk === 'main';
+  // ---------- This tablet's own home page (sent from the TV editor) ----------
+  // Normally a tablet's home is the sign-in page from Settings. Staff can send one tablet its own link; it comes back
+  // with each check-in (every 20 seconds), is kept on the device, and replaces the sign-in page for this tablet only.
+  var HOME = store.get('tvHome') || null;
+  function homeOf(st) { return HOME || (st && st.signin) || null; }
+  function homeSet(h) {
+    if (h && !/^https:\/\//.test(h)) h = null;
+    if (h === HOME) return;
+    HOME = h; if (h) store.set('tvHome', h); else store.del('tvHome');
+    var st = (feed && feed.settings) || {};
+    if (PREVIEW || (feed && feed.display === 'tv')) return;
+    if (feed && (feed.only || feed.blackout)) return;   // a party or blackout: it opens when that's over
+    if (st.signin_open === 'kiosk') {   // FreeKiosk: make it the main page and close the screensaver so it shows now
+      var u = homeOf(st); if (u) kioskApi(st, '/api/url', { url: u }).then(function () { kioskNote = 'home page sent'; return kioskApi(st, '/api/wake'); })['catch'](function (e) { kioskNote = 'could not send the home page (' + (e && e.message || e) + ')'; });
+    } else signinCheck(false, feed);   // the next tap opens it
+  }   // FreeKiosk's main screen showing a party (see kioskSync)
   code = store.get('tvCode');
   function askCode(msg) {
     clearTimeout(timer); stage.innerHTML = '';
@@ -790,11 +807,11 @@
     var lock = !!(f && (f.only || f.blackout));
     if (PREVIEW || (f && f.display === 'tv')) { kioskNote = ''; return; }   // FreeKiosk is only on the tablets
     if (st.signin_open !== 'kiosk') { kioskNote = lock ? 'off (Settings: A tap is not "Handled by FreeKiosk")' : ''; return; }
-    if (!st.signin) { kioskNote = 'no sign-in link in Settings'; return; }
+    if (!homeOf(st)) { kioskNote = 'no sign-in link in Settings'; return; }
     var key = lock ? (f.only ? 'party:' + ((f.slides[0] || {}).id || '') : 'blackout') : null;
     if (KIOSK_MAIN) kioskNote = lock ? 'main screen, party locked' : '';
     if (KIOSK_MAIN) {
-      if (!lock) { store.del('kioskLocked'); store.del('kioskShown'); try { location.href = st.signin; } catch (e) { /* ignore */ } return; }   // over: back to sign-in
+      if (!lock) { store.del('kioskLocked'); store.del('kioskShown'); try { location.href = homeOf(st); } catch (e) { /* ignore */ } return; }   // over: back to its home page (normally sign-in)
       store.set('kioskShown', key);   // the main screen has it: the screensaver page mustn't send it again
       return;
     }
@@ -802,7 +819,7 @@
       kioskDone = null; kioskNote = 'ready (screensaver)'; store.del('kioskShown');
       // Over: also tell FreeKiosk to put the sign-in page back, in case the party page underneath is paused
       // (the note is shared by both of FreeKiosk's pages, so whichever is running does it)
-      if (store.get('kioskLocked')) kioskApi(st, '/api/url', { url: st.signin }).then(function () { store.del('kioskLocked'); kioskNote = 'sign-in page put back'; })['catch'](function () {});
+      if (store.get('kioskLocked')) kioskApi(st, '/api/url', { url: homeOf(st) }).then(function () { store.del('kioskLocked'); kioskNote = 'sign-in page put back'; })['catch'](function () {});
       return;
     }
     // Already on the main screen (FreeKiosk's screensaver shows this page again after a minute with no taps):
@@ -863,7 +880,7 @@
   $('signin').addEventListener('load', function () { if (signinOpen) signinActive(); });
   function signinCheck(first, f) {
     var st = (f && f.settings) || {};
-    var url = f && f.display === 'tv' ? null : (st.signin || null);   // the TV is a normal browser: no sign-in page
+    var url = f && f.display === 'tv' ? null : (homeOf(st) || null);   // the TV is a normal browser: no sign-in page
     signinBlocked = !!(f && (f.only || f.blackout));   // not during a party or a blackout
     if (url !== signinUrl) { signinUrl = url; if (signinOpen) closeSignin(); }
     signinIdle = st.signin_idle || 60;
