@@ -3254,7 +3254,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         const phone = phoneE164(s.mobile);
         if (!phone) { res.push({ name: s.name, status: 'no mobile' }); continue; }
         // one SMS (under 160 characters with a normal first name)
-        const text = `Hi ${first(s.name) || 'there'}, when are you free for Marrickville gradings? Not a guaranteed shift, just helps us roster: https://app.train-ama.com/a/${s.token} - AMA`;
+        const text = `Hi ${first(s.name) || 'there'}, when are you free for our upcoming gradings? Not a guaranteed shift, just helps us roster: https://app.train-ama.com/a/${s.token} - AMA`;
         try {
           const cid = await contactFor({ guardian_name: s.name, full_name: s.name, email: s.email || null }, phone);
           if (!cid) throw new Error('could not find or add them in GoHighLevel');
