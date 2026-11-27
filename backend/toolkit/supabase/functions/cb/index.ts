@@ -2921,7 +2921,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     //       cb_roster_settings only (Tate and Mark). Deputy: DEPUTY_HOST (built in) and the DEPUTY_TOKEN secret. =====
     const rosterApprover = async () => { const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();
       return !!(me && rs && (rs.approvers || []).some((e: string) => String(e).toLowerCase() === me)); };
-    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs', 'deputy_connect_url', 'deputy_connect', 'deputy_status'].includes(body.action);
+    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs', 'deputy_connect_url', 'deputy_connect', 'deputy_status', 'roster_deputy_remove'].includes(body.action);
     // reading usual shifts from Deputy can also run from the database (x-cb-cron), e.g. a nightly refresh
     const cronOk = cronSync;
     if (isRosterAction && !cronOk && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
@@ -3075,6 +3075,19 @@ export async function handle(req, db, env = {}, http = fetch) {
       const made = res.filter(x => /^shift made|^moved/.test(x.status)).length;
       await db.from('cb_day_rosters').update({ slots, ...(made ? { deputy_at: new Date().toISOString() } : {}) }).eq('roster_id', r.roster_id);
       return json({ ok: true, area: unit.name, made, results: res });
+    }
+
+    // ---- someone taken off a day roster: delete their shift in Deputy and take them off the roster. { date, location, deputy_id } ----
+    if (body.action === 'roster_deputy_remove') {
+      const r = await loadRoster();
+      if (!r) return fail('No roster for that day.', 404);
+      const id = +body.deputy_id, sl = (r.slots || []).find((x: any) => +x.deputy_id === id);
+      if (!id || !sl) return fail('That shift is not on this roster.', 404);
+      try { await dep('resource/Roster/' + id, { method: 'DELETE' }); }
+      catch (er) { if (!/404/.test(String(er.message || er))) return fail(String(er.message || er)); }   // already gone in Deputy is fine
+      const slots = (r.slots || []).filter((x: any) => +x.deputy_id !== id);
+      await db.from('cb_day_rosters').update({ slots, updated_at: new Date().toISOString(), updated_by: me }).eq('roster_id', r.roster_id);
+      return json({ ok: true, removed: sl.name });
     }
 
     // ---- read the last 4 weeks of Deputy shifts and record who normally works where and when (seen at least twice).
