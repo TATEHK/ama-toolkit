@@ -3087,6 +3087,10 @@ export async function handle(req, db, env = {}, http = fetch) {
 
     // ---- one-off Deputy shift for a staff member (not tied to a roster). { name, date, start, end, location?, note? } ----
     if (body.action === 'deputy_shift') {
+      if (body.delete_id) {   // { delete_id }: take a shift off Deputy
+        try { await dep('resource/Roster/' + (+body.delete_id), { method: 'DELETE' }); return json({ ok: true, deleted: +body.delete_id }); }
+        catch (er) { return fail(String(er.message || er)); }
+      }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date || '') || !/^\d{1,2}:\d{2}$/.test(body.start || '') || !/^\d{1,2}:\d{2}$/.test(body.end || '')) return fail('Need a date, start and end.');
       try {
         const units = await depUnits(), emps = await depEmps();
