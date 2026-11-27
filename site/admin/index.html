@@ -359,7 +359,7 @@
   <div class="reqbox rbox">
     <div class="rhead"><div><h3 id="roTitle">Roster</h3><div class="muted" id="roSub"></div></div><span id="roStatus"></span></div>
     <div id="roSlots"></div>
-    <div class="roadd"><button type="button" class="btn mini" data-addrole="floor">+ Floor staff</button><button type="button" class="btn mini" data-addrole="admin">+ Admin</button></div>
+    <div class="roadd"><button type="button" class="btn mini" data-addrole="floor">+ Floor staff</button></div>
     <label>Note <span class="muted">(optional)</span><textarea id="roNote" rows="2" maxlength="2000"></textarea></label>
     <div class="rodec" id="roDec" hidden></div>
     <div class="reqerr" id="roErr" hidden></div>
@@ -951,7 +951,7 @@ function dayGroup(dayId){
 const RO_LABEL = { draft: 'Draft', submitted: 'Waiting for approval', approved: 'Approved', declined: 'Declined' };
 const rosterOf = id => ROSTERS.find(r => r.day_id === id) || null;
 const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r.status}${r.status === 'approved' && r.deputy_at ? ' · in Deputy' : ''}${r.status === 'approved' && r.notified_at ? ' · texted' : ''}</span>` : '';
-function rosterBtn(g){ const A = dayGroup(g.day_id).anchor, r = rosterOf(A), L = limitsOf(A), n = r ? (r.slots||[]).filter(x => x.name).length : 0, need = L.floor.need + L.admin.need;
+function rosterBtn(g){ const A = dayGroup(g.day_id).anchor, r = rosterOf(A), L = limitsOf(A), n = r ? (r.slots||[]).filter(x => x.name).length : 0, need = L.floor.need;
   const has = r && (r.slots||[]).length;
   const grp = dayGroup(g.day_id).ids.length;
   return `<button class="btn mini" data-roster="${A}">${has ? `Day roster ${n}/${need}` : 'Build day roster'}</button>${has ? roTag(r) : ''}${grp > 1 && !has ? `<span class="rtag">covers ${grp} gradings</span>` : ''}`; }
@@ -968,7 +968,7 @@ const newSlot = (role, dayId) => ({ role, ...defTimes(role, dayId), name: '', mo
 function rosterWaiting(){
   const w = ROSTERS.filter(r => r.status === 'submitted'); if(!w.length) return '';
   return `<div class="reqlist">${w.map(r => `<div class="reqc open"><div class="rtop"><span class="rb roster">Roster</span><b>${fmtDate(r.grading_date)} · ${esc(r.location||'')}</b></div>
-    <div class="rdet">${(r.slots||[]).filter(x=>x.name).length} people: ${(r.slots||[]).filter(x=>x.role==='floor'&&x.name).length} floor, ${(r.slots||[]).filter(x=>x.role==='admin'&&x.name).length} admin${r.note?` · ${esc(r.note)}`:''}</div>
+    <div class="rdet">${(r.slots||[]).filter(x=>x.name).length} floor staff${r.note?` · ${esc(r.note)}`:''}</div>
     <div class="rmeta">${esc(r.submitted_by||'someone')} · ${fmtWhen(r.submitted_at)}</div>
     <div class="racts roswait">${canApprove() ? `<button class="btn primary" data-roster="${r.day_id}">Review roster</button>` : '<span class="rwait">Waiting for Tate or Mark to approve</span>'}</div></div>`).join('')}</div>`;
 }
@@ -979,7 +979,7 @@ async function openRoster(dayId){
   const r = rosterOf(dayId);
   const st = startOf(dayId);
   const L = limitsOf(dayId);
-  const fresh = () => [...Array(L.floor.need)].map(() => newSlot('floor', dayId)).concat([...Array(L.admin.need)].map(() => newSlot('admin', dayId)));
+  const fresh = () => [...Array(L.floor.need)].map(() => newSlot('floor', dayId));   // floor staff only
   RO = { day_id: dayId, g, r, lim: JSON.parse(JSON.stringify(L)), limDirty: false, warned: false, slots: r && (r.slots || []).length ? JSON.parse(JSON.stringify(r.slots)) : fresh(), people: [] };
   $('#roTitle').textContent = r && (r.slots||[]).length ? 'Roster' : 'Build roster';
   const G = dayGroup(dayId);
@@ -1001,7 +1001,7 @@ function drawSlots(){
     return `<div class="roh"><span>${title} · <b style="color:${short ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="${role}.need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="${role}.max" value="${L.max}"></span></div>
       ${rows.map(([x, i]) => row(x, i)).join('') || '<div class="muted" style="font-size:13px">No one yet.</div>'}`; };
-  $('#roSlots').innerHTML = part('floor', 'Floor staff') + part('admin', 'Admin');
+  $('#roSlots').innerHTML = part('floor', 'Floor staff');
   $('#roSlots').querySelectorAll('.slot input').forEach(inp => inp.oninput = () => {
     const i = +inp.closest('.slot').dataset.i, f = inp.dataset.f; RO.slots[i][f] = inp.value;
     if(f === 'name'){ const p = RO.people.find(p => p.name.toLowerCase() === inp.value.trim().toLowerCase());
@@ -1010,7 +1010,7 @@ function drawSlots(){
   $('#roSlots').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { RO.slots.splice(+b.dataset.rm, 1); drawSlots(); });
   $('#roSlots').querySelectorAll('[data-lim]').forEach(inp => inp.onchange = () => { const [role, k] = inp.dataset.lim.split('.'); RO.lim[role][k] = Math.max(0, Math.min(50, +inp.value || 0));
     if(RO.lim[role].max < RO.lim[role].need) RO.lim[role].max = RO.lim[role].need; RO.limDirty = true; RO.warned = false; drawSlots(); });
-  ['floor', 'admin'].forEach(role => { const b = document.querySelector(`[data-addrole="${role}"]`); if(b){ const full = RO.slots.filter(x => x.role === role).length >= RO.lim[role].max; b.disabled = full; b.title = full ? 'At the most for this grading' : ''; } });
+  ['floor'].forEach(role => { const b = document.querySelector(`[data-addrole="${role}"]`); if(b){ const full = RO.slots.filter(x => x.role === role).length >= RO.lim[role].max; b.disabled = full; b.title = full ? 'At the most for this grading' : ''; } });
 }
 function drawRoActs(){
   const r = RO.r, st = r ? r.status : 'draft';
@@ -1035,7 +1035,7 @@ const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({
 async function saveRoster(submit, btn){
   const slots = cleanSlots();
   if(submit && !slots.length) return roErr('Add at least one person.');
-  const shortBy = ['floor', 'admin'].map(r => [r, RO.lim[r].need - slots.filter(x => x.role === r).length]).filter(([, n]) => n > 0);
+  const shortBy = ['floor'].map(r => [r, RO.lim[r].need - slots.filter(x => x.role === r).length]).filter(([, n]) => n > 0);
   if(submit && shortBy.length && !RO.warned){ RO.warned = true; return roErr(`Still short: ${shortBy.map(([r, n]) => `${n} ${r === 'floor' ? 'floor staff' : 'admin'}`).join(' and ')}. Tap Send again to send it anyway.`); }
   btn.disabled = true; roErr('');
   if(RO.limDirty){ const l = await sb.rpc('cb_ops_roster_limits', { p_day_id: RO.day_id, p_limits: RO.lim }); if(l.error){ btn.disabled = false; return roErr('Not saved: ' + l.error.message); } }
@@ -1084,18 +1084,16 @@ function openRset(){
   const box = $('#rsetModal');
   box.querySelector('.reqbox').innerHTML = `<h3>Roster defaults</h3>
     <p class="muted" style="margin:-6px 0 14px;font-size:13px">Used for every grading unless that grading's roster sets its own numbers.</p>
-    <div class="roh" style="margin-top:0">Floor staff</div>
+    <div class="roh" style="margin-top:0">Floor staff shifts</div>
     <div class="rsgrid"><label>Needed${n('floor_need', d.floor_need)}</label><label>Most${n('floor_max', d.floor_max)}</label><label>Start (min before)${n('floor_before', d.floor_before, 5, -600)}</label><label>Length (hours)${n('floor_hours', d.floor_hours, 0.25, 0.25)}</label></div>
-    <div class="roh">Admin</div>
-    <div class="rsgrid"><label>Needed${n('admin_need', d.admin_need)}</label><label>Most${n('admin_max', d.admin_max)}</label><label>Start (min before)${n('admin_before', d.admin_before, 5, -600)}</label><label>Length (hours)${n('admin_hours', d.admin_hours, 0.25, 0.25)}</label></div>
     <p class="muted" style="font-size:12px;margin:4px 0 12px">Example: a grading at 9:00am with "30 min before" and "3 hours" gives shifts of 8:30am to 11:30am.</p>
     <div class="reqerr" id="rsErr" hidden></div>
     <div class="reqact"><button type="button" class="btn" id="rsCancel">Cancel</button><button type="button" class="btn primary" id="rsSave">Save defaults</button></div>`;
   box.hidden = false;
   $('#rsCancel').onclick = () => { box.hidden = true; };
   $('#rsSave').onclick = async () => {
-    const p = {}; ['floor_need','floor_max','admin_need','admin_max','floor_before','floor_hours','admin_before','admin_hours'].forEach(k => p[k] = $('#rs_' + k).value);
-    if(+p.floor_max < +p.floor_need || +p.admin_max < +p.admin_need){ const e = $('#rsErr'); e.textContent = 'Most has to be at least the number needed.'; e.hidden = false; return; }
+    const p = {}; ['floor_need','floor_max','floor_before','floor_hours'].forEach(k => p[k] = $('#rs_' + k).value);
+    if(+p.floor_max < +p.floor_need){ const e = $('#rsErr'); e.textContent = 'Most has to be at least the number needed.'; e.hidden = false; return; }
     const { data, error } = await sb.rpc('cb_ops_roster_settings_set', { p });
     if(error){ const e = $('#rsErr'); e.textContent = 'Not saved: ' + error.message; e.hidden = false; return; }
     RSET = data; box.hidden = true; render();
