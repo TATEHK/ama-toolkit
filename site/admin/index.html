@@ -1080,7 +1080,7 @@ async function openRoster(date, location){
   const { data, error } = await sb.rpc('cb_ops_day_roster', { p_date: date, p_location: location });
   if(error){ roErr('Could not load: ' + error.message); return; }
   if(RSET) RSET.me_approves = data.me_approves;
-  const r = data.roster; RO.r = r; RO.people = (data.people || []).filter(p => p.staff);   // staff only, no grading helpers RO.gradings = data.gradings || [];
+  const r = data.roster; RO.r = r; RO.people = (data.people || []).filter(p => p.staff); RO.gradings = data.gradings || [];   // staff only, no grading helpers
   RO.lim = { floor: { need: needOf(r), max: maxOf(r) }, g: JSON.parse(JSON.stringify((r && r.limits && r.limits.g) || {})) };   // g: each grading's own need / max, by day_id
   const dt = defTimes();
   RO.slots = r && (r.slots || []).length ? JSON.parse(JSON.stringify(r.slots)) : [...Array(RO.lim.floor.need)].map(() => ({ role: 'floor', ...dt, name: '', mobile: '' }));
