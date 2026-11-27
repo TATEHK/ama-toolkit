@@ -17,6 +17,9 @@
   const inM = sel => live_el() ? [...S.el.querySelectorAll(sel)] : [];
   const can = (...w) => S.perms.includes('admin') || w.some(x => S.perms.includes(x));
   const C = () => S.ev.config, cands = () => C().candidates || [], cand = id => cands().find(c => c.id === id);
+  // partners (config.partners: [[id, id], ...]): who each person works with for pads, self defence and sparring
+  const partnerOf = id => { const pr = (C().partners || []).find(p => p.includes(id)); const o = pr && cand(pr.find(x => x !== id)); return o || null; };
+  const partnerTag = id => { const o = partnerOf(id); return o ? ` · <span style="color:var(--ink,inherit);font-weight:600">Partner: ${h(o.name.split(' ')[0])}</span>` : ''; };
   const itemOf = code => { for (const k in C().syllabi) { const it = C().syllabi[k].items.find(i => i.code === code); if (it) return it; } return { section: code, text: '' }; };
   const mk = (cid, code) => S.marks[cid + '|' + code] || null;
   const live = () => (S.ev && S.ev.live) || {};
@@ -237,7 +240,7 @@
         <span style="${un ? 'color:var(--warn)' : ''}" class="${un ? '' : 'ge-tag ok'}">${un ? un + ' to score here' : 'All scored'}</span>
         ${blockUn.length && cur.block.assess.length > 1 ? `<button class="ge-btn sm" id="geBlockUn">${blockUn.length} unscored in this block</button>` : ''}</div>
       <div style="display:flex;flex-direction:column;gap:6px">${rows.map(c => { const codes = stepCodes(st, c), here = isHere(c.id);
-        return `<div class="srow ${here ? '' : 'absent'}"><div><b>${h(c.name)}</b><div class="ge-tiny">Group ${h(c.group)} · ${h(c.to)}${c.dan_no ? ' · ' + c.dan_no : ''}${here ? '' : ' · not checked in'}</div></div>
+        return `<div class="srow ${here ? '' : 'absent'}"><div><b>${h(c.name)}</b><div class="ge-tiny">Group ${h(c.group)} · ${h(c.to)}${c.dan_no ? ' · ' + c.dan_no : ''}${partnerTag(c.id)}${here ? '' : ' · not checked in'}</div></div>
           <div class="ge-chips">${codes.map(code => { const m = mk(c.id, code) || {}; return `<button class="ge-chip ${m.result || ''}" data-m="${c.id}|${code}" title="${h(itemOf(code).text)}">${code}<small>${m.result === 'pass' ? 'Pass' : m.result === 'fail' ? 'Fail' : h(itemOf(code).section)}</small>${m.comment ? '<span class="c"></span>' : ''}</button>`; }).join('')}</div>
           <div class="ge-row" style="gap:6px"><button class="ge-btn sm" data-all="${c.id}">All pass</button><button class="ge-btn sm ge-ghost" data-note="${c.id}">Note</button></div></div>`; }).join('')}</div>`;
     const gs = $1('#geStep'); if (gs) gs.onchange = e => { const [b, s] = e.target.value.split(':').map(Number); S.sel = { b, s }; keepUi(); draw(); };
@@ -396,7 +399,7 @@
       <div class="ge-card" style="margin-bottom:12px;${appr ? 'border-color:var(--ok)' : ''}">${appr ? `<b>Approved</b> by ${h(S.ev.approved_by || '')} at ${new Date(appr).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}. Marks and results are locked.${can('admin') ? ' <button class="ge-btn sm ge-ghost noprint" id="geUnAp">Unlock</button>' : ''}`
         : `<b>Held for Mark to approve.</b> Nothing goes to candidates or families until results are approved. ${ready} of ${rows.length} results set.${can('admin') ? ` <button class="ge-btn sm primary noprint" id="geAp">Approve results</button>` : ''}`}</div>
       <div class="ge-card" style="overflow:auto"><table><thead><tr><th>Candidate</th><th>Grading</th><th>Scored</th><th>Failed items</th><th>Suggested</th><th>Result</th></tr></thead><tbody>
-      ${rows.map(({ c, s, o }) => `<tr><td><b>${h(c.name)}</b><div class="ge-tiny">Group ${h(c.group)}${c.dan_no ? ' · ' + c.dan_no : ''}${isHere(c.id) ? '' : ' · not checked in'}</div></td><td class="ge-small">${h(c.to)}</td>
+      ${rows.map(({ c, s, o }) => `<tr><td><b>${h(c.name)}</b><div class="ge-tiny">Group ${h(c.group)}${c.dan_no ? ' · ' + c.dan_no : ''}${partnerTag(c.id)}${isHere(c.id) ? '' : ' · not checked in'}</div></td><td class="ge-small">${h(c.to)}</td>
         <td class="ge-small">${s.p.length} pass${s.f.length ? `, <span style="color:var(--bad)">${s.f.length} fail</span>` : ''}${s.u.length ? `, <span style="color:var(--warn)">${s.u.length} not scored</span>` : ''}</td>
         <td class="ge-small">${s.f.map(code => { const m = mk(c.id, code) || {}; return `<div><b>${code}</b> ${h(itemOf(code).section)}${m.comment ? ': <span class="ge-muted">' + h(m.comment) + '</span>' : ''}</div>`; }).join('') || '—'}</td>
         <td>${s.suggest === 'pass' ? '<span class="ge-tag ok">Pass</span>' : s.suggest === 'review' ? '<span class="ge-tag bad">Review</span>' : '<span class="ge-tag warn">Not finished</span>'}</td>
@@ -421,6 +424,8 @@
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })); a.download = S.ev.slug + '-results.csv'; a.click();
     };
   }
+
+  window.gePartnerOf = name => { try { if (!S.ev) return null; const n = String(name || '').trim().toLowerCase(), c = cands().find(c => c.name.toLowerCase() === n || c.name.split(' ')[0].toLowerCase() === n); const o = c && partnerOf(c.id); return o ? o.name : null; } catch (e) { return null; } };
 
   /* ---------- timers (MC count-up, test countdown, and the run sheet step timer) ---------- */
   // Running late: where the day is against the planned block times. Behind = still on a block after the next one was

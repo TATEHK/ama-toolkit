@@ -1236,7 +1236,7 @@ function openProfile(id){
   d.innerHTML=`<div class="dh">
     <div class="top">
       <div class="who"><div class="avatar" style="background:${beltC(s.belt)}${phS(s)}">${initials(s.name)}${resBadge(s)}</div>
-        <div><div class="pname">${s.name}</div><div class="pmeta">Taekwondo · age ${s.age} · trains at ${s.loc}</div>
+        <div><div class="pname">${s.name}</div><div class="pmeta">Taekwondo · age ${s.age} · trains at ${s.loc}${(window.gePartnerOf && gePartnerOf(s.name)) ? ` · <b>Partner: ${esc(gePartnerOf(s.name))}</b>` : ''}</div>
           ${(resultsHere() && hasScore) ? `<div class="resrow"><span class="rl">Result</span><button class="pass${s.result==='pass'?' on':''}" data-res="pass">Pass</button><button class="fail${s.result==='fail'?' on':''}" data-res="fail">Fail</button>${s.result?'<button class="rx" data-res="">Clear</button>':''}</div>` : ''}
           <div class="hdchips"><span class="belttag"><i style="background:${beltC(s.belt)}"></i>${s.belt} → ${nx}</span><span class="rdchip ${s.ready?'yes':'no'}">${s.ready?'Ready to grade':'Working toward it'}</span></div>
           ${s.bbc?'':`<button class="bbcinv${s.bbcInv?' on':''}" id="bbcInv" data-on="${s.bbcInv?'0':'1'}">${s.bbcInv?(s.bbcWritten?'Black Belt Club card written · tap to cancel':'Black Belt Club card asked for · tap to cancel'):'Invite to Black Belt Club'}</button>`}</div></div>
