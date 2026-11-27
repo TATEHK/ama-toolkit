@@ -38,6 +38,7 @@
       db().from('ge_outcomes').select('cand_id, outcome, note, set_by').eq('event_id', id)]);
     const OFF = window.Off, ck = 'ge_live_' + id;
     let got;
+    if (window.amaAuthLost && await window.amaAuthLost(ev)) return;   // sign-in ended: say so instead of quietly showing old data
     if (ev.error || !ev.data || mk2.error || oc.error) {   // no signal: keep what's on screen (or the copy on this device)
       if (OFF && (OFF.netErr(ev) || OFF.netErr(mk2))) OFF.markOffline();
       if (Object.keys(S.marks).length || !OFF) return;
