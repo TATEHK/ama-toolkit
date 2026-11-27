@@ -414,7 +414,7 @@
 </header>
 <script>try{if(sessionStorage.getItem('amaFromHub')==='1'){var hb=document.querySelector('.hub-btn');if(hb)hb.hidden=false;}}catch(e){}</script>
 <nav class="tabbar" id="tabs" role="tablist" hidden>
-  <button class="tab" role="tab" data-view="ready" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg><span class="wide-only">Who's ready</span><span class="phone-only">Ready</span></button>
+  <button class="tab" role="tab" data-view="ready" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg><span class="wide-only">Everyone</span><span class="phone-only">Everyone</span></button>
   <button class="tab" role="tab" data-view="days" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 2.5v3M15 2.5v3M4 9.5h16"/></svg><span class="wide-only">Grading days</span><span class="phone-only">Days</span></button>
   <button class="tab" role="tab" data-view="efc" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Update EFC</span></button>
   <button class="tab" role="tab" data-view="bbc" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span class="wide-only">Cards to write</span><span class="phone-only">Cards</span><span class="tabcount" id="bbcCount" hidden></span></button>
@@ -731,7 +731,7 @@ function render() {
   $$('#tabs .tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === here)));
   $('#settingsBtn').hidden = !isAdmin(); $('#settingsBtn').setAttribute('aria-selected', String(here === 'settings'));
   $('#tabs').style.setProperty('--tabs', $$('#tabs .tab:not([hidden])').length);
-  document.title = ({ ready: "Who's ready", days: 'Grading days', day: 'Grading day', efc: 'Update EFC', bbc: 'Cards to write', cantmake: "Can't make grading", dash: 'Dashboard', settings: 'Settings' }[state.view] || '') + ' | ' + progLabel(state.programme) + ' Gradings';
+  document.title = ({ ready: 'Everyone', days: 'Grading days', day: 'Grading day', efc: 'Update EFC', bbc: 'Cards to write', cantmake: "Can't make grading", dash: 'Dashboard', settings: 'Settings' }[state.view] || '') + ' | ' + progLabel(state.programme) + ' Gradings';
   $$('.view').forEach(v => v.hidden = v.id !== 'view-' + state.view);
   ({ ready: renderReady, days: renderDays, day: renderDay, efc: renderEfc, bbc: renderBbc, cantmake: renderCantMake, dash: renderDash, settings: renderSettings })[state.view]();
 }
@@ -762,12 +762,12 @@ $$('#tabs .tab').forEach(b => b.onclick = () => go(b.dataset.view));
 $('#settingsBtn').onclick = () => go('settings');
 
 /* ---------------- Who's ready ---------------- */
-const filt = { school: '', belt: '', show: 'eligible', bbc: '', q: '', sort: pref('sort', 'age') };
+const filt = { school: '', belt: '', show: 'all', bbc: '', q: '', sort: pref('sort', 'age') };
 function renderReady() {
   const v = $('#view-ready');
   if (!v.dataset.built) {
     v.dataset.built = '1';
-    v.innerHTML = `<div class="view-head"><div><h2>Who's ready</h2><p class="sub" id="efcFresh"></p></div></div>
+    v.innerHTML = `<div class="view-head"><div><h2>Everyone</h2><p class="sub" id="efcFresh"></p></div></div>
       <div class="pipeline" id="readyPipe" role="group" aria-label="Students at a glance"></div>
       <div class="finder">
         <input type="search" id="fQ" placeholder="Find a student" aria-label="Find a student">
@@ -783,7 +783,7 @@ function renderReady() {
       <p class="count" id="readyCount"></p>
       <ul class="list" id="readyList"></ul>`;
     $('#fBelt').innerHTML += [...new Set(state.belts.map(b => b.belt))].map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
-    $('#fSort').value = filt.sort;
+    $('#fSort').value = filt.sort; $('#fShow').value = filt.show;   // opens on everyone
     const sync = () => { filt.school = $('#fSchool').value; filt.belt = $('#fBelt').value; filt.show = $('#fShow').value; filt.bbc = $('#fBbc').value; filt.q = $('#fQ').value.trim().toLowerCase(); filt.sort = $('#fSort').value; savePref('sort', filt.sort); drawReady(); };
     ['#fSchool', '#fBelt', '#fShow', '#fBbc', '#fSort', '#fQ'].forEach(s => $(s).oninput = sync);
     $('#fMore').onclick = () => { const shut = $('#fMoreBox').classList.toggle('shut'); $('#fMore').setAttribute('aria-expanded', String(!shut)); };
@@ -1271,7 +1271,7 @@ async function addStudents(d, list) {
   const passedWaiting = s => state.entries.some(e => e.member_key === s.member_key && resultIs(e, 'pass') && e.belt_from === s.belt);
   const add = list.filter(s => !have.has(s.member_key) && !openDayFor(s.member_key) && !passedWaiting(s));
   const skipped = list.length - add.length;
-  if (!add.length) return toast(list.length ? 'They are all on a grading day already, or passed and waiting to be promoted in EFC.' : `No one at ${daySchools(d).join(' or ')} on ${beltsText(d).toLowerCase()} is marked ready yet. Mark students ready on Who's ready.`, 6000);
+  if (!add.length) return toast(list.length ? 'They are all on a grading day already, or passed and waiting to be promoted in EFC.' : `No one at ${daySchools(d).join(' or ')} on ${beltsText(d).toLowerCase()} is marked ready yet. Mark students ready on Everyone.`, 6000);
   try {
     const rows = await run(sb.from('cb_entries').insert(add.map(s => ({ day_id: d.day_id, member_key: s.member_key, full_name: s.full_name, belt_from: s.belt,
       belt_to: d.move_up && s.up_belt ? s.up_belt : s.next_belt, to_programme: d.move_up && s.up_belt ? s.up_programme : (s.next_programme || null) }))).select());
