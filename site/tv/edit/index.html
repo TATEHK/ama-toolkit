@@ -1286,8 +1286,8 @@ function drawStatus() {
       const taken = live && /^(Party mode|Blacked out)/.test(x.showing || ''), freed = live && /\(back to normal here\)/.test(x.showing || '');
       const normBtn = state.normal ? (taken ? `<button class="btn sm" data-normal-tv="${esc(x.screen_id)}" data-on="1">Back to normal</button>` : freed ? `<button class="btn sm" data-normal-tv="${esc(x.screen_id)}" data-on="">Show the party again</button>` : '') : '';
       return `<li><div class="nowthumb">${nowThumb(x, live)}</div><div class="grow"><b>${label ? label + ': ' : ''}${live ? 'Showing: ' + what : 'Offline'}</b>${where}${batt}${darkTag}${homeTag}
-        <div>${live ? `Checked in ${esc(ago(x.last_seen))}` : `Last seen ${esc(ago(x.last_seen))}${x.showing ? `, showing ${what}` : ''}`}${x.started_at ? ` · page loaded ${esc(ago(x.started_at))}` : ''}</div></div>
-        <div class="row" style="flex-wrap:wrap;justify-content:flex-end">${normBtn}${'blackout' in x ? `<button class="btn sm" data-dark-tv="${esc(x.screen_id)}" data-on="${x.blackout ? '' : '1'}" style="${x.blackout ? 'background:var(--gold);border-color:var(--gold);color:var(--on-gold)' : 'background:#111;border-color:#111;color:#fff'}">${x.blackout ? 'Back on' : 'Black out'}</button>` : ''}${state.display === 'tablet' ? `<button class="btn sm" data-home-tv="${esc(x.screen_id)}">Home page</button>` : ''}<button class="btn sm" data-name-tv="${esc(x.screen_id)}">${state.locations ? 'Edit' : x.name ? 'Rename' : 'Name'}</button>${!live ? `<button class="btn sm" data-forget-tv="${esc(x.screen_id)}">Remove</button>` : ''}</div></li>`;
+        ${x.details && x.details.device ? `<div class="hint">Device: ${esc(x.details.device)}</div>` : ''}<div>${live ? `Checked in ${esc(ago(x.last_seen))}` : `Last seen ${esc(ago(x.last_seen))}${x.showing ? `, showing ${what}` : ''}`}${x.started_at ? ` · page loaded ${esc(ago(x.started_at))}` : ''}</div></div>
+        <div class="row" style="flex-wrap:wrap;justify-content:flex-end">${live ? `<button class="btn sm" data-ident-tv="${esc(x.screen_id)}" title="Puts this ${N === 'TV' ? 'TV' : 'tablet'}'s name up big on its screen for 45 seconds">Show name</button>` : ''}${normBtn}${'blackout' in x ? `<button class="btn sm" data-dark-tv="${esc(x.screen_id)}" data-on="${x.blackout ? '' : '1'}" style="${x.blackout ? 'background:var(--gold);border-color:var(--gold);color:var(--on-gold)' : 'background:#111;border-color:#111;color:#fff'}">${x.blackout ? 'Back on' : 'Black out'}</button>` : ''}${state.display === 'tablet' ? `<button class="btn sm" data-home-tv="${esc(x.screen_id)}">Home page</button>` : ''}<button class="btn sm" data-name-tv="${esc(x.screen_id)}">${state.locations ? 'Edit' : x.name ? 'Rename' : 'Name'}</button>${!live ? `<button class="btn sm" data-forget-tv="${esc(x.screen_id)}">Remove</button>` : ''}</div></li>`;
     }).join('')}</ul>` : ''}
     ${'blackout' in state.settings ? (state.settings.blackout
       ? `<div class="row" style="background:#111;color:#fff;border-radius:10px;padding:10px 12px"><span class="grow"><b>${N === 'TV' ? 'The screen is' : 'The tablets are'} blacked out</b> until you turn ${N === 'TV' ? 'it' : 'them'} back on.</span><button class="btn sm" id="tvDark" style="background:var(--gold);border-color:var(--gold);color:var(--on-gold)">Turn ${N === 'TV' ? 'the screen' : 'them'} back on</button></div>`
@@ -1311,6 +1311,10 @@ function drawStatus() {
     const { error } = await sb.rpc('tv_screen_normal', { p_screen: b.dataset.normalTv, p_on: on });
     if (error) { b.disabled = false; return toast('Not sent: ' + error.message, 6000); }
     toast(on ? `Just that ${noun()} goes back to normal within a few seconds. The others carry on.` : `That ${noun()} shows the party or blackout again.`, 4000); setTimeout(pollStatus, 1500);
+  });
+  $$('#status [data-ident-tv]').forEach(b => b.onclick = async () => {   // which one is it? its name goes up big on its screen
+    b.disabled = true; const { error } = await sb.rpc('tv_identify', { p_screen: b.dataset.identTv }); b.disabled = false;
+    toast(error ? 'Not sent: ' + error.message : 'Its name shows on its screen within about 15 seconds, for 45 seconds.', 4000);
   });
   $$('#status [data-dark-tv]').forEach(b => b.onclick = async () => {
     const on = !!b.dataset.on; b.disabled = true;
