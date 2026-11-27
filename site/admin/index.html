@@ -1114,6 +1114,7 @@ function rostersSection(){
       ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = calN(r, l), need = calNeed(r, l);
         return `<div class="rprow"><div class="grow"><b>${esc(SCHOOL(l))}</b> <span class="muted">${g ? `gradings ${(g.starts || []).map(fmtTime).join(', ') || ''}` : 'no grading'}</span>
           <div class="small">${r ? `${n} of ${need} ${isExtraLoc(l) ? 'extras' : 'floor staff'} ${roTag(r)}` : `<span class="muted">No roster yet · ${isExtraLoc(l) ? `up to ${need} extras` : `${need} needed`}</span>`}</div>${usualList(l)}${changesList(r, l)}</div>
+          ${r ? '' : `<button class="btn mini" data-rquick="${RSELD}|${esc(l)}" title="Saves a draft with the usual staff, without opening it">Save as draft</button>`}
           <button class="btn mini${r && r.status === 'submitted' && canApprove() ? ' primary' : ''}" data-ropen="${RSELD}|${esc(l)}">${r ? (r.status === 'submitted' && canApprove() ? 'Review' : 'Open') : 'Build roster'}</button></div>`; }).join('')}</div>`;
   }
   return `<div class="rmtop"><button class="btn mini" id="rmPrev" aria-label="Previous month">‹</button><b class="rmname">${MON[b.getMonth()]} ${b.getFullYear()}</b><button class="btn mini" id="rmNext" aria-label="Next month">›</button>
@@ -1143,6 +1144,15 @@ function wireRosters(){
   $('#board').querySelectorAll('[data-rsch]').forEach(b => b.onclick = () => { RSCH = b.dataset.rsch; try{ localStorage.setItem('ops_rsch', RSCH); }catch(e){} render(); });
   $('#board').querySelectorAll('[data-rday]').forEach(b => b.onclick = () => { RSELD = RSELD === b.dataset.rday ? null : b.dataset.rday; render(); });
   $('#board').querySelectorAll('[data-ropen]').forEach(b => b.onclick = () => { const [d, l] = b.dataset.ropen.split('|'); openRoster(d, l); });
+  // one tap: a draft with the usual staff (the same as Build roster would start with), saved without opening the roster
+  $('#board').querySelectorAll('[data-rquick]').forEach(b => b.onclick = async () => {
+    const [d, l] = b.dataset.rquick.split('|'); b.disabled = true; b.textContent = 'Saving…';
+    await openRoster(d, l); if(!RO || !RO.ready){ b.disabled = false; b.textContent = 'Save as draft'; return; }
+    const { error } = await sb.rpc('cb_ops_day_roster_save', { p_date: d, p_location: l, p_slots: cleanSlots(), p_note: null, p_submit: false, p_limits: limitsArg() });
+    $('#rosterModal').hidden = true; RO = null;
+    if(error){ b.disabled = false; b.textContent = 'Failed, tap again'; b.title = error.message; return; }
+    await afterSave();
+  });
 }
 // approvals in Needs action
 function rosterWaiting(){
