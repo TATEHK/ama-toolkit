@@ -2511,7 +2511,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
-    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || body.action === 'deputy_timesheet' || body.action === 'roster_review_notify' || body.action === 'deputy_clock_in' || body.action === 'sms_one' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
+    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || body.action === 'deputy_timesheet' || body.action === 'roster_review_notify' || body.action === 'deputy_clock_in' || body.action === 'sms_one' || body.action === 'ghl_contact_set' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
     if (!me && !cronSync) return fail('Sign in first.', 401);
     // AMA ID Cards: text and email people a link to upload a photo for their card. Needs ID Cards "Edit people" (or Admin).
     // { person_ids: [...], preview: true } returns the messages for the first person without sending.
@@ -3330,6 +3330,23 @@ export async function handle(req, db, env = {}, http = fetch) {
       if (!phone || !text) return fail('Need a mobile number and the text.');
       try { const cid = await contactFor({ guardian_name: body.name || null, full_name: body.name || null, email: null }, phone); if (!cid) throw new Error('could not find or add them in GoHighLevel'); await sendSms(cid, text); return json({ ok: true, to: phone }); }
       catch (er) { return fail(String(er.message || er)); }
+    }
+
+    // Look up a GoHighLevel contact by mobile and email, and (with set) add the missing email or mobile to it
+    if (body.action === 'ghl_contact_set') {
+      if (!cronSync && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
+      const phone = phoneE164(String(body.phone || '')), email = String(body.email || '').trim() || null;
+      const find = async (k, v) => v ? ((await ghl(`/contacts/search/duplicate?locationId=${encodeURIComponent(env.GHL_LOCATION_ID)}&${k}=${encodeURIComponent(v)}`, { method: 'GET' })).contact || null) : null;
+      try {
+        const byPhone = await find('number', phone), byEmail = await find('email', email);
+        const brief = c => c && { id: c.id, name: [c.firstName, c.lastName].filter(Boolean).join(' '), phone: c.phone || null, email: c.email || null };
+        if (!body.set) return json({ by_phone: brief(byPhone), by_email: brief(byEmail) });
+        const target = body.contact_id ? { id: String(body.contact_id) } : (byPhone || byEmail);
+        if (!target) return fail('No contact found.', 404);
+        const patch = { ...(body.set_email ? { email } : {}), ...(body.set_phone ? { phone } : {}) };
+        const r = await ghl('/contacts/' + target.id, { method: 'PUT', body: JSON.stringify(patch) });
+        return json({ ok: true, contact: brief(r.contact || null) });
+      } catch (er) { return fail(String(er.message || er)); }
     }
 
     if (body.action === 'helper_send') {
