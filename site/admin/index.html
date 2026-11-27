@@ -1193,12 +1193,12 @@ async function openRoster(date, location){
   RO.ready = true; $('#roSaved').textContent = '';
 }
 function drawSlots(){
-  const row = (x, i) => { const p = personOf(x.name), el = usualElsewhere(p, x), av = availText(p);
+  const row = (x, i) => { const p = personOf(x.name), oe = !x.usual && onElsewhere(p), el = oe ? { location: oe.location, start: oe.start, end: oe.end, rostered: true } : usualElsewhere(p, x), av = availText(p);
     return `<div class="slot" data-i="${i}"><input data-f="name" list="roPeople" placeholder="Name" value="${esc(x.name || '')}" aria-label="Name"><input data-f="mobile" inputmode="tel" placeholder="Mobile" value="${esc(x.mobile || '')}" aria-label="Mobile">
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
       <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
-      ${(av || el || x.usual || notCounted(x)) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${notCounted(x) ? '<span class="pa">Not counted</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el && !x.usual ? `<span class="pa move">Moved from ${esc(SCHOOL(el.location))} (usually ${fmtTime(el.start)}–${fmtTime(el.end)})</span>` : ''}</div>` : ''}</div>`; };
+      ${(av || el || x.usual || notCounted(x)) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${notCounted(x) ? '<span class="pa">Not counted</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el && !x.usual ? `<span class="pa move">Moved from ${esc(SCHOOL(el.location))} (${el.rostered ? 'was rostered' : 'usually'} ${fmtTime(el.start)}–${fmtTime(el.end)}) · comes off there when saved</span>` : ''}</div>` : ''}</div>`; };
   const L = RO.lim.floor, filled = RO.slots.filter(countsHere).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="max" value="${L.max}"></span></div>
@@ -1278,13 +1278,13 @@ function fillFrom(sl, p){
 function drawPeople(){
   const used = new Set(RO.slots.map(x => (x.name || '').trim().toLowerCase()).filter(Boolean));
   const sydOk = p => p.avail && ((RO.location === 'Sydenham' && p.avail.syd) || (p.avail.others || []).includes(RO.location));   // said they're happy to go to this school that day
-  const score = p => (onElsewhere(p) ? 50 : 0) + (p.avail && p.avail.status ? { yes: 0, part: 2, no: 9 }[p.avail.status] : 4) + ((p.usual || []).some(u => u.location === RO.location) ? -1 : 0) + (sydOk(p) ? -3 : 0);
+  const score = p => (onElsewhere(p) ? 5 : 0) + (p.avail && p.avail.status ? { yes: 0, part: 2, no: 9 }[p.avail.status] : 4) + ((p.usual || []).some(u => u.location === RO.location) ? -1 : 0) + (sydOk(p) ? -3 : 0);
   const list = RO.people.filter(p => !used.has(p.name.toLowerCase())).sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
   const q = ($('#roFind') && $('#roFind').value || '').trim().toLowerCase();
   const shown = list.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, q ? 40 : 12);
   $('#roPeopleList').innerHTML = shown.map(p => { const av = availText(p), us = (p.usual || []).map(u => `${SHORT(u.location)} ${fmtTime(u.start)}–${fmtTime(u.end)}`).join(', ');
     const oe = onElsewhere(p);
-    if(oe) return `<button type="button" class="pp gone" disabled title="Already rostered at ${esc(SCHOOL(oe.location))} this day"><span class="pn">${esc(p.name)}</span><span class="pa no">On at ${esc(SCHOOL(oe.location))}</span></button>`;
+    if(oe) return `<button type="button" class="pp" data-pick="${esc(p.name)}" title="Adding them here takes them off ${esc(SCHOOL(oe.location))} this day"><span class="pn">${esc(p.name)}</span><span class="pa move">On at ${esc(SCHOOL(oe.location))}, moves here</span></button>`;
     return `<button type="button" class="pp" data-pick="${esc(p.name)}"><span class="pn">${esc(p.name)}</span>${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${sydOk(p) ? `<span class="pa yes">Can go to ${esc(SCHOOL(RO.location))}</span>` : ''}${us ? `<span class="pu">Usually ${esc(us)}</span>` : ''}</button>`; }).join('')
     || '<div class="muted" style="font-size:13px">No one else to add.</div>';
   $('#roPeopleList').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
@@ -1329,7 +1329,7 @@ function scheduleSave(){
   }, 900);
 }
 function closeRoster(){ const was = RO; clearTimeout(saveT); $('#rosterModal').hidden = true; RO = null; if(was && was.saved){ afterSave(); } }
-const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, moved_from: (!x.usual && (usualElsewhere(personOf(x.name), x) || {}).location) || null, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
+const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, moved_from: (!x.usual && ((onElsewhere(personOf(x.name)) || usualElsewhere(personOf(x.name), x) || {}).location)) || null, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
   email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null, deputy_note: x.deputy_note || null, deputy_span: x.deputy_span || null, deputy_unit: x.deputy_unit || null }));
 const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g, extras: RO.lim.extras });
 async function afterSave(){ await loadRosterUpcoming(); await loadRosterMonth(); }   // keeps the calendar on screen while it reloads (no jump to the top)
