@@ -143,6 +143,10 @@
   .slot input{margin:0!important;padding:8px 10px!important}
   .slot .tm{display:flex;gap:4px;align-items:center;grid-column:1/3}.slot .tm input{width:auto;flex:1}.slot .tm span{color:var(--ink-3);font-size:12px}
   .slot .rm{grid-row:1/3;grid-column:3;background:none;border:1px solid var(--line);color:var(--ink-2);border-radius:8px;width:34px;height:34px;cursor:pointer}
+  .gcov{display:flex;flex-direction:column;gap:4px;margin:8px 0 4px}
+  .gc{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px}
+  .gc .gt{flex:1;color:var(--ink-2);font-weight:600}.gc.short b{color:var(--accent)}.gc.over b{color:var(--danger)}.gc.ok b{color:var(--ok)}
+  .gc .lim input{width:48px!important;display:inline-block!important;margin:0!important;padding:3px 6px!important}
   .roadd{display:flex;gap:8px;margin:12px 0 14px}.roadd .btn:disabled{opacity:.4}
   .roh{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
   .roh .lim{display:flex;align-items:center;gap:4px;font-weight:600}.roh .lim input{width:52px!important;display:inline-block!important;margin:0!important;padding:4px 6px!important}
@@ -390,8 +394,8 @@
     <div class="rhead"><div><h3 id="roTitle">Roster</h3><div class="muted" id="roSub"></div></div><span id="roStatus"></span></div>
     <div id="roSlots"></div>
     <div class="roadd"><button type="button" class="btn mini" data-addrole="floor">+ Floor staff</button></div>
-    <div class="roh">Add someone <span class="muted small">best fit first: free, usually here, then others</span></div>
-    <input id="roFind" class="rofind" placeholder="Search staff and helpers" autocomplete="off">
+    <div class="roh">Add staff <span class="muted small">best fit first: free, usually here, then others</span></div>
+    <input id="roFind" class="rofind" placeholder="Search staff" autocomplete="off">
     <div id="roPeopleList" class="pplist"></div>
     <label>Note <span class="muted">(optional)</span><textarea id="roNote" rows="2" maxlength="2000"></textarea></label>
     <div class="rodec" id="roDec" hidden></div>
@@ -1076,8 +1080,8 @@ async function openRoster(date, location){
   const { data, error } = await sb.rpc('cb_ops_day_roster', { p_date: date, p_location: location });
   if(error){ roErr('Could not load: ' + error.message); return; }
   if(RSET) RSET.me_approves = data.me_approves;
-  const r = data.roster; RO.r = r; RO.people = data.people || []; RO.gradings = data.gradings || [];
-  RO.lim = { floor: { need: needOf(r), max: maxOf(r) } };
+  const r = data.roster; RO.r = r; RO.people = (data.people || []).filter(p => p.staff);   // staff only, no grading helpers RO.gradings = data.gradings || [];
+  RO.lim = { floor: { need: needOf(r), max: maxOf(r) }, g: JSON.parse(JSON.stringify((r && r.limits && r.limits.g) || {})) };   // g: each grading's own need / max, by day_id
   const dt = defTimes();
   RO.slots = r && (r.slots || []).length ? JSON.parse(JSON.stringify(r.slots)) : [...Array(RO.lim.floor.need)].map(() => ({ role: 'floor', ...dt, name: '', mobile: '' }));
   $('#roTitle').textContent = r && (r.slots || []).length ? 'Roster' : 'Build roster';
@@ -1085,7 +1089,7 @@ async function openRoster(date, location){
   $('#roStatus').innerHTML = roTag(r);
   $('#roNote').value = (r && r.note) || '';
   $('#roDec').hidden = !(r && r.decision_note); $('#roDec').textContent = r && r.decision_note ? `Approver's note: ${r.decision_note}` : '';
-  $('#roPeople').innerHTML = RO.people.map(p => `<option value="${esc(p.name)}">${esc([availText(p), p.staff ? '' : 'helper'].filter(Boolean).join(' · '))}</option>`).join('');
+  $('#roPeople').innerHTML = RO.people.map(p => `<option value="${esc(p.name)}">${esc(availText(p))}</option>`).join('');
   drawSlots(); drawPeople(); drawRoActs();
 }
 function drawSlots(){
@@ -1097,7 +1101,10 @@ function drawSlots(){
   const L = RO.lim.floor, filled = RO.slots.filter(x => (x.name || '').trim()).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="max" value="${L.max}"></span></div>
+    ${gradingCover()}
     ${RO.slots.map(row).join('') || '<div class="muted" style="font-size:13px">No one yet.</div>'}`;
+  $('#roSlots').querySelectorAll('[data-glim]').forEach(inp => inp.onchange = () => { const [id, k] = inp.dataset.glim.split('|'), G = gLim(id);
+    G[k] = Math.max(0, Math.min(50, +inp.value || 0)); if(G.max < G.need) G.max = G.need; RO.lim.g[id] = G; RO.limDirty = true; RO.warned = false; drawSlots(); });
   $('#roSlots').querySelectorAll('.slot input').forEach(inp => inp.onchange = inp.oninput = e => {
     const i = +inp.closest('.slot').dataset.i, f = inp.dataset.f; RO.slots[i][f] = inp.value;
     if(f === 'name' && e.type === 'change'){ const p = personOf(inp.value); if(p) fillFrom(RO.slots[i], p); drawSlots(); drawPeople(); }
@@ -1108,6 +1115,15 @@ function drawSlots(){
     if(RO.lim.floor.max < RO.lim.floor.need) RO.lim.floor.max = RO.lim.floor.need; RO.limDirty = true; RO.warned = false; drawSlots(); });
   const add = document.querySelector('[data-addrole="floor"]'); if(add){ add.disabled = RO.slots.length >= RO.lim.floor.max; add.title = add.disabled ? 'At the most for this day' : ''; }
 }
+// each grading that day: how many rostered staff are on during it, against its own need and max (changeable per grading)
+const gLim = id => ({ need: RO.lim.floor.need, max: RO.lim.floor.max, ...(RO.lim.g[id] || {}) });
+const onAt = t => RO.slots.filter(x => (x.name || '').trim() && x.start && x.end && mins(x.start) <= mins(t) && mins(x.end) > mins(t)).length;
+function gradingCover(){
+  if(!(RO.gradings || []).length) return '';
+  return `<div class="gcov">${RO.gradings.map(g => { const L = gLim(g.day_id), n = onAt(g.start), cls = n > L.max ? 'over' : n < L.need ? 'short' : 'ok';
+    return `<div class="gc ${cls}"><span class="gt">${fmtTime(g.start)} grading</span><b>${n} on</b><span class="lim">Need <input type="number" min="0" max="50" data-glim="${g.day_id}|need" value="${L.need}"> Max <input type="number" min="0" max="50" data-glim="${g.day_id}|max" value="${L.max}"></span></div>`; }).join('')}</div>`;
+}
+const gradingShort = () => (RO.gradings || []).map(g => { const L = gLim(g.day_id), n = onAt(g.start); return n < L.need ? `${L.need - n} at the ${fmtTime(g.start)} grading` : n > L.max ? `${n - L.max} over the max at the ${fmtTime(g.start)} grading` : ''; }).filter(Boolean);
 function fillFrom(sl, p){
   sl.name = p.name; sl.mobile = p.mobile || ''; sl.email = p.email || null; sl.staff_id = p.staff_id || null; sl.helper_id = p.helper_id || null; sl.deputy_emp = p.deputy_emp || null;
   const here = (p.usual || []).find(u => u.location === RO.location);   // their usual hours here, if no grading times
@@ -1117,12 +1133,12 @@ function fillFrom(sl, p){
 // everyone to pick from, best first: free, usually here, part free, helpers, not free last
 function drawPeople(){
   const used = new Set(RO.slots.map(x => (x.name || '').trim().toLowerCase()).filter(Boolean));
-  const score = p => (p.avail ? { yes: 0, part: 2, no: 9 }[p.avail.status] : 4) + ((p.usual || []).some(u => u.location === RO.location) ? -1 : 0) + (p.signed ? -1 : 0) + (p.staff ? 0 : 1);
+  const score = p => (p.avail ? { yes: 0, part: 2, no: 9 }[p.avail.status] : 4) + ((p.usual || []).some(u => u.location === RO.location) ? -1 : 0);
   const list = RO.people.filter(p => !used.has(p.name.toLowerCase())).sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
   const q = ($('#roFind') && $('#roFind').value || '').trim().toLowerCase();
   const shown = list.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, q ? 40 : 12);
   $('#roPeopleList').innerHTML = shown.map(p => { const av = availText(p), us = (p.usual || []).map(u => `${SHORT(u.location)} ${fmtTime(u.start)}–${fmtTime(u.end)}`).join(', ');
-    return `<button type="button" class="pp" data-pick="${esc(p.name)}"><span class="pn">${esc(p.name)}</span>${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${p.signed ? '<span class="pa yes">Signed up</span>' : ''}${us ? `<span class="pu">Usually ${esc(us)}</span>` : ''}${p.staff ? '' : '<span class="pu">helper</span>'}</button>`; }).join('')
+    return `<button type="button" class="pp" data-pick="${esc(p.name)}"><span class="pn">${esc(p.name)}</span>${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${p.signed ? '<span class="pa yes">Signed up</span>' : ''}${us ? `<span class="pu">Usually ${esc(us)}</span>` : ''}</button>`; }).join('')
     || '<div class="muted" style="font-size:13px">No one else to add.</div>';
   $('#roPeopleList').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     const p = personOf(b.dataset.pick); if(!p) return;
@@ -1149,13 +1165,13 @@ document.addEventListener('input', e => { if(e.target && e.target.id === 'roFind
 function closeRoster(){ $('#rosterModal').hidden = true; RO = null; }
 const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
   email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null }));
-const limitsArg = () => ({ floor: RO.lim.floor });
+const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g });
 async function afterSave(){ await loadRosterUpcoming(); RMD = null; render(); }
 async function saveRoster(submit, btn){
   const slots = cleanSlots();
   if(submit && !slots.length) return roErr('Add at least one person.');
-  const short = RO.lim.floor.need - slots.length;
-  if(submit && short > 0 && !RO.warned){ RO.warned = true; return roErr(`Still short: ${short} floor staff. Tap Send again to send it anyway.`); }
+  const short = RO.lim.floor.need - slots.length, gs = gradingShort();
+  if(submit && (short > 0 || gs.length) && !RO.warned){ RO.warned = true; return roErr(`Check: ${[short > 0 ? `${short} floor staff short for the day` : '', ...gs].filter(Boolean).join('; ')}. Tap Send again to send it anyway.`); }
   btn.disabled = true; roErr('');
   const { error } = await sb.rpc('cb_ops_day_roster_save', { p_date: RO.date, p_location: RO.location, p_slots: slots, p_note: $('#roNote').value.trim() || null, p_submit: !!submit, p_limits: limitsArg() });
   btn.disabled = false;
