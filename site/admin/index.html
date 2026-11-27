@@ -1285,7 +1285,7 @@ function drawStaff(msg, ok){
       ${(s.usual || []).length ? `<div class="small">Usually: ${s.usual.map(u => `${WD[u.weekday]} ${esc(SHORT(u.location))} ${fmtTime(u.start)}–${fmtTime(u.end)}`).join(', ')}</div>` : ''}</div>
     ${A ? `<div class="stacts">${s.token ? `<button class="btn mini" data-copy="${esc(s.token)}">Copy link</button>` : ''}<button class="btn mini" data-sedit="${s.staff_id}">Edit</button></div>` : ''}</div>`;
   box.querySelector('.reqbox').innerHTML = `<div class="rhead"><div><h3>Staff & availability</h3><div class="muted small">${act.length} active staff. Each has their own link to say when they're free for Marrickville gradings.</div></div></div>
-    ${A ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn primary mini" id="stSend">Text everyone their link</button><button class="btn mini" id="stSync">Get usual shifts from Deputy</button><button class="btn mini" id="stDep">Connect Deputy</button><button class="btn mini" id="stAdd">Add staff</button></div>` : ''}
+    ${A ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn primary mini" id="stSend">Text everyone their link</button><button class="btn mini" id="stSync">Get usual shifts from Deputy</button><button class="btn mini" id="stAdd">Add staff</button></div>` : ''}
     <div class="reqerr" id="stMsg" ${msg ? '' : 'hidden'} style="${ok ? 'color:var(--ok)' : ''}">${esc(msg || '')}</div>
     <div class="stlist">${STAFF.map(row).join('')}</div>
     <div class="reqact"><button class="btn" id="stClose">Close</button></div>`;
@@ -1301,11 +1301,6 @@ function drawStaff(msg, ok){
     try{ const j = await cbCall({ action: 'avail_send' }); const bad = (j.results || []).filter(x => x.status !== 'sent');
       await openStaff(); drawStaff(`Texted ${j.sent}${bad.length ? `. Not sent: ${bad.map(x => x.name + ' (' + (x.error || x.status) + ')').join(', ')}` : ''}`, !bad.length);
     }catch(e){ el.disabled = false; el.textContent = 'Text everyone their link'; drawStaff(String(e.message || e)); }
-  });
-  on('stDep', async el => {   // sign in to Deputy with AMA's client ID and secret; Deputy sends you back to /deputy/
-    el.disabled = true; el.textContent = 'Opening Deputy…';
-    try{ const j = await cbCall({ action: 'deputy_connect_url' }); location.href = j.url; }
-    catch(e){ el.disabled = false; el.textContent = 'Connect Deputy'; drawStaff(String(e.message || e)); }
   });
   on('stSync', async el => {
     el.disabled = true; el.textContent = 'Reading Deputy…';
