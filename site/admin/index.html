@@ -1190,7 +1190,7 @@ const EXTRA_SCHOOLS = ['Concord', 'West'];   // there: the people usually roster
 const isExtraSchool = () => RO && EXTRA_SCHOOLS.includes(RO.location);
 const extrasMax = () => (RO.lim.extras && RO.lim.extras.max != null) ? RO.lim.extras.max : 2;
 const extrasN = () => RO.slots.filter(x => x.extra).length;
-const SCHOOL_START = { Sydenham: '15:45', Concord: '15:15' };   // grading-day shift starts by school (Marrickville: the Roster defaults time)
+const SCHOOL_START = { Sydenham: '15:45', Concord: '15:15', West: '16:30' };   // West = Auburn   // grading-day shift starts by school (Marrickville: the Roster defaults time)
 // taking someone off: if their shift is already in Deputy, it's deleted there too (Tate and Mark), after a second tap to confirm
 async function removeSlot(i, btn){
   const sl = RO.slots[i]; if(!sl) return;
