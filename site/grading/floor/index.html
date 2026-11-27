@@ -824,7 +824,7 @@ function fillCardFull(gi){ const g=state.groups[gi]; if(!g) return;
     if(isCDB(s)){ const x=pattFor(s); x.res='pass'; patch.pattern=x; }
     persistScore(s.id, patch);
   }); }
-function setStatus(gi,st){ if(st==='current'){ state.groups.forEach((g,j)=>{ if(j!==gi && g.status==='current'){ g.status='past'; fillCardFull(j); } }); state.active=gi; } if(st==='past') fillCardFull(gi); state.groups[gi].status=st; persistGroup(gi,{status:st}); render(); }
+function setStatus(gi,st){ if(st==='current'){ state.groups.forEach((g,j)=>{ if(j!==gi && g.status==='current'){ g.status='future'; persistGroup(j,{status:'future'}); } }); state.active=gi; } /* starting a group never marks another finished: only Finish does */ if(st==='past') fillCardFull(gi); state.groups[gi].status=st; persistGroup(gi,{status:st}); render(); }
 function setSpots(g,n){ n=Math.max(1,Math.min(40,n)); const ids=g.slots.filter(x=>x!=null); g.spots=n; g.slots=spotsArr(n);
   ids.slice(0,n).forEach((id,k)=>g.slots[k]=id); ids.slice(n).forEach(id=>{ if(!placeLate(id)) state.alert=byId(id); }); }
 function layoutFor(g){ const a=g.slots.slice(0,g.spots); while(a.length<g.spots) a.push(null); return a; }
@@ -1086,7 +1086,10 @@ function render(){
     : '';   // master / signin / staff: no flow controls here
   { const a=$('#stStart'),d=$('#stDone'),r=$('#stRe'),go=$('#stGo');
     if(a)a.onclick=()=>setStatus(state.active,'current');
-    if(d)d.onclick=()=>{ setStatus(state.active,'past'); if(role==='sarah'){ state.callout=null; render(); } };   // finish → back to "who's next"
+    // Finish takes two taps (it was too easy to press by accident): the first turns the button into "Tap again to finish" for 4 seconds
+    if(d)d.onclick=()=>{ if(d.dataset.sure!=='1'){ const was=d.textContent; d.dataset.sure='1'; d.textContent='Tap again to finish'; d.style.outline='2px solid #f2b705'; clearTimeout(d._t); d._t=setTimeout(()=>{ d.dataset.sure=''; d.textContent=was; d.style.outline=''; },4000); return; }
+      const gi=state.active; setStatus(gi,'past'); if(role==='sarah'){ state.callout=null; render(); }
+      toast('Group finished. Wrong one?', 8000, 'Undo', ()=>setStatus(gi,'current')); };   // finish → back to "who's next"
     if(r)r.onclick=()=>setStatus(state.active, role==='super'?'future':'current');
     if(go)go.onclick=()=>{ const gi=state.callout; state.callout=null; setStatus(gi,'current'); }; }             // start the called-out group
   $('#flDim').innerHTML=`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V5a2 2 0 0 1 2-2h4M21 9V5a2 2 0 0 0-2-2h-4M3 15v4a2 2 0 0 0 2 2h4M21 15v4a2 2 0 0 1-2 2h-4"/></svg> ${state.fw}m × ${state.fh}m`;
@@ -1410,7 +1413,7 @@ function ciUndo(msg, fn){ let u=$('#ciUndo'); if(!u){ u=document.createElement('
 $('#ciQ').addEventListener('input',()=>renderRoster());
 $('#ciQ').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const first=$('#roster .chk:not(.on)'); if(first) first.click(); } });
 $$('#ciSeg button').forEach(b=>b.onclick=()=>{ ciFilter=b.dataset.f; renderRoster(); });
-function toast(msg, ms) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); } t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms || 3000); }
+function toast(msg, ms, label, fn) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); } t.textContent = msg; if (label && fn) { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'margin-left:12px;background:#fff;color:#111;border:0;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;pointer-events:auto'; b.onclick = () => { t.classList.remove('show'); fn(); }; t.appendChild(b); t.style.pointerEvents = 'auto'; } else t.style.pointerEvents = ''; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms || 3000); }
 const SCHOOL_LABEL = { West: 'Auburn' };
 const schoolOf = s => SCHOOL_LABEL[s] || s || '';
 const fmtDay = d => { if (!d) return ''; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }); };
