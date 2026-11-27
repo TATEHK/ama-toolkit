@@ -130,7 +130,7 @@
         if (mineR.length) {   // already rostered on this day: show the shift instead of asking
           var SN2 = function (l) { return l === 'West' ? 'Auburn' : l; };
           return '<div class="day busy rostered"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b></div>' +
-            '<p class="usual"><b>You\'re rostered on</b> ' + mineR.map(function (r) { return 'at ' + esc(SN2(r.location)) + (r.start && r.end ? ', ' + t12(r.start) + ' to ' + t12(r.end) : '') + (r.job ? ' (' + esc(r.job) + ')' : ''); }).join(' and ') + '. It\'s in Deputy too. If you can\'t make it, let Tate know.</p></div>';
+            '<p class="usual"><b>You\'re rostered on</b> ' + mineR.map(function (r) { return 'at ' + esc(SN2(r.location)) + (r.start && r.end ? ', ' + t12(r.start) + ' to ' + t12(r.end) : '') + (r.job ? ' (' + esc(r.job) + ')' : ''); }).join(' and ') + '. It\'s in Deputy too. If you can\'t make it, let Bianca know.</p></div>';
         }
         var mineU = USUAL.filter(function (u) { return u.weekday === dt.getDay(); });
         if (mineU.length) {   // they usually work this weekday: already working, so no availability to give
