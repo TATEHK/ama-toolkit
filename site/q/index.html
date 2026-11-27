@@ -5,87 +5,154 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#0f1713">
-<link rel="icon" href="../icons/ama-id-cards.png">
-<script src="../config.js"></script>
+<link rel="icon" href="/icons/ama-logo.png">
+<script src="/config.js"></script>
 <title>AMA Theory Test</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
 <style>
-:root{--bg:#0f1713;--panel:#15201a;--raise:#1b2821;--line:#253629;--line2:#31473a;--ink:#edf2ee;--ink-2:#a3b5a9;--accent:#f5c518;--ok:#2f9e5b;--display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color-scheme:dark}
+:root{--bg:#0f1713;--panel:#15201a;--raise:#1b2821;--line:#253629;--line2:#31473a;--ink:#edf2ee;--ink-2:#a3b5a9;--accent:#f5c518;--ok:#2f9e5b;--bad:#ef8a73;--display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 Barlow,"Segoe UI",Arial,sans-serif;min-height:100%}
-main{max-width:600px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 24px);min-height:100vh;display:flex;flex-direction:column;gap:14px}
+button{font:inherit;cursor:pointer;touch-action:manipulation}
+main{max-width:600px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px calc(env(safe-area-inset-bottom,0px) + 24px);min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;gap:14px}
 h1,h2{font-family:var(--display);margin:0}
-.top{display:flex;align-items:center;gap:10px}
+.top{display:flex;align-items:center;gap:10px;min-height:36px}
 .brand{display:flex;align-items:center;gap:10px;font:700 18px var(--display)}
-.logo{width:32px;height:32px;border-radius:9px;background:var(--accent);color:#14130a;display:grid;place-items:center;font:700 16px var(--display)}
+.brand img{width:32px;height:32px;border-radius:8px;display:block}
 .grow{flex:1}
-.time{font:700 22px var(--display);color:var(--accent)} .time.low{color:#ef8a73}
-.btn{border:0;border-radius:14px;padding:14px 16px;font:700 17px Barlow,sans-serif;background:var(--accent);color:#14130a;width:100%}
+.time{font:700 22px var(--display);color:var(--accent);font-variant-numeric:tabular-nums}.time.low{color:var(--bad)}
+.bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .3s}
+.btn{border:0;border-radius:14px;padding:15px 16px;font:700 17px Barlow,sans-serif;background:var(--accent);color:#14130a;width:100%;min-height:52px}
 .btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink)}
 .btn:disabled{opacity:.4}
+.btn.auto{width:auto}
 input{font:700 28px var(--display);letter-spacing:.2em;text-transform:uppercase;text-align:center;width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+input.find{font:500 17px Barlow,sans-serif;letter-spacing:0;text-transform:none;text-align:left;padding:12px 14px}
 .names{display:flex;flex-direction:column;gap:8px}
-.names button{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-align:left;font:600 18px Barlow,sans-serif;color:var(--ink)}
-.names button small{color:var(--ink-2);font-weight:500}
+.names button{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-align:left;font:600 18px Barlow,sans-serif;color:var(--ink);display:flex;align-items:center;gap:10px;min-height:56px}
+.names button small{color:var(--ink-2);font-weight:500;margin-left:auto}
 .center{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:12px}
 .big{font:700 32px/1.1 var(--display)}
 .muted{color:var(--ink-2)}
-.qhead{display:flex;justify-content:space-between;color:var(--ink-2);font:700 15px var(--display)}
+.rules{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:10px;text-align:left;max-width:420px}
+.rules li{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.rules b{flex:none;width:28px;height:28px;border-radius:50%;background:var(--raise);border:1px solid var(--line2);display:grid;place-items:center;font:700 15px var(--display);color:var(--accent)}
+.wait{display:flex;gap:8px;align-items:center;color:var(--ink-2);font-weight:600}
+.wait i{width:9px;height:9px;border-radius:50%;background:var(--accent);animation:p 1.4s ease-in-out infinite}
+@keyframes p{50%{opacity:.25}}
+.tick{width:88px;height:88px;border-radius:50%;background:var(--ok);display:grid;place-items:center}
+.tick svg{width:48px;height:48px}
+.qhead{display:flex;justify-content:space-between;gap:10px;color:var(--ink-2);font:700 15px var(--display)}
 .qtext{font:700 25px/1.2 var(--display)}
 .opts{display:flex;flex-direction:column;gap:10px}
-.opt{background:var(--panel);border:2px solid var(--line2);color:var(--ink);border-radius:14px;padding:15px;font:600 19px/1.25 Barlow,sans-serif;text-align:left;display:flex;gap:12px;align-items:center}
+.opt{background:var(--panel);border:2px solid var(--line2);color:var(--ink);border-radius:14px;padding:15px;font:600 19px/1.25 Barlow,sans-serif;text-align:left;display:flex;gap:12px;align-items:center;min-height:60px}
 .opt i{font-style:normal;font:700 16px var(--display);border:2px solid var(--line2);border-radius:50%;width:30px;height:30px;display:grid;place-items:center;flex:none}
 .opt.on{border-color:var(--accent);background:#2a2610}.opt.on i{background:var(--accent);border-color:var(--accent);color:#14130a}
 .ord{display:flex;flex-direction:column;gap:8px}
-.ord button{background:var(--panel);border:2px solid var(--line2);color:var(--ink);border-radius:14px;padding:14px;font:600 18px Barlow,sans-serif;text-align:left;display:flex;gap:10px;align-items:center}
+.ord button{background:var(--panel);border:2px solid var(--line2);color:var(--ink);border-radius:14px;padding:14px;font:600 18px Barlow,sans-serif;text-align:left;display:flex;gap:10px;align-items:center;min-height:56px}
 .ord button b{border:2px solid var(--line2);border-radius:8px;min-width:32px;height:30px;display:grid;place-items:center;font:700 16px var(--display)}
-.ord button.used{border-color:var(--accent)} .ord button.used b{background:var(--accent);border-color:var(--accent);color:#14130a}
-.nav{display:flex;gap:10px}
-.dots{display:grid;grid-template-columns:repeat(10,1fr);gap:6px}
-.dots button{aspect-ratio:1;border-radius:8px;border:1.5px solid var(--line2);background:transparent;color:var(--ink-2);font:700 13px var(--display);padding:0}
+.ord button.used{border-color:var(--accent)}.ord button.used b{background:var(--accent);border-color:var(--accent);color:#14130a}
+.nav{display:flex;gap:10px;margin-top:auto}
+.dots{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px}
+.dots button{aspect-ratio:1;border-radius:9px;border:1.5px solid var(--line2);background:transparent;color:var(--ink-2);font:700 14px var(--display);padding:0}
 .dots button.done{background:#173a26;border-color:var(--ok);color:#bfe8cf}
 .dots button.cur{outline:2px solid var(--accent);outline-offset:1px}
 .saved{font-size:13px;color:var(--ink-2);text-align:center;min-height:18px}
-.err{color:#ef8a73;text-align:center}
-dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line2);border-radius:16px;padding:18px;width:min(420px,92vw)}
-dialog::backdrop{background:rgba(0,0,0,.6)}
+.saved.off{color:var(--bad);font-weight:600}
+.redo{background:#2a2610;border:1px solid #5a4d12;color:var(--accent);border-radius:12px;padding:10px 12px;font-weight:600;font-size:15px}
+.warn{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 10px);transform:translateX(-50%);background:var(--bad);color:#1a0d09;font:700 17px Barlow,sans-serif;padding:10px 16px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:5;max-width:92vw;text-align:center}
+.err{color:var(--bad);text-align:center}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line2);border-radius:18px;padding:18px;width:min(480px,94vw);max-height:88vh;max-height:88dvh}
+dialog::backdrop{background:rgba(0,0,0,.65)}
+.rev{list-style:none;margin:12px 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
+.rev button{width:100%;background:var(--raise);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;color:var(--ink);display:flex;gap:10px;align-items:baseline}
+.rev button b{font:700 15px var(--display);color:var(--ink-2);min-width:24px}
+.rev button span{flex:1;font-size:15px}
+.rev button em{font-style:normal;font-size:14px;color:var(--ink-2);max-width:45%;text-align:right}
+.rev button.miss{border-color:var(--bad)}.rev button.miss em{color:var(--bad);font-weight:700}
+.dcol{display:flex;flex-direction:column;gap:8px}
 </style>
 </head>
 <body>
 <main id="m"><div class="center"><p class="muted">Loading…</p></div></main>
+<div class="warn" id="warn" hidden></div>
 <dialog id="dlg"></dialog>
 <script>
 const CFG = window.TOOLKIT_CONFIG || {};
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } };
+const ss = (k, v) => { try { if (v === undefined) return sessionStorage.getItem(k); if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) { return null; } };
 const newToken = () => { const b = crypto.getRandomValues(new Uint8Array(24)); return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 const mmss = s => Math.floor(s / 60) + ':' + String(Math.max(0, s) % 60).padStart(2, '0');
+const brand = `<div class="brand"><img src="/icons/ama-logo.png" alt="">Theory test</div>`;
 let [CODE, TAB] = (location.hash || '').slice(1).split('/');
 CODE = (CODE || ls('ama_quiz_code') || '').toUpperCase();
-let TOKEN = null, ST = null, QS = null, ANS = {}, cur = 0, timer = null, view = '', savedMsg = '', REDO = null;
-// A reload picks up where they were: the sign-in is kept on this phone and in the address (#CODE/token), and so is the question they're on
-const ss = (k, v) => { try { if (v === undefined) return sessionStorage.getItem(k); if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) { return null; } };
-function keepToken(t) {
-  TOKEN = t; ls('ama_quiz_tok_' + CODE, t); ss('ama_quiz_tok_' + CODE, t);
-  try { history.replaceState(null, '', '#' + CODE + (t ? '/' + t : '')); } catch (e) {}
-}
-function forget() { ls('ama_quiz_tok_' + CODE, null); ss('ama_quiz_tok_' + CODE, null); ls('ama_quiz_at_' + CODE, null); TOKEN = null; try { history.replaceState(null, '', '#' + CODE); } catch (e) {} }
+let TOKEN = null, ST = null, QS = null, ANS = {}, cur = 0, timer = null, view = '', REDO = null;
+
+// ---------- sign-in kept on this phone (a reload or a dropped connection picks up where they were) ----------
+function keepToken(t) { TOKEN = t; ls('ama_quiz_tok_' + CODE, t); ss('ama_quiz_tok_' + CODE, t); try { history.replaceState(null, '', '#' + CODE + (t ? '/' + t : '')); } catch (e) {} }
+function forget() { ls('ama_quiz_tok_' + CODE, null); ss('ama_quiz_tok_' + CODE, null); ls('ama_quiz_at_' + CODE, null); if (TOKEN) ls(PKEY(), null); TOKEN = null; PEND = {}; try { history.replaceState(null, '', '#' + CODE); } catch (e) {} }
 const keepAt = ix => ls('ama_quiz_at_' + CODE, String(ix));
 const list = () => REDO ? QS.filter(q => REDO.includes(q.ix)) : QS;   // when redoing, only the questions that were wrong
-const brand = `<div class="brand"><div class="logo">A</div>Theory test</div>`;
+
+// ---------- answers waiting to reach the server: kept on the phone, sent in order, retried until they land ----------
+const PKEY = () => 'ama_quiz_pend_' + CODE + '_' + (TOKEN || '').slice(0, 12);
+let PEND = {}, flushing = false, NET = 'ok';   // NET: ok | saving | off
+function pendLoad() { try { PEND = JSON.parse(ls(PKEY()) || '{}') || {}; } catch (e) { PEND = {}; } }
+function pendKeep() { ls(PKEY(), Object.keys(PEND).length ? JSON.stringify(PEND) : null); }
+async function flush() {
+  if (flushing || !TOKEN) return;
+  flushing = true;
+  try {
+    for (const ix of Object.keys(PEND)) {
+      if (!(ix in PEND)) continue;
+      const val = PEND[ix]; NET = 'saving'; netShow();
+      const r = await call({ action: 'answer', code: CODE, token: TOKEN, q_ix: +ix, answer: val });
+      if (r.ok || r.status === 409 || r.status === 400) { if (PEND[ix] === val) delete PEND[ix]; pendKeep(); if (r.status === 409 && !r.ok) view = '';   // time up, not started, or already right: the next check redraws from the server
+        continue; }
+      if (r.rejoin) { flushing = false; forget(); clearInterval(timer); return start(); }
+      NET = 'off'; netShow(); return;   // no connection: keep them, try again on the next check
+    }
+    NET = 'ok'; netShow();
+  } finally { flushing = false; }
+}
+function netShow() {
+  const el = $('#saved'); if (!el) return;
+  const n = Object.keys(PEND).length;
+  el.className = 'saved' + (NET === 'off' ? ' off' : '');
+  el.textContent = NET === 'off' ? `No connection. ${n} answer${n === 1 ? ' is' : 's are'} kept on this phone and will save when you're back online.` : n || NET === 'saving' ? 'Saving…' : 'All answers saved';
+}
+
 async function call(body) {
   try {
-    const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/gevent', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY }, body: JSON.stringify(body) });
-    const j = await r.json().catch(() => ({ ok: false, error: 'No connection. Trying again…' })); j.status = r.status; return j;
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 12000);
+    const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/gevent', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY }, body: JSON.stringify(body), signal: ctl.signal });
+    clearTimeout(t);
+    const j = await r.json().catch(() => ({ ok: false, offline: true, error: 'No connection. Trying again…' })); j.status = r.status; return j;
   } catch (e) { return { ok: false, offline: true, error: 'No connection. Check your internet.' }; }
 }
+
+// ---------- little dialog helpers (no browser pop-ups) ----------
+function dlg(html, wire) { const d = $('#dlg'); d.innerHTML = html; if (!d.open) d.showModal(); wire && wire(d); return d; }
+function note(title, text) { dlg(`<h2>${esc(title)}</h2><p class="muted">${esc(text)}</p><button class="btn" id="dOk">OK</button>`, d => { $('#dOk').onclick = () => d.close(); }); }
+function confirmBox(title, text, yes) { return new Promise(res => dlg(`<h2>${esc(title)}</h2><p class="muted">${esc(text)}</p><div class="dcol"><button class="btn" id="dY">${esc(yes)}</button><button class="btn ghost" id="dN">Cancel</button></div>`,
+  d => { $('#dY').onclick = () => { d.close(); res(true); }; $('#dN').onclick = () => { d.close(); res(false); }; })); }
+
+// ---------- keep the screen on during the test ----------
+let wake = null;
+async function wakeOn() { try { if ('wakeLock' in navigator && !wake && document.visibilityState === 'visible') { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) {} }
+function wakeOff() { try { wake && wake.release(); } catch (e) {} wake = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { if (view === 'test') wakeOn(); if (TOKEN) poll(); } });
+window.addEventListener('online', () => { if (TOKEN) { flush(); poll(); } });
+
+// ---------- sign in ----------
 function askCode(msg) {
   view = 'code';
   $('#m').innerHTML = `<div class="top">${brand}</div><div class="center"><div class="big">Sign in to the test</div><p class="muted">Type the code on the big screen</p>
-    <input id="code" maxlength="12" autocomplete="off" autocapitalize="characters" value="${esc(CODE)}"><button class="btn" id="go">Continue</button>${msg ? `<p class="err">${esc(msg)}</p>` : ''}</div>`;
+    <input id="code" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${esc(CODE)}"><button class="btn" id="go">Continue</button>${msg ? `<p class="err">${esc(msg)}</p>` : ''}</div>`;
   $('#go').onclick = () => { CODE = $('#code').value.trim().toUpperCase(); start(); };
   $('#code').onkeydown = e => { if (e.key === 'Enter') $('#go').click(); };
 }
@@ -96,99 +163,129 @@ async function start() {
   TAB = null;
   for (const t of [...new Set(saved)]) {
     const s = await call({ action: 'state', code: CODE, token: t });
-    if (s.ok) { keepToken(t); return run(); }
-    if (s.offline) { keepToken(t); return run(); }   // no signal right now: keep going, the next check will catch up
+    if (s.ok || s.offline) { keepToken(t); pendLoad(); return run(); }   // no signal right now: keep going, the next check catches up
   }
   forget();
   const j = await call({ action: 'join', code: CODE });
-  if (!j.ok) return askCode(j.error);
+  if (!j.ok) return askCode(j.offline ? 'No connection. Check your internet and try again.' : j.error);
   view = 'names';
-  $('#m').innerHTML = `<div class="top">${brand}</div><div><div class="big">${esc(j.title)}</div><p class="muted">Tap your name</p></div>
-    <div class="names">${j.players.map(p => `<button data-id="${p.id}" data-n="${esc(p.name)}">${esc(p.name)} ${p.taken ? '<small>· signed in</small>' : ''}</button>`).join('')}</div>`;
+  const many = j.players.length > 10;
+  $('#m').innerHTML = `<div class="top">${brand}</div><div><div class="big">${esc(j.title)}</div><p class="muted" style="margin:6px 0 0">Tap your name</p></div>
+    ${many ? '<input class="find" id="find" type="search" placeholder="Search your name" autocomplete="off">' : ''}
+    <div class="names" id="names">${j.players.map(p => `<button data-id="${p.id}" data-n="${esc(p.name)}">${esc(p.name)}${p.taken ? '<small>signed in</small>' : ''}</button>`).join('')}</div>`;
   $$('[data-id]').forEach(b => b.onclick = () => claim(b.dataset.id, b.dataset.n));
+  if (many) $('#find').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#names [data-id]').forEach(b => b.hidden = q && !b.dataset.n.toLowerCase().includes(q)); };
 }
 async function claim(id, name, force) {
   TOKEN = TOKEN || newToken();
   const r = await call({ action: 'claim', code: CODE, cand_id: id, token: TOKEN, force: !!force });
-  if (r.taken) { if (confirm(`${name} is already signed in on another device. Use this one instead?`)) return claim(id, name, true); return; }
-  if (!r.ok) return alert(r.error || 'Try again.');
-  keepToken(TOKEN); run();
+  if (r.taken) { if (await confirmBox(`${name} is signed in somewhere else`, 'Only use this phone if that’s you. The other device will be signed out.', 'Yes, it’s me')) return claim(id, name, true); return; }
+  if (!r.ok) return note('Not signed in', r.error || 'Try again.');
+  keepToken(TOKEN); pendLoad(); run();
 }
 function run() { clearInterval(timer); poll(); timer = setInterval(poll, 3000); }
 async function poll() {
+  if (Object.keys(PEND).length) await flush();
   const s = await call({ action: 'state', code: CODE, token: TOKEN, with_questions: !QS });
-  if (!s.ok) { if (s.rejoin) { forget(); clearInterval(timer); return start(); } return; }
+  if (!s.ok) { if (s.rejoin) { forget(); clearInterval(timer); return start(); } if (s.offline && view === 'test') { NET = 'off'; netShow(); } return; }
+  if (NET === 'off' && !Object.keys(PEND).length) { NET = 'ok'; netShow(); }
   s.at = Date.now(); ST = s;
   if (s.questions) QS = s.questions;
-  if (view !== 'test') { if (s.answers) ANS = { ...s.answers }; REDO = s.redo || null; }
+  if (view !== 'test') { if (s.answers) ANS = { ...s.answers, ...PEND }; REDO = s.redo || null; }
   draw();
 }
-setInterval(() => { const el = $('#left'); if (!el || !ST) return; const left = Math.max(0, Math.round((ST.ends_in_ms - (Date.now() - ST.at)) / 1000)); el.textContent = mmss(left); el.classList.toggle('low', left < 120); }, 500);
+
+// ---------- time left, with warnings at 5 and 1 minute ----------
+const leftNow = () => ST && ST.ends_in_ms != null ? Math.max(0, Math.round((ST.ends_in_ms - (Date.now() - ST.at)) / 1000)) : null;
+let warned = {};
+function warnShow(t) { const w = $('#warn'); w.textContent = t; w.hidden = false; try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {} clearTimeout(warnShow.t); warnShow.t = setTimeout(() => { w.hidden = true; }, 6000); }
+setInterval(() => {
+  const left = leftNow(), el = $('#left'); if (left == null || view !== 'test') return;
+  if (el) { el.textContent = mmss(left); el.classList.toggle('low', left < 120); }
+  if (left <= 300 && left > 240 && !warned[5]) { warned[5] = 1; warnShow('5 minutes left'); }
+  if (left <= 60 && left > 0 && !warned[1]) { warned[1] = 1; warnShow('1 minute left. Submit soon.'); }
+}, 500);
+
+// ---------- screens ----------
 function draw() {
   const s = ST, me = esc((s.me.name || '').split(' ')[0]);
-  if (s.submitted) return page('done', `<div class="top">${brand}</div><div class="center"><div class="big">All ${s.total} right</div><p class="muted">Well done, ${me}. Your theory test is complete. You can put your phone away.</p></div>`);
-  if (s.phase === 'ended') return page('ended', `<div class="top">${brand}</div><div class="center"><div class="big">Time is up</div><p class="muted">Thanks, ${me}. Your answers have been handed in. The panel will talk to you about your result.</p></div>`);
-  if (s.phase !== 'open' || !QS) return page('wait', `<div class="top">${brand}</div><div class="center"><div class="big">You're signed in, ${me}</div><p class="muted">The test starts when the panel says go: ${s.total} questions, ${s.minutes} minutes, at your own pace. You can go back and change answers until you submit. To pass you need every answer right; if any are wrong you'll be asked to redo just those.</p>
-      <button class="btn ghost" id="notme" style="width:auto">Not ${me}? Change name</button></div>`, () => { $('#notme').onclick = () => { forget(); clearInterval(timer); QS = null; view = ''; start(); }; });
-  if (view !== 'test') { view = 'test'; const at = Number(ls('ama_quiz_at_' + CODE)); const k = list().findIndex(q => q.ix === at); cur = k >= 0 ? k : 0; drawQ(); }
+  if (s.submitted) { wakeOff(); return page('done', `<div class="top">${brand}</div><div class="center"><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="big">All ${s.total} right</div><p class="muted">Well done, ${me}. Your theory test is complete. You can put your phone away.</p></div>`); }
+  if (s.phase === 'ended') { wakeOff(); return page('ended', `<div class="top">${brand}</div><div class="center"><div class="big">Time is up</div><p class="muted">Thanks, ${me}. Your saved answers have been handed in. The panel will talk to you about your result.</p></div>`); }
+  if (s.phase !== 'open' || !QS) return page('wait', `<div class="top">${brand}</div><div class="center"><div class="big">You're signed in, ${me}</div>
+      <ul class="rules"><li><b>1</b><span>${s.total} questions, ${s.minutes} minutes. Work at your own pace.</span></li>
+        <li><b>2</b><span>You can go back and change any answer until you submit.</span></li>
+        <li><b>3</b><span>To pass, every answer must be right. If any are wrong, you'll be shown which ones to redo.</span></li></ul>
+      <div class="wait"><i></i>Waiting for the panel to start</div>
+      <button class="btn ghost auto" id="notme">Not ${me}? Change name</button></div>`, () => { $('#notme').onclick = () => { forget(); clearInterval(timer); QS = null; view = ''; start(); }; });
+  if (view !== 'test') { view = 'test'; wakeOn(); const at = Number(ls('ama_quiz_at_' + CODE)); const k = list().findIndex(q => q.ix === at); cur = k >= 0 ? k : 0; drawQ(); }
 }
-function page(v, html, wire) { if (view === v) return; view = v; $('#m').innerHTML = html; wire && wire(); }
+function page(v, html, wire) { if (view === v) return; view = v; $('#dlg').open && $('#dlg').close(); $('#m').innerHTML = html; wire && wire(); }
 const isDone = q => ANS[q.ix] != null && !(Array.isArray(ANS[q.ix]) && ANS[q.ix].length !== q.options.length);
+const ansText = q => { const a = ANS[q.ix]; if (a == null) return ''; if (Array.isArray(a)) return a.length === q.options.length ? a.map(i => q.options[i]).join(' → ') : 'Not finished'; return q.options[+a] || ''; };
+let advT = null;
 function drawQ() {
+  clearTimeout(advT);
   const L = list(); if (cur >= L.length) cur = 0;
   const q = L[cur], a = ANS[q.ix], n = L.filter(isDone).length;
   keepAt(q.ix);
   let opts;
   if (q.type === 'order') {
     const ord = Array.isArray(a) ? a : [];
-    opts = `<p class="muted" style="margin:0">Tap them in order, earliest first. Tap Clear to start again.</p><div class="ord">${q.options.map((o, i) => { const at = ord.indexOf(i); return `<button data-o="${i}" class="${at >= 0 ? 'used' : ''}"><b>${at >= 0 ? at + 1 : ''}</b>${esc(o)}</button>`; }).join('')}</div>
-      <button class="btn ghost" id="clr" style="padding:10px">Clear</button>`;
-  } else opts = `<div class="opts">${q.options.map((o, i) => `<button class="opt ${a != null && Number(a) === i ? 'on' : ''}" data-a="${i}"><i>${q.type === 'tf' ? (i ? 'F' : 'T') : 'ABCD'[i]}</i>${esc(o)}</button>`).join('')}</div>`;
+    opts = `<p class="muted" style="margin:0">Tap them in order, first to last.</p><div class="ord">${q.options.map((o, i) => { const at = ord.indexOf(i); return `<button data-o="${i}" class="${at >= 0 ? 'used' : ''}"><b>${at >= 0 ? at + 1 : ''}</b>${esc(o)}</button>`; }).join('')}</div>
+      ${ord.length ? '<button class="btn ghost" id="clr" style="min-height:44px;padding:10px">Start this order again</button>' : ''}`;
+  } else opts = `<div class="opts">${q.options.map((o, i) => `<button class="opt ${a != null && Number(a) === i ? 'on' : ''}" data-a="${i}"><i>${q.type === 'tf' ? (i ? 'F' : 'T') : 'ABCDEF'[i]}</i>${esc(o)}</button>`).join('')}</div>`;
+  const last = cur >= L.length - 1;
   $('#m').innerHTML = `<div class="top">${brand}<span class="grow"></span><span class="time" id="left"></span></div>
-    ${REDO ? `<div class="saved" style="color:var(--accent);font-weight:700;text-align:left">Redo: ${L.length} question${L.length === 1 ? '' : 's'} to answer again. Your other answers are right.</div>` : ''}
+    <div class="bar" aria-hidden="true"><i style="width:${Math.round(n / L.length * 100)}%"></i></div>
+    ${REDO ? `<div class="redo">Redo: ${L.length} question${L.length === 1 ? '' : 's'} to answer again. Your other answers are right.</div>` : ''}
     <div class="qhead"><span>Question ${q.ix + 1} of ${QS.length}${q.section ? ' · ' + esc(q.section) : ''}</span><span>${n} of ${L.length} answered</span></div>
-    <div class="qtext">${esc(q.text)}</div>${opts}<div class="saved" id="saved">${esc(savedMsg)}</div>
-    <div class="nav"><button class="btn ghost" id="prev" ${cur ? '' : 'disabled'}>Back</button>${cur < L.length - 1 ? '<button class="btn" id="next">Next</button>' : '<button class="btn sub">Review and submit</button>'}</div>
-    <div class="dots">${L.map((x, i) => `<button data-j="${i}" class="${isDone(x) ? 'done' : ''} ${i === cur ? 'cur' : ''}">${x.ix + 1}</button>`).join('')}</div>
-    ${cur < L.length - 1 ? '<button class="btn ghost sub">Submit test</button>' : ''}`;
-  savedMsg = '';
-  $$('[data-a]').forEach(b => b.onclick = () => save(q.ix, +b.dataset.a));
-  $$('[data-o]').forEach(b => b.onclick = () => { const ord = Array.isArray(ANS[q.ix]) ? ANS[q.ix].slice() : []; const i = +b.dataset.o; if (ord.includes(i)) return; ord.push(i); ANS[q.ix] = ord; if (ord.length === q.options.length) save(q.ix, ord); else drawQ(); });
+    <div class="qtext">${esc(q.text)}</div>${opts}<div class="saved" id="saved"></div>
+    <div class="nav"><button class="btn ghost" id="prev" ${cur ? '' : 'disabled'}>Back</button>${last ? '<button class="btn sub">Review and submit</button>' : '<button class="btn" id="next">Next</button>'}</div>
+    <div class="dots">${L.map((x, i) => `<button data-j="${i}" class="${isDone(x) ? 'done' : ''} ${i === cur ? 'cur' : ''}" aria-label="Question ${x.ix + 1}">${x.ix + 1}</button>`).join('')}</div>
+    ${last ? '' : '<button class="btn ghost sub">Review and submit</button>'}`;
+  netShow();
+  // picking an answer saves it and moves on to the next question (a short pause so they see what they tapped)
+  const advance = () => { if (cur < L.length - 1) advT = setTimeout(() => { cur++; drawQ(); }, 350); };
+  $$('[data-a]').forEach(b => b.onclick = () => { const was = ANS[q.ix]; save(q.ix, +b.dataset.a); if (was == null) advance(); });
+  $$('[data-o]').forEach(b => b.onclick = () => { const ord = Array.isArray(ANS[q.ix]) ? ANS[q.ix].slice() : []; const i = +b.dataset.o; if (ord.includes(i)) return; ord.push(i);
+    if (ord.length === q.options.length) { save(q.ix, ord); advance(); } else { ANS[q.ix] = ord; drawQ(); } });
   const c = $('#clr'); if (c) c.onclick = () => save(q.ix, null);
   $('#prev').onclick = () => { if (cur) { cur--; drawQ(); } };
   const nx = $('#next'); if (nx) nx.onclick = () => { cur++; drawQ(); };
   $$('[data-j]').forEach(b => b.onclick = () => { cur = +b.dataset.j; drawQ(); });
   $$('.sub').forEach(b => b.onclick = review);
-  const el = $('#left'); if (el && ST) el.textContent = mmss(Math.max(0, Math.round((ST.ends_in_ms - (Date.now() - ST.at)) / 1000)));
+  const el = $('#left'), left = leftNow(); if (el && left != null) { el.textContent = mmss(left); el.classList.toggle('low', left < 120); }
 }
-async function save(ix, ans) {
+function save(ix, ans) {
   if (ans === null) delete ANS[ix]; else ANS[ix] = ans;
-  savedMsg = 'Saving…'; drawQ();
-  const r = await call({ action: 'answer', code: CODE, token: TOKEN, q_ix: ix, answer: ans });
-  const el = $('#saved');
-  if (r.ok) { if (el) el.textContent = 'Saved'; }
-  else { if (el) el.textContent = r.error || 'Not saved. Try again.'; if (r.status === 409) { view = ''; poll(); } }
+  PEND[ix] = ans; pendKeep(); drawQ(); flush();
 }
 function review() {
-  const missing = list().filter(q => !isDone(q)).map(q => q.ix + 1);
-  const d = $('#dlg');
-  d.innerHTML = `<h2>${REDO ? 'Submit your redo?' : 'Submit your test?'}</h2><p class="muted">${missing.length ? `You haven't answered question${missing.length > 1 ? 's' : ''} ${missing.join(', ')}.` : 'You have answered every question.'} ${REDO ? '' : 'Any wrong answers come back to you to redo.'}</p>
-    <div style="display:flex;flex-direction:column;gap:8px"><button class="btn" id="dGo">Submit</button><button class="btn ghost" id="dNo">Keep working</button></div>`;
-  d.showModal();
-  $('#dNo').onclick = () => { d.close(); if (missing.length) { cur = list().findIndex(q => q.ix === missing[0] - 1); drawQ(); } };
-  $('#dGo').onclick = async () => {
-    $('#dGo').disabled = true; const r = await call({ action: 'submit', code: CODE, token: TOKEN }); d.close();
-    if (!r.ok && r.status !== 409) return alert(r.error || 'Not submitted. Try again.');
-    if (r.redo && r.redo.length) {
-      REDO = r.redo; r.redo.forEach(ix => delete ANS[ix]); cur = 0;
-      $('#m').innerHTML = `<div class="top">${brand}<span class="grow"></span><span class="time" id="left"></span></div><div class="center"><div class="big">${r.redo.length} to redo</div>
-        <p class="muted">${r.redo.length === 1 ? 'One answer isn\u2019t right' : r.redo.length + ' answers aren\u2019t right'}: question${r.redo.length === 1 ? '' : 's'} ${r.redo.map(i => i + 1).join(', ')}. Have another go at ${r.redo.length === 1 ? 'it' : 'those'}, then submit again.</p>
-        <button class="btn" id="goRedo">Start</button></div>`;
-      $('#goRedo').onclick = () => drawQ();
-      return;
-    }
-    view = ''; poll();
-  };
+  const L = list(), missing = L.filter(q => !isDone(q));
+  dlg(`<h2>${REDO ? 'Check your redo' : 'Check your answers'}</h2>
+    <p class="muted" style="margin:6px 0 0">${missing.length ? `${missing.length} not answered yet (in red). Tap any question to go back to it.` : 'Every question is answered. Tap any to change it.'}</p>
+    <ul class="rev">${L.map((q, i) => `<li><button data-r="${i}" class="${isDone(q) ? '' : 'miss'}"><b>${q.ix + 1}</b><span>${esc(q.text)}</span><em>${isDone(q) ? esc(ansText(q)) : 'Not answered'}</em></button></li>`).join('')}</ul>
+    <div class="dcol"><button class="btn" id="dGo">Submit${missing.length ? ' anyway' : ''}</button><button class="btn ghost" id="dNo">Keep working</button></div>`, d => {
+    $$('#dlg [data-r]').forEach(b => b.onclick = () => { d.close(); cur = +b.dataset.r; drawQ(); });
+    $('#dNo').onclick = () => d.close();
+    $('#dGo').onclick = () => submit(d);
+  });
+}
+async function submit(d) {
+  const go = $('#dGo'); go.disabled = true; go.textContent = 'Submitting…';
+  await flush();
+  if (Object.keys(PEND).length) { go.disabled = false; go.textContent = 'Submit'; return note('No connection', 'Your answers are kept on this phone. Submit again once you have signal.'); }
+  const r = await call({ action: 'submit', code: CODE, token: TOKEN }); d.close();
+  if (!r.ok && r.status !== 409) return note('Not submitted', r.offline ? 'No connection. Your answers are kept on this phone. Try again in a moment.' : (r.error || 'Try again.'));
+  if (r.redo && r.redo.length) {
+    REDO = r.redo; r.redo.forEach(ix => delete ANS[ix]); cur = 0;
+    $('#m').innerHTML = `<div class="top">${brand}<span class="grow"></span><span class="time" id="left"></span></div><div class="center"><div class="big">${r.redo.length} to redo</div>
+      <p class="muted">${r.redo.length === 1 ? 'One answer isn’t right' : r.redo.length + ' answers aren’t right'}: question${r.redo.length === 1 ? '' : 's'} ${r.redo.map(i => i + 1).join(', ')}. Have another go at ${r.redo.length === 1 ? 'it' : 'those'}, then submit again.</p>
+      <button class="btn" id="goRedo">Start the redo</button></div>`;
+    $('#goRedo').onclick = () => drawQ();
+    return;
+  }
+  view = ''; poll();
 }
 start();
 </script>
