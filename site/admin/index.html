@@ -1020,8 +1020,9 @@ const filledOf = r => { if(!r) return 0;
   const g = r.location === 'Marrickville' && typeof RMD !== 'undefined' && RMD && (RMD.gradings || []).find(x => x.date === r.date && x.location === r.location);
   const st = g ? (g.starts || []).map(mm).filter(v => v != null).sort((a, b) => a - b) : [], spans = st.map((v, i) => [v, st[i + 1] || v + 90]);
   return (r.slots || []).filter(x => counts(x, r.location) && (!spans.length || !x.start || !x.end || spans.some(([a, b]) => mm(x.start) < b && mm(x.end) > a))).length; };
-const needOf = r => ((r && r.limits && r.limits.floor && r.limits.floor.need) ?? (RSET && RSET.floor_need) ?? 2);
-const maxOf = r => ((r && r.limits && r.limits.floor && r.limits.floor.max) ?? (RSET && RSET.floor_max) ?? 4);
+const SCHOOL_NEED = { Marrickville: 4 };   // floor staff needed by default at a school (others use Roster defaults)
+const needOf = (r, l) => ((r && r.limits && r.limits.floor && r.limits.floor.need) ?? SCHOOL_NEED[l || (r && r.location)] ?? (RSET && RSET.floor_need) ?? 2);
+const maxOf = (r, l) => Math.max(((r && r.limits && r.limits.floor && r.limits.floor.max) ?? (RSET && RSET.floor_max) ?? 4), needOf(r, l));
 async function loadRosterMonth(){
   const n0 = new Date(), b = new Date(n0.getFullYear(), n0.getMonth() + RMON, 1);   // midnight, so the last day of the grid is included
   const from = new Date(b), to = new Date(b.getFullYear(), b.getMonth() + 1, 0);
@@ -1052,7 +1053,7 @@ function rostersSection(){
     const locs = [...new Set([...x.g.map(g => g.location), ...x.r.map(r => r.location)])].filter(inSch);
     const us = usualSchools(d).filter(inSch).sort((a, b) => { const o = l => { const i = ROSTER_SCHOOLS.indexOf(l); return i < 0 ? 9 : i; }; return o(a) - o(b) || a.localeCompare(b); }).map(l => [l, usualOn(d, l).length]).filter(([, n]) => n);
     const chips = locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l);
-      const n = filledOf(r), need = needOf(r), st = r ? r.status : (g ? 'none' : '');
+      const n = filledOf(r), need = needOf(r, l), st = r ? r.status : (g ? 'none' : '');
       return `<span class="rc ${st}${r && n < need ? ' short' : ''}" title="${esc(SCHOOL(l))}${g ? ' · grading' : ''}">${g ? '<i></i>' : ''}${esc(SHORT(l))}${r || g ? ` ${n}/${need}` : ''}</span>`; }).join('');
     const av = x.a ? `<span class="ra">${x.a.yes + x.a.part} free</span>` : '';
     const gday = x.g.length > 0;   // rostering is only for days with gradings on
@@ -1077,7 +1078,7 @@ function rostersSection(){
         ...off.map(p => chip('roff', `− ${esc(p.name)} <i>off</i>`))];
       return out.length ? `<div class="rus"><span class="rul">Changes</span>${out.join('')}</div>` : `<div class="rus"><span class="rul">Changes</span><span class="muted small">none</span></div>`; };
     panel = `<div class="rpanel"><div class="rph"><b>${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}</b>${x.a ? `<span class="muted">${x.a.yes} free, ${x.a.part} part free, ${x.a.no} not free</span>` : ''}</div>
-      ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = filledOf(r), need = needOf(r);
+      ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = filledOf(r), need = needOf(r, l);
         return `<div class="rprow"><div class="grow"><b>${esc(SCHOOL(l))}</b> <span class="muted">${g ? `gradings ${(g.starts || []).map(fmtTime).join(', ') || ''}` : 'no grading'}</span>
           <div class="small">${r ? `${n} of ${need} floor staff ${roTag(r)}` : `<span class="muted">No roster yet · ${need} needed</span>`}</div>${usualList(l)}${changesList(r, l)}</div>
           <button class="btn mini${r && r.status === 'submitted' && canApprove() ? ' primary' : ''}" data-ropen="${RSELD}|${esc(l)}">${r ? (r.status === 'submitted' && canApprove() ? 'Review' : 'Open') : 'Build roster'}</button></div>`; }).join('')}</div>`;
@@ -1151,7 +1152,7 @@ async function openRoster(date, location){
   if(error){ roErr('Could not load: ' + error.message); return; }
   if(RSET) RSET.me_approves = data.me_approves;
   const r = data.roster; RO.r = r; RO.people = (data.people || []).filter(p => p.staff); RO.gradings = data.gradings || [];   // staff only, no grading helpers
-  RO.lim = { floor: { need: needOf(r), max: maxOf(r) }, g: JSON.parse(JSON.stringify((r && r.limits && r.limits.g) || {})), extras: (r && r.limits && r.limits.extras) || null };   // g: each grading's own need / max, by day_id
+  RO.lim = { floor: { need: needOf(r, location), max: maxOf(r, location) }, g: JSON.parse(JSON.stringify((r && r.limits && r.limits.g) || {})), extras: (r && r.limits && r.limits.extras) || null };   // g: each grading's own need / max, by day_id
   const dt = defTimes();
   if(r && (r.slots || []).length) RO.slots = JSON.parse(JSON.stringify(r.slots));
   else {   // a new roster starts with everyone who usually works here that weekday (their usual times), then empty slots up to the number needed
