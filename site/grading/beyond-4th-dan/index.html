@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0E0E0E">
+<title>Beyond 4th Dan Grading · Australian Martial Arts Academy</title>
+<link rel="icon" href="/icons/ama-logo.png">
+<link rel="apple-touch-icon" href="/icons/ama-apple-touch.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --night:#0E0E0E; --night2:#1a1a1a; --gold:#FFD200; --gold-ink:#7a6200; --paper:#FBFAF6; --bg:#EEEBE3; --ink:#1c1c1c; --muted:#66625a; --line:#DAD5C8; --disp:Oswald,"Arial Narrow",Arial,sans-serif; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 "Source Sans 3", "Segoe UI", Arial, sans-serif; -webkit-text-size-adjust: 100%; }
+  a { color: inherit; }
+  h1, h2, h3 { font-family: var(--disp); margin: 0; line-height: 1.1; }
+
+  /* top bar with section jumps */
+  .bar { position: sticky; top: 0; z-index: 5; background: var(--night); color: #fff; display: flex; align-items: center; gap: 4px; padding: 8px max(12px, env(safe-area-inset-left)); overflow-x: auto; scrollbar-width: none; }
+  .bar::-webkit-scrollbar { display: none; }
+  .bar img { width: 30px; height: 30px; flex: none; margin-right: 6px; }
+  .bar a { flex: none; text-decoration: none; font: 600 13px var(--disp); letter-spacing: .1em; text-transform: uppercase; padding: 9px 10px; border-radius: 8px; color: #d8d8d8; }
+  .bar a:hover, .bar a:focus-visible { color: var(--gold); background: #222; }
+
+  /* hero */
+  .hero { background: var(--night); color: #fff; padding: 34px 20px 38px; text-align: center; position: relative; overflow: hidden; }
+  .hero::before { content: ""; position: absolute; inset: auto -10% -60% -10%; height: 120%; background: radial-gradient(closest-side, rgba(255,210,0,.13), transparent); pointer-events: none; }
+  .hero .k { font: 600 12px var(--disp); letter-spacing: .32em; text-transform: uppercase; color: var(--gold); }
+  .hero h1 { font-size: clamp(38px, 11vw, 64px); text-transform: uppercase; letter-spacing: .02em; margin: 10px 0 8px; }
+  .hero .date { font-size: 19px; font-weight: 600; }
+  .hero .time { color: #bdbdbd; font-size: 16px; margin-top: 2px; }
+  .pill { display: inline-block; margin-top: 18px; background: var(--gold); color: #111; font-weight: 700; font-size: 15px; padding: 9px 16px; border-radius: 999px; }
+
+  main { max-width: 720px; margin: 0 auto; padding: 8px 14px 48px; }
+  section { margin-top: 28px; }
+  .sh { display: flex; align-items: baseline; gap: 10px; margin: 0 4px 12px; }
+  .sh h2 { font-size: 27px; text-transform: uppercase; letter-spacing: .03em; }
+  .sh h2::after { content: ""; display: block; width: 40px; height: 3px; background: var(--gold); margin-top: 8px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .card + .card { margin-top: 12px; }
+  .card h3 { font-size: 20px; margin-bottom: 8px; }
+  p { margin: 0 0 12px; } p:last-child { margin-bottom: 0; }
+  .muted { color: var(--muted); }
+
+  /* schedule */
+  .sched { list-style: none; margin: 0; padding: 0; }
+  .sched li { display: grid; grid-template-columns: 78px 1fr; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); align-items: baseline; }
+  .sched li:first-child { border-top: 0; padding-top: 0; }
+  .sched .t { font: 600 16px var(--disp); letter-spacing: .02em; }
+  .sched .s small { display: block; color: var(--muted); font-size: 14px; }
+  .sched li.key .s { font-weight: 700; }
+  .sched li.key .t::after { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); margin-left: 6px; vertical-align: 2px; }
+  .sched li.now { background: #fff6c2; margin: 0 -18px; padding-left: 18px; padding-right: 18px; border-top-color: transparent; }
+  .sched li.now .t { color: var(--gold-ink); }
+  .sched li.now .s::after { content: "Now"; margin-left: 8px; font: 700 11px var(--disp); letter-spacing: .14em; text-transform: uppercase; background: var(--night); color: var(--gold); padding: 2px 7px; border-radius: 5px; vertical-align: 2px; }
+  .sched li.past { opacity: .5; }
+
+  .fam { background: var(--night); color: #fff; border: 0; }
+  .fam h3 { color: var(--gold); }
+  .fam ul { margin: 0 0 12px; padding-left: 1.1em; } .fam li { margin: 0 0 8px; }
+  .fam .note { background: #222; border-radius: 8px; padding: 10px 12px; font-weight: 600; }
+
+  /* study hub tabs */
+  .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--night); padding: 4px; border-radius: 12px; position: sticky; top: 46px; z-index: 4; }
+  .tabs button { font: 600 13px var(--disp); letter-spacing: .06em; text-transform: uppercase; color: #cfcfcf; background: transparent; border: 0; border-radius: 9px; padding: 11px 4px; cursor: pointer; min-height: 44px; }
+  .tabs button[aria-selected="true"] { background: var(--gold); color: #111; }
+  .panel { margin-top: 12px; }
+  .panel[hidden] { display: none; }
+
+  /* timeline */
+  .tl { list-style: none; margin: 4px 0 0; padding: 0; position: relative; }
+  .tl::before { content: ""; position: absolute; left: 13px; top: 6px; bottom: 6px; width: 3px; background: linear-gradient(var(--gold), #d9b600); border-radius: 3px; }
+  .tl li { position: relative; padding: 0 0 18px 42px; }
+  .tl li:last-child { padding-bottom: 0; }
+  .tl li::before { content: ""; position: absolute; left: 6px; top: 4px; width: 17px; height: 17px; border-radius: 50%; background: var(--paper); border: 3px solid var(--night); }
+  .tl li.big::before { background: var(--gold); }
+  .tl .y { font: 700 20px var(--disp); letter-spacing: .02em; }
+  .tl .w { margin-top: 2px; }
+
+  .two { display: grid; gap: 10px; }
+  .branch { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #fff; }
+  .branch b { font-family: var(--disp); font-size: 18px; letter-spacing: .02em; display: block; margin-bottom: 2px; }
+  .branch.ama { border-color: var(--gold); box-shadow: inset 4px 0 0 var(--gold); }
+
+  /* fact cards */
+  .facts { display: grid; gap: 10px; }
+  .fact { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .fact .en { font: 600 19px var(--disp); letter-spacing: .02em; }
+  .fact .ko { color: var(--gold-ink); font-weight: 700; font-size: 15px; }
+  .fact .m { margin-top: 3px; color: #3a3833; }
+
+  .terms { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .term { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .term b { display: block; font-family: var(--disp); font-size: 17px; letter-spacing: .02em; }
+  .term span { color: var(--muted); font-size: 15px; }
+
+  .tg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .tgc { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; position: relative; }
+  .tgc .n { font: 700 13px var(--disp); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .tgc .p { font: 600 18px var(--disp); }
+  .tgc .r { font-weight: 700; margin-top: 4px; }
+  .tgc .tri { color: var(--muted); font-size: 14px; }
+  .tgc.fun .n { padding-right: 58px; }
+  .tgc.fun { border-color: var(--gold); box-shadow: inset 0 3px 0 var(--gold); }
+  .tag { display: inline-block; font: 700 10px var(--disp); letter-spacing: .14em; text-transform: uppercase; background: var(--gold); color: #111; border-radius: 4px; padding: 2px 6px; position: absolute; top: 10px; right: 10px; }
+
+  .bbp { list-style: none; margin: 0; padding: 0; }
+  .bbp li { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .bbp li:first-child { border-top: 0; padding-top: 0; }
+  .bbp .p { font: 600 20px var(--disp); }
+  .bbp .lv { font: 600 13px var(--disp); letter-spacing: .06em; text-transform: uppercase; background: var(--night); color: var(--gold); border-radius: 6px; padding: 4px 8px; align-self: center; white-space: nowrap; }
+  .bbp .m { grid-column: 1 / -1; color: #3a3833; }
+
+  .belts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .belt { font-size: 13px; font-weight: 700; padding: 4px 9px; border-radius: 5px; border: 1px solid rgba(0,0,0,.18); }
+  .arrow { color: var(--muted); font-size: 13px; }
+  .vals { margin: 0; padding-left: 1.1em; } .vals li { margin-bottom: 8px; }
+  .give { background: #fff; border-left: 4px solid #e2739b; }
+  .big-n { font: 700 34px var(--disp); line-height: 1; }
+
+  /* checklist */
+  .check { list-style: none; margin: 0; padding: 0; }
+  .check label { display: flex; gap: 14px; align-items: center; padding: 12px 2px; border-top: 1px solid var(--line); cursor: pointer; min-height: 52px; }
+  .check li:first-child label { border-top: 0; }
+  .check input { appearance: none; -webkit-appearance: none; width: 26px; height: 26px; border: 2px solid #8b8678; border-radius: 7px; flex: none; margin: 0; display: grid; place-items: center; background: #fff; }
+  .check input:checked { background: var(--night); border-color: var(--night); }
+  .check input:checked::after { content: ""; width: 7px; height: 13px; border: solid var(--gold); border-width: 0 3px 3px 0; transform: rotate(45deg) translate(-1px, -1px); }
+  .check input:checked + span { text-decoration: line-through; color: var(--muted); }
+  .check .bar2 { height: 6px; }
+
+  footer { text-align: center; color: var(--muted); font-size: 14px; padding: 10px 20px 40px; }
+  footer img { width: 40px; display: block; margin: 0 auto 8px; opacity: .85; }
+
+  @media (min-width: 600px) {
+    .two, .facts { grid-template-columns: 1fr 1fr; }
+    .terms { grid-template-columns: repeat(3, 1fr); }
+    .tg { grid-template-columns: repeat(4, 1fr); }
+    .tabs button { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+<nav class="bar" aria-label="Sections">
+  <img src="/icons/ama-logo.png" alt="AMA">
+  <a href="#day">The day</a><a href="#families">Families</a><a href="#study">Study hub</a><a href="#arrive">Before you arrive</a>
+</nav>
+
+<header class="hero">
+  <div class="k">Australian Martial Arts Academy</div>
+  <h1>Beyond 4th Dan Grading</h1>
+  <div class="date">Saturday 28 November 2026</div>
+  <div class="time">8:00am to 4:00pm</div>
+  <div class="pill">Families welcome from 3:00pm</div>
+</header>
+
+<main>
+  <section id="day">
+    <div class="sh"><h2>The day</h2></div>
+    <div class="card">
+      <p>The day runs as a seminar. Every candidate trains every section together, and then the candidates grading on that section are assessed in front of the full panel. The day ends with a public hour where families watch patterns, board breaking and showcases.</p>
+    </div>
+    <div class="card">
+      <ol class="sched" id="sched">
+        <li data-at="08:00"><span class="t">8:00am</span><span class="s">Roll call and bow in</span></li>
+        <li data-at="08:10"><span class="t">8:10am</span><span class="s">Colour belt patterns for fun<small>Taeguk 4 to 7</small></span></li>
+        <li data-at="08:30"><span class="t">8:30am</span><span class="s">Hand techniques and kicks</span></li>
+        <li data-at="09:20"><span class="t">9:20am</span><span class="s">Pads, and kickboxing on focus mitts</span></li>
+        <li data-at="10:10"><span class="t">10:10am</span><span class="s">Break</span></li>
+        <li data-at="10:30"><span class="t">10:30am</span><span class="s">Self defence and one step sparring</span></li>
+        <li data-at="11:30" class="key"><span class="t">11:30am</span><span class="s">Live theory quiz in the Grading Toolkit<small>Bring a charged phone</small></span></li>
+        <li data-at="12:00"><span class="t">12:00pm</span><span class="s">Lunch</span></li>
+        <li data-at="12:30"><span class="t">12:30pm</span><span class="s">Weapon defence</span></li>
+        <li data-at="13:30"><span class="t">1:30pm</span><span class="s">Sparring</span></li>
+        <li data-at="14:20"><span class="t">2:20pm</span><span class="s">Patterns run-through</span></li>
+        <li data-at="15:00" class="key"><span class="t">3:00pm</span><span class="s">Public hour: families welcome</span></li>
+        <li data-at="16:00"><span class="t">4:00pm</span><span class="s">Close</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="families">
+    <div class="sh"><h2>For families</h2></div>
+    <div class="card fam">
+      <h3>The public hour, 3:00 to 4:00pm</h3>
+      <ul>
+        <li><b>Patterns:</b> two groups perform their black belt patterns back to back. First the candidates going for 4th Dan, then the candidates going beyond 4th Dan.</li>
+        <li><b>Board breaking:</b> each candidate going for 4th Dan breaks one at a time, in four directions.</li>
+        <li><b>Showcases:</b> solo and group performances to finish the day.</li>
+      </ul>
+      <div class="note">Please be seated by 2:45pm. Results are released after the day.</div>
+    </div>
+  </section>
+
+  <section id="study">
+    <div class="sh"><h2>Study hub</h2></div>
+    <div class="tabs" role="tablist" aria-label="Study topics">
+      <button role="tab" id="t-history" aria-controls="p-history" aria-selected="true">History</button>
+      <button role="tab" id="t-tenets" aria-controls="p-tenets" aria-selected="false" tabindex="-1">Tenets &amp; terms</button>
+      <button role="tab" id="t-patterns" aria-controls="p-patterns" aria-selected="false" tabindex="-1">Patterns</button>
+      <button role="tab" id="t-ama" aria-controls="p-ama" aria-selected="false" tabindex="-1">About AMA</button>
+    </div>
+
+    <!-- History -->
+    <div class="panel" role="tabpanel" id="p-history" aria-labelledby="t-history">
+      <div class="card">
+        <h3>History of Taekwondo</h3>
+        <p>Taekwondo is a Korean martial art. The name means <b>"the way of the foot and fist"</b>: <b>Tae</b> means foot or kick, <b>Kwon</b> means fist, and <b>Do</b> means way. It grew out of traditional Korean fighting arts, was shaped during the 20th century, and is now an Olympic sport practised around the world.</p>
+      </div>
+      <div class="card">
+        <h3>Roots</h3>
+        <p><b>Taekkyeon</b> is a traditional Korean kicking art and a forerunner of Taekwondo. It moves in a flowing, rhythmic way and has been passed down for centuries. Taekkyeon is now on UNESCO's Intangible Cultural Heritage list.</p>
+        <p>During the Japanese occupation of Korea (1910 to 1945), Korean culture was suppressed, including its martial arts. Many Koreans trained in Japanese karate during this time. After 1945, Korean masters opened their own schools (kwans) and began building a distinctly Korean art.</p>
+      </div>
+      <div class="card">
+        <h3>Timeline</h3>
+        <ol class="tl">
+          <li><div class="y">1910 to 1945</div><div class="w">Japanese occupation of Korea. Korean martial arts are suppressed.</div></li>
+          <li class="big"><div class="y">1955</div><div class="w">The name "Taekwondo" is adopted. General Choi Hong Hi, a South Korean army general, is widely called the "Father of Taekwondo".</div></li>
+          <li><div class="y">1966</div><div class="w">General Choi founds the International Taekwon-Do Federation (ITF).</div></li>
+          <li><div class="y">1972</div><div class="w">The Kukkiwon opens in Seoul. It is the World Taekwondo Headquarters and issues official Dan certificates.</div></li>
+          <li class="big"><div class="y">1973</div><div class="w">The World Taekwondo Federation (WTF) is founded, with Kim Un-yong as its first president. It is now called World Taekwondo (WT).</div></li>
+          <li><div class="y">1988</div><div class="w">Taekwondo is a demonstration sport at the Seoul Olympics.</div></li>
+          <li><div class="y">1992</div><div class="w">It is a demonstration sport again, at the Barcelona Olympics.</div></li>
+          <li class="big"><div class="y">2000</div><div class="w">Taekwondo becomes an official Olympic medal sport at the Sydney Olympics. Australia's Lauren Burns wins gold.</div></li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>ITF and World Taekwondo</h3>
+        <p class="muted">There are two main branches of Taekwondo today.</p>
+        <div class="two">
+          <div class="branch"><b>ITF</b>Founded by General Choi. Known for its traditional patterns.</div>
+          <div class="branch ama"><b>World Taekwondo</b>Linked to the Kukkiwon. Runs Olympic Taekwondo and uses the Taeguk and Kukkiwon black belt patterns. These are the patterns AMA's black belt curriculum uses.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tenets and terms -->
+    <div class="panel" role="tabpanel" id="p-tenets" aria-labelledby="t-tenets" hidden>
+      <div class="card">
+        <h3>The five tenets of Taekwondo</h3>
+        <div class="facts">
+          <div class="fact"><div class="en">Courtesy</div><div class="ko">Ye Ui</div><div class="m">Respect for others: instructors, training partners and everyone you meet.</div></div>
+          <div class="fact"><div class="en">Integrity</div><div class="ko">Yom Chi</div><div class="m">Honesty, and knowing right from wrong.</div></div>
+          <div class="fact"><div class="en">Perseverance</div><div class="ko">In Nae</div><div class="m">Never giving up, even when it's hard.</div></div>
+          <div class="fact"><div class="en">Self-control</div><div class="ko">Guk Gi</div><div class="m">Control of your emotions, actions and reactions.</div></div>
+          <div class="fact"><div class="en">Indomitable spirit</div><div class="ko">Baekjul Boolgool</div><div class="m">The courage to face fear and challenge without backing down.</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Korean terms to know</h3>
+        <div class="terms">
+          <div class="term"><b>Dojang</b><span>Training hall (jang means place)</span></div>
+          <div class="term"><b>Dobok</b><span>Uniform</span></div>
+          <div class="term"><b>Kihap</b><span>Spirit yell</span></div>
+          <div class="term"><b>Charyeot</b><span>Attention</span></div>
+          <div class="term"><b>Kyeongnye</b><span>Bow</span></div>
+          <div class="term"><b>Junbi</b><span>Ready</span></div>
+          <div class="term"><b>Sijak</b><span>Begin</span></div>
+          <div class="term"><b>Poomsae</b><span>Patterns</span></div>
+          <div class="term"><b>Gyeorugi</b><span>Sparring</span></div>
+          <div class="term"><b>Kyukpa</b><span>Board breaking</span></div>
+          <div class="term"><b>Hosinsul</b><span>Self-defence</span></div>
+          <div class="term"><b>Yeop Chagi</b><span>Side kick</span></div>
+          <div class="term"><b>Dut Chagi</b><span>Back kick</span></div>
+          <div class="term"><b>Naeryo Chagi</b><span>Axe kick</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Patterns -->
+    <div class="panel" role="tabpanel" id="p-patterns" aria-labelledby="t-patterns" hidden>
+      <div class="card">
+        <h3>Taeguk patterns (colour belt)</h3>
+        <p class="muted">Each Taeguk pattern stands for one of the eight trigrams of the I Ching. We train Taeguk 4 to 7 together on the morning of the grading, just for fun.</p>
+        <div class="tg">
+          <div class="tgc"><div class="n">Taeguk 1</div><div class="p">Il Jang</div><div class="r">Heaven and light</div><div class="tri">Keon</div></div>
+          <div class="tgc"><div class="n">Taeguk 2</div><div class="p">Ee Jang</div><div class="r">Lake (joy)</div><div class="tri">Tae</div></div>
+          <div class="tgc"><div class="n">Taeguk 3</div><div class="p">Sam Jang</div><div class="r">Fire</div><div class="tri">Ri</div></div>
+          <div class="tgc fun"><span class="tag">Sat am</span><div class="n">Taeguk 4</div><div class="p">Sa Jang</div><div class="r">Thunder</div><div class="tri">Jin</div></div>
+          <div class="tgc fun"><span class="tag">Sat am</span><div class="n">Taeguk 5</div><div class="p">O Jang</div><div class="r">Wind</div><div class="tri">Seon</div></div>
+          <div class="tgc fun"><span class="tag">Sat am</span><div class="n">Taeguk 6</div><div class="p">Yuk Jang</div><div class="r">Water</div><div class="tri">Gam</div></div>
+          <div class="tgc fun"><span class="tag">Sat am</span><div class="n">Taeguk 7</div><div class="p">Chil Jang</div><div class="r">Mountain</div><div class="tri">Gan</div></div>
+          <div class="tgc"><div class="n">Taeguk 8</div><div class="p">Pal Jang</div><div class="r">Earth</div><div class="tri">Gon</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Black belt patterns</h3>
+        <ul class="bbp">
+          <li><span class="p">Koryo</span><span class="lv">1st Dan</span><span class="m">Named after the Goryeo Dynasty (918 to 1392), which gave Korea its name.</span></li>
+          <li><span class="p">Keumgang</span><span class="lv">2nd Dan</span><span class="m">Diamond: so hard it cannot be broken (also the name of Mt Keumgang).</span></li>
+          <li><span class="p">Tae Baek</span><span class="lv">3rd Dan</span><span class="m">"Bright mountain", after Mt Taebaek.</span></li>
+          <li><span class="p">Pyongwon</span><span class="lv">4th Dan</span><span class="m">A vast plain, the foundation of life.</span></li>
+          <li><span class="p">Sipjin</span><span class="lv">4th Dan L2 → L3</span><span class="m">The ten longevities: sun, moon, mountain, water, stone, pine, the herb of youth, tortoise, deer and crane.</span></li>
+          <li><span class="p">Jitae</span><span class="lv">5th Dan</span><span class="m">Earth, a person standing firm on the ground.</span></li>
+        </ul>
+        <p class="muted" style="margin-top:12px">The level shows when each pattern is first in AMA's curriculum.</p>
+      </div>
+    </div>
+
+    <!-- About AMA -->
+    <div class="panel" role="tabpanel" id="p-ama" aria-labelledby="t-ama" hidden>
+      <div class="card">
+        <h3>About AMA</h3>
+        <p>Australian Martial Arts was founded in <b>1982</b> by <b>Grand Master Ridvan</b>. It is one of Australia's largest and longest-running martial arts schools, with more than 40 years of teaching.</p>
+      </div>
+      <div class="card">
+        <h3>Our philosophy</h3>
+        <p>At AMA, martial arts is about building stronger, more resilient people, not just about fighting. We want every student to face life's challenges with confidence, integrity and perseverance. Our core values are:</p>
+        <ul class="vals">
+          <li><b>Respect for tradition:</b> honouring the martial arts teachings passed down through generations.</li>
+          <li><b>Community and family:</b> students support and learn from each other, so every school feels like a family.</li>
+          <li><b>Excellence:</b> pushing your limits, whether that's earning higher ranks, competing, or reaching personal goals.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Our main styles</h3>
+        <p>AMA runs five main martial arts styles: <b>Taekwondo, Brazilian Jiu-Jitsu, Kickboxing, Kung Fu and Tricking</b>. Taekwondo classes start at Mini Dragons (18 months to 3 years) and go through to Adults, with Family classes as well.</p>
+      </div>
+      <div class="card">
+        <h3>The AMA belt journey (Taekwondo)</h3>
+        <div class="belts" id="belts"></div>
+      </div>
+      <div class="card">
+        <h3>Black belt curriculum facts</h3>
+        <ul class="vals">
+          <li>Board breaking gets harder at each Dan: <b>2 directions</b> for 2nd Dan, <b>3 directions</b> for 3rd Dan, and <b>4 directions</b> for 4th Dan.</li>
+          <li>Patterns build on each other at every level. Going for 4th Dan you perform Pal Jang, Koryo, Keumgang and Tae Baek continuously. <b>Pyongwon</b> is added at 4th Dan, and <b>Sipjin</b> is added at 4th Dan Level 2 → Level 3.</li>
+          <li>Kickboxing combos in black belt gradings are all done on focus mitts.</li>
+        </ul>
+      </div>
+      <div class="card give">
+        <h3>Giving back</h3>
+        <p>AMA's second-hand uniform store is run on a not-for-profit basis. It was started about 10 years ago by a long-term AMA family. <b>100% of its profits go to the National Breast Cancer Foundation.</b> Items sell for $5 to $10.</p>
+        <div class="big-n">$50,000+</div><div class="muted">raised so far</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="arrive">
+    <div class="sh"><h2>Before you arrive</h2></div>
+    <div class="card">
+      <ul class="check" id="check">
+        <li><label><input type="checkbox" data-k="dobok"><span>Clean dobok and belt</span></label></li>
+        <li><label><input type="checkbox" data-k="gear"><span>Full sparring gear: chest guard, gloves, head gear, mouth guard</span></label></li>
+        <li><label><input type="checkbox" data-k="food"><span>Water, lunch and snacks</span></label></li>
+        <li><label><input type="checkbox" data-k="phone"><span>Phone charged for the quiz</span></label></li>
+        <li><label><input type="checkbox" data-k="show"><span>Showcase rehearsed and ready</span></label></li>
+        <li><label><input type="checkbox" data-k="study"><span>Study hub read through</span></label></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer><img src="/icons/ama-logo.png" alt="">Australian Martial Arts Academy</footer>
+
+<script>
+(function () {
+  // tabs (arrow keys move between them)
+  var tabs = [].slice.call(document.querySelectorAll('[role=tab]'));
+  function pick(t, focus) {
+    tabs.forEach(function (x) { var on = x === t; x.setAttribute('aria-selected', on); x.tabIndex = on ? 0 : -1; document.getElementById(x.getAttribute('aria-controls')).hidden = !on; });
+    if (focus) t.focus();
+    try { sessionStorage.setItem('b4d_tab', t.id); } catch (e) {}
+  }
+  tabs.forEach(function (t, i) {
+    t.onclick = function () { pick(t); var s = document.getElementById('study'); if (s.getBoundingClientRect().top < 0) s.scrollIntoView(); };
+    t.onkeydown = function (e) { var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (d) { e.preventDefault(); pick(tabs[(i + d + tabs.length) % tabs.length], true); } };
+  });
+  try { var last = document.getElementById(sessionStorage.getItem('b4d_tab')); if (last) pick(last); } catch (e) {}
+
+  // belt journey chips
+  var C = { White: '#fff', Yellow: '#f5cf1f', Orange: '#f08a24', Green: '#2f9e52', Blue: '#2f6fd6', Purple: '#7d4cc2', Brown: '#7a4a26', Red: '#d8362f', 'Red 2': '#d8362f', 'Red 3': '#d8362f', 'Cho Dan Bo': '#1a1a1a' };
+  var J = ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Red', 'Red 2', 'Red 3', 'Cho Dan Bo', 'Probationary Black Belt', '1st Dan', '1st Dan Level 1', '2nd Dan', '2nd Dan Level 1', '2nd Dan Level 2', '3rd Dan', '3rd Dan Level 1', '3rd Dan Level 2', '3rd Dan Level 3', '4th Dan and beyond'];
+  document.getElementById('belts').innerHTML = J.map(function (b, i) {
+    var bg = C[b] || '#0E0E0E', fg = (b === 'White' || b === 'Yellow') ? '#1c1c1c' : (C[b] ? '#fff' : '#FFD200');
+    return (i ? '<span class="arrow">→</span>' : '') + '<span class="belt" style="background:' + bg + ';color:' + fg + '">' + b + '</span>';
+  }).join('');
+
+  // checklist remembered on this device
+  [].forEach.call(document.querySelectorAll('#check input'), function (c) {
+    var k = 'b4d_chk_' + c.dataset.k;
+    try { c.checked = localStorage.getItem(k) === '1'; } catch (e) {}
+    c.onchange = function () { try { c.checked ? localStorage.setItem(k, '1') : localStorage.removeItem(k); } catch (e) {} };
+  });
+
+  // on the day, mark what's on now (Sydney time)
+  var rows = [].slice.call(document.querySelectorAll('#sched li'));
+  function tick() {
+    var p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+    var g = function (t) { return (p.find(function (x) { return x.type === t; }) || {}).value; };
+    var day = g('year') + '-' + g('month') + '-' + g('day'), now = (g('hour') === '24' ? '00' : g('hour')) + ':' + g('minute');
+    rows.forEach(function (r) { r.classList.remove('now', 'past'); });
+    if (day !== '2026-11-28') return;
+    var cur = -1; rows.forEach(function (r, i) { if (r.dataset.at <= now) cur = i; });
+    if (now >= '16:00') cur = rows.length - 1;
+    rows.forEach(function (r, i) { if (i < cur) r.classList.add('past'); else if (i === cur) r.classList.add('now'); });
+  }
+  tick(); setInterval(tick, 30000);
+})();
+</script>
+</body>
+</html>
