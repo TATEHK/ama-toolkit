@@ -932,7 +932,7 @@ $('#reqForm').addEventListener('submit', async e => {
 /* ---- grading-day rosters: build here, Mark approves, then each person is texted their shift ---- */
 const RO_LABEL = { draft: 'Draft', submitted: 'Waiting for Mark', approved: 'Approved', declined: 'Declined' };
 const rosterOf = id => ROSTERS.find(r => r.day_id === id) || null;
-const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r.status}${r.status === 'approved' && r.notified_at ? ' · texted' : ''}</span>` : '';
+const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r.status}${r.status === 'approved' && r.deputy_at ? ' · in Deputy' : ''}${r.status === 'approved' && r.notified_at ? ' · texted' : ''}</span>` : '';
 function rosterBtn(g){ const r = rosterOf(g.day_id); return `<button class="btn mini" data-roster="${g.day_id}">${r ? 'Roster' : 'Build roster'}</button>${r ? roTag(r) : ''}`; }
 function rosterWaiting(){
   const w = ROSTERS.filter(r => r.status === 'submitted'); if(!w.length) return '';
@@ -979,20 +979,20 @@ function drawRoActs(){
   const b = [];
   b.push('<button type="button" class="btn" id="roClose">Close</button>');
   if(isAdmin && st === 'submitted') b.push('<button type="button" class="btn" id="roDecline">Decline</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
-  else if(isAdmin && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
+  else if(isAdmin && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots||[]).some(x => x.name && !x.deputy_id) ? ['<button type="button" class="btn" id="roDeputy">Add to Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
   else if(isAdmin) b.push('<button type="button" class="btn" id="roSave">Save draft</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
   else b.push('<button type="button" class="btn" id="roSave">Save draft</button>', `<button type="button" class="btn primary" id="roSubmit">${st === 'approved' || st === 'declined' ? 'Send changes to Mark' : 'Send to Mark'}</button>`);
   $('#roActs').innerHTML = b.join('');
   $('#roClose').onclick = closeRoster;
   const on = (id, f) => { const el = $('#' + id); if(el) el.onclick = () => f(el); };
   on('roSave', el => saveRoster(false, el)); on('roSubmit', el => saveRoster(true, el));
-  on('roApprove', el => decideRoster('approved', el)); on('roDecline', el => decideRoster('declined', el)); on('roText', textRoster);
+  on('roApprove', el => decideRoster('approved', el)); on('roDecline', el => decideRoster('declined', el)); on('roText', textRoster); on('roDeputy', el => deputyRoster(el));
 }
 document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-addrole]'); if(!a || !RO) return;
   const st = startOf(RO.day_id); RO.slots.push({ role: a.dataset.addrole, start: st ? String(st).slice(0,5) : '', end: '', name: '', mobile: '' }); drawSlots();
   const ins = $('#roSlots').querySelectorAll('.slot [data-f="name"]'); const last = [...ins].filter(x => RO.slots[+x.closest('.slot').dataset.i].role === a.dataset.addrole).pop(); if(last) last.focus(); });
 function closeRoster(){ $('#rosterModal').hidden = true; RO = null; }
-const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: x.role, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(), email: x.email || null, helper_id: x.helper_id || null }));
+const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: x.role, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(), email: x.email || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null }));
 async function saveRoster(submit, btn){
   const slots = cleanSlots();
   if(submit && !slots.length) return roErr('Add at least one person.');
@@ -1010,8 +1010,30 @@ async function decideRoster(status, btn){
   btn.disabled = false;
   if(error || (data && data.error)) return roErr('Not saved: ' + ((error && error.message) || data.error));
   await load();
-  if(status === 'approved'){ RO.r = rosterOf(RO.day_id); $('#roStatus').innerHTML = roTag(RO.r); drawRoActs(); roErr(''); }
+  if(status === 'approved'){ RO.r = rosterOf(RO.day_id); $('#roStatus').innerHTML = roTag(RO.r); drawRoActs(); roErr(''); deputyRoster(null); }
   else closeRoster();
+}
+// approved: make each person's shift in Deputy (published, so Deputy tells them too)
+async function deputyRoster(btn, opunit){
+  if(btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
+  roErr('Adding the shifts to Deputy…');
+  try{
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/cb', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, Authorization: 'Bearer ' + session.access_token }, body: JSON.stringify({ action: 'roster_deputy', day_id: RO.day_id, opunit_id: opunit || undefined }) });
+    const j = await r.json().catch(() => ({}));
+    if(j.pick_area){
+      roErr('');
+      $('#roDec').hidden = false;
+      $('#roDec').innerHTML = `Which Deputy area should these shifts go in?<select id="roArea" style="display:block;width:100%;margin:8px 0">${(j.areas||[]).map(a => `<option value="${a.id}">${esc(a.name)}${a.location ? ' · ' + esc(a.location) : ''}</option>`).join('')}</select><button type="button" class="btn primary mini" id="roAreaGo">Add to Deputy</button>`;
+      $('#roAreaGo').onclick = () => { const v = $('#roArea').value; $('#roDec').hidden = true; deputyRoster(null, v); };
+      if(btn){ btn.disabled = false; btn.textContent = 'Add to Deputy'; }
+      return;
+    }
+    if(!r.ok || j.error) throw new Error(j.error || 'Not added');
+    const bad = (j.results || []).filter(x => x.status !== 'shift made' && x.status !== 'already in Deputy');
+    await load(); RO.r = rosterOf(RO.day_id); if(RO.r) RO.slots = JSON.parse(JSON.stringify(RO.r.slots || [])); $('#roStatus').innerHTML = roTag(RO.r); drawRoActs();
+    roErr(`Deputy (${j.area}): ${j.made} shift${j.made === 1 ? '' : 's'} made${bad.length ? `. Not added: ${bad.map(x => x.name + ' (' + (x.error || x.status) + ')').join(', ')}` : ''}`);
+  }catch(e){ if(btn){ btn.disabled = false; btn.textContent = 'Add to Deputy'; } roErr(String(e.message || e)); }
 }
 async function textRoster(btn){
   btn.disabled = true; btn.textContent = 'Sending…'; roErr('');
