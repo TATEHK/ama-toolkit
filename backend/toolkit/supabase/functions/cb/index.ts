@@ -3032,7 +3032,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (!name) continue;
         if (!phone) { res.push({ name, status: 'no mobile' }); continue; }
         const span = sl.start ? (t12(sl.start) + (sl.end ? ' to ' + t12(sl.end) : '')) : 'all day';
-        const text = `Hi ${first(name) || 'there'}, you're rostered on as ${String(sl.job || 'floor staff').toLowerCase().replace(/^little dragons/, 'Little Dragons')} at ${SCHOOL(r.location)} on ${when}, ${span}. Thanks - AMA`;
+        const text = `Hi ${first(name) || 'there'}, you're rostered on as ${String(sl.job || 'floor staff').toLowerCase().replace(/^little dragons/, 'Little Dragons')} at ${SCHOOL(r.location)}${sl.moved_from && sl.moved_from !== r.location ? ` (not ${SCHOOL(sl.moved_from)})` : ''} on ${when}, ${span}. Thanks - AMA`;
         try {
           const cid = await contactFor({ guardian_name: name, full_name: name, email: sl.email || null }, phone);
           if (!cid) throw new Error('could not find or add them in GoHighLevel');
