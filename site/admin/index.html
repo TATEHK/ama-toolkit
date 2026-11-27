@@ -360,7 +360,7 @@
     <div class="rhead"><div><h3 id="roTitle">Roster</h3><div class="muted" id="roSub"></div></div><span id="roStatus"></span></div>
     <div id="roSlots"></div>
     <div class="roadd"><button type="button" class="btn mini" data-addrole="floor">+ Floor staff</button><button type="button" class="btn mini" data-addrole="admin">+ Admin</button></div>
-    <label>Note for Mark <span class="muted">(optional)</span><textarea id="roNote" rows="2" maxlength="2000"></textarea></label>
+    <label>Note <span class="muted">(optional)</span><textarea id="roNote" rows="2" maxlength="2000"></textarea></label>
     <div class="rodec" id="roDec" hidden></div>
     <div class="reqerr" id="roErr" hidden></div>
     <div class="reqact" id="roActs"></div>
@@ -641,10 +641,10 @@ function render(){
      </div>
      ${['notbooked','unpaid'].includes(openKey) ? needDetail(openKey) : ''}`;
   const gradingsBlock =
-    `<h2>Upcoming gradings${scope?` — ${esc(scope)}`:''} — ${gr.length}</h2>${isAdmin?'<div style="margin:-4px 0 12px"><button class="btn mini" id="rsetBtn">Roster defaults</button></div>':''}
+    `<h2>Upcoming gradings${scope?` — ${esc(scope)}`:''} — ${gr.length}</h2>${canApprove()?'<div style="margin:-4px 0 12px"><button class="btn mini" id="rsetBtn">Roster defaults</button></div>':''}
      <div class="grds">${gr.map(grdCard).join('') || `<div class="muted">No upcoming gradings${scope?' · '+esc(scope):''}.</div>`}</div>`;
 
-  const actionN = (isAdmin ? ROSTERS.filter(r => r.status === 'submitted').length : 0) + (d.requests_open||0) + d.bbc_actions.count + errN + d.failed_messages.count + nbN + upN;
+  const actionN = (canApprove() ? ROSTERS.filter(r => r.status === 'submitted').length : 0) + (d.requests_open||0) + d.bbc_actions.count + errN + d.failed_messages.count + nbN + upN;
   const tabBar = `<div class="otabs" role="tablist">${OTABS.map(([k,l])=>`<button class="otab ${OTAB===k?'on':''}" data-tab="${k}">${l}${k==='action'&&actionN?`<span class="tb">${actionN}</span>`:''}</button>`).join('')}</div>`;
 
   let body;
@@ -937,8 +937,9 @@ $('#reqForm').addEventListener('submit', async e => {
   if(error){ reqErr('Could not send — ' + (error.message || 'try again')); return; }
   closeReq(); await load();
 });
+const canApprove = () => !!(RSET && RSET.me_approves);   // Tate and Mark approve rosters
 /* ---- grading-day rosters: build here, Mark approves, then each person is texted their shift ---- */
-const RO_LABEL = { draft: 'Draft', submitted: 'Waiting for Mark', approved: 'Approved', declined: 'Declined' };
+const RO_LABEL = { draft: 'Draft', submitted: 'Waiting for approval', approved: 'Approved', declined: 'Declined' };
 const rosterOf = id => ROSTERS.find(r => r.day_id === id) || null;
 const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r.status}${r.status === 'approved' && r.deputy_at ? ' · in Deputy' : ''}${r.status === 'approved' && r.notified_at ? ' · texted' : ''}</span>` : '';
 function rosterBtn(g){ const r = rosterOf(g.day_id), L = limitsOf(g.day_id), n = r ? (r.slots||[]).filter(x => x.name).length : 0, need = L.floor.need + L.admin.need;
@@ -959,7 +960,7 @@ function rosterWaiting(){
   return `<div class="reqlist">${w.map(r => `<div class="reqc open"><div class="rtop"><span class="rb roster">Roster</span><b>${fmtDate(r.grading_date)} · ${esc(r.location||'')}</b></div>
     <div class="rdet">${(r.slots||[]).filter(x=>x.name).length} people: ${(r.slots||[]).filter(x=>x.role==='floor'&&x.name).length} floor, ${(r.slots||[]).filter(x=>x.role==='admin'&&x.name).length} admin${r.note?` · ${esc(r.note)}`:''}</div>
     <div class="rmeta">${esc(r.submitted_by||'someone')} · ${fmtWhen(r.submitted_at)}</div>
-    <div class="racts roswait">${isAdmin ? `<button class="btn primary" data-roster="${r.day_id}">Review roster</button>` : '<span class="rwait">Waiting for Mark to approve</span>'}</div></div>`).join('')}</div>`;
+    <div class="racts roswait">${canApprove() ? `<button class="btn primary" data-roster="${r.day_id}">Review roster</button>` : '<span class="rwait">Waiting for Tate or Mark to approve</span>'}</div></div>`).join('')}</div>`;
 }
 let RO = null;   // { day_id, g, slots, people }
 const roErr = t => { const e = $('#roErr'); e.textContent = t || ''; e.hidden = !t; };
@@ -974,7 +975,7 @@ async function openRoster(dayId){
   $('#roSub').textContent = `${fmtDate(g.grading_date)} · ${g.location || ''}${st ? ' · starts ' + fmtTime(st) : ''}`;
   $('#roStatus').innerHTML = roTag(r);
   $('#roNote').value = (r && r.note) || '';
-  $('#roDec').hidden = !(r && r.decision_note); $('#roDec').textContent = r && r.decision_note ? `Mark: ${r.decision_note}` : '';
+  $('#roDec').hidden = !(r && r.decision_note); $('#roDec').textContent = r && r.decision_note ? `Approver's note: ${r.decision_note}` : '';
   roErr(''); drawSlots(); drawRoActs();
   $('#rosterModal').hidden = false;
   try { const { data } = await sb.rpc('cb_ops_roster_people', { p_day_id: dayId }); RO.people = data || []; } catch(e){ RO.people = []; }
@@ -1004,10 +1005,10 @@ function drawRoActs(){
   const r = RO.r, st = r ? r.status : 'draft';
   const b = [];
   b.push('<button type="button" class="btn" id="roClose">Close</button>');
-  if(isAdmin && st === 'submitted') b.push('<button type="button" class="btn" id="roDecline">Decline</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
-  else if(isAdmin && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots||[]).some(x => x.name && !x.deputy_id) ? ['<button type="button" class="btn" id="roDeputy">Add to Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
-  else if(isAdmin) b.push('<button type="button" class="btn" id="roSave">Save draft</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
-  else b.push('<button type="button" class="btn" id="roSave">Save draft</button>', `<button type="button" class="btn primary" id="roSubmit">${st === 'approved' || st === 'declined' ? 'Send changes to Mark' : 'Send to Mark'}</button>`);
+  if(canApprove() && st === 'submitted') b.push('<button type="button" class="btn" id="roDecline">Decline</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
+  else if(canApprove() && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots||[]).some(x => x.name && !x.deputy_id) ? ['<button type="button" class="btn" id="roDeputy">Add to Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
+  else if(canApprove()) b.push('<button type="button" class="btn" id="roSave">Save draft</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
+  else b.push('<button type="button" class="btn" id="roSave">Save draft</button>', `<button type="button" class="btn primary" id="roSubmit">${st === 'approved' || st === 'declined' ? 'Send changes for approval' : 'Send for approval'}</button>`);
   $('#roActs').innerHTML = b.join('');
   $('#roClose').onclick = closeRoster;
   const on = (id, f) => { const el = $('#' + id); if(el) el.onclick = () => f(el); };
