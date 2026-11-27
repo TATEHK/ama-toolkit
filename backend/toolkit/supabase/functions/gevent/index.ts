@@ -225,10 +225,14 @@ export async function handle(req, db, env = {}) {
 
     if (body.action === 'host_state') {
       const [qz, { data: pl }, { data: ans }] = await Promise.all([getQ(), db.from('ge_players').select('cand_id, via, joined_at, submitted_at, rounds, first_score, redo').eq('event_id', ev.event_id),
-        db.from('ge_answers').select('cand_id, correct').eq('event_id', ev.event_id)]);
+        db.from('ge_answers').select('cand_id, q_ix, correct').eq('event_id', ev.event_id)]);
       const prog = {};
-      for (const a of ans || []) { const p = prog[a.cand_id] || (prog[a.cand_id] = { answered: 0, correct: 0 }); p.answered++; if (a.correct) p.correct++; }
-      return json({ ok: true, server_now: now, quiz: qz, total: QN, pass_mark: quiz.pass_mark, players: (pl || []).map(p => ({ ...p, ...(prog[p.cand_id] || { answered: 0, correct: 0 }) })) });
+      // per question (staff only): how many have answered it, how many are wrong right now, and how many were sent back to redo it
+      const qstats = quiz.questions.map(() => ({ answered: 0, wrong: 0, redo: 0 }));
+      for (const a of ans || []) { const p = prog[a.cand_id] || (prog[a.cand_id] = { answered: 0, correct: 0 }); p.answered++; if (a.correct) p.correct++;
+        const q = qstats[a.q_ix]; if (q) { q.answered++; if (!a.correct) q.wrong++; } }
+      for (const p of pl || []) if (Array.isArray(p.redo) && !p.submitted_at) for (const ix of p.redo) if (qstats[ix]) qstats[ix].redo++;
+      return json({ ok: true, server_now: now, quiz: qz, total: QN, pass_mark: quiz.pass_mark, qstats, players: (pl || []).map(p => ({ ...p, ...(prog[p.cand_id] || { answered: 0, correct: 0 }) })) });
     }
     if (body.action === 'tablet') {
       const c = cands.find(x => x.id === body.cand_id); if (!c) return fail('Who is playing?');
