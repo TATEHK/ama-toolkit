@@ -1144,10 +1144,17 @@ async function saveSettingsNow() {
   });
   if (error) toast('Settings could not be saved: ' + errMsg(error), 6000);
 }
+// background refreshes: put every scrolled box (and the page) back where it was after redrawing
+function keepScroll(fn){
+  const kept=[]; document.querySelectorAll('*').forEach(e=>{ if(e.scrollTop>0||e.scrollLeft>0){ const cls=typeof e.className==='string'?e.className.trim().split(/\s+/)[0]:''; const sel=e.id?'#'+CSS.escape(e.id):e.tagName+(cls?'.'+CSS.escape(cls):''); kept.push({sel,i:[...document.querySelectorAll(sel)].indexOf(e),t:e.scrollTop,l:e.scrollLeft}); } });
+  const y=window.scrollY; try{ return fn(); } finally {
+    kept.forEach(k=>{ const el=document.querySelectorAll(k.sel)[k.i]; if(el){ el.scrollTop=k.t; el.scrollLeft=k.l; } });
+    if(window.scrollY!==y) window.scrollTo(0,y); }
+}
 async function loadJobs() {
   const { data, error } = await sb.from('print_jobs').select('*').in('status', WAITING).order('created_at', { ascending: true }).limit(50);
   if (error) return;
-  state.jobs = data || []; renderJobs();
+  state.jobs = data || []; keepScroll(renderJobs);
 }
 async function loadStation() {
   const { data } = await sb.from('print_station').select('*').eq('id', 1).maybeSingle();
