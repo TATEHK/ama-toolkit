@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#141311">
+<title>Your availability · AMA</title>
+<link rel="icon" href="/icons/ama-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<script src="/config.js"></script>
+<style>
+  :root { --night:#141311; --bg:#F2F0EB; --surface:#FBFAF7; --line:rgba(28,26,22,.12); --ink:#1C1A16; --ink-2:#57534B; --muted:#8A857B; --gold:#FFD200; --ok:#2f7d4f; --no:#b2402f; --disp:Oswald,"Arial Narrow",Arial,sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 "Source Sans 3", "Segoe UI", Arial, sans-serif; }
+  header { background: var(--night); color: #F4F1EA; padding: 28px 20px 32px; }
+  .in { max-width: 600px; margin: 0 auto; }
+  header img { width: 40px; height: 40px; display: block; margin-bottom: 16px; }
+  h1 { font: 600 32px/1.1 var(--disp); margin: 0 0 8px; }
+  header p { color: #B9B4A9; margin: 0; }
+  main { max-width: 600px; margin: 0 auto; padding: 20px 16px 48px; }
+  .note { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .note b { display: block; margin-bottom: 4px; }
+  .day { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .dh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+  .dh b { font: 500 21px var(--disp); }
+  .dh span { color: var(--ink-2); font-size: 15px; }
+  .opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .opts button { min-height: 48px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 10px; font: 600 15px "Source Sans 3", Arial, sans-serif; cursor: pointer; }
+  .opts button[aria-pressed="true"].yes { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .opts button[aria-pressed="true"].part { background: var(--gold); border-color: var(--gold); color: #141311; }
+  .opts button[aria-pressed="true"].no { background: var(--no); border-color: var(--no); color: #fff; }
+  .part-times { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .part-times input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .day textarea { width: 100%; margin-top: 10px; font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; resize: vertical; }
+  .save { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%); padding: 20px 0 calc(12px + env(safe-area-inset-bottom)); }
+  .save button { width: 100%; min-height: 54px; border: 0; border-radius: 12px; background: var(--night); color: #F4F1EA; font: 600 17px "Source Sans 3", Arial, sans-serif; cursor: pointer; }
+  .save button:disabled { opacity: .5; }
+  .msg { text-align: center; margin-top: 10px; font-weight: 600; min-height: 24px; }
+  .msg.ok { color: var(--ok); } .msg.bad { color: var(--no); }
+  .empty { text-align: center; color: var(--ink-2); padding: 40px 0; }
+</style>
+</head>
+<body>
+<header><div class="in"><img src="/icons/ama-logo.png" alt="AMA"><h1 id="hi">Grading availability</h1><p>Marrickville gradings coming up</p></div></header>
+<main id="m"><div class="empty">Loading…</div></main>
+<script>
+(function () {
+  var CFG = window.TOOLKIT_CONFIG || {};
+  var tok = (location.pathname.match(/\/a\/([A-Za-z0-9_-]{8,40})/) || [])[1] || (location.hash || '').slice(1);
+  var $ = function (s) { return document.querySelector(s); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var t12 = function (t) { var m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; var h = +m[1]; return ((h + 11) % 12 + 1) + (m[2] === '00' ? '' : ':' + m[2]) + (h < 12 ? 'am' : 'pm'); };
+  var DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function rpc(fn, args) {
+    return fetch(CFG.SUPABASE_URL + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, Authorization: 'Bearer ' + CFG.SUPABASE_KEY }, body: JSON.stringify(args) })
+      .then(function (r) { return r.json(); });
+  }
+  var DAYS = [], ST = {};
+  function draw() {
+    if (!DAYS.length) { $('#m').innerHTML = '<div class="empty">There are no Marrickville gradings coming up right now. Thanks for checking.</div>'; return; }
+    $('#m').innerHTML = '<div class="note"><b>These are not guaranteed shifts.</b>Telling us when you\'re free just helps us with rostering. If you\'re rostered on, we\'ll contact you and you\'ll get a notification with your shift.</div>' +
+      DAYS.map(function (d, i) {
+        var dt = new Date(d.date + 'T00:00:00'), s = ST[d.date] || {};
+        return '<div class="day"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b><span>' + ((d.starts || []).length ? 'Gradings ' + d.starts.map(t12).join(', ') : '') + '</span></div>' +
+          '<div class="opts" role="group" aria-label="Your availability">' +
+          [['yes', 'Free'], ['part', 'Part of the day'], ['no', 'Not free']].map(function (o) { return '<button type="button" class="' + o[0] + '" data-i="' + i + '" data-s="' + o[0] + '" aria-pressed="' + (s.status === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+          (s.status === 'part' ? '<div class="part-times">Free from <input type="time" data-i="' + i + '" data-f="from" value="' + esc(s.from || '') + '"> to <input type="time" data-i="' + i + '" data-f="to" value="' + esc(s.to || '') + '"></div>' : '') +
+          (s.status ? '<textarea rows="2" maxlength="300" placeholder="Anything we should know (optional)" data-i="' + i + '" data-f="note">' + esc(s.note || '') + '</textarea>' : '') +
+          '</div>';
+      }).join('') + '<div class="save"><button id="save" type="button">Save my availability</button><div class="msg" id="msg"></div></div>';
+    [].forEach.call(document.querySelectorAll('[data-s]'), function (b) { b.onclick = function () { var d = DAYS[+b.dataset.i].date, s = ST[d] = ST[d] || {}; s.status = s.status === b.dataset.s ? '' : b.dataset.s; draw(); }; });
+    [].forEach.call(document.querySelectorAll('[data-f]'), function (el) { el.oninput = function () { var d = DAYS[+el.dataset.i].date; (ST[d] = ST[d] || {})[el.dataset.f] = el.value; }; });
+    $('#save').onclick = save;
+  }
+  function save() {
+    var b = $('#save'), msg = $('#msg'); b.disabled = true; b.textContent = 'Saving…'; msg.textContent = ''; msg.className = 'msg';
+    var entries = DAYS.map(function (d) { var s = ST[d.date] || {}; return { date: d.date, status: s.status || '', from: s.from || null, to: s.to || null, note: s.note || null }; });
+    rpc('cb_avail_set', { p_token: tok, p_entries: entries }).then(function (j) {
+      b.disabled = false; b.textContent = 'Save my availability';
+      if (!j || j.error || j.message) { msg.textContent = 'Not saved. Please try again.'; msg.className = 'msg bad'; return; }
+      msg.textContent = 'Saved. Thank you. You can come back to this link any time to change it.'; msg.className = 'msg ok';
+    }, function () { b.disabled = false; b.textContent = 'Save my availability'; msg.textContent = 'No connection. Please try again.'; msg.className = 'msg bad'; });
+  }
+  if (!tok) { $('#m').innerHTML = '<div class="empty">This link isn\'t complete. Please use the link from your text message.</div>'; return; }
+  rpc('cb_avail_get', { p_token: tok }).then(function (j) {
+    if (!j || j.error || j.message) { $('#m').innerHTML = '<div class="empty">This link isn\'t working. Please ask AMA for a new one.</div>'; return; }
+    $('#hi').textContent = 'Hi ' + (j.first || 'there') + ', when are you free?';
+    DAYS = j.days || [];
+    DAYS.forEach(function (d) { if (d.mine) ST[d.date] = { status: d.mine.status, from: d.mine.from, to: d.mine.to, note: d.mine.note }; });
+    draw();
+  }, function () { $('#m').innerHTML = '<div class="empty">No connection. Please try again.</div>'; });
+})();
+</script>
+</body>
+</html>
