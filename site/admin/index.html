@@ -1055,14 +1055,16 @@ function rostersSection(){
     const gl0 = x.g.map(g => g.location), open0 = (k >= '2026-12-07' && k <= '2026-12-10') ? usualSchools(d) : [];
     const locs = [...new Set([...gl0, ...(gl0.includes('Marrickville') ? ['Sydenham'] : []), ...open0, ...x.r.map(r => r.location)])].filter(inSch);
     const us = usualSchools(d).filter(inSch).sort((a, b) => { const o = l => { const i = ROSTER_SCHOOLS.indexOf(l); return i < 0 ? 9 : i; }; return o(a) - o(b) || a.localeCompare(b); }).map(l => [l, usualOn(d, l).length]).filter(([, n]) => n);
-    const chips = locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l);
+    // boxes only for schools with a grading; other schools (Sydenham, open schools) go in the line at the bottom
+    const others = locs.filter(l => !gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l); return `${esc(SHORT(l))} ${filledOf(r)}/${needOf(r, l)}`; });
+    const chips = locs.filter(l => gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l);
       const n = filledOf(r), need = needOf(r, l), st = r ? r.status : (g ? 'none' : '');
       return `<span class="rc ${st}${r && n < need ? ' short' : ''}" title="${esc(SCHOOL(l))}${g ? ' · grading' : ''}">${g ? '<i></i>' : ''}${esc(SHORT(l))}} ${n}/${need}</span>`; }).join('');
     const av = x.a ? `<span class="ra">${x.a.yes + x.a.part} free</span>` : '';
     const gday = x.g.length > 0;   // rostering is only for days with gradings on
     const usual = gday && us.length ? `<span class="ru" title="Usually working">${us.map(([l, n]) => RSCH ? `${n} usually on` : `${esc(SHORT(l))} ${n}`).join(' · ')}</span>` : '';
     const tot = x.r.filter(r => inSch(r.location)).reduce((a, r) => a + (r.slots || []).filter(z => (z.name || '').trim()).length, 0);
-    const totl = gday || x.r.length ? `<span class="rtot">${tot} rostered</span>` : '';
+    const totl = (others.length ? `<span class="ru">${others.join(' · ')}</span>` : '') + (gday || x.r.length ? `<span class="rtot">${tot} rostered</span>` : '');
     return `<button class="rcell${out ? ' out' : ''}${k === today ? ' now' : ''}${k === RSELD ? ' sel' : ''}${gday || x.r.length ? ' gd' : ' nog'}" ${gday || x.r.length ? `data-rday="${k}"` : 'disabled'}><span class="rd">${d.getDate()}</span>${chips}${av}${usual}${totl}</button>`; };
   const waiting = (RMD.rosters || []).filter(r => r.status === 'submitted').length;
   let panel = '';
