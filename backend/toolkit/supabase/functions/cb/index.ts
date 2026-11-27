@@ -2930,7 +2930,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const sydParts = (sec: number) => { const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short' }).formatToParts(new Date(sec * 1000));
       const g = (t: string) => (p.find(x => x.type === t) || {} as any).value; const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(g('weekday'));
       return { date: `${g('year')}-${g('month')}-${g('day')}`, hm: `${g('hour') === '24' ? '00' : g('hour')}:${g('minute')}`, wd }; };
-    const depHost = String(env.DEPUTY_HOST || '748e6a11114707.au.deputy.com').replace(/^https?:\/\//, '').replace(/\/.*$/, ''), depTok = env.DEPUTY_TOKEN;
+    const depHost = String(Deno.env.get('DEPUTY_HOST') || '748e6a11114707.au.deputy.com').replace(/^https?:\/\//, '').replace(/\/.*$/, ''), depTok = (Deno.env.get('DEPUTY_TOKEN') || '').trim();   // read straight from the secrets (not in the env object)
     const dep = async (path: string, init: any = {}) => {
       if (!depTok) throw new Error('Deputy is not connected yet (add the DEPUTY_TOKEN secret in Supabase).');
       const r = await fetch('https://' + depHost + '/api/v1/' + path, { ...init, headers: { Authorization: 'Bearer ' + depTok, 'Content-Type': 'application/json', Accept: 'application/json', ...(init.headers || {}) } });
