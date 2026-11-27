@@ -2511,7 +2511,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
-    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || body.action === 'deputy_timesheet' || body.action === 'roster_review_notify' || body.action === 'deputy_clock_in' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
+    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || body.action === 'deputy_timesheet' || body.action === 'roster_review_notify' || body.action === 'deputy_clock_in' || body.action === 'sms_one' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
     if (!me && !cronSync) return fail('Sign in first.', 401);
     // AMA ID Cards: text and email people a link to upload a photo for their card. Needs ID Cards "Edit people" (or Admin).
     // { person_ids: [...], preview: true } returns the messages for the first person without sending.
@@ -3320,6 +3320,16 @@ export async function handle(req, db, env = {}, http = fetch) {
         catch (er) { res.push({ name: s.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
       }
       return json({ ok: true, results: res });
+    }
+
+    // ---- one text to one number (Tate and Mark, or scheduled). { phone, text, name? } ----
+    if (body.action === 'sms_one') {
+      if (!cronSync && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up.', 409);
+      const phone = phoneE164(String(body.phone || '')), text = String(body.text || '').trim().slice(0, 640);
+      if (!phone || !text) return fail('Need a mobile number and the text.');
+      try { const cid = await contactFor({ guardian_name: body.name || null, full_name: body.name || null, email: null }, phone); if (!cid) throw new Error('could not find or add them in GoHighLevel'); await sendSms(cid, text); return json({ ok: true, to: phone }); }
+      catch (er) { return fail(String(er.message || er)); }
     }
 
     if (body.action === 'helper_send') {
