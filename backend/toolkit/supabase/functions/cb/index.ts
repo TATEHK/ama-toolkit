@@ -2917,6 +2917,21 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
 
     // Text and email an invited helper their sign-up link. { student_id, preview: true } returns the exact messages without sending.
+    // ---- a problem reported on the Operations page: email Tate and Mark (the roster approvers). { request_id } ----
+    if (body.action === 'ops_request_notify') {
+      const { data: rq } = await db.from('cb_ops_requests').select('kind, title, details, requested_by_name, requested_by_email, created_at').eq('request_id', body.request_id).maybeSingle();
+      if (!rq) return fail('Request not found.', 404);
+      const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();
+      const who = rq.requested_by_name || rq.requested_by_email || 'Someone';
+      const subject = `Problem reported: ${rq.title}`;
+      const text = `${who} reported a problem on the Operations page.\n\n${rq.title}${rq.details ? '\n\n' + rq.details : ''}\n\nSee it on app.train-ama.com/admin/ under Requests.`;
+      const sent: string[] = [];
+      for (const em of (rs?.approvers || [])) {
+        try { const cid = await contactFor({ full_name: '', email: em }, null); if (cid) { await sendEmailTo(cid, buildSeqEmail(subject, text)); sent.push(em); } } catch (_) { /* keep going */ }
+      }
+      return json({ ok: true, sent });
+    }
+
     // ===== Rostering (one roster per day per school). Approving, texting, Deputy and availability links: the approvers in
     //       cb_roster_settings only (Tate and Mark). Deputy: DEPUTY_HOST (built in) and the DEPUTY_TOKEN secret. =====
     const rosterApprover = async () => { const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();

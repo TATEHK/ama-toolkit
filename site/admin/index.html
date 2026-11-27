@@ -377,7 +377,6 @@
     <h1>Operations</h1>
     <span class="sp" style="flex:1"></span>
     <span class="muted" id="updated"></span>
-    <button class="btn" id="refreshBtn">↻ Refresh</button>
     <button class="btn" id="signOutBtn">Sign out</button>
   </div></header>
 
@@ -465,7 +464,6 @@ function until(n){ n = +n; return n <= 0 ? 'today' : n === 1 ? 'tomorrow' : 'in 
 function showView(w){ $('#authView').hidden = w !== 'auth'; $('#noAccessView').hidden = w !== 'noaccess'; $('#appView').hidden = w !== 'app'; }
 
 async function load(){
-  $('#refreshBtn').disabled = true;
   try{
     const [{ data, error }, bb, d2, nt, ro, rs] = await Promise.all([
       sb.rpc('cb_ops_dashboard'),
@@ -483,7 +481,6 @@ async function load(){
     DATA = data; render();
     $('#updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }catch(e){ $('#board').innerHTML = `<div class="loading" style="color:var(--danger)">Couldn't load: ${esc(e.message||e)}</div>`; }
-  $('#refreshBtn').disabled = false;
 }
 
 function tile(key, n, label, sub, tone){
@@ -495,7 +492,7 @@ function detailFor(key){
   const d = DATA; if(!d) return '';
   const wrap = (title, rows, total, shown) => `<div class="detail"><h3>${esc(title)}</h3>${rows||'<div class="more">Nothing here — all clear.</div>'}${total>shown?`<div class="more">Showing ${shown} of ${total}.</div>`:''}</div>`;
   if(key === 'bbc'){ const it = d.bbc_actions.items;
-    return wrap('Black Belt Club sign-ups — set up EFC payment + call to confirm DDR', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span>${x.uniform?'<span class="tag">uniform</span>':''}<span class="meta">${x.phone?esc(x.phone)+' · ':''}waiting ${ago(x.waiting_days)}</span></div>`).join(''), d.bbc_actions.count, it.length); }
+    return wrap('Black Belt Club sign-ups — set up EFC payment + call to confirm DDR', it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span>${x.uniform?'<span class="tag">uniform</span>':''}<span class="meta">${x.phone?esc(x.phone)+' · ':''}waiting ${ago(x.waiting_days)}</span><button class="btn mini" data-bbcdone="${esc(x.key||'')}">Done</button></div>`).join(''), d.bbc_actions.count, it.length); }
   if(key === 'errors'){ const it = d.booking_errors.items.filter(inFilt);
     return wrap('Booking errors (EFC booking failed)'+(loc?` — ${loc}`:''), it.map(x=>`<div class="rowi"><span class="nm">${esc(x.name||'—')}</span><span class="err">${esc(x.error||'')}</span><span class="meta">${esc(x.location||'')} · ${fmtDate(x.grading_date)}</span></div>`).join(''), ((loc||prog)?it.length:d.booking_errors.count), it.length); }
   if(key === 'msgs'){ const it = d.failed_messages.items;
@@ -715,7 +712,13 @@ function render(){
   $('#board').querySelectorAll('.tile').forEach(b => b.onclick = () => { const k = b.dataset.key; openKey = openKey === k ? null : k; render(); });
   $('#board').querySelectorAll('.lchip[data-loc]').forEach(b => b.onclick = () => { loc = b.dataset.loc || null; render(); });
   $('#board').querySelectorAll('.lchip[data-prog]').forEach(b => b.onclick = () => { prog = b.dataset.prog || null; render(); });
-  const rr = $('#reqRoster'); if(rr) rr.onclick = () => openReq('roster');
+  $('#board').querySelectorAll('[data-bbcdone]').forEach(b => b.onclick = async () => {
+    if(b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'Mark done?'; return; }
+    b.disabled = true; b.textContent = 'Saving…';
+    const { error } = await sb.rpc('cb_ops_bbc_done', { p_key: b.dataset.bbcdone, p_name: me || null });
+    if(error){ b.disabled = false; b.textContent = 'Failed, tap again'; b.dataset.sure = ''; b.title = error.message; return; }
+    await load();
+  });
   const rp = $('#reqProblem'); if(rp) rp.onclick = () => openReq('problem');
   if(OTAB === 'rosters') wireRosters();
   $('#board').querySelectorAll('[data-ropen]').forEach(b => b.onclick = () => { const [d, l] = b.dataset.ropen.split('|'); openRoster(d, l); });
@@ -897,9 +900,9 @@ function requestsSection(){
   const recent = reqs.filter(r => r.status !== 'open');
   return `<section class="reqs">
     <div class="reqhead"><h2>Requests${open.length?` · ${open.length} open`:''}</h2>
-      <div class="reqbtns"><button class="btn primary" id="reqRoster">+ Request staff</button><button class="btn" id="reqProblem">+ Report a problem</button></div></div>
+      <div class="reqbtns"><button class="btn" id="reqProblem">+ Report a problem</button></div></div>
     ${rosterWaiting()}
-    <div class="reqlist">${open.map(reqCard).join('') || '<div class="muted">Nothing open. Use the buttons above to request staff for a grading, or flag something that needs fixing — it goes to Mark to action.</div>'}</div>
+    <div class="reqlist">${open.map(reqCard).join('') || '<div class="muted">Nothing open. Use Report a problem to flag something that needs fixing. It goes to Tate and Mark.</div>'}</div>
     ${recent.length?`<details class="reqrecent"><summary>Recently handled (${recent.length})</summary><div class="reqlist">${recent.map(reqCard).join('')}</div></details>`:''}
   </section>`;
 }
@@ -932,11 +935,11 @@ async function startApp(session){
   me = who; myPerms = perms; isAdmin = perms.includes('admin');
   showView('app');
   await load();
-  setInterval(() => { if(!document.hidden) load(); }, 120000);   // refresh every 2 min
+  // refreshes itself every minute (not while someone is typing)
+  setInterval(() => { const a = document.activeElement; if(!document.hidden && !(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) load(); }, 60000);
   document.addEventListener('visibilitychange', () => { if(!document.hidden) load(); });
 }
 
-$('#refreshBtn').onclick = load;
 
 /* ---- Find a student (search box above the tabs) ---- */
 let searchTimer = null;
@@ -971,7 +974,7 @@ function openReq(kind){
   reqKind = kind;
   $('#reqModalTitle').textContent = kind === 'roster' ? 'Request staff for a grading' : 'Report a problem';
   $('#reqMainLbl').textContent = kind === 'roster' ? 'What you need (e.g. 2 more examiners)' : "What's the problem?";
-  $('#reqSubmit').textContent = kind === 'roster' ? 'Send to Mark' : 'Send';
+  $('#reqSubmit').textContent = kind === 'roster' ? 'Send to Mark' : 'Send to Tate and Mark';
   $('#reqGradWrap').hidden = kind !== 'roster';
   if(kind === 'roster'){
     const opts = ((DATA && DATA.gradings) || []).map(g => `<option value="${g.day_id}">${fmtDate(g.grading_date)} · ${esc(g.location||'')}${g.bb?' (BB)':''}</option>`).join('');
@@ -990,9 +993,10 @@ $('#reqForm').addEventListener('submit', async e => {
   const day_id = reqKind === 'roster' ? ($('#reqGrad').value || null) : null;
   if(reqKind === 'roster' && !day_id){ reqErr('Pick a grading.'); return; }
   busy = true; $('#reqSubmit').disabled = true;
-  const { error } = await sb.rpc('cb_ops_request_create', { p_kind: reqKind, p_day_id: day_id, p_title: title, p_details: $('#reqDetails').value.trim() || null, p_name: me || null });
+  const { data: made, error } = await sb.rpc('cb_ops_request_create', { p_kind: reqKind, p_day_id: day_id, p_title: title, p_details: $('#reqDetails').value.trim() || null, p_name: me || null });
   busy = false; $('#reqSubmit').disabled = false;
   if(error){ reqErr('Could not send — ' + (error.message || 'try again')); return; }
+  if(reqKind === 'problem' && made && made.request_id) rosterCall({ action: 'ops_request_notify', request_id: made.request_id }).catch(() => {});   // emails Tate and Mark
   closeReq(); await load();
 });
 /* ===== Rosters: one roster per day per school, built in a month calendar. Tate and Mark approve. =====
@@ -1061,7 +1065,7 @@ function rostersSection(){
   }
   return `<div class="rmtop"><button class="btn mini" id="rmPrev" aria-label="Previous month">‹</button><b class="rmname">${MON[b.getMonth()]} ${b.getFullYear()}</b><button class="btn mini" id="rmNext" aria-label="Next month">›</button>
       <button class="btn mini" id="rmToday">Today</button><span class="grow"></span>${waiting ? `<span class="rtag submitted">${waiting} waiting for approval</span>` : ''}
-      <button class="btn mini" id="staffBtn">Staff & availability</button>${canApprove() ? '<button class="btn mini" id="rsetBtn">Roster defaults</button><button class="btn mini" id="wagesBtn">Wages</button>' : ''}</div>
+      <button class="btn mini" id="staffBtn">Staff & availability</button>${canApprove() ? '<button class="btn mini" id="availSmsBtn">Text availability links</button><button class="btn mini" id="rsetBtn">Roster defaults</button><button class="btn mini" id="wagesBtn">Wages</button>' : ''}</div>
     <div class="rsch">${['', 'Marrickville', 'Sydenham', 'Concord', 'Sylvania', 'West'].map(l => `<button class="lchip ${RSCH === l ? 'on' : ''}" data-rsch="${l}">${l ? esc(SCHOOL(l)) : 'All schools'}</button>`).join('')}</div>
     <div class="rkey"><span class="rc none"><i></i>Grading</span><span class="rc draft">Draft</span><span class="rc submitted">Waiting</span><span class="rc approved">Approved</span><span class="rc short">Short</span><span class="ra">free = staff available</span><span class="ru">usual staff that weekday</span></div>
     <div class="rcal"><div class="rdow">Mon</div><div class="rdow">Tue</div><div class="rdow">Wed</div><div class="rdow">Thu</div><div class="rdow">Fri</div><div class="rdow">Sat</div><div class="rdow">Sun</div>${cells.map(cell).join('')}</div>
@@ -1073,6 +1077,14 @@ function wireRosters(){
   on('rmNext', () => { RMON++; RMD = null; RSELD = null; render(); });
   on('rmToday', () => { RMON = 0; RMD = null; RSELD = ymd(new Date()); render(); });
   on('rsetBtn', openRset); on('staffBtn', openStaff);
+  on('availSmsBtn', async () => {   // texts every active staff member their availability link (two taps)
+    const el = $('#availSmsBtn');
+    if(el.dataset.sure !== '1'){ el.dataset.sure = '1'; el.textContent = 'Text all staff now?'; return; }
+    el.disabled = true; el.textContent = 'Sending…';
+    try{ const j = await rosterCall({ action: 'avail_send' }); const bad = (j.results || []).filter(x => x.status !== 'sent');
+      el.textContent = `Texted ${j.sent}${bad.length ? `, ${bad.length} not sent` : ''}`; if(bad.length) el.title = bad.map(x => x.name + ' (' + (x.error || x.status) + ')').join(', ');
+    }catch(e){ el.disabled = false; el.dataset.sure = ''; el.textContent = 'Failed, tap again'; el.title = String(e.message || e); }
+  });
   $('#board').querySelectorAll('[data-rsch]').forEach(b => b.onclick = () => { RSCH = b.dataset.rsch; try{ localStorage.setItem('ops_rsch', RSCH); }catch(e){} render(); });
   $('#board').querySelectorAll('[data-rday]').forEach(b => b.onclick = () => { RSELD = RSELD === b.dataset.rday ? null : b.dataset.rday; render(); });
   $('#board').querySelectorAll('[data-ropen]').forEach(b => b.onclick = () => { const [d, l] = b.dataset.ropen.split('|'); openRoster(d, l); });
