@@ -34,6 +34,19 @@
   .part-times { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
   .part-times input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
   .day textarea { width: 100%; margin-top: 10px; font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; resize: vertical; }
+  .dh .all { display: flex; gap: 6px; }
+  .dh .all button { border: 1px solid var(--line); background: transparent; color: var(--ink-2); border-radius: 8px; padding: 4px 10px; font: 600 13px "Source Sans 3", Arial, sans-serif; cursor: pointer; }
+  .gr { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .gr:first-of-type { border-top: 0; padding-top: 0; }
+  .gi { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .gi b { font: 500 18px var(--disp); }
+  .gi .age { font-weight: 600; font-size: 15px; }
+  .gi .belts { color: var(--ink-2); font-size: 14px; }
+  .opts2 { display: flex; gap: 6px; flex: none; }
+  .opts2 button { min-height: 44px; min-width: 76px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 10px; font: 600 15px "Source Sans 3", Arial, sans-serif; cursor: pointer; }
+  .opts2 button[aria-pressed="true"].yes { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .opts2 button[aria-pressed="true"].no { background: var(--no); border-color: var(--no); color: #fff; }
+  @media (max-width: 380px) { .gr { flex-direction: column; align-items: stretch; } .opts2 button { flex: 1; } }
   .save { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%); padding: 20px 0 calc(12px + env(safe-area-inset-bottom)); }
   .save button { width: 100%; min-height: 54px; border: 0; border-radius: 12px; background: var(--night); color: #F4F1EA; font: 600 17px "Source Sans 3", Arial, sans-serif; cursor: pointer; }
   .save button:disabled { opacity: .5; }
@@ -57,26 +70,44 @@
     return fetch(CFG.SUPABASE_URL + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, Authorization: 'Bearer ' + CFG.SUPABASE_KEY }, body: JSON.stringify(args) })
       .then(function (r) { return r.json(); });
   }
-  var DAYS = [], ST = {};
+  var DAYS = [], ST = {};   // ST[date][day_id] = 'yes' | 'no'
+  var ORDER = ['White Belt', 'Yellow Belt', 'Orange Belt', 'Green Belt', 'Blue Belt', 'Purple Belt', 'Brown Belt', 'Red Belt', 'Red Two Belt', 'Red Three Belt', 'Cho Dan Bo'];
+  var short = function (b) { return String(b).replace(' Belt', ''); };
+  function beltsText(g) {
+    if (/little dragon/i.test(g.programme || '')) return 'Little Dragons belts';
+    var bl = g.belts || [];
+    if (!bl.length) return 'Any belt';
+    if (g.bb) return 'Black belts to ' + bl.join(', ');
+    return bl.map(function (b) { var i = ORDER.indexOf(b); return short(b) + (i >= 0 && ORDER[i + 1] ? ' → ' + short(ORDER[i + 1]) : ''); }).join(', ');
+  }
+  function ageText(g) {
+    if (/little dragon/i.test(g.programme || '')) return 'Little Dragons';
+    if (g.max_age) return 'Kids (' + g.max_age + ' and under)';
+    if (g.min_age) return 'Teens and adults (' + g.min_age + '+)';
+    return 'All ages';
+  }
   function draw() {
     if (!DAYS.length) { $('#m').innerHTML = '<div class="empty">There are no Marrickville gradings coming up right now. Thanks for checking.</div>'; return; }
     $('#m').innerHTML = '<div class="note"><b>These are not guaranteed shifts.</b>Telling us when you\'re free just helps us with rostering. If you\'re rostered on, we\'ll contact you and you\'ll get a notification with your shift.</div>' +
       DAYS.map(function (d, i) {
         var dt = new Date(d.date + 'T00:00:00'), s = ST[d.date] || {};
-        return '<div class="day"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b><span>' + ((d.starts || []).length ? 'Gradings ' + d.starts.map(t12).join(', ') : '') + '</span></div>' +
-          '<div class="opts" role="group" aria-label="Your availability">' +
-          [['yes', 'Free'], ['part', 'Part of the day'], ['no', 'Not free']].map(function (o) { return '<button type="button" class="' + o[0] + '" data-i="' + i + '" data-s="' + o[0] + '" aria-pressed="' + (s.status === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
-          (s.status === 'part' ? '<div class="part-times">Free from <input type="time" data-i="' + i + '" data-f="from" value="' + esc(s.from || '') + '"> to <input type="time" data-i="' + i + '" data-f="to" value="' + esc(s.to || '') + '"></div>' : '') +
-          (s.status ? '<textarea rows="2" maxlength="300" placeholder="Anything we should know (optional)" data-i="' + i + '" data-f="note">' + esc(s.note || '') + '</textarea>' : '') +
-          '</div>';
+        return '<div class="day"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b>' +
+          '<span class="all"><button type="button" data-all="' + i + '" data-s="yes">All free</button><button type="button" data-all="' + i + '" data-s="no">None</button></span></div>' +
+          (d.gradings || []).map(function (g) {
+            var v = s[g.day_id] || '';
+            return '<div class="gr"><div class="gi"><b>' + t12(g.start) + '</b><span class="age">' + esc(ageText(g)) + '</span><span class="belts">' + esc(beltsText(g)) + '</span></div>' +
+              '<div class="opts2" role="group" aria-label="Free for the ' + t12(g.start) + ' grading?">' +
+              '<button type="button" class="yes" data-d="' + i + '" data-g="' + g.day_id + '" data-s="yes" aria-pressed="' + (v === 'yes') + '">Free</button>' +
+              '<button type="button" class="no" data-d="' + i + '" data-g="' + g.day_id + '" data-s="no" aria-pressed="' + (v === 'no') + '">Not free</button></div></div>';
+          }).join('') + '</div>';
       }).join('') + '<div class="save"><button id="save" type="button">Save my availability</button><div class="msg" id="msg"></div></div>';
-    [].forEach.call(document.querySelectorAll('[data-s]'), function (b) { b.onclick = function () { var d = DAYS[+b.dataset.i].date, s = ST[d] = ST[d] || {}; s.status = s.status === b.dataset.s ? '' : b.dataset.s; draw(); }; });
-    [].forEach.call(document.querySelectorAll('[data-f]'), function (el) { el.oninput = function () { var d = DAYS[+el.dataset.i].date; (ST[d] = ST[d] || {})[el.dataset.f] = el.value; }; });
+    [].forEach.call(document.querySelectorAll('[data-g]'), function (b) { b.onclick = function () { var d = DAYS[+b.dataset.d].date, s = ST[d] = ST[d] || {}; s[b.dataset.g] = s[b.dataset.g] === b.dataset.s ? '' : b.dataset.s; draw(); }; });
+    [].forEach.call(document.querySelectorAll('[data-all]'), function (b) { b.onclick = function () { var d = DAYS[+b.dataset.all], s = ST[d.date] = {}; (d.gradings || []).forEach(function (g) { s[g.day_id] = b.dataset.s; }); draw(); }; });
     $('#save').onclick = save;
   }
   function save() {
     var b = $('#save'), msg = $('#msg'); b.disabled = true; b.textContent = 'Saving…'; msg.textContent = ''; msg.className = 'msg';
-    var entries = DAYS.map(function (d) { var s = ST[d.date] || {}; return { date: d.date, status: s.status || '', from: s.from || null, to: s.to || null, note: s.note || null }; });
+    var entries = DAYS.map(function (d) { return { date: d.date, gradings: ST[d.date] || {} }; });
     rpc('cb_avail_set', { p_token: tok, p_entries: entries }).then(function (j) {
       b.disabled = false; b.textContent = 'Save my availability';
       if (!j || j.error || j.message) { msg.textContent = 'Not saved. Please try again.'; msg.className = 'msg bad'; return; }
@@ -88,7 +119,7 @@
     if (!j || j.error || j.message) { $('#m').innerHTML = '<div class="empty">This link isn\'t working. Please ask AMA for a new one.</div>'; return; }
     $('#hi').textContent = 'Hi ' + (j.first || 'there') + ', when are you free?';
     DAYS = j.days || [];
-    DAYS.forEach(function (d) { if (d.mine) ST[d.date] = { status: d.mine.status, from: d.mine.from, to: d.mine.to, note: d.mine.note }; });
+    DAYS.forEach(function (d) { if (d.mine) ST[d.date] = JSON.parse(JSON.stringify(d.mine)); });
     draw();
   }, function () { $('#m').innerHTML = '<div class="empty">No connection. Please try again.</div>'; });
 })();
