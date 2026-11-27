@@ -159,6 +159,7 @@
   .pp.gone{opacity:.55;cursor:not-allowed;}
   .slot .nc{grid-column:1/-1;justify-self:start;}
   .slot.over{border:2px solid var(--danger);border-radius:10px;padding:8px;}.overw{grid-column:1/-1;color:var(--danger);font-size:12px;font-weight:600;}
+  .badge.pg{background:transparent;border:1px solid var(--line);font-weight:600}
   .rmtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.rmtop .grow{flex:1}.rmname{font-family:var(--font-display);font-size:18px;min-width:120px;text-align:center}
   .rkey{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:11px}
   .rcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
@@ -536,7 +537,7 @@ function grdCard(g){
   const low = pct < 60 ? (pct < 35 ? ' vlow' : ' low') : '';
   const cap = g.helper_cap || 0, hs = g.helper_signups || 0;
   const helperLine = g.helper_open ? (hs < cap ? `<div class="hp need">Helpers: ${hs}/${cap} — needs ${cap-hs} more</div>` : `<div class="hp ok2">Helpers: ${hs}/${cap}</div>`) : (hs ? `<div class="hp ok2">Helpers: ${hs}</div>` : '');
-  return `<div class="grd"><div class="gh"><span class="gd">${fmtDate(g.grading_date)}</span>${t?`<span class="gt">${t}</span>`:''}<span class="gl">${esc(g.location||'')}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.makeup?'<span class="badge mk">makeup</span>':''}<span class="gu">${until(g.days_until)}</span></div>`
+  return `<div class="grd"><div class="gh"><span class="gd">${fmtDate(g.grading_date)}</span>${t?`<span class="gt">${t}</span>`:''}<span class="gl">${esc(g.location==='West'?'Auburn':(g.location||''))}</span><span class="badge pg">${esc(g.programme==='Kick Boxing'?'Kickboxing':progLabel(g.programme||'Taekwondo'))}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.makeup?'<span class="badge mk">makeup</span>':''}<span class="gu">${until(g.days_until)}</span></div>`
     + `<div class="bar${low}"><i style="width:${Math.min(100,pct)}%"></i></div>`
     + `<div class="st"><span><b>${g.booked}</b>/${g.total} booked (${g.pct_booked==null?'—':g.pct_booked+'%'})</span><span><b>${g.paid}</b> paid</span>${g.not_booked?`<span><b>${g.not_booked}</b> not booked</span>`:''}</div>`
     + helperLine
@@ -548,7 +549,7 @@ function grdCard(g){
 function liveBoard(rows){
   return `<div class="today live"><div class="th">Live now · ${rows.length} grading${rows.length>1?'s':''}</div>`
     + rows.map(g=>{ const bk=g.booked||0, ci=g.checked_in||0, gd=g.graded||0;
-        return `<div class="live-grd${g.running?' running':''}"><div class="lgh"><span class="gd">${fmtDate(g.grading_date)}</span><span class="gl">${esc(g.location||'')}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.running?'<span class="badge mk">running</span>':''}</div>`
+        return `<div class="live-grd${g.running?' running':''}"><div class="lgh"><span class="gd">${fmtDate(g.grading_date)}</span><span class="gl">${esc(g.location==='West'?'Auburn':(g.location||''))}</span><span class="badge pg">${esc(g.programme==='Kick Boxing'?'Kickboxing':progLabel(g.programme||'Taekwondo'))}</span>${g.bb?'<span class="badge bb">BB</span>':''}${g.running?'<span class="badge mk">running</span>':''}</div>`
           + `<div class="live-stats"><div class="ls ${bk&&ci<bk?'warn':'ok'}"><b>${ci}/${bk}</b><span>checked in</span></div><div class="ls"><b>${gd}/${bk}</b><span>graded</span></div><div class="ls ok"><b>${g.passed||0}</b><span>passed${g.failed?` · ${g.failed} fail`:''}</span></div></div></div>`;
       }).join('') + `</div>`;
 }
