@@ -1074,10 +1074,16 @@ function rostersSection(){
   const usualOn = (d, l) => { const u = (RMD.usual || []).find(x => x.weekday === d.getDay() && x.location === l); return u ? u.people : []; };
   const usualSchools = d => [...new Set((RMD.usual || []).filter(x => x.weekday === d.getDay()).map(x => x.location))];
   const inSch = l => !RSCH || l === RSCH;
+  // which schools get a roster that day, besides the ones with a grading:
+  //   Marrickville grading: + Sydenham · Concord grading: + Marrickville and Sydenham · Auburn grading, and 7–10 Dec: + every school open that weekday
+  const dayLocs = (k, d, gl, rs) => [...new Set([...gl,
+    ...(gl.includes('Marrickville') ? ['Sydenham'] : []),
+    ...(gl.includes('Concord') ? ['Marrickville', 'Sydenham'] : []),
+    ...(gl.includes('West') || (k >= '2026-12-07' && k <= '2026-12-10') ? usualSchools(d) : []),
+    ...(rs || []).map(r => r.location)])].filter(inSch);
   const cell = d => { const k = ymd(d), x = byDay[k] || { r: [], g: [] }, out = d.getMonth() !== b.getMonth();
     // same schools as the day panel: Sydenham on Marrickville grading days, and every open school 7–10 Dec
-    const gl0 = x.g.map(g => g.location), open0 = (k >= '2026-12-07' && k <= '2026-12-10') ? usualSchools(d) : [];
-    const locs = [...new Set([...gl0, ...(gl0.includes('Marrickville') ? ['Sydenham'] : []), ...open0, ...x.r.map(r => r.location)])].filter(inSch);
+    const gl0 = x.g.map(g => g.location), locs = dayLocs(k, d, gl0, x.r);
     const us = usualSchools(d).filter(inSch).sort((a, b) => { const o = l => { const i = ROSTER_SCHOOLS.indexOf(l); return i < 0 ? 9 : i; }; return o(a) - o(b) || a.localeCompare(b); }).map(l => [l, usualOn(d, l).length]).filter(([, n]) => n);
     // boxes only for schools with a grading; other schools (Sydenham, open schools) go in the line at the bottom
     const others = locs.filter(l => !gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l); return isExtraLoc(l) ? `${esc(SHORT(l))} ${exOf(r) ? exOf(r) + ' extra (no grading)' : 'usual only'}` : `${esc(SHORT(l))} ${calN(r, l)}/${calNeed(r, l, false)}`; });
@@ -1094,8 +1100,7 @@ function rostersSection(){
   let panel = '';
   if(RSELD){
     const x = byDay[RSELD] || { r: [], g: [] }, d = new Date(RSELD + 'T00:00:00');
-    const gl = x.g.map(g => g.location), extraOpen = (RSELD >= '2026-12-07' && RSELD <= '2026-12-10') ? usualSchools(d) : [];   // 7–10 Dec: every school open that day gets a roster (Bianca builds the others)
-    const locs = [...new Set([...gl, ...(gl.includes('Marrickville') ? ['Sydenham'] : []), ...extraOpen, ...x.r.map(r => r.location)])].filter(inSch);
+    const gl = x.g.map(g => g.location), locs = dayLocs(RSELD, d, gl, x.r);
     const gSpans = l => { const g = x.g.find(g => g.location === l), st = g ? (g.starts || []).map(mm).filter(v => v != null).sort((a, b) => a - b) : []; return st.map((v, i) => [v, st[i + 1] || v + 90]); };
     const inG = (l, p) => { const sp = gSpans(l); return canApprove() || !sp.length || !p.start || !p.end || sp.some(([a, b]) => mm(p.start) < b && mm(p.end) > a); };
     const usualList = l => { const ps = usualOn(d, l).filter(p => inG(l, p)); return ps.length ? `<div class="rus"><span class="rul">Usually on</span>${ps.map(p => `<span class="rup">${esc(p.name)} <i>${fmtTime(p.start)}–${fmtTime(p.end)}</i></span>`).join('')}</div>` : ''; };
