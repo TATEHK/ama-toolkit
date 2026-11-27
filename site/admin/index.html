@@ -652,7 +652,15 @@ function pinnedNotesSection(){
   const list = notes.length ? notes.map(n => `<div class="noteitem"><span class="nmeta">${fmtDate(n.grading_date)} · ${esc(n.location||'')}</span><span class="ntext">${esc(n.note)}</span><button class="noterm" data-noterm="${n.note_id}" aria-label="Remove note">×</button></div>`).join('') : '<div class="muted">No pinned notes.</div>';
   return `<h2>Pinned notes</h2>${composer}${list}`;
 }
+// redraws keep the page where it was: hold the board's height while it's rebuilt, then put the scroll back
 function render(){
+  const bd = $('#board'), y = window.scrollY, h = bd ? bd.offsetHeight : 0;
+  if(bd && h) bd.style.minHeight = h + 'px';
+  renderBoard();
+  if(Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+  if(bd) requestAnimationFrame(() => { bd.style.minHeight = ''; if(Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); });
+}
+function renderBoard(){
   const d = DATA; if(!d) return;
   const needDetail = k => openKey === k ? detailFor(k) : '';
   const gr = (d.gradings||[]).filter(inFilt);
@@ -940,7 +948,7 @@ async function startApp(session){
   showView('app');
   await load();
   // refreshes itself every minute (not while someone is typing)
-  setInterval(() => { const a = document.activeElement; if(!document.hidden && !(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) load(); }, 60000);
+  setInterval(() => { const a = document.activeElement, popup = [...document.querySelectorAll('.reqmodal')].some(m => !m.hidden); if(!document.hidden && !popup && !(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) load(); }, 60000);
   document.addEventListener('visibilitychange', () => { if(!document.hidden) load(); });
 }
 
@@ -1324,7 +1332,7 @@ function closeRoster(){ const was = RO; clearTimeout(saveT); $('#rosterModal').h
 const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, moved_from: (!x.usual && (usualElsewhere(personOf(x.name), x) || {}).location) || null, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
   email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null, deputy_note: x.deputy_note || null, deputy_span: x.deputy_span || null, deputy_unit: x.deputy_unit || null }));
 const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g, extras: RO.lim.extras });
-async function afterSave(){ await loadRosterUpcoming(); RMD = null; render(); }
+async function afterSave(){ await loadRosterUpcoming(); await loadRosterMonth(); }   // keeps the calendar on screen while it reloads (no jump to the top)
 async function saveRoster(submit, btn){
   const slots = cleanSlots();
   if(submit && !slots.length) return roErr('Add at least one person.');
