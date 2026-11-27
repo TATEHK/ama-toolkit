@@ -2511,7 +2511,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
-    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift') && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
+    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day') && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
     if (!me && !cronSync) return fail('Sign in first.', 401);
     // AMA ID Cards: text and email people a link to upload a photo for their card. Needs ID Cards "Edit people" (or Admin).
     // { person_ids: [...], preview: true } returns the messages for the first person without sending.
@@ -2936,7 +2936,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     //       cb_roster_settings only (Tate and Mark). Deputy: DEPUTY_HOST (built in) and the DEPUTY_TOKEN secret. =====
     const rosterApprover = async () => { const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();
       return !!(me && rs && (rs.approvers || []).some((e: string) => String(e).toLowerCase() === me)); };
-    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs', 'deputy_connect_url', 'deputy_connect', 'deputy_status', 'roster_deputy_remove', 'pay_rates', 'deputy_shift'].includes(body.action);
+    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs', 'deputy_connect_url', 'deputy_connect', 'deputy_status', 'roster_deputy_remove', 'pay_rates', 'deputy_shift', 'deputy_day'].includes(body.action);
     // reading usual shifts from Deputy can also run from the database (x-cb-cron), e.g. a nightly refresh
     const cronOk = cronSync;   // deputy_usual and pay_rates (read-only) can run from the database
     if (isRosterAction && !cronOk && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
@@ -3098,6 +3098,19 @@ export async function handle(req, db, env = {}, http = fetch) {
       const made = res.filter(x => /^shift made|^moved|updated in Deputy/.test(x.status)).length;
       await db.from('cb_day_rosters').update({ slots, ...(made ? { deputy_at: new Date().toISOString() } : {}) }).eq('roster_id', r.roster_id);
       return json({ ok: true, area: unit.name, made, results: res });
+    }
+
+    // ---- read-only: every Deputy shift on a day, by school. { date, location? } ----
+    if (body.action === 'deputy_day') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date || '')) return fail('Need a date.');
+      try {
+        const units = await depUnits(), emps = await depEmps(), from = Math.round(sydMs(body.date, '00:00') / 1000);
+        const shifts: any[] = await dep('resource/Roster/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'StartTime', type: 'ge', data: from }, s2: { field: 'StartTime', type: 'lt', data: from + 86400 } }, max: 500 }) });
+        const rows = shifts.map(x => { const u = units.find(u => u.id === +x.OperationalUnit) || {} as any, e = emps.find(e => +e.Id === +x.Employee) || {} as any;
+          return { id: x.Id, name: e.DisplayName || (x.Employee ? 'Employee ' + x.Employee : 'Open shift'), school: u.school || null, area: u.name || null, start: sydParts(+x.StartTime).hm, end: sydParts(+x.EndTime).hm, note: x.Comment || null, published: !!x.Published }; })
+          .filter(r => !body.location || r.school === body.location).sort((a, b) => String(a.school).localeCompare(String(b.school)) || a.start.localeCompare(b.start));
+        return json({ ok: true, shifts: rows });
+      } catch (er) { return fail(String(er.message || er)); }
     }
 
     // ---- one-off Deputy shift for a staff member (not tied to a roster). { name, date, start, end, location?, note? } ----
