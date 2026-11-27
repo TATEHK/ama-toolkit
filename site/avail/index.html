@@ -63,6 +63,7 @@
   .syd { display: flex; gap: 10px; align-items: center; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 15px; cursor: pointer; }
   .syd small { color: var(--ink-2); }
   .syd input { width: 22px; height: 22px; accent-color: var(--ok); flex: none; margin: 0; }
+  .note2 { color: var(--ink-2); font-size: 15px; margin: -8px 4px 18px; }
   .save { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%); padding: 20px 0 calc(12px + env(safe-area-inset-bottom)); }
   .save button { width: 100%; min-height: 54px; border: 0; border-radius: 12px; background: var(--night); color: #F4F1EA; font: 600 17px "Source Sans 3", Arial, sans-serif; cursor: pointer; }
   .save button:disabled { opacity: .5; }
@@ -118,6 +119,7 @@
   function draw() {
     if (!DAYS.length) { $('#m').innerHTML = '<div class="empty">There are no Marrickville gradings coming up right now. Thanks for checking.</div>'; return; }
     $('#m').innerHTML = '<div class="note"><b>These are not guaranteed shifts.</b>Telling us when you\'re free just helps us with rostering. If you\'re rostered on, we\'ll contact you and you\'ll get a notification with your shift.</div>' +
+      '<div class="note2">Most shifts start at ' + t12(SHIFT || '15:30') + ' at Marrickville and 3:45pm at Sydenham. Some may start at a different time, and we\'ll tell you the exact time if you\'re rostered on.</div>' +
       DAYS.map(function (d, i) {
         var dt = new Date(d.date + 'T00:00:00'), G = groups(d), c = choice(d);
         var opts = G.length > 1
@@ -125,14 +127,14 @@
           : [['both', 'Free', span((d.gradings || []))], ['no', 'Not free', '']];
         var first = (d.gradings || []).map(function (g) { return g.start; }).filter(Boolean).sort()[0], mm = function (t) { var m = /^(\d+):(\d+)/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
         var st = SHIFT && first && mm(SHIFT) < mm(first) ? SHIFT : (first ? (function (x) { x -= 30; return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); })(mm(first)) : null);
-        return '<div class="day"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b>' + (st ? '<span>Shifts start ' + t12(st) + '</span>' : '') + '</div>' +
+        return '<div class="day"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b></div>' +
           G.map(function (o) { return '<div class="grp"><div class="gh">' + GNAME[o.k] + '</div>' + o.gs.map(function (g) {
             return '<div class="gl"><b>' + t12(g.start) + '</b><span>' + esc(beltsText(g)) + '</span></div>'; }).join('') + '</div>'; }).join('') +
           '<div class="opts3" role="group" aria-label="When are you free on this day?">' + opts.map(function (o) {
             var st = ST[d.date] || {}, grp = G.find(function (x) { return x.k === o[0]; });
             var on = grp ? grp.gs.every(function (g) { return st[g.day_id] === 'yes'; }) && c !== 'both' : c === o[0];   // groups can be picked together
             return '<button type="button" class="' + (o[0] === 'no' ? 'no' : 'yes') + '" data-d="' + i + '" data-c="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (o[2] ? '<small>' + esc(o[2]) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
-          '<label class="syd"><input type="checkbox" data-syd="' + i + '"' + (SYD[d.date] ? ' checked' : '') + '> I\'m available to go to Sydenham this day <small>(shifts start 3:45pm)</small></label></div>';
+          '<label class="syd"><input type="checkbox" data-syd="' + i + '"' + (SYD[d.date] ? ' checked' : '') + '> I\'m available to go to Sydenham this day</label></div>';
       }).join('') + '<div class="save"><button id="save" type="button">Save my availability</button><div class="msg" id="msg"></div></div>';
     [].forEach.call(document.querySelectorAll('[data-c]'), function (b) { b.onclick = function () {
       var d = DAYS[+b.dataset.d], c = b.dataset.c, cur = choice(d), s = ST[d.date] = ST[d.date] || {}, all = d.gradings || [];
