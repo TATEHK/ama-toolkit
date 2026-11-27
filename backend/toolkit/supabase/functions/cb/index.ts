@@ -2916,9 +2916,12 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
 
     // Text and email an invited helper their sign-up link. { student_id, preview: true } returns the exact messages without sending.
+    // rosters are approved, texted and put in Deputy only by the approvers in cb_roster_settings (Tate and Mark)
+    const rosterApprover = async () => { const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();
+      return !!(me && rs && (rs.approvers || []).some((e: string) => String(e).toLowerCase() === me)); };
     // ---- Text everyone on an approved grading-day roster their shift (Mark, from the Operations dashboard). { day_id, only_new? } ----
     if (body.action === 'roster_notify') {
-      if (!can('admin')) return fail('Only Mark (admin) can send the roster.', 403);
+      if (!(await rosterApprover())) return fail('Only Tate and Mark can send the roster.', 403);
       const { data: r } = await db.from('cb_rosters').select('day_id, slots, status').eq('day_id', String(body.day_id || '')).maybeSingle();
       if (!r) return fail('No roster for that grading.', 404);
       if (r.status !== 'approved') return fail('Approve the roster first.', 409);
@@ -2948,7 +2951,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     //      Needs the DEPUTY_HOST (e.g. ama.au.deputy.com) and DEPUTY_TOKEN (a permanent token) secrets.
     //      People are matched to Deputy employees by name; each shift made is remembered on its slot so it's never made twice. ----
     if (body.action === 'roster_deputy') {
-      if (!can('admin')) return fail('Only Mark (admin) can add shifts to Deputy.', 403);
+      if (!(await rosterApprover())) return fail('Only Tate and Mark can add shifts to Deputy.', 403);
       const host = String(env.DEPUTY_HOST || '748e6a11114707.au.deputy.com')   // AMA's Deputy (not secret; the token is)
         .replace(/^https?:\/\//, '').replace(/\/.*$/, ''), dtok = env.DEPUTY_TOKEN;
       if (!host || !dtok) return fail('Deputy is not connected yet (add the DEPUTY_TOKEN secret in Supabase).', 409);
