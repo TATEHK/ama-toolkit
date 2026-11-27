@@ -87,7 +87,7 @@
     return fetch(CFG.SUPABASE_URL + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY, Authorization: 'Bearer ' + CFG.SUPABASE_KEY }, body: JSON.stringify(args) })
       .then(function (r) { return r.json(); });
   }
-  var DAYS = [], ST = {}, SYD = {}, SHIFT = null;   // SYD[date]: happy to go to Sydenham; SHIFT: usual shift start   // ST[date][day_id] = 'yes' | 'no'
+  var DAYS = [], ST = {}, SYD = {}, SYDSET = {}, SHIFT = null;   // SYDSET[date]: they ticked or unticked Sydenham themselves   // SYD[date]: happy to go to Sydenham; SHIFT: usual shift start   // ST[date][day_id] = 'yes' | 'no'
   var ORDER = ['White Belt', 'Yellow Belt', 'Orange Belt', 'Green Belt', 'Blue Belt', 'Purple Belt', 'Brown Belt', 'Red Belt', 'Red Two Belt', 'Red Three Belt', 'Cho Dan Bo'];
   var short = function (b) { return String(b).replace(' Belt', ''); };
   function beltsText(g) {
@@ -146,8 +146,11 @@
         all.forEach(function (g) { if (s[g.day_id] !== 'yes') s[g.day_id] = 'no'; });
         if (all.every(function (g) { return s[g.day_id] === 'no'; }) && isOn) all.forEach(function (g) { s[g.day_id] = ''; });
       }
+      // free that day: tick Sydenham for them (unless they've set it themselves); not free: untick it
+      var free = all.some(function (g) { return s[g.day_id] === 'yes'; });
+      if (!SYDSET[d.date]) SYD[d.date] = free;
       draw(); }; });
-    [].forEach.call(document.querySelectorAll('[data-syd]'), function (c) { c.onchange = function () { SYD[DAYS[+c.dataset.syd].date] = c.checked; }; });
+    [].forEach.call(document.querySelectorAll('[data-syd]'), function (c) { c.onchange = function () { var dd = DAYS[+c.dataset.syd].date; SYD[dd] = c.checked; SYDSET[dd] = true; }; });
     $('#save').onclick = save;
   }
   function save() {
@@ -165,6 +168,7 @@
     $('#hi').textContent = 'Hi ' + (j.first || 'there') + ', when are you free?';
     DAYS = j.days || [];
     SHIFT = j.shift_start || null;
+    DAYS.forEach(function (d) { if (d.mine) SYDSET[d.date] = true; });
     DAYS.forEach(function (d) { if (d.mine) { ST[d.date] = JSON.parse(JSON.stringify(d.mine.g || {})); SYD[d.date] = !!d.mine.syd; } });
     draw();
   }, function () { $('#m').innerHTML = '<div class="empty">No connection. Please try again.</div>'; });
