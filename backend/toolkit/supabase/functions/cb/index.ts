@@ -2936,7 +2936,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (!name) continue;
         if (!phone) { res.push({ name, status: 'no mobile' }); continue; }
         const span = sl.start ? (t12(sl.start) + (sl.end ? ' to ' + t12(sl.end) : '')) : 'all day';
-        const text = `Hi ${first(name) || 'there'}, you're rostered on as ${(ROLE as any)[sl.role] || 'staff'} for the ${d ? d.location : ''} grading on ${when}, ${span}. Thanks - AMA`;
+        const text = `Hi ${first(name) || 'there'}, you're rostered on as ${(ROLE as any)[sl.role] || 'staff'} for gradings at ${d ? (d.location === 'West' ? 'Auburn' : d.location) : 'AMA'} on ${when}, ${span}. Thanks - AMA`;
         try {
           const cid = await contactFor({ guardian_name: name, full_name: name, email: sl.email || null }, phone);
           if (!cid) throw new Error('could not find or add them in GoHighLevel');
@@ -2993,7 +2993,7 @@ export async function handle(req, db, env = {}, http = fetch) {
           const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({
             intStartTimestamp: Math.round(sydMs(d.grading_date, st) / 1000), intEndTimestamp: Math.round(sydMs(d.grading_date, en) / 1000),
             intOpunitId: +unit.Id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
-            strComment: `${sl.role === 'admin' ? 'Admin' : 'Floor staff'}, ${d.location} grading` }) });
+            strComment: `${sl.role === 'admin' ? 'Admin' : 'Floor staff'}, ${d.location} gradings` }) });
           sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id;
           res.push({ name: sl.name, status: 'shift made' });
         } catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
