@@ -1141,7 +1141,7 @@ function drawSlots(){
     if(f === 'name' && e.type === 'change'){ const p = personOf(inp.value); if(p) fillFrom(RO.slots[i], p); drawSlots(); drawPeople(); }
     if((f === 'start' || f === 'end') && e.type === 'change') drawSlots();
   });
-  $('#roSlots').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { RO.slots.splice(+b.dataset.rm, 1); drawSlots(); drawPeople(); });
+  $('#roSlots').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeSlot(+b.dataset.rm, b));
   $('#roSlots').querySelectorAll('[data-lim]').forEach(inp => inp.onchange = () => { RO.lim.floor[inp.dataset.lim] = Math.max(0, Math.min(50, +inp.value || 0));
     if(RO.lim.floor.max < RO.lim.floor.need) RO.lim.floor.max = RO.lim.floor.need; RO.limDirty = true; RO.warned = false; drawSlots(); });
   const add = document.querySelector('[data-addrole="floor"]'); if(add){ add.disabled = RO.slots.length >= RO.lim.floor.max; add.title = add.disabled ? 'At the most for this day' : ''; }
@@ -1158,6 +1158,19 @@ function gradingCover(){
 }
 const gradingShort = () => (RO.gradings || []).map(g => { const L = gLim(g.day_id), n = onFor(gSpan(g)); return n < L.need ? `${L.need - n} at the ${fmtTime(g.start)} grading` : n > L.max ? `${n - L.max} over the max at the ${fmtTime(g.start)} grading` : ''; }).filter(Boolean);
 const SYD_START = '15:45';
+// taking someone off: if their shift is already in Deputy, it's deleted there too (Tate and Mark), after a second tap to confirm
+async function removeSlot(i, btn){
+  const sl = RO.slots[i]; if(!sl) return;
+  if(!(+sl.deputy_id > 0)){ RO.slots.splice(i, 1); drawSlots(); drawPeople(); return; }
+  if(!canApprove()) return roErr(`${sl.name}'s shift is already in Deputy. Ask Tate or Mark to take them off so it's removed there too.`);
+  if(btn.dataset.sure !== '1'){ btn.dataset.sure = '1'; btn.textContent = '?'; return roErr(`Remove ${sl.name}? Their shift in Deputy will be deleted. Tap × again to confirm.`); }
+  btn.disabled = true; roErr('Removing their Deputy shift…', true);
+  try{
+    const j = await cbCall({ action: 'roster_deputy_remove', date: RO.date, location: RO.location, deputy_id: +sl.deputy_id });
+    RO.slots.splice(i, 1); await reloadRo(); drawPeople(); afterSave();
+    roErr(`${j.removed} taken off and their Deputy shift deleted.`, true);
+  }catch(e){ btn.disabled = false; roErr(String(e.message || e)); }
+}
 function fillFrom(sl, p){
   sl.name = p.name; sl.mobile = p.mobile || ''; sl.email = p.email || null; sl.staff_id = p.staff_id || null; sl.helper_id = p.helper_id || null; sl.deputy_emp = p.deputy_emp || null;
   const here = (p.usual || []).find(u => u.location === RO.location);   // their usual hours here, if no grading times
