@@ -1085,8 +1085,10 @@ function gSpan(g){
 function defTimes(span){   // from N minutes before the first grading (or the one picked) to when the last one finishes
   const gs = span ? [span] : (RO.gradings || []).map(gSpan).filter(x => x.start);
   if(!gs.length) return { start: '', end: '' };
-  const before = +((RSET || {}).floor_before ?? 30);
-  return { start: hm(Math.min(...gs.map(x => mins(x.start))) - before), end: hm(Math.max(...gs.map(x => mins(x.end)))) };
+  const before = +((RSET || {}).floor_before ?? 30), first = Math.min(...gs.map(x => mins(x.start))), fixed = mins((RSET || {}).floor_start);
+  // the whole day's shift starts at the set time (3:30pm) when the first grading is after it; a single grading's shift starts N minutes before it
+  const start = !span && fixed != null && fixed < first ? fixed : first - before;
+  return { start: hm(start), end: hm(Math.max(...gs.map(x => mins(x.end)))) };
 }
 const personOf = name => RO && RO.people.find(p => p.name.toLowerCase() === String(name || '').trim().toLowerCase());
 function availText(p){ const a = p && p.avail; if(!a) return ''; return a.status === 'yes' ? 'Free' : a.status === 'part' ? `Free ${a.from ? fmtTime(a.from) : ''}${a.to ? '–' + fmtTime(a.to) : ''}`.trim() : 'Not free'; }
@@ -1255,14 +1257,14 @@ function openRset(){
   const box = $('#rsetModal');
   box.querySelector('.reqbox').innerHTML = `<h3>Roster defaults</h3>
     <p class="muted" style="margin:-6px 0 14px;font-size:13px">Used for every day unless that day's roster sets its own numbers.</p>
-    <div class="rsgrid"><label>Floor staff needed${n('floor_need', d.floor_need)}</label><label>Most${n('floor_max', d.floor_max)}</label><label>Start (min before the grading)${n('floor_before', d.floor_before, 5, -600)}</label></div>
-    <p class="muted" style="font-size:12px;margin:8px 0 12px">Shifts start this long before the first grading and finish when the last grading finishes. Each grading's start and finish can be changed on the roster.</p>
+    <div class="rsgrid"><label>Floor staff needed${n('floor_need', d.floor_need)}</label><label>Most${n('floor_max', d.floor_max)}</label><label>Shifts start at<input type="time" id="rs_floor_start" value="${esc(d.floor_start || '')}"></label><label>Single grading: start (min before)${n('floor_before', d.floor_before, 5, -600)}</label></div>
+    <p class="muted" style="font-size:12px;margin:8px 0 12px">A day's shifts start at the set time (if the first grading is later) and finish when the last grading finishes. + For this grading starts the set minutes before that grading. Each grading's times can be changed on the roster.</p>
     <div class="reqerr" id="rsErr" hidden></div>
     <div class="reqact"><button type="button" class="btn" id="rsCancel">Cancel</button><button type="button" class="btn primary" id="rsSave">Save defaults</button></div>`;
   box.hidden = false;
   $('#rsCancel').onclick = () => { box.hidden = true; };
   $('#rsSave').onclick = async () => {
-    const p = {}; ['floor_need', 'floor_max', 'floor_before'].forEach(k => p[k] = $('#rs_' + k).value);
+    const p = {}; ['floor_need', 'floor_max', 'floor_before', 'floor_start'].forEach(k => p[k] = $('#rs_' + k).value);
     if(+p.floor_max < +p.floor_need){ const e = $('#rsErr'); e.textContent = 'Most has to be at least the number needed.'; e.hidden = false; return; }
     const { data, error } = await sb.rpc('cb_ops_roster_settings_set', { p });
     if(error){ const e = $('#rsErr'); e.textContent = 'Not saved: ' + error.message; e.hidden = false; return; }
