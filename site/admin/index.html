@@ -1219,7 +1219,7 @@ function drawSlots(){
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
       <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
-      ${(x.name || '').trim() && !((RSET && RSET.not_counted) || []).includes(String(x.name).trim().toLowerCase()) ? `<button type="button" class="btn mini nc" data-nocount="${i}">${x.no_count ? 'Count them' : 'Exclude from count'}</button>` : ''}
+      ${canApprove() && (x.name || '').trim() && !((RSET && RSET.not_counted) || []).includes(String(x.name).trim().toLowerCase()) ? `<button type="button" class="btn mini nc" data-nocount="${i}">${x.no_count ? 'Count them' : 'Exclude from count'}</button>` : ''}
       ${(av || el || x.usual || notCounted(x)) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${notCounted(x) ? '<span class="pa">Not counted</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el && !x.usual ? `<span class="pa move">Moved from ${esc(SCHOOL(el.location))} (${el.rostered ? 'was rostered' : 'usually'} ${fmtTime(el.start)}–${fmtTime(el.end)}) · comes off there when saved</span>` : ''}</div>` : ''}</div>`; };
   const L = RO.lim.floor, filled = RO.slots.filter(countsHere).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
