@@ -3017,7 +3017,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (!name) continue;
         if (!phone) { res.push({ name, status: 'no mobile' }); continue; }
         const span = sl.start ? (t12(sl.start) + (sl.end ? ' to ' + t12(sl.end) : '')) : 'all day';
-        const text = `Hi ${first(name) || 'there'}, you're rostered on as floor staff at ${SCHOOL(r.location)} on ${when}, ${span}. Thanks - AMA`;
+        const text = `Hi ${first(name) || 'there'}, you're rostered on as ${String(sl.job || 'floor staff').toLowerCase().replace(/^little dragons/, 'Little Dragons')} at ${SCHOOL(r.location)} on ${when}, ${span}. Thanks - AMA`;
         try {
           const cid = await contactFor({ guardian_name: name, full_name: name, email: sl.email || null }, phone);
           if (!cid) throw new Error('could not find or add them in GoHighLevel');
@@ -3060,7 +3060,7 @@ export async function handle(req, db, env = {}, http = fetch) {
             const u = units.find(u => u.id === +x.OperationalUnit); moved.push(u ? SCHOOL(u.school || u.name) : 'another area');
           }
           const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({ intStartTimestamp: st, intEndTimestamp: en, intOpunitId: unit.id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
-            strComment: `Floor staff, ${SCHOOL(r.location)} gradings` }) });
+            strComment: `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings` }) });
           sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id;
           res.push({ name: sl.name, status: moved.length ? `moved here from ${moved.join(', ')}` : 'shift made' });
         } catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
@@ -3126,7 +3126,7 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (!x.name) continue;
         const c = cost[+x.deputy_id];
         const hrs = c ? c.hours : (x.start && x.end ? ((+x.end.slice(0, 2) * 60 + +x.end.slice(3)) - (+x.start.slice(0, 2) * 60 + +x.start.slice(3))) / 60 : 0);
-        lines.push({ date: r.date, location: r.location, status: r.status, name: x.name, start: x.start, end: x.end, hours: Math.round(hrs * 100) / 100, cost: c ? Math.round(c.cost * 100) / 100 : null });
+        lines.push({ date: r.date, location: r.location, status: r.status, name: x.name, job: x.job || null, start: x.start, end: x.end, hours: Math.round(hrs * 100) / 100, cost: c ? Math.round(c.cost * 100) / 100 : null });
       }
       return json({ ok: true, lines, total: Math.round(lines.reduce((a, l) => a + (l.cost || 0), 0) * 100) / 100, hours: Math.round(lines.reduce((a, l) => a + l.hours, 0) * 100) / 100, unpriced: lines.filter(l => l.cost == null).length });
     }
