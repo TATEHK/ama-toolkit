@@ -2511,7 +2511,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
-    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || body.action === 'deputy_timesheet' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
+    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || body.action === 'deputy_timesheet' || body.action === 'roster_review_notify' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
     if (!me && !cronSync) return fail('Sign in first.', 401);
     // AMA ID Cards: text and email people a link to upload a photo for their card. Needs ID Cards "Edit people" (or Admin).
     // { person_ids: [...], preview: true } returns the messages for the first person without sending.
@@ -3284,6 +3284,27 @@ export async function handle(req, db, env = {}, http = fetch) {
         } catch (er) { res.push({ name: s.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
       }
       return json({ ok: true, sent: res.filter(x => x.status === 'sent').length, results: res });
+    }
+
+    // ---- a roster was sent for approval: text Tate and Mark (cb_roster_settings.review_staff). From the database trigger. { date, location } ----
+    if (body.action === 'roster_review_notify') {
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up.', 409);
+      const { data: r } = await db.from('cb_day_rosters').select('date, location, slots, submitted_by, status').eq('date', String(body.date || '')).eq('location', String(body.location || '')).maybeSingle();
+      if (!r || r.status !== 'submitted') return json({ ok: true, skipped: 'not waiting for approval' });
+      const { data: rs } = await db.from('cb_roster_settings').select('review_staff').eq('id', 1).maybeSingle();
+      const ids = (rs?.review_staff || []).map(String); if (!ids.length) return json({ ok: true, skipped: 'no one to text' });
+      const { data: who } = await db.from('cb_staff').select('name, mobile, email').in('staff_id', ids);
+      const by = r.submitted_by ? (await db.from('cb_staff').select('name').eq('email', r.submitted_by).maybeSingle()).data?.name || r.submitted_by.split('@')[0] : 'someone';
+      const n = (r.slots || []).filter((x: any) => (x.name || '').trim()).length;
+      const day = new Date(r.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' });
+      const text = `Roster to review: ${SCHOOL(r.location)} ${day} (${n} staff), sent by ${first(by) || by}. app.train-ama.com/admin/#rosters - AMA`;
+      const res = [];
+      for (const s of (who || [])) {
+        const phone = phoneE164(s.mobile); if (!phone) { res.push({ name: s.name, status: 'no mobile' }); continue; }
+        try { const cid = await contactFor({ guardian_name: s.name, full_name: s.name, email: s.email || null }, phone); if (!cid) throw new Error('no contact'); await sendSms(cid, text); res.push({ name: s.name, status: 'sent' }); }
+        catch (er) { res.push({ name: s.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
+      }
+      return json({ ok: true, results: res });
     }
 
     if (body.action === 'helper_send') {
