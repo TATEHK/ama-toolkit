@@ -1006,7 +1006,9 @@ const pad = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r.status}${r.status === 'approved' && r.deputy_at ? ' · in Deputy' : ''}${r.status === 'approved' && r.notified_at ? ' · texted' : ''}</span>` : '';
 let RMON = 0, RMD = null, RSELD = null, RUP = [], RSCH = (()=>{ try{ return localStorage.getItem('ops_rsch') || ''; }catch(e){ return ''; } })();   // RSCH: school filter ('' = all)   // month offset, month data, picked day, upcoming rosters (for approvals)
-const filledOf = r => (r && r.slots || []).filter(x => (x.name || '').trim()).length;
+// who counts towards the number needed: not Little Dragons teachers, and at Concord / Auburn only the extras (the usual staff are on anyway)
+const counts = (x, loc) => !!(x.name || '').trim() && !/little dragons/i.test(x.job || '') && !(['Concord', 'West'].includes(loc) && !x.extra);
+const filledOf = r => (r && r.slots || []).filter(x => counts(x, r.location)).length;
 const needOf = r => ((r && r.limits && r.limits.floor && r.limits.floor.need) ?? (RSET && RSET.floor_need) ?? 2);
 const maxOf = r => ((r && r.limits && r.limits.floor && r.limits.floor.max) ?? (RSET && RSET.floor_max) ?? 4);
 async function loadRosterMonth(){
@@ -1143,7 +1145,7 @@ function drawSlots(){
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
       <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
       ${(av || el || x.usual) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el ? `<span class="pa move">Moves from ${esc(SCHOOL(el.location))} ${fmtTime(el.start)}–${fmtTime(el.end)}</span>` : ''}</div>` : ''}</div>`; };
-  const L = RO.lim.floor, filled = RO.slots.filter(x => (x.name || '').trim()).length;
+  const L = RO.lim.floor, filled = RO.slots.filter(x => counts(x, RO.location)).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="max" value="${L.max}"></span></div>
     ${gradingCover()}
@@ -1174,7 +1176,7 @@ function drawSlots(){
 }
 // each grading that day: how many rostered staff are on during it, against its own need and max (changeable per grading)
 const gLim = id => ({ need: RO.lim.floor.need, max: RO.lim.floor.max, ...(RO.lim.g[id] || {}) });
-const onFor = sp => RO.slots.filter(x => (x.name || '').trim() && x.start && x.end && mins(x.start) <= mins(sp.start) && mins(x.end) >= mins(sp.end)).length;   // on for the whole grading
+const onFor = sp => RO.slots.filter(x => counts(x, RO.location) && x.start && x.end && mins(x.start) <= mins(sp.start) && mins(x.end) >= mins(sp.end)).length;   // on for the whole grading
 function gradingCover(){
   if(!(RO.gradings || []).length) return '';
   return `<div class="gcov">${RO.gradings.map(g => { const L = gLim(g.day_id), sp = gSpan(g), n = onFor(sp), cls = n > L.max ? 'over' : n < L.need ? 'short' : 'ok';
@@ -1269,7 +1271,7 @@ async function afterSave(){ await loadRosterUpcoming(); RMD = null; render(); }
 async function saveRoster(submit, btn){
   const slots = cleanSlots();
   if(submit && !slots.length) return roErr('Add at least one person.');
-  const short = RO.lim.floor.need - slots.length, gs = gradingShort();
+  const short = RO.lim.floor.need - slots.filter(x => counts(x, RO.location)).length, gs = gradingShort();
   if(submit && (short > 0 || gs.length) && !RO.warned){ RO.warned = true; return roErr(`Check: ${[short > 0 ? `${short} floor staff short for the day` : '', ...gs].filter(Boolean).join('; ')}. Tap Send again to send it anyway.`); }
   btn.disabled = true; roErr('');
   const { error } = await sb.rpc('cb_ops_day_roster_save', { p_date: RO.date, p_location: RO.location, p_slots: slots, p_note: $('#roNote').value.trim() || null, p_submit: !!submit, p_limits: limitsArg() });
