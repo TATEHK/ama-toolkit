@@ -129,7 +129,7 @@
         if (mineU.length) {   // they usually work this weekday: already working, so no availability to give
           var SN = function (l) { return l === 'West' ? 'Auburn' : l; };
           return '<div class="day busy"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b></div>' +
-            '<p class="usual">You usually work ' + DOW[dt.getDay()] + 's ' + mineU.map(function (u) { return 'at ' + esc(SN(u.location)) + ', ' + t12(u.start) + ' to ' + t12(u.end); }).join(' and ') + ', so you\'re already working this day. Contact Tate if this is wrong.</p></div>';
+            '<p class="usual">You usually work ' + DOW[dt.getDay()] + 's ' + mineU.map(function (u) { return 'at ' + esc(SN(u.location)) + ', ' + t12(u.start) + ' to ' + t12(u.end); }).join(' and ') + ', so we\'ve got you down for this day already, thanks! If that\'s not right, just let Tate know.</p></div>';
         }
         var opts = G.length > 1
           ? G.map(function (o) { return ['' + o.k, GNAME[o.k], span(o.gs)]; }).concat([['both', G.length > 2 ? 'All' : 'Both', 'all day'], ['no', 'Not free', '']])
