@@ -1084,6 +1084,7 @@ function rostersSection(){
     ...(gl.includes('Marrickville') ? ['Sydenham'] : []),
     ...(gl.includes('Concord') ? ['Marrickville', 'Sydenham'] : []),
     ...(gl.includes('West') || (k >= '2026-12-07' && k <= '2026-12-10') ? usualSchools(d) : []),
+    ...(k === '2026-12-05' ? ['Marrickville', 'Sylvania'] : []),   // Sat 5 Dec black belt grading at Sydenham: also roster these
     ...(rs || []).map(r => r.location)])].filter(inSch);
   const cell = d => { const k = ymd(d), x = byDay[k] || { r: [], g: [] }, out = d.getMonth() !== b.getMonth();
     // same schools as the day panel: Sydenham on Marrickville grading days, and every open school 7–10 Dec
