@@ -1028,6 +1028,12 @@ const notCounted = x => ((RSET && RSET.not_counted) || []).includes(String(x.nam
 const counts = (x, loc) => !!(x.name || '').trim() && !notCounted(x) && !/little dragons/i.test(x.job || '') && !(['Concord', 'West'].includes(loc) && !x.extra);
 // Marrickville: only people on during a grading count (grading times from the month calendar; each runs to the next start, or 90 min)
 const mm = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+// Concord / Auburn: the calendar shows extras against the extras max (usual staff there don't count)
+const isExtraLoc = l => ['Concord', 'West'].includes(l);
+const exOf = r => (r && r.slots || []).filter(x => x.extra && (x.name || '').trim() && !notCounted(x)).length;
+const exMaxOf = r => (r && r.limits && r.limits.extras && r.limits.extras.max != null) ? r.limits.extras.max : 2;
+const calN = (r, l) => isExtraLoc(l) ? exOf(r) : filledOf(r);
+const calNeed = (r, l) => isExtraLoc(l) ? exMaxOf(r) : needOf(r, l);
 const filledOf = r => { if(!r) return 0;
   const g = r.location === 'Marrickville' && typeof RMD !== 'undefined' && RMD && (RMD.gradings || []).find(x => x.date === r.date && x.location === r.location);
   const st = g ? (g.starts || []).map(mm).filter(v => v != null).sort((a, b) => a - b) : [], spans = st.map((v, i) => [v, st[i + 1] || v + 90]);
@@ -1067,10 +1073,10 @@ function rostersSection(){
     const locs = [...new Set([...gl0, ...(gl0.includes('Marrickville') ? ['Sydenham'] : []), ...open0, ...x.r.map(r => r.location)])].filter(inSch);
     const us = usualSchools(d).filter(inSch).sort((a, b) => { const o = l => { const i = ROSTER_SCHOOLS.indexOf(l); return i < 0 ? 9 : i; }; return o(a) - o(b) || a.localeCompare(b); }).map(l => [l, usualOn(d, l).length]).filter(([, n]) => n);
     // boxes only for schools with a grading; other schools (Sydenham, open schools) go in the line at the bottom
-    const others = locs.filter(l => !gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l); return `${esc(SHORT(l))} ${filledOf(r)}/${needOf(r, l)}`; });
+    const others = locs.filter(l => !gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l); return `${esc(SHORT(l))} ${calN(r, l)}/${calNeed(r, l)}${isExtraLoc(l) ? ' extras' : ''}`; });
     const chips = locs.filter(l => gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l);
-      const n = filledOf(r), need = needOf(r, l), st = r ? r.status : (g ? 'none' : '');
-      return `<span class="rc ${st}${r && n < need ? ' short' : ''}" title="${esc(SCHOOL(l))}${g ? ' · grading' : ''}">${g ? '<i></i>' : ''}${esc(SHORT(l))} ${n}/${need}</span>`; }).join('');
+      const n = calN(r, l), need = calNeed(r, l), st = r ? r.status : (g ? 'none' : '');
+      return `<span class="rc ${st}${r && n < need && !isExtraLoc(l) ? ' short' : ''}" title="${esc(SCHOOL(l))}${g ? ' · grading' : ''}">${g ? '<i></i>' : ''}${esc(SHORT(l))} ${n}/${need}</span>`; }).join('');
     const av = x.a ? `<span class="ra">${x.a.yes + x.a.part} free</span>` : '';
     const gday = x.g.length > 0;   // rostering is only for days with gradings on
     const usual = gday && us.length ? `<span class="ru" title="Usually working that weekday">Usual: ${us.map(([l, n]) => RSCH ? `${n} usually on` : `${esc(SHORT(l))} ${n}`).join(' · ')}</span>` : '';
@@ -1097,9 +1103,9 @@ function rostersSection(){
         ...off.map(p => { const o = elsewhereOf(p); return o ? chip('rmv', `${esc(p.name)} <i>moved to ${esc(SCHOOL(o.location))}</i>`) : chip('roff', `− ${esc(p.name)} <i>off</i>`); })];
       return out.length ? `<div class="rus"><span class="rul">Changes</span>${out.join('')}</div>` : `<div class="rus"><span class="rul">Changes</span><span class="muted small">none</span></div>`; };
     panel = `<div class="rpanel"><div class="rph"><b>${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}</b>${x.a ? `<span class="muted">${x.a.yes} free, ${x.a.part} part free, ${x.a.no} not free</span>` : ''}</div>
-      ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = filledOf(r), need = needOf(r, l);
+      ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = calN(r, l), need = calNeed(r, l);
         return `<div class="rprow"><div class="grow"><b>${esc(SCHOOL(l))}</b> <span class="muted">${g ? `gradings ${(g.starts || []).map(fmtTime).join(', ') || ''}` : 'no grading'}</span>
-          <div class="small">${r ? `${n} of ${need} floor staff ${roTag(r)}` : `<span class="muted">No roster yet · ${need} needed</span>`}</div>${usualList(l)}${changesList(r, l)}</div>
+          <div class="small">${r ? `${n} of ${need} ${isExtraLoc(l) ? 'extras' : 'floor staff'} ${roTag(r)}` : `<span class="muted">No roster yet · ${isExtraLoc(l) ? `up to ${need} extras` : `${need} needed`}</span>`}</div>${usualList(l)}${changesList(r, l)}</div>
           <button class="btn mini${r && r.status === 'submitted' && canApprove() ? ' primary' : ''}" data-ropen="${RSELD}|${esc(l)}">${r ? (r.status === 'submitted' && canApprove() ? 'Review' : 'Open') : 'Build roster'}</button></div>`; }).join('')}</div>`;
   }
   return `<div class="rmtop"><button class="btn mini" id="rmPrev" aria-label="Previous month">‹</button><b class="rmname">${MON[b.getMonth()]} ${b.getFullYear()}</b><button class="btn mini" id="rmNext" aria-label="Next month">›</button>
