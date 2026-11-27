@@ -60,6 +60,7 @@
   .opts3 button[aria-pressed="true"].yes { background: var(--ok); border-color: var(--ok); color: #fff; }
   .opts3 button[aria-pressed="true"].no { background: var(--no); border-color: var(--no); color: #fff; }
   .opts3 button[aria-pressed="true"] small { color: inherit; opacity: .85; }
+  .where { color: var(--ink-2); font-weight: 500; font-size: 15px; }
   .syd { display: flex; gap: 10px; align-items: center; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 15px; cursor: pointer; }
   .syd small { color: var(--ink-2); }
   .syd input { width: 22px; height: 22px; accent-color: var(--ok); flex: none; margin: 0; }
@@ -75,7 +76,7 @@
 </style>
 </head>
 <body>
-<header><div class="in"><img src="/icons/ama-logo.png" alt="AMA"><h1 id="hi">Grading availability</h1><p>Marrickville gradings coming up</p></div></header>
+<header><div class="in"><img src="/icons/ama-logo.png" alt="AMA"><h1 id="hi">Grading availability</h1><p>Marrickville and Auburn gradings coming up</p></div></header>
 <main id="m"><div class="empty">Loading…</div></main>
 <script>
 (function () {
@@ -119,30 +120,31 @@
     return '';
   }
   function draw() {
-    if (!DAYS.length) { $('#m').innerHTML = '<div class="empty">There are no Marrickville gradings coming up right now. Thanks for checking.</div>'; return; }
+    if (!DAYS.length) { $('#m').innerHTML = '<div class="empty">There are no gradings coming up right now. Thanks for checking.</div>'; return; }
     $('#m').innerHTML = '<div class="note"><b>These are not guaranteed shifts.</b>Telling us when you\'re free just helps us with rostering. If you\'re rostered on, we\'ll contact you and you\'ll get a notification with your shift.</div>' +
-      '<div class="note2">Most shifts start at ' + t12(SHIFT || '15:30') + ' at Marrickville and 3:45pm at Sydenham. Some may start at a different time, and we\'ll tell you the exact time if you\'re rostered on.</div>' +
+      '<div class="note2">Most shifts start at ' + t12(SHIFT || '15:30') + ' at Marrickville, 3:45pm at Sydenham and 4:30pm at Auburn. Some may start at a different time, and we\'ll tell you the exact time if you\'re rostered on.</div>' +
       DAYS.map(function (d, i) {
         var dt = new Date(d.date + 'T00:00:00'), G = groups(d), c = choice(d);
         var mineU = USUAL.filter(function (u) { return u.weekday === dt.getDay(); });
         if (mineU.length) {   // they usually work this weekday: already working, so no availability to give
           var SN = function (l) { return l === 'West' ? 'Auburn' : l; };
           return '<div class="day busy"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b></div>' +
-            '<p class="usual">You usually work ' + DOW[dt.getDay()] + 's ' + mineU.map(function (u) { return 'at ' + esc(SN(u.location)) + ', ' + t12(u.start) + ' to ' + t12(u.end); }).join(' and ') + ', so you\'re already working this day.</p></div>';
+            '<p class="usual">You usually work ' + DOW[dt.getDay()] + 's ' + mineU.map(function (u) { return 'at ' + esc(SN(u.location)) + ', ' + t12(u.start) + ' to ' + t12(u.end); }).join(' and ') + ', so you\'re already working this day. Contact Tate if this is wrong.</p></div>';
         }
         var opts = G.length > 1
           ? G.map(function (o) { return ['' + o.k, GNAME[o.k], span(o.gs)]; }).concat([['both', G.length > 2 ? 'All' : 'Both', 'all day'], ['no', 'Not free', '']])
           : [['both', 'Free', span((d.gradings || []))], ['no', 'Not free', '']];
         var first = (d.gradings || []).map(function (g) { return g.start; }).filter(Boolean).sort()[0], mm = function (t) { var m = /^(\d+):(\d+)/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
         var st = SHIFT && first && mm(SHIFT) < mm(first) ? SHIFT : (first ? (function (x) { x -= 30; return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); })(mm(first)) : null);
-        return '<div class="day"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b></div>' +
+        var LOCS = d.locations || ['Marrickville'], atMarr = LOCS.indexOf('Marrickville') >= 0;   // Auburn days: no Sydenham box
+        return '<div class="day"><div class="dh"><b>' + DOW[dt.getDay()] + ' ' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b> <span class="where">' + LOCS.map(function (l) { return l === 'West' ? 'Auburn' : l; }).join(' & ') + '</span></div>' +
           G.map(function (o) { return '<div class="grp"><div class="gh">' + GNAME[o.k] + '</div>' + o.gs.map(function (g) {
             return '<div class="gl"><b>' + t12(g.start) + '</b><span>' + esc(beltsText(g)) + '</span></div>'; }).join('') + '</div>'; }).join('') +
           '<div class="opts3" role="group" aria-label="When are you free on this day?">' + opts.map(function (o) {
             var st = ST[d.date] || {}, grp = G.find(function (x) { return x.k === o[0]; });
             var on = grp ? grp.gs.every(function (g) { return st[g.day_id] === 'yes'; }) && c !== 'both' : c === o[0];   // groups can be picked together
             return '<button type="button" class="' + (o[0] === 'no' ? 'no' : 'yes') + '" data-d="' + i + '" data-c="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (o[2] ? '<small>' + esc(o[2]) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
-          '<label class="syd"><input type="checkbox" data-syd="' + i + '"' + (SYD[d.date] ? ' checked' : '') + '> I\'m available to go to Sydenham this day</label>' +
+          (atMarr ? '<label class="syd"><input type="checkbox" data-syd="' + i + '"' + (SYD[d.date] ? ' checked' : '') + '> I\'m available to go to Sydenham this day</label>' : '') +
           (d.others || []).map(function (l) { return '<label class="syd"><input type="checkbox" data-oth="' + i + '|' + esc(l) + '"' + ((OTH[d.date] || {})[l] ? ' checked' : '') + '> I\'m available to go to ' + esc(l === 'West' ? 'Auburn' : l) + ' this day</label>'; }).join('') + '</div>';
       }).join('') + '<div class="save"><button id="save" type="button">Save my availability</button><div class="msg" id="msg"></div></div>';
     [].forEach.call(document.querySelectorAll('[data-c]'), function (b) { b.onclick = function () {
@@ -157,7 +159,7 @@
       }
       // free that day: tick Sydenham for them (unless they've set it themselves); not free: untick it
       var free = all.some(function (g) { return s[g.day_id] === 'yes'; });
-      if (!SYDSET[d.date]) SYD[d.date] = free;
+      if (!SYDSET[d.date] && (d.locations || ['Marrickville']).indexOf('Marrickville') >= 0) SYD[d.date] = free;
       draw(); }; });
     [].forEach.call(document.querySelectorAll('[data-syd]'), function (c) { c.onchange = function () { var dd = DAYS[+c.dataset.syd].date; SYD[dd] = c.checked; SYDSET[dd] = true; }; });
     [].forEach.call(document.querySelectorAll('[data-oth]'), function (c) { c.onchange = function () { var p = c.dataset.oth.split('|'), dd = DAYS[+p[0]].date; (OTH[dd] = OTH[dd] || {})[p[1]] = c.checked; }; });
