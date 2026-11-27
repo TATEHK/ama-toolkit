@@ -1,0 +1,5 @@
+-- Rostering v2 (applied 2026-11-27 with execute_sql): cb_staff (seeded from hub logins, personal availability token),
+-- cb_staff_usual (usual shifts from Deputy or typed in), cb_staff_avail (answers from /a/<token>), cb_day_rosters (one roster per date + school).
+-- RPCs: cb_ops_roster_month, cb_ops_day_roster, cb_ops_day_roster_save, cb_ops_day_roster_decide (approvers), cb_floor_roster (by date + school),
+-- cb_ops_staff_list, cb_ops_staff_save, cb_ops_usual_save (approvers), cb_avail_get / cb_avail_set (public, by token).
+-- cb edge actions (approvers): roster_notify, roster_deputy (moves usual shifts at other schools), deputy_usual, avail_send, roster_costs.

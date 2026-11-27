@@ -2916,90 +2916,190 @@ export async function handle(req, db, env = {}, http = fetch) {
     }
 
     // Text and email an invited helper their sign-up link. { student_id, preview: true } returns the exact messages without sending.
-    // rosters are approved, texted and put in Deputy only by the approvers in cb_roster_settings (Tate and Mark)
+    // ===== Rostering (one roster per day per school). Approving, texting, Deputy and availability links: the approvers in
+    //       cb_roster_settings only (Tate and Mark). Deputy: DEPUTY_HOST (built in) and the DEPUTY_TOKEN secret. =====
     const rosterApprover = async () => { const { data: rs } = await db.from('cb_roster_settings').select('approvers').eq('id', 1).maybeSingle();
       return !!(me && rs && (rs.approvers || []).some((e: string) => String(e).toLowerCase() === me)); };
-    // ---- Text everyone on an approved grading-day roster their shift (Mark, from the Operations dashboard). { day_id, only_new? } ----
+    const isRosterAction = ['roster_notify', 'roster_deputy', 'deputy_usual', 'avail_send', 'roster_costs'].includes(body.action);
+    if (isRosterAction && !(await rosterApprover())) return fail('Only Tate and Mark can do that.', 403);
+    const SCHOOL = (l: string) => l === 'West' ? 'Auburn' : l;
+    const t12 = (t: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + (m[2] === '00' ? '' : ':' + m[2]) + (h < 12 ? 'am' : 'pm'); };
+    const sydParts = (sec: number) => { const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short' }).formatToParts(new Date(sec * 1000));
+      const g = (t: string) => (p.find(x => x.type === t) || {} as any).value; const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(g('weekday'));
+      return { date: `${g('year')}-${g('month')}-${g('day')}`, hm: `${g('hour') === '24' ? '00' : g('hour')}:${g('minute')}`, wd }; };
+    const depHost = String(env.DEPUTY_HOST || '748e6a11114707.au.deputy.com').replace(/^https?:\/\//, '').replace(/\/.*$/, ''), depTok = env.DEPUTY_TOKEN;
+    const dep = async (path: string, init: any = {}) => {
+      if (!depTok) throw new Error('Deputy is not connected yet (add the DEPUTY_TOKEN secret in Supabase).');
+      const r = await fetch('https://' + depHost + '/api/v1/' + path, { ...init, headers: { Authorization: 'Bearer ' + depTok, 'Content-Type': 'application/json', Accept: 'application/json', ...(init.headers || {}) } });
+      const t = await r.text(); let j: any = null; try { j = JSON.parse(t); } catch (_) { j = t; }
+      if (!r.ok) throw new Error('Deputy ' + r.status + ': ' + String(typeof j === 'string' ? j : (j && (j.error && (j.error.message || j.error)) || JSON.stringify(j))).slice(0, 200));
+      return j;
+    };
+    // Deputy areas, each with the school it belongs to (matched on our school names; West is Auburn)
+    const depUnits = async () => {
+      const units: any[] = await dep('resource/OperationalUnit/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Active', type: 'eq', data: true } }, join: ['CompanyObject'], max: 500 }) });
+      const SCHOOLS = ['Marrickville', 'Sydenham', 'Concord', 'Sylvania', 'Auburn'];
+      return units.map(u => { const cn = String((u.CompanyObject && (u.CompanyObject.CompanyName || u.CompanyObject.TradingName)) || ''), un = String(u.OperationalUnitName || '');
+        const sch = SCHOOLS.find(s => (cn + ' ' + un).toLowerCase().includes(s.toLowerCase())) || null;
+        return { id: +u.Id, name: un, company: cn, school: sch ? (sch === 'Auburn' ? 'West' : sch) : null }; });
+    };
+    const depEmps = async () => (await dep('resource/Employee/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Active', type: 'eq', data: true } }, join: ['ContactObject'], max: 500 }) })) as any[];
+    const norm = (x: string) => String(x || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+    const empFor = (emps: any[], name: string, id?: number) => { if (id) { const e = emps.find(e => +e.Id === +id); if (e) return e; } const n = norm(name);
+      return emps.find(e => norm(e.DisplayName) === n) || emps.find(e => norm((e.FirstName || '') + ' ' + (e.LastName || '')) === n)
+        || (() => { const f = n.split(' ')[0], l = n.split(' ').slice(-1)[0]; const c = emps.filter(e => norm(e.FirstName) === f && (n.split(' ').length < 2 || norm(e.LastName).startsWith(l))); return c.length === 1 ? c[0] : null; })(); };
+    const loadRoster = async () => {
+      const date = String(body.date || ''), location = String(body.location || '');
+      const { data: r } = await db.from('cb_day_rosters').select('*').eq('date', date).eq('location', location).maybeSingle();
+      return r;
+    };
+
+    // ---- text everyone on an approved day roster their shift. { date, location } ----
     if (body.action === 'roster_notify') {
-      if (!(await rosterApprover())) return fail('Only Tate and Mark can send the roster.', 403);
-      const { data: r } = await db.from('cb_rosters').select('day_id, slots, status').eq('day_id', String(body.day_id || '')).maybeSingle();
-      if (!r) return fail('No roster for that grading.', 404);
+      const r = await loadRoster();
+      if (!r) return fail('No roster for that day.', 404);
       if (r.status !== 'approved') return fail('Approve the roster first.', 409);
-      const { data: d } = await db.from('cb_days').select('grading_date, location').eq('day_id', r.day_id).maybeSingle();
       if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
-      const when = d ? new Date(d.grading_date + 'T12:00:00Z').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) : '';
-      const t12 = (t: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = +m[1]; return ((h + 11) % 12 + 1) + (m[2] === '00' ? '' : ':' + m[2]) + (h < 12 ? 'am' : 'pm'); };
-      const ROLE = { floor: 'floor staff', admin: 'admin' };
+      const when = new Date(r.date + 'T12:00:00Z').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
       const res = [];
       for (const sl of (r.slots || [])) {
         const name = String(sl.name || '').trim(), phone = phoneE164(sl.mobile);
         if (!name) continue;
         if (!phone) { res.push({ name, status: 'no mobile' }); continue; }
         const span = sl.start ? (t12(sl.start) + (sl.end ? ' to ' + t12(sl.end) : '')) : 'all day';
-        const text = `Hi ${first(name) || 'there'}, you're rostered on as ${(ROLE as any)[sl.role] || 'staff'} for gradings at ${d ? (d.location === 'West' ? 'Auburn' : d.location) : 'AMA'} on ${when}, ${span}. Thanks - AMA`;
+        const text = `Hi ${first(name) || 'there'}, you're rostered on as floor staff at ${SCHOOL(r.location)} on ${when}, ${span}. Thanks - AMA`;
         try {
           const cid = await contactFor({ guardian_name: name, full_name: name, email: sl.email || null }, phone);
           if (!cid) throw new Error('could not find or add them in GoHighLevel');
           await sendSms(cid, text); res.push({ name, status: 'sent' });
         } catch (er) { res.push({ name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
       }
-      if (res.some(x => x.status === 'sent')) await db.from('cb_rosters').update({ notified_at: new Date().toISOString() }).eq('day_id', r.day_id);
+      if (res.some(x => x.status === 'sent')) await db.from('cb_day_rosters').update({ notified_at: new Date().toISOString() }).eq('roster_id', r.roster_id);
       return json({ ok: true, sent: res.filter(x => x.status === 'sent').length, results: res });
     }
 
-    // ---- Put an approved roster into Deputy as published shifts (Mark). { day_id, opunit_id? }
-    //      Needs the DEPUTY_HOST (e.g. ama.au.deputy.com) and DEPUTY_TOKEN (a permanent token) secrets.
-    //      People are matched to Deputy employees by name; each shift made is remembered on its slot so it's never made twice. ----
+    // ---- put an approved day roster into Deputy as published shifts. { date, location, opunit_id? }
+    //      Someone moved here from another school that day has that other shift taken off first (so it moves, not doubles). ----
     if (body.action === 'roster_deputy') {
-      if (!(await rosterApprover())) return fail('Only Tate and Mark can add shifts to Deputy.', 403);
-      const host = String(env.DEPUTY_HOST || '748e6a11114707.au.deputy.com')   // AMA's Deputy (not secret; the token is)
-        .replace(/^https?:\/\//, '').replace(/\/.*$/, ''), dtok = env.DEPUTY_TOKEN;
-      if (!host || !dtok) return fail('Deputy is not connected yet (add the DEPUTY_TOKEN secret in Supabase).', 409);
-      const dep = async (path: string, init: any = {}) => {
-        const r = await fetch('https://' + host + '/api/v1/' + path, { ...init, headers: { Authorization: 'Bearer ' + dtok, 'Content-Type': 'application/json', Accept: 'application/json', ...(init.headers || {}) } });
-        const t = await r.text(); let j: any = null; try { j = JSON.parse(t); } catch (_) { j = t; }
-        if (!r.ok) throw new Error('Deputy ' + r.status + ': ' + (typeof j === 'string' ? j : (j && (j.error && (j.error.message || j.error)) || JSON.stringify(j))).toString().slice(0, 200));
-        return j;
-      };
-      const { data: r } = await db.from('cb_rosters').select('day_id, slots, status').eq('day_id', String(body.day_id || '')).maybeSingle();
-      if (!r) return fail('No roster for that grading.', 404);
+      const r = await loadRoster();
+      if (!r) return fail('No roster for that day.', 404);
       if (r.status !== 'approved') return fail('Approve the roster first.', 409);
-      const { data: d } = await db.from('cb_days').select('grading_date, location, start_time').eq('day_id', r.day_id).maybeSingle();
-      if (!d) return fail('That grading was not found.', 404);
-      // the area (operational unit) the shifts go in: the one picked, else one at this school with "grading" in its name, else the school's only area
-      let units: any[] = [];
-      try { units = await dep('resource/OperationalUnit/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Active', type: 'eq', data: true } }, join: ['CompanyObject'], max: 500 }) }); } catch (er) { return fail(String(er.message || er)); }
-      const uname = (u: any) => String(u.OperationalUnitName || ''), cname = (u: any) => String((u.CompanyObject && (u.CompanyObject.CompanyName || u.CompanyObject.TradingName)) || u.CompanyName || '');
-      const loc = String(d.location || '').toLowerCase().replace('west', 'auburn');
-      const atLoc = units.filter(u => (cname(u) + ' ' + uname(u)).toLowerCase().includes(loc));
-      let unit = body.opunit_id ? units.find(u => +u.Id === +body.opunit_id) : (atLoc.find(u => /grading/i.test(uname(u))) || (atLoc.length === 1 ? atLoc[0] : null));
-      if (!unit) return json({ ok: false, pick_area: true, error: 'Which Deputy area should these shifts go in?', areas: (atLoc.length ? atLoc : units).map(u => ({ id: u.Id, name: uname(u), location: cname(u) })) });
-      let emps: any[] = [];
-      try { emps = await dep('resource/Employee/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Active', type: 'eq', data: true } }, max: 500 }) }); } catch (er) { return fail(String(er.message || er)); }
-      const norm = (x: string) => String(x || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
-      const findEmp = (name: string) => { const n = norm(name);
-        return emps.find(e => norm(e.DisplayName) === n) || emps.find(e => norm((e.FirstName || '') + ' ' + (e.LastName || '')) === n)
-          || (() => { const f = n.split(' ')[0], l = n.split(' ').slice(-1)[0]; const c = emps.filter(e => norm(e.FirstName) === f && norm(e.LastName).startsWith(l)); return c.length === 1 ? c[0] : null; })(); };
+      let units: any[] = [], emps: any[] = [];
+      try { units = await depUnits(); emps = await depEmps(); } catch (er) { return fail(String(er.message || er)); }
+      const atLoc = units.filter(u => u.school === r.location);
+      const unit = body.opunit_id ? units.find(u => u.id === +body.opunit_id) : (atLoc.find(u => /grading/i.test(u.name)) || (atLoc.length === 1 ? atLoc[0] : null));
+      if (!unit) return json({ ok: false, pick_area: true, error: 'Which Deputy area should these shifts go in?', areas: (atLoc.length ? atLoc : units).map(u => ({ id: u.id, name: u.name, location: u.company })) });
+      const dayFrom = Math.round(sydMs(r.date, '00:00') / 1000), dayTo = dayFrom + 86400;
       const slots = (r.slots || []).map((x: any) => ({ ...x }));
       const res = [];
       for (const sl of slots) {
         if (!sl.name) continue;
         if (sl.deputy_id) { res.push({ name: sl.name, status: 'already in Deputy' }); continue; }
-        const st = sl.start || (d.start_time ? String(d.start_time).slice(0, 5) : ''), en = sl.end;
-        if (!st || !en) { res.push({ name: sl.name, status: 'needs a start and finish time' }); continue; }
-        const emp = findEmp(sl.name);
+        if (!sl.start || !sl.end) { res.push({ name: sl.name, status: 'needs a start and finish time' }); continue; }
+        const emp = empFor(emps, sl.name, sl.deputy_emp);
         if (!emp) { res.push({ name: sl.name, status: 'not found in Deputy (check the name matches)' }); continue; }
+        const st = Math.round(sydMs(r.date, sl.start) / 1000), en = Math.round(sydMs(r.date, sl.end) / 1000);
         try {
-          const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({
-            intStartTimestamp: Math.round(sydMs(d.grading_date, st) / 1000), intEndTimestamp: Math.round(sydMs(d.grading_date, en) / 1000),
-            intOpunitId: +unit.Id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
-            strComment: `${sl.role === 'admin' ? 'Admin' : 'Floor staff'}, ${d.location} gradings` }) });
+          const theirs: any[] = await dep('resource/Roster/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Employee', type: 'eq', data: +emp.Id }, s2: { field: 'StartTime', type: 'ge', data: dayFrom }, s3: { field: 'StartTime', type: 'lt', data: dayTo } }, max: 50 }) });
+          const overlap = theirs.filter(x => +x.StartTime < en && +x.EndTime > st);
+          const here = overlap.find(x => +x.OperationalUnit === unit.id);
+          if (here) { sl.deputy_id = here.Id; sl.deputy_emp = emp.Id; res.push({ name: sl.name, status: 'already had this shift in Deputy' }); continue; }
+          const moved = [];
+          for (const x of overlap) {   // their shift at another school at the same time comes off
+            await dep('resource/Roster/' + x.Id, { method: 'DELETE' });
+            const u = units.find(u => u.id === +x.OperationalUnit); moved.push(u ? SCHOOL(u.school || u.name) : 'another area');
+          }
+          const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({ intStartTimestamp: st, intEndTimestamp: en, intOpunitId: unit.id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
+            strComment: `Floor staff, ${SCHOOL(r.location)} gradings` }) });
           sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id;
-          res.push({ name: sl.name, status: 'shift made' });
+          res.push({ name: sl.name, status: moved.length ? `moved here from ${moved.join(', ')}` : 'shift made' });
         } catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
       }
-      await db.from('cb_rosters').update({ slots, deputy_at: res.some(x => x.status === 'shift made') ? new Date().toISOString() : undefined }).eq('day_id', r.day_id);
-      return json({ ok: true, area: uname(unit), made: res.filter(x => x.status === 'shift made').length, results: res });
+      const made = res.filter(x => /^shift made|^moved/.test(x.status)).length;
+      await db.from('cb_day_rosters').update({ slots, ...(made ? { deputy_at: new Date().toISOString() } : {}) }).eq('roster_id', r.roster_id);
+      return json({ ok: true, area: unit.name, made, results: res });
+    }
+
+    // ---- read the last 4 weeks of Deputy shifts and record who normally works where and when (seen at least twice).
+    //      Staff are matched to Deputy employees by name; Deputy staff not in our list are added. ----
+    if (body.action === 'deputy_usual') {
+      let units: any[] = [], emps: any[] = [], shifts: any[] = [];
+      const weeks = Math.min(8, Math.max(2, +body.weeks || 4)), now = Math.round(Date.now() / 1000);
+      try {
+        units = await depUnits(); emps = await depEmps();
+        shifts = await dep('resource/Roster/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'StartTime', type: 'ge', data: now - weeks * 7 * 86400 }, s2: { field: 'StartTime', type: 'lt', data: now } }, max: 2000 }) });
+      } catch (er) { return fail(String(er.message || er)); }
+      const unitSchool = Object.fromEntries(units.map(u => [u.id, u.school]));
+      const { data: staff } = await db.from('cb_staff').select('staff_id, name, deputy_emp, mobile, email');
+      const byEmp: Record<string, any> = {};
+      for (const e of emps) {   // link each Deputy employee to our staff list
+        const s = (staff || []).find(s => +s.deputy_emp === +e.Id) || (staff || []).find(s => !s.deputy_emp && empFor([e], s.name));
+        const c = e.ContactObject || {}, mob = c.Phone1 || c.Phone2 || c.Mobile || null, em = c.Email1 || c.Email || null;
+        if (s) {
+          if (+s.deputy_emp !== +e.Id || (!s.mobile && mob) || (!s.email && em)) await db.from('cb_staff').update({ deputy_emp: +e.Id, mobile: s.mobile || mob, email: s.email || em }).eq('staff_id', s.staff_id);
+          byEmp[e.Id] = s.staff_id;
+        } else {
+          const { data: ins } = await db.from('cb_staff').insert({ name: e.DisplayName || `${e.FirstName || ''} ${e.LastName || ''}`.trim(), deputy_emp: +e.Id, mobile: mob, email: em }).select('staff_id').maybeSingle();
+          if (ins) byEmp[e.Id] = ins.staff_id;
+        }
+      }
+      const seen: Record<string, any> = {};
+      for (const x of shifts) {
+        const sid = byEmp[x.Employee], loc = unitSchool[x.OperationalUnit];
+        if (!sid || !loc || !x.StartTime || !x.EndTime) continue;
+        const a = sydParts(+x.StartTime), b = sydParts(+x.EndTime);
+        const k = [sid, a.wd, loc, a.hm, b.hm].join('|');
+        (seen[k] = seen[k] || { staff_id: sid, weekday: a.wd, location: loc, start_t: a.hm, end_t: b.hm, seen: 0 }).seen++;
+      }
+      const rows = Object.values(seen).filter((x: any) => x.seen >= 2);
+      const ids = [...new Set(Object.values(byEmp))];
+      if (ids.length) await db.from('cb_staff_usual').delete().eq('source', 'deputy').in('staff_id', ids);
+      if (rows.length) await db.from('cb_staff_usual').upsert(rows.map((x: any) => ({ ...x, source: 'deputy', updated_at: new Date().toISOString() })), { onConflict: 'staff_id,weekday,location,start_t' });
+      return json({ ok: true, employees: emps.length, shifts: shifts.length, usual: rows.length, unmatched_areas: units.filter(u => !u.school).map(u => u.name + (u.company ? ' (' + u.company + ')' : '')) });
+    }
+
+    // ---- wages for rostered shifts, from Deputy's own cost for each shift we put there (Tate and Mark). { from, to } ----
+    if (body.action === 'roster_costs') {
+      const from = String(body.from || ''), to = String(body.to || '');
+      const { data: rs } = await db.from('cb_day_rosters').select('date, location, slots, status').gte('date', from).lte('date', to);
+      const ids = (rs || []).flatMap(r => (r.slots || []).map((x: any) => +x.deputy_id).filter((n: number) => n > 0));
+      const cost: Record<number, any> = {};
+      try {
+        for (let i = 0; i < ids.length; i += 100) {
+          const chunk = ids.slice(i, i + 100);
+          const got: any[] = await dep('resource/Roster/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Id', type: 'in', data: chunk } }, max: 100 }) });
+          for (const x of got) cost[+x.Id] = { cost: +x.Cost || 0, hours: +x.TotalTime || 0 };
+        }
+      } catch (er) { if (ids.length) return fail(String(er.message || er)); }
+      const lines = [];
+      for (const r of (rs || [])) for (const x of (r.slots || [])) {
+        if (!x.name) continue;
+        const c = cost[+x.deputy_id];
+        const hrs = c ? c.hours : (x.start && x.end ? ((+x.end.slice(0, 2) * 60 + +x.end.slice(3)) - (+x.start.slice(0, 2) * 60 + +x.start.slice(3))) / 60 : 0);
+        lines.push({ date: r.date, location: r.location, status: r.status, name: x.name, start: x.start, end: x.end, hours: Math.round(hrs * 100) / 100, cost: c ? Math.round(c.cost * 100) / 100 : null });
+      }
+      return json({ ok: true, lines, total: Math.round(lines.reduce((a, l) => a + (l.cost || 0), 0) * 100) / 100, hours: Math.round(lines.reduce((a, l) => a + l.hours, 0) * 100) / 100, unpriced: lines.filter(l => l.cost == null).length });
+    }
+
+    // ---- text staff their own availability link. { staff_ids?: [] } (default: every active staff member with a mobile) ----
+    if (body.action === 'avail_send') {
+      if (!(env.GHL_TOKEN && env.GHL_LOCATION_ID)) return fail('Texting is not set up (GHL_TOKEN, GHL_LOCATION_ID).', 409);
+      let q = db.from('cb_staff').select('staff_id, name, mobile, email, token').eq('active', true);
+      if (Array.isArray(body.staff_ids) && body.staff_ids.length) q = q.in('staff_id', body.staff_ids.map(String));
+      const { data: list } = await q;
+      const res = [];
+      for (const s of (list || [])) {
+        const phone = phoneE164(s.mobile);
+        if (!phone) { res.push({ name: s.name, status: 'no mobile' }); continue; }
+        const text = `Hi ${first(s.name) || 'there'}, our Marrickville gradings are coming up and we'd love to know when you're free to help: https://app.train-ama.com/a/${s.token}\n\nThis isn't a guaranteed shift, it just helps us with rostering. We'll text you if you're rostered on. - AMA`;
+        try {
+          const cid = await contactFor({ guardian_name: s.name, full_name: s.name, email: s.email || null }, phone);
+          if (!cid) throw new Error('could not find or add them in GoHighLevel');
+          await sendSms(cid, text); await db.from('cb_staff').update({ avail_sent_at: new Date().toISOString() }).eq('staff_id', s.staff_id);
+          res.push({ name: s.name, status: 'sent' });
+        } catch (er) { res.push({ name: s.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
+      }
+      return json({ ok: true, sent: res.filter(x => x.status === 'sent').length, results: res });
     }
 
     if (body.action === 'helper_send') {
