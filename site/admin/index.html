@@ -1037,6 +1037,10 @@ const counts = (x, loc) => !!(x.name || '').trim() && !notCounted(x) && !/little
 const mm = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
 // Concord / Auburn: the calendar shows extras against the extras max (usual staff there don't count)
 const isExtraLoc = l => ['Concord', 'West'].includes(l);
+// no grading at a school that day: usual staff only (except Sydenham on a Marrickville grading day, which covers for Marrickville)
+const usualOnlyOn = (date, l) => { const gs = (typeof RMD !== 'undefined' && RMD && RMD.gradings || []).filter(g => g.date === date).map(g => g.location);
+  return !gs.includes(l) && !(l === 'Sydenham' && gs.includes('Marrickville')); };
+const nonUsualOf = r => (r && r.slots || []).filter(x => (x.name || '').trim() && !x.usual).length;
 const exOf = r => (r && r.slots || []).filter(x => x.extra && (x.name || '').trim() && !notCounted(x)).length;
 const exMaxOf = r => (r && r.limits && r.limits.extras && r.limits.extras.max != null) ? r.limits.extras.max : 2;
 const calN = (r, l) => isExtraLoc(l) ? exOf(r) : filledOf(r);
@@ -1086,7 +1090,7 @@ function rostersSection(){
     const gl0 = x.g.map(g => g.location), locs = dayLocs(k, d, gl0, x.r);
     const us = usualSchools(d).filter(inSch).sort((a, b) => { const o = l => { const i = ROSTER_SCHOOLS.indexOf(l); return i < 0 ? 9 : i; }; return o(a) - o(b) || a.localeCompare(b); }).map(l => [l, usualOn(d, l).length]).filter(([, n]) => n);
     // boxes only for schools with a grading; other schools (Sydenham, open schools) go in the line at the bottom
-    const others = locs.filter(l => !gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l); return isExtraLoc(l) ? `${esc(SHORT(l))} ${exOf(r) ? exOf(r) + ' extra (no grading)' : 'usual only'}` : `${esc(SHORT(l))} ${calN(r, l)}/${calNeed(r, l, false)}`; });
+    const others = locs.filter(l => !gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l); return usualOnlyOn(k, l) ? `${esc(SHORT(l))} ${nonUsualOf(r) ? nonUsualOf(r) + ' not usual!' : 'usual only'}` : `${esc(SHORT(l))} ${calN(r, l)}/${calNeed(r, l, false)}`; });
     const chips = locs.filter(l => gl0.includes(l)).map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l);
       const n = calN(r, l), need = calNeed(r, l, !!g), st = r ? r.status : (g ? 'none' : '');
       return `<span class="rc ${st}${r && n < need && !isExtraLoc(l) ? ' short' : ''}" title="${esc(SCHOOL(l))}${g ? ' · grading' : ''}">${g ? '<i></i>' : ''}${esc(SHORT(l))} ${n}/${need}</span>`; }).join('');
@@ -1119,7 +1123,7 @@ function rostersSection(){
     panel = `<div class="rpanel"><div class="rph"><b>${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}</b>${x.a ? `<span class="muted">${x.a.yes} free, ${x.a.part} part free, ${x.a.no} not free</span>` : ''}</div>
       ${locs.map(l => { const r = x.r.find(r => r.location === l), g = x.g.find(g => g.location === l), n = calN(r, l), need = calNeed(r, l, !!g);
         return `<div class="rprow"><div class="grow"><b>${esc(SCHOOL(l))}</b> <span class="muted">${g ? `gradings ${(g.starts || []).map(fmtTime).join(', ') || ''}` : 'no grading'}</span>
-          <div class="small">${r ? `${isExtraLoc(l) && !g ? (n ? `<b style="color:var(--danger)">${n} extra${n === 1 ? '' : 's'}, but no grading here</b>` : 'Usual staff only (no grading, no extras)') : `${n} of ${need} ${isExtraLoc(l) ? 'extras' : 'floor staff'}`}${!isExtraLoc(l) && n > maxOf(r, l) ? ` · <b style="color:var(--danger)">${n - maxOf(r, l)} over the limit</b>` : ''} ${roTag(r)}` : `<span class="muted">No roster yet · ${isExtraLoc(l) ? (g ? `up to ${need} extras` : 'usual staff only, no extras') : `${need} needed`}</span>`}</div>${usualList(l)}${changesList(r, l)}</div>
+          <div class="small">${r ? `${usualOnlyOn(RSELD, l) ? (nonUsualOf(r) ? `<b style="color:var(--danger)">${nonUsualOf(r)} not usual staff, but no grading here</b>` : 'Usual staff only (no grading)') : `${n} of ${need} ${isExtraLoc(l) ? 'extras' : 'floor staff'}`}${!isExtraLoc(l) && !usualOnlyOn(RSELD, l) && n > maxOf(r, l) ? ` · <b style="color:var(--danger)">${n - maxOf(r, l)} over the limit</b>` : ''} ${roTag(r)}` : `<span class="muted">No roster yet · ${usualOnlyOn(RSELD, l) ? 'usual staff only' : isExtraLoc(l) ? `up to ${need} extras` : `${need} needed`}</span>`}</div>${usualList(l)}${changesList(r, l)}</div>
           ${r ? '' : `<button class="btn mini" data-rquick="${RSELD}|${esc(l)}" title="Saves a draft with the usual staff, without opening it">Save as draft</button>`}
           <button class="btn mini${r && r.status === 'submitted' && canApprove() ? ' primary' : ''}" data-ropen="${RSELD}|${esc(l)}">${r ? (r.status === 'submitted' && canApprove() ? 'Review' : 'Open') : 'Build roster'}</button></div>`; }).join('')}</div>`;
   }
@@ -1209,7 +1213,7 @@ async function openRoster(date, location){
   const { data, error } = await sb.rpc('cb_ops_day_roster', { p_date: date, p_location: location });
   if(error){ roErr('Could not load: ' + error.message); return; }
   if(RSET) RSET.me_approves = data.me_approves;
-  const r = data.roster; RO.r = r; RO.people = (data.people || []).filter(p => p.staff); RO.gradings = data.gradings || []; RO.elsewhere = data.elsewhere || [];   // elsewhere: who's on another school's roster this day. staff only, no grading helpers
+  const r = data.roster; RO.r = r; RO.people = (data.people || []).filter(p => p.staff); RO.gradings = data.gradings || []; RO.usualOnly = !RO.gradings.length && usualOnlyOn(date, location); RO.elsewhere = data.elsewhere || [];   // elsewhere: who's on another school's roster this day. staff only, no grading helpers
   RO.lim = { floor: { need: needOf(r, location), max: maxOf(r, location) }, g: JSON.parse(JSON.stringify((r && r.limits && r.limits.g) || {})), extras: (r && r.limits && r.limits.extras) || null };   // g: each grading's own need / max, by day_id
   const dt = defTimes();
   if(r && (r.slots || []).length) RO.slots = JSON.parse(JSON.stringify(r.slots));
@@ -1217,7 +1221,7 @@ async function openRoster(date, location){
     const usual = RO.people.filter(p => (p.usual || []).some(u => u.location === location) && !onElsewhere(p));   // usually here = working, even if they said not free (unless moved to another school that day)
     RO.slots = usual.map(p => { const u = p.usual.find(u => u.location === location);
       return { role: 'floor', usual: true, start: u.start, end: u.end, name: p.name, mobile: p.mobile || '', email: p.email || null, staff_id: p.staff_id, deputy_emp: p.deputy_emp || null }; });
-    if(!EXTRA_SCHOOLS.includes(location)) while(RO.slots.length < RO.lim.floor.need) RO.slots.push({ role: 'floor', ...dt, name: '', mobile: '' });   // Concord / Auburn: usual people, then extras as needed
+    if(!EXTRA_SCHOOLS.includes(location) && !usualOnlyOn(date, location)) while(RO.slots.length < RO.lim.floor.need) RO.slots.push({ role: 'floor', ...dt, name: '', mobile: '' });   // Concord / Auburn: usual people, then extras as needed
   }
   $('#roTitle').textContent = r && (r.slots || []).length ? 'Roster' : 'Build roster';
   $('#roSub').textContent = `${fmtDate(date)} · ${SCHOOL(location)} · ${RO.gradings.length ? `gradings ${RO.gradings.map(g => fmtTime(g.start)).join(', ')}` : 'no grading here this day'}`;
@@ -1233,7 +1237,7 @@ function drawSlots(){
   const offGrading = x => !canApprove() && (x.name || '').trim() && x.start && x.end && (RO.gradings || []).length
     && !(RO.gradings || []).some(g => { const sp = gSpan(g); return sp.start && sp.end && mins(x.start) < mins(sp.end) && mins(x.end) > mins(sp.start); });
   const row = (x, i) => { if(offGrading(x)) return ''; const p = personOf(x.name), oe = !x.usual && onElsewhere(p, x), el = oe ? { location: oe.location, start: oe.start, end: oe.end, rostered: true } : usualElsewhere(p, x), av = availText(p);
-    return `<div class="slot${OVER.has(x) ? ' over' : ''}" data-i="${i}">${OVER.has(x) ? '<div class="overw">Over the limit for this day</div>' : ''}<input data-f="name" list="roPeople" placeholder="Name" value="${esc(x.name || '')}" aria-label="Name"><input data-f="mobile" inputmode="tel" placeholder="Mobile" value="${esc(x.mobile || '')}" aria-label="Mobile">
+    return `<div class="slot${OVER.has(x) ? ' over' : ''}" data-i="${i}">${OVER.has(x) ? `<div class="overw">${RO.usualOnly && !x.usual ? 'Not usual staff, and no grading here' : 'Over the limit for this day'}</div>` : ''}<input data-f="name" list="roPeople" placeholder="Name" value="${esc(x.name || '')}" aria-label="Name"><input data-f="mobile" inputmode="tel" placeholder="Mobile" value="${esc(x.mobile || '')}" aria-label="Mobile">
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
       <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
@@ -1241,10 +1245,11 @@ function drawSlots(){
       ${(av || el || x.usual || notCounted(x)) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${notCounted(x) ? '<span class="pa">Not counted</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el && !x.usual ? `<span class="pa move">Moved from ${esc(SCHOOL(el.location))} (${el.rostered ? 'was rostered' : 'usually'} ${fmtTime(el.start)}–${fmtTime(el.end)}) · comes off there when saved</span>` : ''}</div>` : ''}</div>`; };
   // who's over the limit (the last ones added past Max, or past the extras max): red border, still on the roster
   const OVER = new Set(); { const cnt = RO.slots.filter(x => (x.name || '').trim() && countsHere(x) && !x.extra); cnt.slice(RO.lim.floor.max).forEach(x => OVER.add(x));
-    if(isExtraSchool()) RO.slots.filter(x => x.extra && (x.name || '').trim()).slice(extrasMax()).forEach(x => OVER.add(x)); }
+    if(isExtraSchool()) RO.slots.filter(x => x.extra && (x.name || '').trim()).slice(extrasMax()).forEach(x => OVER.add(x));
+    if(RO.usualOnly) RO.slots.filter(x => (x.name || '').trim() && !x.usual).forEach(x => OVER.add(x)); }
   RO.over = OVER.size;
   const L = RO.lim.floor, filled = RO.slots.filter(countsHere).length;
-  $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b>${OVER.size ? ` · <b style="color:var(--danger)">${OVER.size} over the limit</b>` : ''}</span>
+  $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · ${RO.usualOnly ? '<b>Usual staff only (no grading here)</b>' : `<b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b>`}${OVER.size ? ` · <b style="color:var(--danger)">${OVER.size} over the limit</b>` : ''}</span>
       <span class="lim">Need <input type="number" min="0" max="50" data-lim="need" value="${L.need}"> Max <input type="number" min="0" max="50" data-lim="max" value="${L.max}"></span></div>
     ${gradingCover()}
     ${isExtraSchool()
