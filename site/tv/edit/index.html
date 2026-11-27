@@ -1252,6 +1252,17 @@ async function moveBooking(b, ends, noReload) {
 }
 
 /* ---------- TV status: is it on, what's it showing, and a remote refresh ---------- */
+// Pages a tablet can be sent as its home page (Home page button on each tablet)
+const HOME_PAGES = [
+  { name: 'Grading check-in station', url: 'https://app.train-ama.com/grading/check-in/' },
+  { name: 'Grading Floor', url: 'https://app.train-ama.com/grading/floor/' },
+  { name: 'Grading hub', url: 'https://app.train-ama.com/grading/' },
+  { name: 'AMA Toolkit home', url: 'https://app.train-ama.com/' },
+];
+const homeName = u => { const h = HOME_PAGES.find(p => p.url === u); if (h) return h.name; try { const l = new URL(u); return l.host.replace(/^www\./, '') + (l.pathname.length > 1 ? l.pathname.replace(/\/$/, '') : ''); } catch (e) { return u; } };
+// "3:30pm" today, otherwise "Sat 3:30pm"
+const untilText = t => { const d = new Date(t), tm = d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, '').toLowerCase();
+  return d.toDateString() === new Date().toDateString() ? tm : d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + tm; };
 const ONLINE_MS = 75e3;   // the TV checks in every 20 seconds
 function drawStatus() {
   const box = $('#status');
@@ -1271,11 +1282,12 @@ function drawStatus() {
       const batt = state.display === 'tablet' && bt && bt.level != null ? ` <span class="tag${!bt.charging && btWarn && bt.level < btWarn ? ' warn' : ' muted'}" title="Battery">${bt.charging ? 'Charging ' : 'Battery '}${esc(bt.level)}%</span>` : '';
       const where = state.locations ? ` <span class="tag${x.location ? '' : ' warn'}">${x.location ? esc(locName([x.location])) : 'No location'}</span>` : '';
       const darkTag = x.blackout ? ' <span class="tag warn">Blacked out</span>' : '';
+      const homeTag = state.display === 'tablet' && x.home_url && !(x.home_until && new Date(x.home_until) <= new Date()) ? ` <span class="tag" title="${esc(x.home_url)}">Home: ${esc(homeName(x.home_url))}${x.home_until ? ' until ' + esc(untilText(x.home_until)) : ''}</span>` : '';
       const taken = live && /^(Party mode|Blacked out)/.test(x.showing || ''), freed = live && /\(back to normal here\)/.test(x.showing || '');
       const normBtn = state.normal ? (taken ? `<button class="btn sm" data-normal-tv="${esc(x.screen_id)}" data-on="1">Back to normal</button>` : freed ? `<button class="btn sm" data-normal-tv="${esc(x.screen_id)}" data-on="">Show the party again</button>` : '') : '';
-      return `<li><div class="nowthumb">${nowThumb(x, live)}</div><div class="grow"><b>${label ? label + ': ' : ''}${live ? 'Showing: ' + what : 'Offline'}</b>${where}${batt}${darkTag}
+      return `<li><div class="nowthumb">${nowThumb(x, live)}</div><div class="grow"><b>${label ? label + ': ' : ''}${live ? 'Showing: ' + what : 'Offline'}</b>${where}${batt}${darkTag}${homeTag}
         <div>${live ? `Checked in ${esc(ago(x.last_seen))}` : `Last seen ${esc(ago(x.last_seen))}${x.showing ? `, showing ${what}` : ''}`}${x.started_at ? ` · page loaded ${esc(ago(x.started_at))}` : ''}</div></div>
-        <div class="row" style="flex-wrap:wrap;justify-content:flex-end">${normBtn}${'blackout' in x ? `<button class="btn sm" data-dark-tv="${esc(x.screen_id)}" data-on="${x.blackout ? '' : '1'}" style="${x.blackout ? 'background:var(--gold);border-color:var(--gold);color:var(--on-gold)' : 'background:#111;border-color:#111;color:#fff'}">${x.blackout ? 'Back on' : 'Black out'}</button>` : ''}<button class="btn sm" data-name-tv="${esc(x.screen_id)}">${state.locations ? 'Edit' : x.name ? 'Rename' : 'Name'}</button>${!live ? `<button class="btn sm" data-forget-tv="${esc(x.screen_id)}">Remove</button>` : ''}</div></li>`;
+        <div class="row" style="flex-wrap:wrap;justify-content:flex-end">${normBtn}${'blackout' in x ? `<button class="btn sm" data-dark-tv="${esc(x.screen_id)}" data-on="${x.blackout ? '' : '1'}" style="${x.blackout ? 'background:var(--gold);border-color:var(--gold);color:var(--on-gold)' : 'background:#111;border-color:#111;color:#fff'}">${x.blackout ? 'Back on' : 'Black out'}</button>` : ''}${state.display === 'tablet' ? `<button class="btn sm" data-home-tv="${esc(x.screen_id)}">Home page</button>` : ''}<button class="btn sm" data-name-tv="${esc(x.screen_id)}">${state.locations ? 'Edit' : x.name ? 'Rename' : 'Name'}</button>${!live ? `<button class="btn sm" data-forget-tv="${esc(x.screen_id)}">Remove</button>` : ''}</div></li>`;
     }).join('')}</ul>` : ''}
     ${'blackout' in state.settings ? (state.settings.blackout
       ? `<div class="row" style="background:#111;color:#fff;border-radius:10px;padding:10px 12px"><span class="grow"><b>${N === 'TV' ? 'The screen is' : 'The tablets are'} blacked out</b> until you turn ${N === 'TV' ? 'it' : 'them'} back on.</span><button class="btn sm" id="tvDark" style="background:var(--gold);border-color:var(--gold);color:var(--on-gold)">Turn ${N === 'TV' ? 'the screen' : 'them'} back on</button></div>`
@@ -1319,6 +1331,37 @@ function drawStatus() {
       const { error } = await sb.from('tv_screens').update({ name: $('#nmIn').value.trim() || null, ...($('#nmLoc') ? { location: $('#nmLoc').value || null } : {}) }).eq('screen_id', x.screen_id);
       if (error) return toast('Not saved: ' + error.message, 5000);
       dlg.close(); toast('Saved'); pollStatus();
+    };
+  });
+  $$('#status [data-home-tv]').forEach(b => b.onclick = () => {
+    const x = state.screens.find(y => y.screen_id === b.dataset.homeTv); if (!x) return;
+    const cur = x.home_url || '', preset = HOME_PAGES.find(h => h.url === cur);
+    openDlg(`<form class="dlg" id="hmForm"><div class="dlg-head"><div><h3>Home page${x.name ? ': ' + esc(x.name) : ''}</h3><p class="hint">What this tablet opens instead of the slides when someone taps it. Only this tablet changes.</p></div><button class="x" data-close>Close</button></div>
+      <div class="field"><label for="hmPick">Page</label><select id="hmPick"><option value="">Sign-in page (same as the other tablets)</option>${HOME_PAGES.map(h => `<option value="${esc(h.url)}"${h.url === cur ? ' selected' : ''}>${esc(h.name)}</option>`).join('')}<option value="custom"${cur && !preset ? ' selected' : ''}>Another link…</option></select></div>
+      <div class="field" id="hmCustomF"${cur && !preset ? '' : ' hidden'}><label for="hmUrl">Link</label><input type="url" id="hmUrl" inputmode="url" placeholder="https://" value="${cur && !preset ? esc(cur) : ''}"><p class="hint">Paste any https link. It opens on the tablet within 20 seconds.</p></div>
+      <div class="field" id="hmForF"${cur ? '' : ' hidden'}><label for="hmFor">For how long</label><select id="hmFor"><option value="">Until I change it</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option><option value="today">Rest of today</option><option value="at">Until a set time…</option></select>
+        <input type="datetime-local" id="hmAt" hidden style="margin-top:8px"><p class="hint">Then it goes back to the sign-in page by itself.${x.home_until && new Date(x.home_until) > new Date() ? ` Now set until ${esc(untilText(x.home_until))}.` : ''}</p></div>
+      <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Cancel</button><button class="btn primary" type="submit">Send to this tablet</button></div></form>`);
+    $('#hmPick').onchange = () => { const v = $('#hmPick').value, c = v === 'custom'; $('#hmCustomF').hidden = !c; $('#hmForF').hidden = !v; if (c) $('#hmUrl').focus(); };
+    $('#hmFor').onchange = () => { const at = $('#hmFor').value === 'at'; $('#hmAt').hidden = !at;
+      if (at && !$('#hmAt').value) { const d = new Date(Date.now() + 3600e3 - new Date().getTimezoneOffset() * 6e4); $('#hmAt').value = d.toISOString().slice(0, 16); } };
+    $('#hmForm').onsubmit = async e => {
+      e.preventDefault();
+      let url = $('#hmPick').value;
+      if (url === 'custom') {
+        url = $('#hmUrl').value.trim();
+        if (url && !/^[a-z]+:\/\//i.test(url)) url = 'https://' + url;
+        if (!/^https:\/\/\S+\.\S+/.test(url)) return toast('That link needs to start with https://', 4000);
+      }
+      let until = null; const f = $('#hmFor').value;
+      if (url && f) {
+        if (f === 'today') { const d = new Date(); d.setHours(23, 59, 0, 0); until = d; }
+        else if (f === 'at') { until = $('#hmAt').value ? new Date($('#hmAt').value) : null; if (!until || isNaN(until) || until <= new Date()) return toast('Pick a time later than now.', 4000); }
+        else until = new Date(Date.now() + (+f) * 6e4);
+      }
+      const { error } = await sb.from('tv_screens').update({ home_url: url || null, home_until: until ? until.toISOString() : null }).eq('screen_id', x.screen_id);
+      if (error) return toast('Not sent: ' + error.message, 5000);
+      dlg.close(); toast(url ? `Sent. It opens on the tablet within 20 seconds${until ? ' and goes back to sign-in at ' + untilText(until) : ''}.` : 'Back to the sign-in page within 20 seconds.', 5000); pollStatus();
     };
   });
   $$('#status [data-forget-tv]').forEach(b => b.onclick = async () => {
