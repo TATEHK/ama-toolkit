@@ -1100,7 +1100,7 @@ function rostersSection(){
     const changesList = (r, l) => { if(!r) return '';
       const nm = v => String(v || '').trim().toLowerCase(), us = usualOn(d, l).filter(p => inG(l, p)), sl = (r.slots || []).filter(x => (x.name || '').trim() && inG(l, x));
       const extra = sl.filter(x => !us.some(p => nm(p.name) === nm(x.name)));
-      const elsewhereOf = p => (x.r || []).find(o => o.location !== l && (o.slots || []).some(z => nm(z.name) === nm(p.name)));
+      const elsewhereOf = p => (x.r || []).find(o => o.location !== l && (o.slots || []).some(z => nm(z.name) === nm(p.name) && (!z.start || !z.end || !p.start || !p.end || (mm(z.start) < mm(p.end) && mm(z.end) > mm(p.start)))));   // moved: on another roster at an overlapping time
       const off = us.filter(p => !sl.some(x => nm(x.name) === nm(p.name)));
       const moved = sl.filter(x => { const p = us.find(p => nm(p.name) === nm(x.name)); return p && x.start && x.end && (x.start !== String(p.start).slice(0, 5) || x.end !== String(p.end).slice(0, 5)); });
       const chip = (cls, t) => `<span class="rup ${cls}">${t}</span>`;
@@ -1173,8 +1173,12 @@ function defTimes(span){   // from N minutes before the first grading (or the on
 const personOf = name => RO && RO.people.find(p => p.name.toLowerCase() === String(name || '').trim().toLowerCase());
 function availText(p){ const a = p && p.avail; if(!a || !a.status) return ''; return a.status === 'yes' ? 'Free' : a.status === 'part' ? `Free ${a.from ? fmtTime(a.from) : ''}${a.to ? '–' + fmtTime(a.to) : ''}`.trim() : 'Not free'; }
 // on another school's roster this day (moved there): { location, ... } or null
-function onElsewhere(p){ if(!p || !RO || !RO.elsewhere) return null; const n = p.name.trim().toLowerCase();
-  return RO.elsewhere.find(e => (e.staff_id && e.staff_id === p.staff_id) || String(e.name || '').trim().toLowerCase() === n) || null; }
+function onElsewhere(p, sl){   // sl: the shift here to compare (default: their usual hours here, else the default shift times)
+  if(!p || !RO || !RO.elsewhere) return null; const n = p.name.trim().toLowerCase();
+  const u = (p.usual || []).find(u => u.location === RO.location), t = sl && sl.start && sl.end ? sl : (u || defTimes());
+  const a = mins(t.start), b = mins(t.end);
+  return RO.elsewhere.find(e => ((e.staff_id && e.staff_id === p.staff_id) || String(e.name || '').trim().toLowerCase() === n)
+    && (a == null || b == null || !e.start || !e.end || (mins(e.start) < b && mins(e.end) > a))) || null; }   // only if the times overlap
 function usualElsewhere(p, sl){   // their usual shift at another school overlapping this one (it will move here)
   if(!p || !p.usual) return null; const a = mins(sl.start), b = mins(sl.end);
   return p.usual.find(u => u.location !== RO.location && (a == null || b == null || (mins(u.start) < b && mins(u.end) > a))) || null;
@@ -1210,7 +1214,7 @@ function drawSlots(){
   // Bianca and other non-approvers only see shifts that are on during a grading here (Tate and Mark see everyone)
   const offGrading = x => !canApprove() && (x.name || '').trim() && x.start && x.end && (RO.gradings || []).length
     && !(RO.gradings || []).some(g => { const sp = gSpan(g); return sp.start && sp.end && mins(x.start) < mins(sp.end) && mins(x.end) > mins(sp.start); });
-  const row = (x, i) => { if(offGrading(x)) return ''; const p = personOf(x.name), oe = !x.usual && onElsewhere(p), el = oe ? { location: oe.location, start: oe.start, end: oe.end, rostered: true } : usualElsewhere(p, x), av = availText(p);
+  const row = (x, i) => { if(offGrading(x)) return ''; const p = personOf(x.name), oe = !x.usual && onElsewhere(p, x), el = oe ? { location: oe.location, start: oe.start, end: oe.end, rostered: true } : usualElsewhere(p, x), av = availText(p);
     return `<div class="slot" data-i="${i}"><input data-f="name" list="roPeople" placeholder="Name" value="${esc(x.name || '')}" aria-label="Name"><input data-f="mobile" inputmode="tel" placeholder="Mobile" value="${esc(x.mobile || '')}" aria-label="Mobile">
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
@@ -1351,7 +1355,7 @@ function scheduleSave(){
   }, 900);
 }
 function closeRoster(){ const was = RO; clearTimeout(saveT); $('#rosterModal').hidden = true; RO = null; if(was && was.saved){ afterSave(); } }
-const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, no_count: !!x.no_count, moved_from: (!x.usual && ((onElsewhere(personOf(x.name)) || usualElsewhere(personOf(x.name), x) || {}).location)) || null, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
+const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, no_count: !!x.no_count, moved_from: (!x.usual && ((onElsewhere(personOf(x.name), x) || usualElsewhere(personOf(x.name), x) || {}).location)) || null, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
   email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null, deputy_note: x.deputy_note || null, deputy_span: x.deputy_span || null, deputy_unit: x.deputy_unit || null }));
 const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g, extras: RO.lim.extras });
 async function afterSave(){ await loadRosterUpcoming(); await loadRosterMonth(); }   // keeps the calendar on screen while it reloads (no jump to the top)
