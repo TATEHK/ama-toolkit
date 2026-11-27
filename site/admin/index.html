@@ -1206,7 +1206,7 @@ function drawSlots(){
   $('#roSlots').querySelectorAll('[data-gt]').forEach(inp => { inp.onchange = () => { const [id, k] = inp.dataset.gt.split('|'); RO.lim.g[id] = { ...(RO.lim.g[id] || {}), [k]: inp.value }; RO.limDirty = true; inp.dataset.dirty = '1'; };
     inp.onblur = () => { if(inp.dataset.dirty) setTimeout(drawSlots, 0); }; });
   $('#roSlots').querySelectorAll('[data-gadd]').forEach(b => b.onclick = () => { const g = RO.gradings.find(x => x.day_id === b.dataset.gadd); if(!g) return;
-    if(atMax(RO.slots.length, RO.lim.floor.max)) return roErr(`That's the most for this day (${RO.lim.floor.max}). Raise Max to add more.`);
+    if(atMax(maxN(), RO.lim.floor.max)) return roErr(`That's the most for this day (${RO.lim.floor.max}). Raise Max to add more.`);
     RO.slots.push({ role: 'floor', ...defTimes(gSpan(g)), name: '', mobile: '' }); drawSlots(); const ins = $('#roSlots').querySelectorAll('.slot [data-f="name"]'); if(ins.length) ins[ins.length - 1].focus(); });
   $('#roSlots').querySelectorAll('[data-glim]').forEach(inp => inp.onchange = () => { const [id, k] = inp.dataset.glim.split('|'), G = gLim(id);
     G[k] = Math.max(0, Math.min(50, +inp.value || 0)); if(G.max < G.need) G.max = G.need; RO.lim.g[id] = G; RO.limDirty = true; RO.warned = false; drawSlots(); });
@@ -1220,7 +1220,7 @@ function drawSlots(){
   $('#roSlots').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeSlot(+b.dataset.rm, b));
   $('#roSlots').querySelectorAll('[data-lim]').forEach(inp => inp.onchange = () => { RO.lim.floor[inp.dataset.lim] = Math.max(0, Math.min(50, +inp.value || 0));
     if(RO.lim.floor.max < RO.lim.floor.need) RO.lim.floor.max = RO.lim.floor.need; RO.limDirty = true; RO.warned = false; drawSlots(); });
-  const add = document.querySelector('[data-addrole="floor"]'); if(add){ add.textContent = isExtraSchool() ? '+ Extra' : '+ Floor staff'; add.disabled = isExtraSchool() ? atMax(extrasN(), extrasMax()) : atMax(RO.slots.length, RO.lim.floor.max); add.title = add.disabled ? (isExtraSchool() ? 'At the most extras for this day' : 'At the most for this day') : ''; }
+  const add = document.querySelector('[data-addrole="floor"]'); if(add){ add.textContent = isExtraSchool() ? '+ Extra' : '+ Floor staff'; add.disabled = isExtraSchool() ? atMax(extrasN(), extrasMax()) : atMax(maxN(), RO.lim.floor.max); add.title = add.disabled ? (isExtraSchool() ? 'At the most extras for this day' : 'At the most for this day') : ''; }
   if(RO.ready) scheduleSave();
 }
 // each grading that day: how many rostered staff are on during it, against its own need and max (changeable per grading)
@@ -1236,6 +1236,8 @@ function gradingCover(){
       <span class="lim">Need <input type="number" min="0" max="50" data-glim="${g.day_id}|need" value="${L.need}"> Max <input type="number" min="0" max="50" data-glim="${g.day_id}|max" value="${L.max}"></span>
       <button type="button" class="btn mini" data-gadd="${g.day_id}" title="Add a shift for just this grading">+ For this grading</button></div>`; }).join('')}</div>`;
 }
+// towards the max: empty slots plus people who count (not Little Dragons teachers, usual staff at Concord/Auburn, or the not-counted list)
+const maxN = () => RO.slots.filter(x => !(x.name || '').trim() || countsHere(x)).length;
 const atMax = (n, m) => !canApprove() && n >= m;   // Tate and Mark can go over the max
 const gradingShort = () => (RO.gradings || []).map(g => { const L = gLim(g.day_id), n = onFor(gSpan(g)); return n < L.need ? `${L.need - n} at the ${fmtTime(g.start)} grading` : n > L.max && !canApprove() ? `${n - L.max} over the max at the ${fmtTime(g.start)} grading` : ''; }).filter(Boolean);
 const SYD_START = '15:45';
@@ -1282,7 +1284,7 @@ function drawPeople(){
     let sl = RO.slots.find(x => !(x.name || '').trim() && (!isExtraSchool() || x.extra));
     if(!sl){
       if(isExtraSchool()){ if(atMax(extrasN(), extrasMax())) return roErr(`That's the most extras for this day (${extrasMax()}).`); sl = { role: 'floor', extra: true, ...defTimes(), name: '', mobile: '' }; }
-      else { if(atMax(RO.slots.length, RO.lim.floor.max)) return roErr(`That's the most for this day (${RO.lim.floor.max}). Raise Max to add more.`); sl = { role: 'floor', ...defTimes(), name: '', mobile: '' }; }
+      else { if(atMax(maxN(), RO.lim.floor.max)) return roErr(`That's the most for this day (${RO.lim.floor.max}). Raise Max to add more.`); sl = { role: 'floor', ...defTimes(), name: '', mobile: '' }; }
       RO.slots.push(sl); }
     fillFrom(sl, p); roErr(''); drawSlots(); drawPeople();
   });
@@ -1300,7 +1302,7 @@ function drawRoActs(){
 }
 document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-addrole]'); if(!a || !RO) return;
   if(isExtraSchool()){ if(atMax(extrasN(), extrasMax())) return; RO.slots.push({ role: 'floor', extra: true, ...defTimes(), name: '', mobile: '' }); }
-  else { if(atMax(RO.slots.length, RO.lim.floor.max)) return; RO.slots.push({ role: 'floor', ...defTimes(), name: '', mobile: '' }); }
+  else { if(atMax(maxN(), RO.lim.floor.max)) return; RO.slots.push({ role: 'floor', ...defTimes(), name: '', mobile: '' }); }
   drawSlots(); const ins = $('#roSlots').querySelectorAll('.slot [data-f="name"]'); if(ins.length) ins[ins.length - 1].focus(); });
 document.addEventListener('input', e => { if(e.target && e.target.id === 'roFind' && RO) drawPeople(); if(e.target && e.target.id === 'roNote' && RO) scheduleSave(); });
 // drafts save as you go (Tate and Mark: any roster, others: drafts), so there's no Save to scroll to
