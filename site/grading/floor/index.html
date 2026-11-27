@@ -60,6 +60,13 @@ body[data-role="master"] .main{grid-template-columns:1fr}
 body[data-role="master"] .floor{min-height:60vh}
 .rsl-floor{margin-top:14px}
 .rsl-floor .floor{margin:6px 0 0;min-height:0;height:min(46vh,340px)}
+@media (min-width:900px){
+  .rsl-detail.with-floor{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,44%);column-gap:18px;align-items:start}
+  .rsl-detail.with-floor > *{grid-column:1}
+  .rsl-detail.with-floor > .rsl-floors{grid-column:2;grid-row:1 / span 99;position:sticky;top:0;align-self:start}
+  .rsl-detail.with-floor .rsl-floor:first-child{margin-top:0}
+  .rsl-detail.with-floor .rsl-floor .floor{height:min(40vh,320px)}
+}
 .superbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#15181d;color:#fff;border-radius:12px;padding:11px 13px;margin-bottom:6px}
 .superbar .sb-l{font-family:var(--fd);font-weight:600;font-size:13px;letter-spacing:.03em}
 .superbar .sb-belt{font-size:12.5px;display:flex;align-items:center;gap:6px;color:#cbd2da}
@@ -1633,7 +1640,8 @@ function renderRsLive(){
   if(geTool) GE.mountStep(el.querySelector('#geStepPanel'), st.ge);
   // the line(s) for this step on their floor spots, with photos, so the panel can see who's where while scoring
   { const det=el.querySelector('.rsl-detail');
-    if(det && upLines.length) det.insertAdjacentHTML('beforeend', upLines.map(g=>`<div class="rsl-floor"><div class="rsl-h">On their spots · Line ${esc(g.cone||'?')}${g.title?' · Group '+esc(g.title):''}</div>${cbPresentFloorHtml(g).replace(' id="cbFloor"','')}</div>`).join('')); }
+    // side by side: the checklist/scoring on the left, the floor on the right (stacked on narrow screens)
+    if(det && upLines.length){ det.classList.add('with-floor'); det.insertAdjacentHTML('beforeend', `<div class="rsl-floors">${upLines.map(g=>`<div class="rsl-floor"><div class="rsl-h">On their spots · Line ${esc(g.cone||'?')}${g.title?' · Group '+esc(g.title):''}</div>${cbPresentFloorHtml(g).replace(' id="cbFloor"','')}</div>`).join('')}</div>`); } }
   const pv=el.querySelector('#rsPrev'), nx=el.querySelector('#rsNext');
   if(pv)pv.onclick=()=>{ if(RS.ix>0){ RS.ix--; RS.move=0; rsSave(); renderRsLive(); } };
   if(nx)nx.onclick=()=>{ if(RS.ix<RS.flat.length-1){ RS.ix++; RS.move=0; rsSave(); renderRsLive(); } };
