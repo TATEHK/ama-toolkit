@@ -1270,6 +1270,7 @@ async function removeSlot(i, btn){
 function fillFrom(sl, p){
   sl.name = p.name; sl.mobile = p.mobile || ''; sl.email = p.email || null; sl.staff_id = p.staff_id || null; sl.helper_id = p.helper_id || null; sl.deputy_emp = p.deputy_emp || null;
   const here = (p.usual || []).find(u => u.location === RO.location);   // their usual hours here, if no grading times
+  if(here){ sl.usual = true; sl.extra = false; }   // usually works here this weekday: a usual, not an extra
   if(here && (!sl.start || (RO.location === 'Sydenham' && mins(here.start) > mins(sl.start)))) sl.start = here.start;   // e.g. seniors start later at Sydenham
   if(here && !sl.end) sl.end = here.end;
   if(p.avail && p.avail.status === 'part' && p.avail.from && (!sl.start || mins(p.avail.from) > mins(sl.start))) sl.start = p.avail.from;
@@ -1289,7 +1290,9 @@ function drawPeople(){
     || '<div class="muted" style="font-size:13px">No one else to add.</div>';
   $('#roPeopleList').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     const p = personOf(b.dataset.pick); if(!p) return;
-    let sl = RO.slots.find(x => !(x.name || '').trim() && (!isExtraSchool() || x.extra));
+    const usualHere = (p.usual || []).some(u => u.location === RO.location);
+    let sl = RO.slots.find(x => !(x.name || '').trim() && (!isExtraSchool() || x.extra || usualHere));
+    if(!sl && usualHere && isExtraSchool()){ sl = { role: 'floor', ...defTimes(), name: '', mobile: '' }; RO.slots.push(sl); }   // usual staff don't use up an extra
     if(!sl){
       if(isExtraSchool()){ if(atMax(extrasN(), extrasMax())) return roErr(`That's the most extras for this day (${extrasMax()}).`); sl = { role: 'floor', extra: true, ...defTimes(), name: '', mobile: '' }; }
       else { if(atMax(maxN(), RO.lim.floor.max)) return roErr(`That's the most for this day (${RO.lim.floor.max}). Raise Max to add more.`); sl = { role: 'floor', ...defTimes(), name: '', mobile: '' }; }
