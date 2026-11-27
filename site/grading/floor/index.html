@@ -1618,6 +1618,13 @@ function renderRsLive(){
 }
 let rsSaveT=null;
 function rsSave(){ if(!RS||!DAYID) return; RS.touched=Date.now(); clearTimeout(rsSaveT); rsSaveT=setTimeout(()=>{ sb.rpc('cb_runsheet_live_save',{p_day:DAYID,p_slot:RS.slot,p_step_ix:RS.ix,p_move_ix:(RS.move||0),p_ticks:RS.ticks}).then(saved('the run sheet'), ()=>toast("Couldn't save the run sheet. Check your connection.",4500)); },250); }
+// background refreshes redraw parts of the page: put every scrolled box (and the page) back where it was
+function keepScroll(fn){
+  const kept=[]; document.querySelectorAll('*').forEach(e=>{ if(e.scrollTop>0||e.scrollLeft>0){ const cls=String(e.className&&e.className.baseVal!==undefined?'':e.className||'').trim().split(/\s+/)[0]; const sel=e.id?'#'+CSS.escape(e.id):e.tagName+(cls?'.'+CSS.escape(cls):''); kept.push({sel,i:[...document.querySelectorAll(sel)].indexOf(e),t:e.scrollTop,l:e.scrollLeft}); } });
+  const y=window.scrollY; try{ fn(); } finally {
+    kept.forEach(k=>{ const el=document.querySelectorAll(k.sel)[k.i]; if(el){ el.scrollTop=k.t; el.scrollLeft=k.l; } });
+    if(window.scrollY!==y) window.scrollTo(0,y); }
+}
 async function rsPoll(){
   if(!RS) return; const liveEl=document.getElementById('rsLive'), prez=document.getElementById('rsPresent');
   const presenting=prez && !prez.hidden; if((!liveEl||liveEl.hidden) && !presenting) return;
@@ -1625,7 +1632,7 @@ async function rsPoll(){
   try{ const r=await sb.rpc('cb_runsheet_for_slot',{p_day:DAYID,p_slot:RS.slot}); const d=r&&r.data; if(!d) return;
     const live=d.live||{}; const changed = JSON.stringify(live.ticks||{})!==JSON.stringify(RS.ticks) || (live.step_ix||0)!==RS.ix || (live.move_ix||0)!==(RS.move||0);
     if(changed){ RS.ticks=live.ticks||{}; RS.ix=Math.max(0,Math.min(live.step_ix||0,RS.flat.length-1)); RS.move=live.move_ix||0;
-      if(liveEl&&!liveEl.hidden) renderRsLive(); if(presenting) renderRsPresent(); }
+      keepScroll(()=>{ if(liveEl&&!liveEl.hidden) renderRsLive(); if(presenting) renderRsPresent(); }); }
   }catch(e){}
 }
 function rsClose(){ if(RS&&RS.pollT){ clearInterval(RS.pollT); RS.pollT=null; } const el=document.getElementById('rsLive'); if(el) el.hidden=true; const pz=document.getElementById('rsPresent'); if(pz) pz.hidden=true; savePos(); }
@@ -1996,7 +2003,7 @@ async function pollDay() {
     // don't clobber a just-moved arrangement: skip reloading groups while our own save is pending/in-flight
     if (data.groups && data.groups.length && Date.now() >= groupsSaveUntil) loadGroups(data.groups); }
   finally { loading = false; }
-  render();
+  keepScroll(render);
 }
 
 // day picker + sign-in
