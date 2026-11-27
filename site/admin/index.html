@@ -1090,10 +1090,12 @@ function rostersSection(){
     const x = byDay[RSELD] || { r: [], g: [] }, d = new Date(RSELD + 'T00:00:00');
     const gl = x.g.map(g => g.location), extraOpen = (RSELD >= '2026-12-07' && RSELD <= '2026-12-10') ? usualSchools(d) : [];   // 7–10 Dec: every school open that day gets a roster (Bianca builds the others)
     const locs = [...new Set([...gl, ...(gl.includes('Marrickville') ? ['Sydenham'] : []), ...extraOpen, ...x.r.map(r => r.location)])].filter(inSch);
-    const usualList = l => { const ps = usualOn(d, l); return ps.length ? `<div class="rus"><span class="rul">Usually on</span>${ps.map(p => `<span class="rup">${esc(p.name)} <i>${fmtTime(p.start)}–${fmtTime(p.end)}</i></span>`).join('')}</div>` : ''; };
+    const gSpans = l => { const g = x.g.find(g => g.location === l), st = g ? (g.starts || []).map(mm).filter(v => v != null).sort((a, b) => a - b) : []; return st.map((v, i) => [v, st[i + 1] || v + 90]); };
+    const inG = (l, p) => { const sp = gSpans(l); return canApprove() || !sp.length || !p.start || !p.end || sp.some(([a, b]) => mm(p.start) < b && mm(p.end) > a); };
+    const usualList = l => { const ps = usualOn(d, l).filter(p => inG(l, p)); return ps.length ? `<div class="rus"><span class="rul">Usually on</span>${ps.map(p => `<span class="rup">${esc(p.name)} <i>${fmtTime(p.start)}–${fmtTime(p.end)}</i></span>`).join('')}</div>` : ''; };
     // what the roster changes from the usual staff: extras, usual people taken off, and different times
     const changesList = (r, l) => { if(!r) return '';
-      const nm = v => String(v || '').trim().toLowerCase(), us = usualOn(d, l), sl = (r.slots || []).filter(x => (x.name || '').trim());
+      const nm = v => String(v || '').trim().toLowerCase(), us = usualOn(d, l).filter(p => inG(l, p)), sl = (r.slots || []).filter(x => (x.name || '').trim() && inG(l, x));
       const extra = sl.filter(x => !us.some(p => nm(p.name) === nm(x.name)));
       const elsewhereOf = p => (x.r || []).find(o => o.location !== l && (o.slots || []).some(z => nm(z.name) === nm(p.name)));
       const off = us.filter(p => !sl.some(x => nm(x.name) === nm(p.name)));
@@ -1200,7 +1202,10 @@ async function openRoster(date, location){
   RO.ready = true; $('#roSaved').textContent = '';
 }
 function drawSlots(){
-  const row = (x, i) => { const p = personOf(x.name), oe = !x.usual && onElsewhere(p), el = oe ? { location: oe.location, start: oe.start, end: oe.end, rostered: true } : usualElsewhere(p, x), av = availText(p);
+  // Bianca and other non-approvers only see shifts that are on during a grading here (Tate and Mark see everyone)
+  const offGrading = x => !canApprove() && (x.name || '').trim() && x.start && x.end && (RO.gradings || []).length
+    && !(RO.gradings || []).some(g => { const sp = gSpan(g); return sp.start && sp.end && mins(x.start) < mins(sp.end) && mins(x.end) > mins(sp.start); });
+  const row = (x, i) => { if(offGrading(x)) return ''; const p = personOf(x.name), oe = !x.usual && onElsewhere(p), el = oe ? { location: oe.location, start: oe.start, end: oe.end, rostered: true } : usualElsewhere(p, x), av = availText(p);
     return `<div class="slot" data-i="${i}"><input data-f="name" list="roPeople" placeholder="Name" value="${esc(x.name || '')}" aria-label="Name"><input data-f="mobile" inputmode="tel" placeholder="Mobile" value="${esc(x.mobile || '')}" aria-label="Mobile">
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
