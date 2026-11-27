@@ -2933,8 +2933,12 @@ export async function handle(req, db, env = {}, http = fetch) {
     const depHost = String(Deno.env.get('DEPUTY_HOST') || '748e6a11114707.au.deputy.com').replace(/^https?:\/\//, '').replace(/\/.*$/, ''), depTok = (Deno.env.get('DEPUTY_TOKEN') || '').trim();   // read straight from the secrets (not in the env object)
     const dep = async (path: string, init: any = {}) => {
       if (!depTok) throw new Error('Deputy is not connected yet (add the DEPUTY_TOKEN secret in Supabase).');
-      const r = await fetch('https://' + depHost + '/api/v1/' + path, { ...init, headers: { Authorization: 'Bearer ' + depTok, 'Content-Type': 'application/json', Accept: 'application/json', ...(init.headers || {}) } });
+      // Deputy takes permanent tokens as "Bearer" on newer installs and "OAuth" on older ones: try one, then the other
+      const go = (scheme: string) => fetch('https://' + depHost + '/api/v1/' + path, { ...init, headers: { Authorization: scheme + ' ' + depTok.replace(/^(Bearer|OAuth)\s+/i, ''), 'Content-Type': 'application/json', Accept: 'application/json', ...(init.headers || {}) } });
+      let r = await go('Bearer');
+      if (r.status === 401 || r.status === 403) r = await go('OAuth');
       const t = await r.text(); let j: any = null; try { j = JSON.parse(t); } catch (_) { j = t; }
+      if (r.status === 401) throw new Error('Deputy did not accept the token (401). Check DEPUTY_TOKEN is a permanent token made on ' + depHost + '.');
       if (!r.ok) throw new Error('Deputy ' + r.status + ': ' + String(typeof j === 'string' ? j : (j && (j.error && (j.error.message || j.error)) || JSON.stringify(j))).slice(0, 200));
       return j;
     };
