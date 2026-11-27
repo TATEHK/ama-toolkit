@@ -157,6 +157,7 @@
   .rup.rx{border-color:var(--ok);}.rup.rmv{border-color:#d9a400;}.rup.roff{opacity:.6;text-decoration:line-through;}
   .rtot{display:block;font-size:12px;font-weight:600;margin-top:2px;}
   .pp.gone{opacity:.55;cursor:not-allowed;}
+  .slot .nc{grid-column:1/-1;justify-self:start;}
   .rmtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.rmtop .grow{flex:1}.rmname{font-family:var(--font-display);font-size:18px;min-width:120px;text-align:center}
   .rkey{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:11px}
   .rcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
@@ -1024,7 +1025,7 @@ const roTag = r => r ? `<span class="rtag ${r.status}">${RO_LABEL[r.status] || r
 let RMON = 0, RMD = null, RSELD = null, RUP = [], RSCH = (()=>{ try{ return localStorage.getItem('ops_rsch') || ''; }catch(e){ return ''; } })();   // RSCH: school filter ('' = all)   // month offset, month data, picked day, upcoming rosters (for approvals)
 // who counts towards the number needed: not Little Dragons teachers, and at Concord / Auburn only the extras (the usual staff are on anyway)
 // people who never count towards the numbers (Roster settings not_counted: Hakan, Laurie, Mark, Sarah, Busra)
-const notCounted = x => ((RSET && RSET.not_counted) || []).includes(String(x.name || '').trim().toLowerCase());
+const notCounted = x => !!x.no_count || ((RSET && RSET.not_counted) || []).includes(String(x.name || '').trim().toLowerCase());   // no_count: excluded on this roster only
 const counts = (x, loc) => !!(x.name || '').trim() && !notCounted(x) && !/little dragons/i.test(x.job || '') && !(['Concord', 'West'].includes(loc) && !x.extra);
 // Marrickville: only people on during a grading count (grading times from the month calendar; each runs to the next start, or 90 min)
 const mm = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
@@ -1204,6 +1205,7 @@ function drawSlots(){
       <button type="button" class="rm" data-rm="${i}" aria-label="Remove">×</button>
       <div class="tm"><input type="time" data-f="start" value="${esc(x.start || '')}" aria-label="Start"><span>to</span><input type="time" data-f="end" value="${esc(x.end || '')}" aria-label="Finish"></div>
       <input class="job" data-f="job" list="roJobs" placeholder="Job (e.g. Little Dragons teacher)" value="${esc(x.job || '')}" aria-label="Job">
+      ${(x.name || '').trim() && !((RSET && RSET.not_counted) || []).includes(String(x.name).trim().toLowerCase()) ? `<button type="button" class="btn mini nc" data-nocount="${i}">${x.no_count ? 'Count them' : 'Exclude from count'}</button>` : ''}
       ${(av || el || x.usual || notCounted(x)) ? `<div class="sb">${x.usual ? '<span class="pa usual">Usually here</span>' : ''}${notCounted(x) ? '<span class="pa">Not counted</span>' : ''}${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${el && !x.usual ? `<span class="pa move">Moved from ${esc(SCHOOL(el.location))} (${el.rostered ? 'was rostered' : 'usually'} ${fmtTime(el.start)}–${fmtTime(el.end)}) · comes off there when saved</span>` : ''}</div>` : ''}</div>`; };
   const L = RO.lim.floor, filled = RO.slots.filter(countsHere).length;
   $('#roSlots').innerHTML = `<div class="roh"><span>Floor staff · <b style="color:${filled < L.need ? 'var(--accent)' : 'var(--ok)'}">${filled} of ${L.need} needed</b></span>
@@ -1231,6 +1233,7 @@ function drawSlots(){
     if(e.type === 'input') scheduleSave();
   });
   $('#roSlots').querySelectorAll('.slot input[type="time"]').forEach(inp => inp.onblur = () => { if(inp.dataset.dirty) setTimeout(drawSlots, 0); });
+  $('#roSlots').querySelectorAll('[data-nocount]').forEach(b => b.onclick = () => { const x = RO.slots[+b.dataset.nocount]; x.no_count = !x.no_count; drawSlots(); scheduleSave(); });
   $('#roSlots').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeSlot(+b.dataset.rm, b));
   $('#roSlots').querySelectorAll('[data-lim]').forEach(inp => inp.onchange = () => { RO.lim.floor[inp.dataset.lim] = Math.max(0, Math.min(50, +inp.value || 0));
     if(RO.lim.floor.max < RO.lim.floor.need) RO.lim.floor.max = RO.lim.floor.need; RO.limDirty = true; RO.warned = false; drawSlots(); });
@@ -1338,7 +1341,7 @@ function scheduleSave(){
   }, 900);
 }
 function closeRoster(){ const was = RO; clearTimeout(saveT); $('#rosterModal').hidden = true; RO = null; if(was && was.saved){ afterSave(); } }
-const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, moved_from: (!x.usual && ((onElsewhere(personOf(x.name)) || usualElsewhere(personOf(x.name), x) || {}).location)) || null, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
+const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, no_count: !!x.no_count, moved_from: (!x.usual && ((onElsewhere(personOf(x.name)) || usualElsewhere(personOf(x.name), x) || {}).location)) || null, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
   email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null, deputy_note: x.deputy_note || null, deputy_span: x.deputy_span || null, deputy_unit: x.deputy_unit || null }));
 const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g, extras: RO.lim.extras });
 async function afterSave(){ await loadRosterUpcoming(); await loadRosterMonth(); }   // keeps the calendar on screen while it reloads (no jump to the top)
