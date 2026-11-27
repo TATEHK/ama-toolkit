@@ -1084,14 +1084,14 @@ function gSpan(g){
 }
 function defTimes(span){   // from N minutes before the first grading (or the one picked) to when the last one finishes
   const gs = span ? [span] : (RO.gradings || []).map(gSpan).filter(x => x.start);
-  if(!gs.length) return { start: '', end: '' };
+  if(!gs.length) return RO.location === 'Sydenham' ? { start: SYD_START, end: '' } : { start: '', end: '' };   // Sydenham cover on grading days: 3:45pm (seniors: their usual later start)
   const before = +((RSET || {}).floor_before ?? 30), first = Math.min(...gs.map(x => mins(x.start))), fixed = mins((RSET || {}).floor_start);
   // the whole day's shift starts at the set time (3:30pm) when the first grading is after it; a single grading's shift starts N minutes before it
   const start = !span && fixed != null && fixed < first ? fixed : first - before;
   return { start: hm(start), end: hm(Math.max(...gs.map(x => mins(x.end)))) };
 }
 const personOf = name => RO && RO.people.find(p => p.name.toLowerCase() === String(name || '').trim().toLowerCase());
-function availText(p){ const a = p && p.avail; if(!a) return ''; return a.status === 'yes' ? 'Free' : a.status === 'part' ? `Free ${a.from ? fmtTime(a.from) : ''}${a.to ? '–' + fmtTime(a.to) : ''}`.trim() : 'Not free'; }
+function availText(p){ const a = p && p.avail; if(!a || !a.status) return ''; return a.status === 'yes' ? 'Free' : a.status === 'part' ? `Free ${a.from ? fmtTime(a.from) : ''}${a.to ? '–' + fmtTime(a.to) : ''}`.trim() : 'Not free'; }
 function usualElsewhere(p, sl){   // their usual shift at another school overlapping this one (it will move here)
   if(!p || !p.usual) return null; const a = mins(sl.start), b = mins(sl.end);
   return p.usual.find(u => u.location !== RO.location && (a == null || b == null || (mins(u.start) < b && mins(u.end) > a))) || null;
@@ -1154,21 +1154,24 @@ function gradingCover(){
       <button type="button" class="btn mini" data-gadd="${g.day_id}" title="Add a shift for just this grading">+ For this grading</button></div>`; }).join('')}</div>`;
 }
 const gradingShort = () => (RO.gradings || []).map(g => { const L = gLim(g.day_id), n = onFor(gSpan(g)); return n < L.need ? `${L.need - n} at the ${fmtTime(g.start)} grading` : n > L.max ? `${n - L.max} over the max at the ${fmtTime(g.start)} grading` : ''; }).filter(Boolean);
+const SYD_START = '15:45';
 function fillFrom(sl, p){
   sl.name = p.name; sl.mobile = p.mobile || ''; sl.email = p.email || null; sl.staff_id = p.staff_id || null; sl.helper_id = p.helper_id || null; sl.deputy_emp = p.deputy_emp || null;
   const here = (p.usual || []).find(u => u.location === RO.location);   // their usual hours here, if no grading times
-  if(!sl.start && here){ sl.start = here.start; sl.end = here.end; }
+  if(here && (!sl.start || (RO.location === 'Sydenham' && mins(here.start) > mins(sl.start)))) sl.start = here.start;   // e.g. seniors start later at Sydenham
+  if(here && !sl.end) sl.end = here.end;
   if(p.avail && p.avail.status === 'part' && p.avail.from && (!sl.start || mins(p.avail.from) > mins(sl.start))) sl.start = p.avail.from;
 }
 // everyone to pick from, best first: free, usually here, part free, helpers, not free last
 function drawPeople(){
   const used = new Set(RO.slots.map(x => (x.name || '').trim().toLowerCase()).filter(Boolean));
-  const score = p => (p.avail ? { yes: 0, part: 2, no: 9 }[p.avail.status] : 4) + ((p.usual || []).some(u => u.location === RO.location) ? -1 : 0);
+  const sydOk = p => RO.location === 'Sydenham' && p.avail && p.avail.syd;   // said they're happy to go to Sydenham that day
+  const score = p => (p.avail && p.avail.status ? { yes: 0, part: 2, no: 9 }[p.avail.status] : 4) + ((p.usual || []).some(u => u.location === RO.location) ? -1 : 0) + (sydOk(p) ? -3 : 0);
   const list = RO.people.filter(p => !used.has(p.name.toLowerCase())).sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
   const q = ($('#roFind') && $('#roFind').value || '').trim().toLowerCase();
   const shown = list.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, q ? 40 : 12);
   $('#roPeopleList').innerHTML = shown.map(p => { const av = availText(p), us = (p.usual || []).map(u => `${SHORT(u.location)} ${fmtTime(u.start)}–${fmtTime(u.end)}`).join(', ');
-    return `<button type="button" class="pp" data-pick="${esc(p.name)}"><span class="pn">${esc(p.name)}</span>${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${p.signed ? '<span class="pa yes">Signed up</span>' : ''}${us ? `<span class="pu">Usually ${esc(us)}</span>` : ''}</button>`; }).join('')
+    return `<button type="button" class="pp" data-pick="${esc(p.name)}"><span class="pn">${esc(p.name)}</span>${av ? `<span class="pa ${p.avail.status}">${esc(av)}</span>` : ''}${sydOk(p) ? '<span class="pa yes">Can go to Sydenham</span>' : ''}${us ? `<span class="pu">Usually ${esc(us)}</span>` : ''}</button>`; }).join('')
     || '<div class="muted" style="font-size:13px">No one else to add.</div>';
   $('#roPeopleList').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     const p = personOf(b.dataset.pick); if(!p) return;
