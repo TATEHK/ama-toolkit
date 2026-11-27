@@ -3044,12 +3044,20 @@ export async function handle(req, db, env = {}, http = fetch) {
       const res = [];
       for (const sl of slots) {
         if (!sl.name) continue;
-        if (sl.deputy_id) {   // already in Deputy: if its job changed, update the shift's note there so they see it
-          const note = `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings`;
-          if (+sl.deputy_id > 0 && sl.deputy_note !== note) {
-            try { await dep('resource/Roster/' + sl.deputy_id, { method: 'POST', body: JSON.stringify({ Comment: note }) }); sl.deputy_note = note; res.push({ name: sl.name, status: 'job updated in Deputy' }); }
-            catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
-          } else res.push({ name: sl.name, status: 'already in Deputy' });
+        if (sl.deputy_id) {   // already in Deputy: if its times or job changed here, change the same shift in Deputy (published again so they're told)
+          const note = `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings`, span = `${sl.start}-${sl.end}`;
+          const timesChanged = sl.deputy_span && sl.deputy_span !== span, noteChanged = sl.deputy_note !== note;
+          if (+sl.deputy_id > 0 && (timesChanged || noteChanged)) {
+            try {
+              if (timesChanged && sl.start && sl.end) {
+                await dep('supervise/roster', { method: 'POST', body: JSON.stringify({ intRosterId: +sl.deputy_id, intStartTimestamp: Math.round(sydMs(r.date, sl.start) / 1000), intEndTimestamp: Math.round(sydMs(r.date, sl.end) / 1000),
+                  intOpunitId: +sl.deputy_unit || unit.id, intRosterEmployee: +sl.deputy_emp, blnPublish: true, intMealbreakMinute: 0, strComment: note }) });
+                sl.deputy_span = span;
+              } else await dep('resource/Roster/' + sl.deputy_id, { method: 'POST', body: JSON.stringify({ Comment: note }) });
+              sl.deputy_note = note;
+              res.push({ name: sl.name, status: timesChanged ? 'times updated in Deputy' : 'job updated in Deputy' });
+            } catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
+          } else { if (!sl.deputy_span) sl.deputy_span = span; res.push({ name: sl.name, status: 'already in Deputy' }); }
           continue;
         }
         if (!sl.start || !sl.end) { res.push({ name: sl.name, status: 'needs a start and finish time' }); continue; }
@@ -3060,7 +3068,7 @@ export async function handle(req, db, env = {}, http = fetch) {
           const theirs: any[] = await dep('resource/Roster/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Employee', type: 'eq', data: +emp.Id }, s2: { field: 'StartTime', type: 'ge', data: dayFrom }, s3: { field: 'StartTime', type: 'lt', data: dayTo } }, max: 50 }) });
           const overlap = theirs.filter(x => +x.StartTime < en && +x.EndTime > st);
           const here = overlap.find(x => +x.OperationalUnit === unit.id);
-          if (here) { sl.deputy_id = here.Id; sl.deputy_emp = emp.Id; res.push({ name: sl.name, status: 'already had this shift in Deputy' }); continue; }
+          if (here) { sl.deputy_id = here.Id; sl.deputy_emp = emp.Id; sl.deputy_span = `${sl.start}-${sl.end}`; sl.deputy_unit = unit.id; res.push({ name: sl.name, status: 'already had this shift in Deputy' }); continue; }
           const moved = [];
           for (const x of overlap) {   // their shift at another school at the same time comes off
             await dep('resource/Roster/' + x.Id, { method: 'DELETE' });
@@ -3068,11 +3076,11 @@ export async function handle(req, db, env = {}, http = fetch) {
           }
           const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({ intStartTimestamp: st, intEndTimestamp: en, intOpunitId: unit.id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
             strComment: `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings` }) });
-          sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id; sl.deputy_note = `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings`;
+          sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id; sl.deputy_note = `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings`; sl.deputy_span = `${sl.start}-${sl.end}`; sl.deputy_unit = unit.id;
           res.push({ name: sl.name, status: moved.length ? `moved here from ${moved.join(', ')}` : 'shift made' });
         } catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
       }
-      const made = res.filter(x => /^shift made|^moved/.test(x.status)).length;
+      const made = res.filter(x => /^shift made|^moved|updated in Deputy/.test(x.status)).length;
       await db.from('cb_day_rosters').update({ slots, ...(made ? { deputy_at: new Date().toISOString() } : {}) }).eq('roster_id', r.roster_id);
       return json({ ok: true, area: unit.name, made, results: res });
     }

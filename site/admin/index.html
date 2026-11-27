@@ -1235,7 +1235,7 @@ function drawPeople(){
 function drawRoActs(){
   const r = RO.r, st = r ? r.status : 'draft', A = canApprove(), b = ['<button type="button" class="btn" id="roClose">Close</button>'];
   if(A && st === 'submitted') b.push('<button type="button" class="btn" id="roDecline">Decline</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');
-  else if(A && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots || []).some(x => x.name && (!x.deputy_id || (x.deputy_note && x.deputy_note.split(',')[0] !== (x.job || 'Floor staff')))) ? ['<button type="button" class="btn" id="roDeputy">Update Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
+  else if(A && st === 'approved') b.push('<button type="button" class="btn" id="roSave">Save changes</button>', ...((r.slots || []).some(x => x.name && (!x.deputy_id || (x.deputy_note && x.deputy_note.split(',')[0] !== (x.job || 'Floor staff')) || (x.deputy_span && x.deputy_span !== `${x.start}-${x.end}`))) ? ['<button type="button" class="btn" id="roDeputy">Update Deputy</button>'] : []), `<button type="button" class="btn primary" id="roText">${r.notified_at ? 'Text everyone again' : 'Text everyone their shift'}</button>`);
   else if(A) b.push('<button type="button" class="btn" id="roSubmit">Send for approval</button>', '<button type="button" class="btn primary" id="roApprove">Approve</button>');   // Tate and Mark can also send it for the other to check
   else b.push(`<button type="button" class="btn primary" id="roSubmit">${st === 'approved' || st === 'declined' ? 'Send changes for approval' : 'Send for approval'}</button>`);
   $('#roActs').innerHTML = b.join('');
@@ -1265,7 +1265,7 @@ function scheduleSave(){
 }
 function closeRoster(){ const was = RO; clearTimeout(saveT); $('#rosterModal').hidden = true; RO = null; if(was && was.saved){ afterSave(); } }
 const cleanSlots = () => RO.slots.filter(x => (x.name || '').trim()).map(x => ({ role: 'floor', usual: !!x.usual, extra: !!x.extra, job: (x.job || '').trim().slice(0, 60) || null, start: x.start || '', end: x.end || '', name: x.name.trim(), mobile: (x.mobile || '').trim(),
-  email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null, deputy_note: x.deputy_note || null }));
+  email: x.email || null, staff_id: x.staff_id || null, helper_id: x.helper_id || null, deputy_id: x.deputy_id || null, deputy_emp: x.deputy_emp || null, deputy_note: x.deputy_note || null, deputy_span: x.deputy_span || null, deputy_unit: x.deputy_unit || null }));
 const limitsArg = () => ({ floor: RO.lim.floor, g: RO.lim.g, extras: RO.lim.extras });
 async function afterSave(){ await loadRosterUpcoming(); RMD = null; render(); }
 async function saveRoster(submit, btn){
@@ -1309,7 +1309,7 @@ async function deputyRoster(btn, opunit){
       $('#roDec').innerHTML = `Which Deputy area should these shifts go in?<select id="roArea" style="display:block;width:100%;margin:8px 0">${(j.areas || []).map(a => `<option value="${a.id}">${esc(a.name)}${a.location ? ' · ' + esc(a.location) : ''}</option>`).join('')}</select><button type="button" class="btn primary mini" id="roAreaGo">Add to Deputy</button>`;
       $('#roAreaGo').onclick = () => { const v = $('#roArea').value; $('#roDec').hidden = true; deputyRoster(null, v); };
       if(btn){ btn.disabled = false; btn.textContent = 'Add to Deputy'; } return; }
-    const bad = (j.results || []).filter(x => !/^shift made|^moved|already/.test(x.status)), moved = (j.results || []).filter(x => /^moved/.test(x.status));
+    const bad = (j.results || []).filter(x => !/^shift made|^moved|already|updated in Deputy/.test(x.status)), moved = (j.results || []).filter(x => /^moved|updated in Deputy/.test(x.status));
     await reloadRo(); afterSave();
     roErr(`Deputy (${j.area}): ${j.made} shift${j.made === 1 ? '' : 's'} made${moved.length ? `. ${moved.map(x => x.name + ' ' + x.status).join('; ')}` : ''}${bad.length ? `. Not added: ${bad.map(x => x.name + ' (' + (x.error || x.status) + ')').join(', ')}` : ''}`, !bad.length);
   }catch(e){ if(btn){ btn.disabled = false; btn.textContent = 'Add to Deputy'; } roErr(String(e.message || e)); }
