@@ -3060,7 +3060,7 @@ export async function handle(req, db, env = {}, http = fetch) {
       for (const sl of slots) {
         if (!sl.name) continue;
         if (sl.deputy_id) {   // already in Deputy: if its times or job changed here, change the same shift in Deputy (published again so they're told)
-          const note = `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings`, span = `${sl.start}-${sl.end}`;
+          const note = `Role: ${sl.job || 'Floor staff'}`, span = `${sl.start}-${sl.end}`;
           const timesChanged = sl.deputy_span && sl.deputy_span !== span, noteChanged = sl.deputy_note !== note;
           if (+sl.deputy_id > 0 && (timesChanged || noteChanged)) {
             try {
@@ -3090,8 +3090,8 @@ export async function handle(req, db, env = {}, http = fetch) {
             const u = units.find(u => u.id === +x.OperationalUnit); moved.push(u ? SCHOOL(u.school || u.name) : 'another area');
           }
           const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({ intStartTimestamp: st, intEndTimestamp: en, intOpunitId: unit.id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
-            strComment: `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings` }) });
-          sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id; sl.deputy_note = `${sl.job || 'Floor staff'}, ${SCHOOL(r.location)} gradings`; sl.deputy_span = `${sl.start}-${sl.end}`; sl.deputy_unit = unit.id;
+            strComment: `Role: ${sl.job || 'Floor staff'}` }) });
+          sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id; sl.deputy_note = `Role: ${sl.job || 'Floor staff'}`; sl.deputy_span = `${sl.start}-${sl.end}`; sl.deputy_unit = unit.id;
           res.push({ name: sl.name, status: moved.length ? `moved here from ${moved.join(', ')}` : 'shift made' });
         } catch (er) { res.push({ name: sl.name, status: 'failed', error: String(er.message || er).slice(0, 200) }); }
       }

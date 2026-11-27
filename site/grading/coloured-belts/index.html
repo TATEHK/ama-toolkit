@@ -2738,7 +2738,7 @@ $('#siForm').onsubmit = async e => {
   if (error) return toast(/invalid/i.test(error.message) ? 'Wrong email or password.' : error.message, 6000);
   start();
 };
-$('#signOut').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); location.reload(); };
+$('#signOut').onclick = async () => { await (window.AmaHub && AmaHub.signOut ? AmaHub.signOut(sb) : sb.auth.signOut({ scope: 'local' })); location.reload(); };
 start();
 </script>
 </body>

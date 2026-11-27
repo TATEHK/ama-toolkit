@@ -391,8 +391,8 @@ $('#sort').onchange = e => { state.sort = e.target.value; store.set('clipSort', 
 $('#newBtn').onclick = () => openEditor();
 $('#retry').onclick = load;
 $('#retry2').onclick = load;
-$('#signOut2').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); state.items = []; state.email = ''; show('#signIn'); };
-$('#signOut').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); state.items = []; state.email = ''; show('#signIn'); };
+$('#signOut2').onclick = async () => { await (window.AmaHub && AmaHub.signOut ? AmaHub.signOut(sb) : sb.auth.signOut({ scope: 'local' })); state.items = []; state.email = ''; show('#signIn'); };
+$('#signOut').onclick = async () => { await (window.AmaHub && AmaHub.signOut ? AmaHub.signOut(sb) : sb.auth.signOut({ scope: 'local' })); state.items = []; state.email = ''; show('#signIn'); };
 $('#signInForm').onsubmit = async e => {
   e.preventDefault(); $('#siGo').disabled = true;
   const { data, error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });

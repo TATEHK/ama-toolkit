@@ -525,7 +525,7 @@ function openLog() {
 $('#logBtn').onclick = openLog;
 $('#bulkBtn').onclick = openBulk;
 $('#addBtn').onclick = openAdd;
-$('#signOut').onclick = async () => { await sb.auth.signOut({ scope: 'local' }); state = { me: null, users: [] }; show('#signIn'); };
+$('#signOut').onclick = async () => { await (window.AmaHub && AmaHub.signOut ? AmaHub.signOut(sb) : sb.auth.signOut({ scope: 'local' })); state = { me: null, users: [] }; show('#signIn'); };
 $('#signInForm').onsubmit = async e => {
   e.preventDefault(); $('#siGo').disabled = true;
   const { error } = await sb.auth.signInWithPassword({ email: $('#siEmail').value.trim(), password: $('#siPass').value });
