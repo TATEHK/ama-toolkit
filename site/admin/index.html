@@ -1403,7 +1403,7 @@ function drawStaff(msg, ok){
   const row = s => `<div class="strow${s.active ? '' : ' off'}"><div class="grow"><b>${esc(s.name)}</b>${s.active ? '' : ' <span class="muted">(not active)</span>'}
       <div class="small muted">${esc(s.mobile || 'no mobile')}${s.avail_n ? ` · told us ${s.avail_n} day${s.avail_n === 1 ? '' : 's'}` : s.avail_sent_at ? ' · link sent, no answer yet' : ''}${s.deputy_emp ? ' · in Deputy' : ''}</div>
       ${(s.usual || []).length ? `<div class="small">Usually: ${s.usual.map(u => `${WD[u.weekday]} ${esc(SHORT(u.location))} ${fmtTime(u.start)}–${fmtTime(u.end)}`).join(', ')}</div>` : ''}</div>
-    ${A ? `<div class="stacts">${s.token ? `<button class="btn mini" data-copy="${esc(s.token)}">Copy link</button>` : ''}<button class="btn mini" data-sedit="${s.staff_id}">Edit</button></div>` : ''}</div>`;
+    ${A ? `<div class="stacts">${s.token && s.mobile ? `<button class="btn mini" data-stext="${s.staff_id}">Text link</button>` : ''}${s.token ? `<button class="btn mini" data-copy="${esc(s.token)}">Copy link</button>` : ''}<button class="btn mini" data-sedit="${s.staff_id}">Edit</button></div>` : ''}</div>`;
   box.querySelector('.reqbox').innerHTML = `<div class="rhead"><div><h3>Staff & availability</h3><div class="muted small">${act.length} active staff. Each has their own link to say when they're free for Marrickville gradings.</div></div></div>
     ${A ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn primary mini" id="stSend">Text everyone their link</button><button class="btn mini" id="stSync">Get usual shifts from Deputy</button><button class="btn mini" id="stAdd">Add staff</button></div>` : ''}
     <div class="reqerr" id="stMsg" ${msg ? '' : 'hidden'} style="${ok ? 'color:var(--ok)' : ''}">${esc(msg || '')}</div>
@@ -1411,6 +1411,13 @@ function drawStaff(msg, ok){
     <div class="reqact"><button class="btn" id="stClose">Close</button></div>`;
   $('#stClose').onclick = () => { box.hidden = true; };
   box.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => { const u = 'https://app.train-ama.com/a/' + b.dataset.copy; try{ await navigator.clipboard.writeText(u); b.textContent = 'Copied'; }catch(e){ prompt('Their link', u); } });
+  box.querySelectorAll('[data-stext]').forEach(b => b.onclick = async () => {   // text just this person their availability link (two taps)
+    if(b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'Send text?'; return; }
+    b.disabled = true; b.textContent = 'Sending…';
+    try{ const j = await rosterCall({ action: 'avail_send', staff_ids: [b.dataset.stext] }); const x = (j.results || [])[0] || {};
+      b.textContent = x.status === 'sent' ? 'Sent' : 'Not sent'; if(x.status !== 'sent') { b.title = x.error || x.status || ''; b.disabled = false; b.dataset.sure = ''; }
+    }catch(e){ b.disabled = false; b.dataset.sure = ''; b.textContent = 'Failed, tap again'; b.title = String(e.message || e); }
+  });
   box.querySelectorAll('[data-sedit]').forEach(b => b.onclick = () => editStaff(STAFF.find(s => s.staff_id === b.dataset.sedit)));
   const on = (id, f) => { const el = $('#' + id); if(el) el.onclick = () => f(el); };
   on('stAdd', () => editStaff(null));

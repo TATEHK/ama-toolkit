@@ -3240,7 +3240,8 @@ export async function handle(req, db, env = {}, http = fetch) {
       for (const s of (list || [])) {
         const phone = phoneE164(s.mobile);
         if (!phone) { res.push({ name: s.name, status: 'no mobile' }); continue; }
-        const text = `Hi ${first(s.name) || 'there'}, our Marrickville gradings are coming up and we'd love to know when you're free to help: https://app.train-ama.com/a/${s.token}\n\nThis isn't a guaranteed shift, it just helps us with rostering. We'll text you if you're rostered on. - AMA`;
+        // one SMS (under 160 characters with a normal first name)
+        const text = `Hi ${first(s.name) || 'there'}, when are you free for Marrickville gradings? Not a guaranteed shift, just helps us roster: https://app.train-ama.com/a/${s.token} - AMA`;
         try {
           const cid = await contactFor({ guardian_name: s.name, full_name: s.name, email: s.email || null }, phone);
           if (!cid) throw new Error('could not find or add them in GoHighLevel');
