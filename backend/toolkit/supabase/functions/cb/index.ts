@@ -3133,9 +3133,9 @@ export async function handle(req, db, env = {}, http = fetch) {
       const ags: any[] = await dep('resource/EmployeeAgreement/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Active', type: 'eq', data: true } }, max: 500 }) });
       const out: Record<number, any> = {};
       for (const a of ags) {
-        const rate = +(a.BaseRate ?? a.PayRate ?? a.HourlyRate ?? 0) || null;
-        const cur = out[+a.Employee];
-        if (!cur || (rate && !cur.rate)) out[+a.Employee] = { rate, agreement: a.ContractName || a.Name || null, basis: a.EmploymentBasis ?? null };
+        const rate = +(a.BaseRate ?? 0) || null, emp = +(a.EmployeeId ?? a.Employee);
+        const cur = out[emp];
+        if (!cur || (rate && !cur.rate)) out[emp] = { rate, salary: +a.AnnualSalary || null, emp_type: a.EmpType ?? null, pay_point: a.PayPoint ?? null, level: a.LevelId ?? null };
       }
       return { byEmp: out, sample_keys: ags[0] ? Object.keys(ags[0]).slice(0, 60) : [] };
     };
