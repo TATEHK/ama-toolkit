@@ -3361,9 +3361,11 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (!body.set) return json({ by_phone: brief(byPhone), by_email: brief(byEmail) });
         const target = body.contact_id ? { id: String(body.contact_id) } : (byPhone || byEmail);
         if (!target) return fail('No contact found.', 404);
-        const patch = { ...(body.set_email ? { email } : {}), ...(body.set_phone ? { phone } : {}) };
+        const patch: any = { ...(body.set_email ? { email } : {}), ...(body.set_phone ? { phone } : {}) };
+        if (body.dnd_sms_off) patch.dndSettings = { SMS: { status: 'inactive', message: 'Turned off by AMA staff: they confirmed this person is happy to get texts' } };   // only when Tate/Mark confirm
+        const brief2 = (c: any) => c && { ...brief(c), dnd: c.dnd ?? null, dnd_sms: c.dndSettings && c.dndSettings.SMS ? c.dndSettings.SMS.status : null };
         const r = await ghl('/contacts/' + target.id, { method: 'PUT', body: JSON.stringify(patch) });
-        return json({ ok: true, contact: brief(r.contact || null) });
+        return json({ ok: true, contact: brief2(r.contact || null) });
       } catch (er) { return fail(String(er.message || er)); }
     }
 
