@@ -428,6 +428,7 @@
         ${codes.length && who.length ? `<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px"><div class="ge-tiny" style="margin-bottom:6px">Panel: quick score for this act</div>
           ${who.map(c => { const code = codes.find(x => x.split('-')[0] === c.syl); if (!code) return ''; const m = mk(c.id, code) || {};
             return `<div class="ge-row" style="margin:4px 0"><span class="ge-grow">${h(c.name)} <span class="ge-tiny">${code}</span></span><button class="ge-btn sm ${m.result === 'pass' ? 'ok' : ''}" data-ms="${c.id}|${code}|pass">Pass</button><button class="ge-btn sm ${m.result === 'fail' ? 'danger' : ''}" data-ms="${c.id}|${code}|fail">Fail</button><button class="ge-btn sm ge-ghost" data-mn="${c.id}|${code}">Note</button></div>`; }).join('')}</div>` : ''}
+        ${a.kind === 'showcase' && can('grading') ? `<div class="ge-row" style="margin-top:12px"><button class="ge-btn" id="geMWith">Did it with someone</button><span class="ge-tiny">Adds them to this showcase, marks them passed and takes their own turn off the list</span></div>` : ''}
       </div>
       <div class="ge-card"><div class="ge-row" style="margin-bottom:8px"><h3 class="ge-grow">Running order</h3>${can('grading') ? '<button class="ge-btn sm" id="geMEdit">Edit showcases</button>' : ''}</div>
         <div class="alist">${acts.map((x, i) => `<button class="aitem ${i === ai ? 'now' : i < ai ? 'done' : ''}" data-a="${i}"><span class="ge-tiny" style="min-width:20px">${i + 1}</span><span class="ge-grow"><b>${h(x.kind === 'board' || x.kind === 'showcase' ? x.sub : x.title)}</b>${x.kind === 'showcase' && (x.who || []).length > 1 ? ' <span class="ge-tag">shared</span>' : ''}<br><span class="ge-tiny">${h(x.kind === 'board' ? 'Board breaking' : x.kind === 'showcase' ? 'Showcase' : x.sub || '')}</span></span></button>`).join('')}</div></div></div>`;
@@ -438,7 +439,37 @@
     inM('[data-ms]').forEach(x => x.onclick = () => { const [c, code, r] = x.dataset.ms.split('|'); setMark(c, code, (mk(c, code) || {}).result === r ? null : r); });
     inM('[data-mn]').forEach(x => x.onclick = () => { const [c, code] = x.dataset.mn.split('|'); noteDlg(cand(c), [code]); });
     const me = $1('#geMEdit'); if (me) me.onclick = editActs;
+    const mw = $1('#geMWith'); if (mw) mw.onclick = () => showWith(ai);
     tick();
+  }
+  // a showcase someone did together with others: put them all on this act, mark them passed, drop their own turns
+  function showWith(ai) {
+    const acts = C().acts, cur = acts[ai], inAct = new Set(cur.who || []);
+    const others = cands().filter(c => !inAct.has(c.id));
+    const pick = new Set();
+    const drawW = () => {
+      openDlg(`<h3>Who did this showcase with ${h((cur.who || []).map(id => (cand(id) || {}).name).join(' + '))}?</h3>
+        <p class="ge-tiny">Tick everyone who was in it. They're marked passed for their showcase and their own turn comes off the running order.</p>
+        <div style="max-height:55vh;overflow:auto;display:flex;flex-direction:column;gap:6px;margin:10px 0">${others.map(c => `<button class="ge-btn ${pick.has(c.id) ? 'ok' : ''}" style="justify-content:flex-start" data-w="${c.id}">${pick.has(c.id) ? 'Yes · ' : ''}${h(c.name)} <span class="ge-tiny" style="margin-left:6px">Group ${h(c.group)}</span></button>`).join('')}</div>
+        <div class="ge-row"><button class="ge-btn primary" id="geWSave" ${pick.size ? '' : 'disabled'}>Save${pick.size ? ' (' + pick.size + ')' : ''}</button><button class="ge-btn" data-x>Cancel</button></div>`);
+      $all('#geDlg [data-w]').forEach(b => b.onclick = () => { pick.has(b.dataset.w) ? pick.delete(b.dataset.w) : pick.add(b.dataset.w); drawW(); });
+      $1('#geWSave').onclick = async () => {
+        const ids = [...pick], next = [];
+        let newAi = 0;
+        acts.forEach((x, i) => {
+          if (i === ai) { newAi = next.length; next.push({ ...x, who: [...(x.who || []), ...ids], sub: [...(x.who || []), ...ids].map(id => (cand(id) || {}).name).join(' + ') }); return; }
+          if (x.kind === 'showcase') { const left = (x.who || []).filter(id => !pick.has(id)); if (!left.length) return; if (left.length !== (x.who || []).length) { next.push({ ...x, who: left, sub: left.map(id => (cand(id) || {}).name).join(' + ') }); return; } }
+          next.push(x);
+        });
+        const { error } = await db().rpc('ge_config_set', { p_event: S.ev.event_id, p_key: 'acts', p_value: next }); if (error) return say(error.message, 4000);
+        S.ev.config.acts = next; closeDlg();
+        const codes = cur.items || [];
+        for (const id of ids) { const c = cand(id); const code = c && codes.find(x => x.split('-')[0] === c.syl); if (code) await setMark(id, code, 'pass'); }
+        if (newAi !== ai) await setLive({ act: newAi, act_started: live().act_started || null });
+        draw(); say(`${ids.length} added to this showcase and marked passed`);
+      };
+    };
+    drawW();
   }
   function editActs() {
     let acts = JSON.parse(JSON.stringify(C().acts));
