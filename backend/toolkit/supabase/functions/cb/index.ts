@@ -3089,7 +3089,8 @@ export async function handle(req, db, env = {}, http = fetch) {
             await dep('resource/Roster/' + x.Id, { method: 'DELETE' });
             const u = units.find(u => u.id === +x.OperationalUnit); moved.push(u ? SCHOOL(u.school || u.name) : 'another area');
           }
-          const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({ intStartTimestamp: st, intEndTimestamp: en, intOpunitId: unit.id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
+          const force = Array.isArray(body.force) && body.force.includes(sl.name);   // Tate/Mark chose to roster them even though Deputy says they're unavailable
+          const shift = await dep('supervise/roster', { method: 'POST', body: JSON.stringify({ ...(force ? { blnForceOverwrite: 1 } : {}), intStartTimestamp: st, intEndTimestamp: en, intOpunitId: unit.id, intRosterEmployee: +emp.Id, blnPublish: true, intMealbreakMinute: 0,
             strComment: `Role: ${sl.job || 'Floor staff'}` }) });
           sl.deputy_id = (shift && (shift.Id || shift.id)) || true; sl.deputy_emp = emp.Id; sl.deputy_note = `Role: ${sl.job || 'Floor staff'}`; sl.deputy_span = `${sl.start}-${sl.end}`; sl.deputy_unit = unit.id;
           res.push({ name: sl.name, status: moved.length ? `moved here from ${moved.join(', ')}` : 'shift made' });

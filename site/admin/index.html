@@ -1432,11 +1432,11 @@ async function rosterCall(body){
 }
 async function reloadRo(){ const { data } = await sb.rpc('cb_ops_day_roster', { p_date: RO.date, p_location: RO.location }); if(data && data.roster){ RO.r = data.roster; RO.slots = JSON.parse(JSON.stringify(RO.r.slots || [])); } $('#roStatus').innerHTML = roTag(RO.r); drawSlots(); drawRoActs(); }
 // approved: make each person's shift in Deputy (published); a usual shift at another school that day is moved, not doubled
-async function deputyRoster(btn, opunit){
+async function deputyRoster(btn, opunit, force){
   if(btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
   roErr('Adding the shifts to Deputy…', true);
   try{
-    const j = await rosterCall({ action: 'roster_deputy', date: RO.date, location: RO.location, opunit_id: opunit || undefined });
+    const j = await rosterCall({ action: 'roster_deputy', date: RO.date, location: RO.location, opunit_id: opunit || undefined, ...(force ? { force } : {}) });
     if(j.pick_area){ roErr('');
       $('#roDec').hidden = false;
       $('#roDec').innerHTML = `Which Deputy area should these shifts go in?<select id="roArea" style="display:block;width:100%;margin:8px 0">${(j.areas || []).map(a => `<option value="${a.id}">${esc(a.name)}${a.location ? ' · ' + esc(a.location) : ''}</option>`).join('')}</select><button type="button" class="btn primary mini" id="roAreaGo">Add to Deputy</button>`;
@@ -1445,6 +1445,11 @@ async function deputyRoster(btn, opunit){
     const bad = (j.results || []).filter(x => !/^shift made|^moved|already|updated in Deputy/.test(x.status)), moved = (j.results || []).filter(x => /^moved|updated in Deputy/.test(x.status));
     await reloadRo(); afterSave();
     roErr(`Deputy (${j.area}): ${j.made} shift${j.made === 1 ? '' : 's'} made${moved.length ? `. ${moved.map(x => x.name + ' ' + x.status).join('; ')}` : ''}${bad.length ? `. Not added: ${bad.map(x => x.name + ' (' + (x.error || x.status) + ')').join(', ')}` : ''}`, !bad.length);
+    // Deputy refused because they marked themselves unavailable: Tate and Mark can roster them anyway
+    const unav = bad.filter(x => /not available/i.test(x.error || ''));
+    if(unav.length && canApprove()){ $('#roDec').hidden = false;
+      $('#roDec').innerHTML = `${unav.map(x => esc(x.name)).join(', ')} ${unav.length === 1 ? 'is' : 'are'} marked unavailable in Deputy. <button type="button" class="btn primary mini" id="roForce">Add anyway</button>`;
+      $('#roForce').onclick = () => { $('#roDec').hidden = true; deputyRoster(null, opunit, unav.map(x => x.name)); }; }
   }catch(e){ if(btn){ btn.disabled = false; btn.textContent = 'Add to Deputy'; } roErr(String(e.message || e)); }
 }
 async function textRoster(btn){
