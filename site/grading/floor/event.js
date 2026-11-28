@@ -422,8 +422,7 @@
         <h2 style="margin-top:10px">${h(a.title)}</h2>${a.sub ? `<div class="sub">${h(a.sub)}</div>` : ''}
         ${who.length > 1 ? `<p class="ge-muted" style="font-size:18px">${who.map(c => h(c.name)).join(', ')}</p>` : ''}
         <div class="ge-row" style="align-items:flex-end;margin-top:12px">
-          <div><div class="ge-tiny">${started ? 'Running' : 'Not started'} · guide ${mmss(guide)}</div><div class="timer" data-getimer-up="${started || ''}" data-guide="${guide}"></div></div><span class="ge-grow"></span>
-          ${started ? '' : '<button class="ge-btn primary" id="geMStart">Start timer</button>'}
+          <span class="ge-grow"></span>
           <button class="ge-btn" id="geMBack">Back</button><button class="ge-btn primary" id="geMNext">Next act</button></div>
         ${codes.length && who.length ? `<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px"><div class="ge-tiny" style="margin-bottom:6px">Panel: quick score for this act</div>
           ${who.map(c => { const code = codes.find(x => x.split('-')[0] === c.syl); if (!code) return ''; const m = mk(c.id, code) || {};
