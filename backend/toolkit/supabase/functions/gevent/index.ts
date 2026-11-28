@@ -168,7 +168,7 @@ export async function handle(req, db, env = {}) {
         if (error) throw error;
         return json({ ok: true, name: c.name });
       }
-      const { data: me } = await db.from('ge_players').select('cand_id, submitted_at, rounds, first_score, redo, phone').eq('event_id', ev.event_id).eq('token_hash', th).maybeSingle();
+      const { data: me } = await db.from('ge_players').select('cand_id, submitted_at, rounds, first_score, redo, phone, at_q').eq('event_id', ev.event_id).eq('token_hash', th).maybeSingle();
       if (!me) return json({ ok: false, rejoin: true, error: 'Pick your name again.' }, 401);
       const name = (cands.find(c => c.id === me.cand_id) || {}).name;
       if (body.action === 'phone') {   // their mobile, asked once after they pick their name
@@ -204,7 +204,9 @@ export async function handle(req, db, env = {}) {
         if (error) throw error;
         return json({ ok: true, saved: ix });
       }
-      // state
+      // state (also where they're up to, for the staff screen)
+      if (Number.isInteger(body.at) && body.at >= 0 && body.at < quiz.questions.length && body.at !== me.at_q) await db.from('ge_players').update({ at_q: body.at, seen_at: new Date().toISOString() }).eq('event_id', ev.event_id).eq('cand_id', me.cand_id);
+      else if (body.at !== undefined) await db.from('ge_players').update({ seen_at: new Date().toISOString() }).eq('event_id', ev.event_id).eq('cand_id', me.cand_id);
       const out = { ok: true, title: ev.title, phase, me: { id: me.cand_id, name }, submitted: !!me.submitted_at, redo: Array.isArray(me.redo) ? me.redo : null, need_phone: !me.phone, total: quiz.questions.length, minutes: testMins(quiz), server_now: now };
       if (phase === 'open' && !me.submitted_at) {
         out.ends_in_ms = Math.max(0, ends - now);
@@ -231,15 +233,15 @@ export async function handle(req, db, env = {}) {
     const getQ = async () => (await db.from('ge_quiz').select('*').eq('event_id', ev.event_id).maybeSingle()).data || { phase: 'closed', q_ix: -1 };
 
     if (body.action === 'host_state') {
-      const [qz, { data: pl }, { data: ans }] = await Promise.all([getQ(), db.from('ge_players').select('cand_id, via, joined_at, submitted_at, rounds, first_score, redo, phone').eq('event_id', ev.event_id),
-        db.from('ge_answers').select('cand_id, q_ix, correct').eq('event_id', ev.event_id)]);
+      const [qz, { data: pl }, { data: ans }] = await Promise.all([getQ(), db.from('ge_players').select('cand_id, via, joined_at, submitted_at, rounds, first_score, redo, phone, at_q, seen_at').eq('event_id', ev.event_id),
+        db.from('ge_answers').select('cand_id, q_ix, correct, answer').eq('event_id', ev.event_id)]);
       const prog = {};
       // per question (staff only): how many have answered it, how many are wrong right now, and how many were sent back to redo it
       const qstats = quiz.questions.map(() => ({ answered: 0, wrong: 0, redo: 0 }));
-      for (const a of ans || []) { const p = prog[a.cand_id] || (prog[a.cand_id] = { answered: 0, correct: 0 }); p.answered++; if (a.correct) p.correct++;
+      for (const a of ans || []) { const p = prog[a.cand_id] || (prog[a.cand_id] = { answered: 0, correct: 0, wrong: [] }); p.answered++; if (a.correct) p.correct++; else p.wrong.push({ ix: a.q_ix, answer: a.answer });
         const q = qstats[a.q_ix]; if (q) { q.answered++; if (!a.correct) q.wrong++; } }
       for (const p of pl || []) if (Array.isArray(p.redo) && !p.submitted_at) for (const ix of p.redo) if (qstats[ix]) qstats[ix].redo++;
-      return json({ ok: true, server_now: now, quiz: qz, total: QN, pass_mark: quiz.pass_mark, qstats, players: (pl || []).map(p => ({ ...p, ...(prog[p.cand_id] || { answered: 0, correct: 0 }) })) });
+      return json({ ok: true, server_now: now, quiz: qz, total: QN, pass_mark: quiz.pass_mark, qstats, players: (pl || []).map(p => ({ ...p, ...(prog[p.cand_id] || { answered: 0, correct: 0, wrong: [] }) })) });
     }
     if (body.action === 'tablet') {
       const c = cands.find(x => x.id === body.cand_id); if (!c) return fail('Who is playing?');
