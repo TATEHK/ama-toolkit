@@ -33,6 +33,7 @@ input.find{font:500 17px Barlow,sans-serif;letter-spacing:0;text-transform:none;
 .names{display:flex;flex-direction:column;gap:8px}
 .names button{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-align:left;font:600 18px Barlow,sans-serif;color:var(--ink);display:flex;align-items:center;gap:10px;min-height:56px}
 .names button small{color:var(--ink-2);font-weight:500;margin-left:auto}
+.names button[hidden],#findHint[hidden]{display:none}
 .center{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:12px}
 .big{font:700 32px/1.1 var(--display)}
 .muted{color:var(--ink-2)}
@@ -169,12 +170,17 @@ async function start() {
   const j = await call({ action: 'join', code: CODE });
   if (!j.ok) return askCode(j.offline ? 'No connection. Check your internet and try again.' : j.error);
   view = 'names';
-  const many = j.players.length > 10;
-  $('#m').innerHTML = `<div class="top">${brand}</div><div><div class="big">${esc(j.title)}</div><p class="muted" style="margin:6px 0 0">Tap your name</p></div>
-    ${many ? '<input class="find" id="find" type="search" placeholder="Search your name" autocomplete="off">' : ''}
-    <div class="names" id="names">${j.players.map(p => `<button data-id="${p.id}" data-n="${esc(p.name)}">${esc(p.name)}${p.taken ? '<small>signed in</small>' : ''}</button>`).join('')}</div>`;
+  // like the helper sign-in: type your name, only matching names show (nobody sees the whole list)
+  $('#m').innerHTML = `<div class="top">${brand}</div><div><div class="big">${esc(j.title)}</div><p class="muted" style="margin:6px 0 0">Type your name, then tap it</p></div>
+    <input class="find" id="find" type="search" placeholder="Start typing your name" autocomplete="off" autocapitalize="words">
+    <p class="muted" id="findHint" style="margin:4px 0 0">Type at least 2 letters.</p>
+    <div class="names" id="names">${j.players.map(p => `<button data-id="${p.id}" data-n="${esc(p.name)}" hidden>${esc(p.name)}${p.taken ? '<small>signed in</small>' : ''}</button>`).join('')}</div>`;
   $$('[data-id]').forEach(b => b.onclick = () => claim(b.dataset.id, b.dataset.n));
-  if (many) $('#find').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#names [data-id]').forEach(b => b.hidden = q && !b.dataset.n.toLowerCase().includes(q)); };
+  const find = $('#find'), hint = $('#findHint');
+  find.oninput = () => { const q = find.value.trim().toLowerCase().replace(/\s+/g, ' '); let n = 0;
+    $$('#names [data-id]').forEach(b => { const nm = b.dataset.n.toLowerCase(), ok = q.length >= 2 && (nm.startsWith(q) || nm.split(/\s+/).some(w => w.startsWith(q))); b.hidden = !ok; if (ok) n++; });
+    hint.textContent = q.length < 2 ? 'Type at least 2 letters.' : n ? '' : 'No match. Check the spelling, or ask a staff member.'; hint.hidden = !hint.textContent; };
+  setTimeout(() => find.focus(), 50);
 }
 async function claim(id, name, force) {
   TOKEN = TOKEN || newToken();
