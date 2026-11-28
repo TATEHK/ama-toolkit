@@ -548,6 +548,7 @@
   window.GE = {
     attach, open, mountStep,
     has: () => !!S.ev,
+    isQuiz: ge => { const b = S.ev && ge && C().blocks[ge.block]; return !!(b && (b.quiz || (b.assess || []).some(a => a.quiz))); },   // the theory test block (no floor layout)
     candSheet,   // one person's scoring for the step on screen; false if they have nothing to score here
     hasTool: ge => !!kindFor(ge),
     results: () => open('results'),

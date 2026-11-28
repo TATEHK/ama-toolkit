@@ -1656,7 +1656,8 @@ function renderRsLive(){
   // the line(s) for this step on their floor spots, with photos, so the panel can see who's where while scoring
   { const det=el.querySelector('.rsl-detail');
     // side by side: the checklist/scoring on the left, the floor on the right (stacked on narrow screens)
-    if(det && upLines.length){ det.classList.add('with-floor'); det.insertAdjacentHTML('beforeend', `<div class="rsl-floors">${upLines.map(g=>`<div class="rsl-floor" data-gi="${state.groups.indexOf(g)}"><div class="rsl-h">On their spots · Line ${esc(g.cone||'?')}${g.title?' · Group '+esc(g.title):''}</div>${cbPresentFloorHtml(g).replace(' id="cbFloor"','')}</div>`).join('')}</div>`);
+    const quizStep = !!(st.ge && window.GE && GE.isQuiz && GE.isQuiz(st.ge));   // theory test: the QR / test panel, no floor
+    if(det && upLines.length && !quizStep){ det.classList.add('with-floor'); det.insertAdjacentHTML('beforeend', `<div class="rsl-floors">${upLines.map(g=>`<div class="rsl-floor" data-gi="${state.groups.indexOf(g)}"><div class="rsl-h">On their spots · Line ${esc(g.cone||'?')}${g.title?' · Group '+esc(g.title):''}</div>${cbPresentFloorHtml(g).replace(' id="cbFloor"','')}</div>`).join('')}</div>`);
       // the photos work like the main floor: tap for their profile, drag to swap spots
       det.querySelectorAll('.rsl-floor').forEach(w=>{ const gi=+w.dataset.gi, fl=w.querySelector('.floor'); if(fl && state.groups[gi]) wireFloor(gi, state.groups[gi], fl, id=>geTool && window.GE && GE.candSheet ? GE.candSheet(id2entry[id]) : false); }); } }
   const pv=el.querySelector('#rsPrev'), nx=el.querySelector('#rsNext');
