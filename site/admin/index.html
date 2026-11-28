@@ -1482,6 +1482,7 @@ function openRset(){
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 let STAFF = [];
 let STQ = '';   // staff search
+let STSYD = false;   // only those who said they can go to Sydenham
 async function openStaff(){
   const box = $('#staffModal'); box.hidden = false;
   box.querySelector('.reqbox').innerHTML = '<h3>Staff & availability</h3><div class="muted">Loading…</div>';
@@ -1491,20 +1492,21 @@ async function openStaff(){
 }
 function drawStaff(msg, ok){
   const box = $('#staffModal'), A = canApprove(), act = STAFF.filter(s => s.active);
-  const row = s => `<div class="strow${s.active ? '' : ' off'}" data-sq="${esc([s.name, s.mobile, s.email].filter(Boolean).join(' ').toLowerCase())}"><div class="grow"><b>${esc(s.name)}</b>${s.active ? '' : ' <span class="muted">(not active)</span>'}
+  const row = s => `<div class="strow${s.active ? '' : ' off'}" data-sq="${esc([s.name, s.mobile, s.email].filter(Boolean).join(' ').toLowerCase())}" data-syd="${(s.syd_days || []).length ? 1 : ''}"><div class="grow"><b>${esc(s.name)}</b>${s.active ? '' : ' <span class="muted">(not active)</span>'}
       <div class="small muted">${esc(s.mobile || 'no mobile')}${s.avail_n ? ` · told us ${s.avail_n} day${s.avail_n === 1 ? '' : 's'}` : s.avail_sent_at ? ' · link sent, no answer yet' : ''}${s.deputy_emp ? ' · in Deputy' : ''}</div>
+      ${(s.syd_days || []).length ? `<div class="small" style="color:var(--ok)">Can go to Sydenham: ${s.syd_days.map(d => { const x = new Date(d + 'T12:00:00'); return WD[x.getDay()] + ' ' + x.getDate() + ' ' + x.toLocaleString('en-AU', { month: 'short' }); }).join(', ')}</div>` : ''}
       ${(s.usual || []).length ? `<div class="small">Usually: ${s.usual.map(u => `${WD[u.weekday]} ${esc(SHORT(u.location))} ${fmtTime(u.start)}–${fmtTime(u.end)}`).join(', ')}</div>` : ''}</div>
     ${A ? `<div class="stacts">${s.token && s.mobile ? `<button class="btn mini" data-stext="${s.staff_id}">Text link</button>` : ''}${s.token ? `<button class="btn mini" data-copy="${esc(s.token)}">Copy link</button>` : ''}<button class="btn mini" data-sedit="${s.staff_id}">Edit</button></div>` : ''}</div>`;
   box.querySelector('.reqbox').innerHTML = `<div class="rhead"><div><h3>Staff & availability</h3><div class="muted small">${act.length} active staff. Each has their own link to say when they're free for Marrickville gradings.</div></div></div>
     ${A ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn primary mini" id="stSend">Text everyone their link</button><button class="btn mini" id="stSync">Get usual shifts from Deputy</button><button class="btn mini" id="stAdd">Add staff</button></div>` : ''}
     <div class="reqerr" id="stMsg" ${msg ? '' : 'hidden'} style="${ok ? 'color:var(--ok)' : ''}">${esc(msg || '')}</div>
-    <input type="search" id="stSearch" placeholder="Search staff…" autocomplete="off" value="${esc(STQ)}" style="margin-bottom:10px">
+    <div class="row" style="gap:8px;align-items:center;margin-bottom:10px"><input type="search" id="stSearch" placeholder="Search staff…" autocomplete="off" value="${esc(STQ)}" style="flex:1"><label class="small" style="white-space:nowrap"><input type="checkbox" id="stSyd" ${STSYD ? 'checked' : ''}> Can go to Sydenham (${STAFF.filter(x => (x.syd_days || []).length).length})</label></div>
     <div class="stlist">${STAFF.map(row).join('')}</div><div class="muted small" id="stNone" hidden>No one matches.</div>
     <div class="reqact"><button class="btn" id="stClose">Close</button></div>`;
   $('#stClose').onclick = () => { box.hidden = true; };
   const filt = () => { const q = STQ.trim().toLowerCase(); let n = 0;
-    box.querySelectorAll('.strow').forEach(r => { const on = !q || r.dataset.sq.includes(q); r.hidden = !on; if(on) n++; }); $('#stNone').hidden = n > 0; };
-  $('#stSearch').oninput = e => { STQ = e.target.value; filt(); }; filt();
+    box.querySelectorAll('.strow').forEach(r => { const on = (!q || r.dataset.sq.includes(q)) && (!STSYD || r.dataset.syd); r.hidden = !on; if(on) n++; }); $('#stNone').hidden = n > 0; };
+  $('#stSearch').oninput = e => { STQ = e.target.value; filt(); }; $('#stSyd').onchange = e => { STSYD = e.target.checked; filt(); }; filt();
   box.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => { const u = 'https://app.train-ama.com/a/' + b.dataset.copy; try{ await navigator.clipboard.writeText(u); b.textContent = 'Copied'; }catch(e){ prompt('Their link', u); } });
   box.querySelectorAll('[data-stext]').forEach(b => b.onclick = async () => {   // text just this person their availability link (two taps)
     if(b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'Send text?'; return; }
