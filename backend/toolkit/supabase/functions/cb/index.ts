@@ -2511,7 +2511,7 @@ export async function handle(req, db, env = {}, http = fetch) {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: who } = token ? await db.auth.getUser(token) : { data: null };
     const me = who && who.user && who.user.email ? who.user.email.toLowerCase() : null;
-    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || body.action === 'deputy_timesheet' || body.action === 'roster_review_notify' || body.action === 'deputy_clock_in' || body.action === 'sms_one' || body.action === 'ghl_contact_set' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
+    const cronSync = (body.action === 'deputy_usual' || body.action === 'pay_rates' || body.action === 'deputy_shift' || body.action === 'deputy_day' || body.action === 'deputy_timesheet' || body.action === 'roster_review_notify' || body.action === 'deputy_clock_in' || body.action === 'deputy_clock_out' || body.action === 'sms_one' || body.action === 'ghl_contact_set' || (body.action === 'avail_send' && Array.isArray(body.staff_ids) && body.staff_ids.length > 0)) && (await db.rpc('cb_cron_ok', { p_secret: req.headers.get('x-cb-cron') || '' })).data === true;   // the Deputy sync can run from the database
     if (!me && !cronSync) return fail('Sign in first.', 401);
     // AMA ID Cards: text and email people a link to upload a photo for their card. Needs ID Cards "Edit people" (or Admin).
     // { person_ids: [...], preview: true } returns the messages for the first person without sending.
@@ -3118,6 +3118,23 @@ export async function handle(req, db, env = {}, http = fetch) {
         if (body.comment != null) patch.EmployeeComment = String(body.comment).slice(0, 1000);
         const up = await dep('resource/Timesheet/' + (+t.Id), { method: 'POST', body: JSON.stringify(patch) });
         return json({ ok: true, employee: emp.DisplayName, before: view(t), after: view(up || {}) });
+      } catch (er) { return fail(String(er.message || er)); }
+    }
+
+    // ---- clock someone out: ends their open timesheet, then sets the finish time if given. { name, end (HH:MM)?, date? } ----
+    if (body.action === 'deputy_clock_out') {
+      try {
+        const emp = empFor(await depEmps(), String(body.name || '')); if (!emp) return fail('Not found in Deputy: ' + body.name);
+        const date = body.date || new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }), from = Math.round(sydMs(date, '00:00') / 1000);
+        const ts: any[] = await dep('resource/Timesheet/QUERY', { method: 'POST', body: JSON.stringify({ search: { s1: { field: 'Employee', type: 'eq', data: +emp.Id }, s2: { field: 'StartTime', type: 'ge', data: from }, s3: { field: 'StartTime', type: 'lt', data: from + 86400 } }, max: 20 }) });
+        const t = body.timesheet_id ? ts.find(x => +x.Id === +body.timesheet_id) : (ts.find(x => x.IsInProgress) || (ts.length === 1 ? ts[0] : null));
+        if (!t) return fail('No timesheet that day.');
+        let ended: any = null;
+        if (t.IsInProgress) ended = await dep('supervise/timesheet/end', { method: 'POST', body: JSON.stringify({ intTimesheetId: +t.Id, intMealbreakMinute: 0 }) });
+        let after: any = ended || t;
+        if (body.end) { const en = Math.round(sydMs(date, body.end) / 1000); after = await dep('resource/Timesheet/' + (+t.Id), { method: 'POST', body: JSON.stringify({ EndTime: en, TotalTime: Math.round((en - +t.StartTime) / 36) / 100 }) }); }
+        const chk: any = await dep('resource/Timesheet/' + (+t.Id), { method: 'GET' });
+        return json({ ok: true, employee: emp.DisplayName, timesheet: t.Id, was_open: !!t.IsInProgress, open_now: !!(chk && chk.IsInProgress), start: sydParts(+chk.StartTime).hm, end: sydParts(+chk.EndTime).hm, hours: chk.TotalTime });
       } catch (er) { return fail(String(er.message || er)); }
     }
 
