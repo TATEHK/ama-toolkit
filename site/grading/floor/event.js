@@ -162,7 +162,7 @@
 #geOv .joined span.in,.ge-inline .joined span.in{background:var(--okbg);border-color:var(--ok);color:var(--oktx)}
 #geOv .ctl,.ge-inline .ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 #geOv .qz.tv .ctl,.ge-inline .qz.tv .ctl{position:fixed;right:14px;bottom:14px;opacity:.15;transition:opacity .2s}#geOv .qz.tv .ctl:hover,.ge-inline .qz.tv .ctl:hover{opacity:1}
-#geOv .mc,.ge-inline .mc{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media (max-width:900px){#geOv .mc,.ge-inline .mc{grid-template-columns:1fr}}
+#geOv .mc,.ge-inline .mc{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media (max-width:900px){#geOv .mc,.ge-inline .mc{grid-template-columns:1fr}}.with-floor .ge-inline .mc{grid-template-columns:1fr}
 #geOv .mc .big h2,.ge-inline .mc .big h2{font-size:40px;line-height:1.05}#geOv .mc .big .sub,.ge-inline .mc .big .sub{font:700 30px var(--display);color:var(--accent);margin-top:6px}
 #geOv .alist,.ge-inline .alist{display:flex;flex-direction:column;gap:6px;max-height:78vh;overflow:auto}
 #geOv .aitem,.ge-inline .aitem{display:flex;gap:8px;align-items:center;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:12px;padding:12px 14px;font-size:19px;text-align:left;width:100%;cursor:pointer}
