@@ -141,7 +141,7 @@ export async function handle(req, db, env = {}) {
     }
 
     // ---------- candidates ----------
-    if (['join', 'claim', 'state', 'answer', 'submit'].includes(body.action)) {
+    if (['join', 'claim', 'state', 'phone', 'answer', 'submit'].includes(body.action)) {
       const code = String(body.code || '').trim().toUpperCase();
       if (!/^[A-Z0-9]{3,12}$/.test(code)) return fail('Check the code and try again.', 404);
       const { data: ev } = await db.from('ge_events').select('event_id, title, config').eq('join_code', code).maybeSingle();
@@ -168,9 +168,16 @@ export async function handle(req, db, env = {}) {
         if (error) throw error;
         return json({ ok: true, name: c.name });
       }
-      const { data: me } = await db.from('ge_players').select('cand_id, submitted_at, rounds, first_score, redo').eq('event_id', ev.event_id).eq('token_hash', th).maybeSingle();
+      const { data: me } = await db.from('ge_players').select('cand_id, submitted_at, rounds, first_score, redo, phone').eq('event_id', ev.event_id).eq('token_hash', th).maybeSingle();
       if (!me) return json({ ok: false, rejoin: true, error: 'Pick your name again.' }, 401);
       const name = (cands.find(c => c.id === me.cand_id) || {}).name;
+      if (body.action === 'phone') {   // their mobile, asked once after they pick their name
+        const d = String(body.phone || '').replace(/[^\d+]/g, '').replace(/^\+?61/, '0');
+        if (!/^04\d{8}$/.test(d)) return fail('Enter a mobile number like 0412 345 678.');
+        const { error } = await db.from('ge_players').update({ phone: d }).eq('event_id', ev.event_id).eq('cand_id', me.cand_id);
+        if (error) throw error;
+        return json({ ok: true });
+      }
       if (body.action === 'answer' || body.action === 'submit') {
         if (me.submitted_at) return fail('You have already handed in your test.', 409);
         if (phase !== 'open') return fail(phase === 'ended' ? 'Time is up. Your saved answers count.' : 'The test hasn\'t started yet.', 409);
@@ -198,7 +205,7 @@ export async function handle(req, db, env = {}) {
         return json({ ok: true, saved: ix });
       }
       // state
-      const out = { ok: true, title: ev.title, phase, me: { id: me.cand_id, name }, submitted: !!me.submitted_at, redo: Array.isArray(me.redo) ? me.redo : null, total: quiz.questions.length, minutes: testMins(quiz), server_now: now };
+      const out = { ok: true, title: ev.title, phase, me: { id: me.cand_id, name }, submitted: !!me.submitted_at, redo: Array.isArray(me.redo) ? me.redo : null, need_phone: !me.phone, total: quiz.questions.length, minutes: testMins(quiz), server_now: now };
       if (phase === 'open' && !me.submitted_at) {
         out.ends_in_ms = Math.max(0, ends - now);
         if (body.with_questions) out.questions = publicQs(quiz);
@@ -224,7 +231,7 @@ export async function handle(req, db, env = {}) {
     const getQ = async () => (await db.from('ge_quiz').select('*').eq('event_id', ev.event_id).maybeSingle()).data || { phase: 'closed', q_ix: -1 };
 
     if (body.action === 'host_state') {
-      const [qz, { data: pl }, { data: ans }] = await Promise.all([getQ(), db.from('ge_players').select('cand_id, via, joined_at, submitted_at, rounds, first_score, redo').eq('event_id', ev.event_id),
+      const [qz, { data: pl }, { data: ans }] = await Promise.all([getQ(), db.from('ge_players').select('cand_id, via, joined_at, submitted_at, rounds, first_score, redo, phone').eq('event_id', ev.event_id),
         db.from('ge_answers').select('cand_id, q_ix, correct').eq('event_id', ev.event_id)]);
       const prog = {};
       // per question (staff only): how many have answered it, how many are wrong right now, and how many were sent back to redo it

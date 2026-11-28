@@ -216,6 +216,18 @@ setInterval(() => {
 function draw() {
   const s = ST, me = esc((s.me.name || '').split(' ')[0]);
   if (s.submitted) { wakeOff(); return page('done', `<div class="top">${brand}</div><div class="center"><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="big">All ${s.total} right</div><p class="muted">Well done, ${me}. Your theory test is complete. You can put your phone away.</p></div>`); }
+  if (s.need_phone) return page('phone', `<div class="top">${brand}</div><div><div class="big">Hi ${me}</div><p class="muted" style="margin:6px 0 0">What's your mobile number?</p></div>
+      <input class="find" id="ph" type="tel" inputmode="tel" autocomplete="tel" placeholder="04xx xxx xxx" maxlength="16">
+      <p class="muted" id="phErr" style="color:#ef8a73" hidden></p>
+      <button class="btn auto" id="phGo">Next</button>
+      <button class="btn ghost auto" id="notme">Not ${me}? Change name</button>`, () => {
+        const go = async () => { const b = $('#phGo'), e = $('#phErr'), v = $('#ph').value.trim(); e.hidden = true; b.disabled = true;
+          const r = await call({ action: 'phone', code: CODE, token: TOKEN, phone: v }); b.disabled = false;
+          if (!r.ok) { e.textContent = r.offline ? 'No connection. Try again.' : (r.error || 'Try again.'); e.hidden = false; return; }
+          ST.need_phone = false; view = ''; draw(); };
+        $('#phGo').onclick = go; $('#ph').onkeydown = ev => { if (ev.key === 'Enter') go(); };
+        $('#notme').onclick = () => { forget(); clearInterval(timer); QS = null; view = ''; start(); };
+        setTimeout(() => $('#ph').focus(), 50); });
   if (s.phase === 'ended') { wakeOff(); return page('ended', `<div class="top">${brand}</div><div class="center"><div class="big">Time is up</div><p class="muted">Thanks, ${me}. Your saved answers have been handed in. The panel will talk to you about your result.</p></div>`); }
   if (s.phase !== 'open' || !QS) return page('wait', `<div class="top">${brand}</div><div class="center"><div class="big">You're signed in, ${me}</div>
       <ul class="rules"><li><b>1</b><span>${s.total} questions, ${s.minutes} minutes. Work at your own pace.</span></li>
