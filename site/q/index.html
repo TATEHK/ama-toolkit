@@ -192,7 +192,8 @@ async function claim(id, name, force) {
 function run() { clearInterval(timer); poll(); timer = setInterval(poll, 3000); }
 async function poll() {
   if (Object.keys(PEND).length) await flush();
-  const s = await call({ action: 'state', code: CODE, token: TOKEN, with_questions: !QS });
+  const atN = view === 'test' ? Number(ls('ama_quiz_at_' + CODE)) : NaN;
+  const s = await call({ action: 'state', code: CODE, token: TOKEN, with_questions: !QS, ...(Number.isInteger(atN) ? { at: atN } : {}) });
   if (!s.ok) { if (s.rejoin) { forget(); clearInterval(timer); return start(); } if (s.offline && view === 'test') { NET = 'off'; netShow(); } return; }
   if (NET === 'off' && !Object.keys(PEND).length) { NET = 'ok'; netShow(); }
   s.at = Date.now(); ST = s;
