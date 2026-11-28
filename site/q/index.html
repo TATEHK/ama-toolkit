@@ -104,8 +104,14 @@ const PKEY = () => 'ama_quiz_pend_' + CODE + '_' + (TOKEN || '').slice(0, 12);
 let PEND = {}, flushing = false, NET = 'ok';   // NET: ok | saving | off
 function pendLoad() { try { PEND = JSON.parse(ls(PKEY()) || '{}') || {}; } catch (e) { PEND = {}; } }
 function pendKeep() { ls(PKEY(), Object.keys(PEND).length ? JSON.stringify(PEND) : null); }
-async function flush() {
-  if (flushing || !TOKEN) return;
+let flushP = null;
+async function flush() {   // one at a time; a second caller (Submit) waits for the one in flight, then sends anything still left
+  if (!TOKEN) return;
+  while (flushP) await flushP;
+  if (!Object.keys(PEND).length) return;
+  flushP = flushRun(); try { await flushP; } finally { flushP = null; }
+}
+async function flushRun() {
   flushing = true;
   try {
     for (const ix of Object.keys(PEND)) {
@@ -129,7 +135,7 @@ function netShow() {
 
 async function call(body) {
   try {
-    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 12000);
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 25000);
     const r = await fetch(CFG.SUPABASE_URL + '/functions/v1/gevent', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_KEY }, body: JSON.stringify(body), signal: ctl.signal });
     clearTimeout(t);
     const j = await r.json().catch(() => ({ ok: false, offline: true, error: 'No connection. Trying again…' })); j.status = r.status; return j;
@@ -189,8 +195,10 @@ async function claim(id, name, force) {
   if (!r.ok) return note('Not signed in', r.error || 'Try again.');
   keepToken(TOKEN); pendLoad(); run();
 }
-function run() { clearInterval(timer); poll(); timer = setInterval(poll, 3000); }
-async function poll() {
+function run() { clearInterval(timer); poll(); timer = setInterval(poll, 5000); }
+let polling = false;
+async function poll() { if (polling) return; polling = true; try { await pollRun(); } finally { polling = false; } }
+async function pollRun() {
   if (Object.keys(PEND).length) await flush();
   const atN = view === 'test' ? Number(ls('ama_quiz_at_' + CODE)) : NaN;
   const s = await call({ action: 'state', code: CODE, token: TOKEN, with_questions: !QS, ...(Number.isInteger(atN) ? { at: atN } : {}) });
@@ -294,7 +302,7 @@ async function submit(d) {
   const go = $('#dGo'); go.disabled = true; go.textContent = 'Submitting…';
   await flush();
   if (Object.keys(PEND).length) { go.disabled = false; go.textContent = 'Submit'; return note('No connection', 'Your answers are kept on this phone. Submit again once you have signal.'); }
-  const r = await call({ action: 'submit', code: CODE, token: TOKEN }); d.close();
+  let r = await call({ action: 'submit', code: CODE, token: TOKEN }); if (r.offline) r = await call({ action: 'submit', code: CODE, token: TOKEN }); d.close();
   if (!r.ok && r.status !== 409) return note('Not submitted', r.offline ? 'No connection. Your answers are kept on this phone. Try again in a moment.' : (r.error || 'Try again.'));
   if (r.redo && r.redo.length) {
     REDO = r.redo; r.redo.forEach(ix => delete ANS[ix]); cur = 0;

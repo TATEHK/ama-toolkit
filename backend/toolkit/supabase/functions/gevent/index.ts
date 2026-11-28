@@ -144,7 +144,10 @@ export async function handle(req, db, env = {}) {
     if (['join', 'claim', 'state', 'phone', 'answer', 'submit'].includes(body.action)) {
       const code = String(body.code || '').trim().toUpperCase();
       if (!/^[A-Z0-9]{3,12}$/.test(code)) return fail('Check the code and try again.', 404);
-      const { data: ev } = await db.from('ge_events').select('event_id, title, config').eq('join_code', code).maybeSingle();
+      // the event changes rarely: keep it for 20s in this worker (saves a big read on every phone's check)
+      const EVC = (globalThis.__geEv ||= new Map()), hit = EVC.get(code);
+      let ev = hit && now - hit.at < 20000 ? hit.ev : null;
+      if (!ev) { ev = (await db.from('ge_events').select('event_id, title, config').eq('join_code', code).maybeSingle()).data; if (ev) EVC.set(code, { ev, at: now }); }
       if (!ev) return fail('Check the code and try again.', 404);
       const quiz = ev.config.quiz, cands = ev.config.candidates || [];
       const { data: qz } = await db.from('ge_quiz').select('*').eq('event_id', ev.event_id).maybeSingle();
